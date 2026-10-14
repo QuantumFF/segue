@@ -1,0 +1,29 @@
+{
+  "subsonic-response": {
+    "status": "ok",
+    "version": "1.16.1",
+    "type": "navidrome",
+    "serverVersion": "0.58.0 (fe1b0a2)",
+    "openSubsonic": true,
+    "lyricsList": {
+      "structuredLyrics": [
+        {
+          "displayArtist": "Radiohead",
+          "displayTitle": "15 Step",
+          "lang": "eng",
+          "offset": -100,
+          "synced": true,
+          "line": [
+            { "start": 0, "value": "How come I end up where I started?" },
+            { "start": 3001, "value": "How come I end up where I went wrong?" }
+          ]
+        },
+        {
+          "lang": "xxx",
+          "synced": false,
+          "line": [{ "value": "Unsynced line" }]
+        }
+      ]
+    }
+  }
+}

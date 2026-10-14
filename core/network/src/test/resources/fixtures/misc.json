@@ -1,0 +1,28 @@
+{
+  "subsonic-response": {
+    "status": "ok",
+    "version": "1.16.1",
+    "type": "navidrome",
+    "serverVersion": "0.58.0 (fe1b0a2)",
+    "openSubsonic": true,
+    "musicFolders": { "musicFolder": [{ "id": 1, "name": "Music Library" }] },
+    "genres": {
+      "genre": [
+        { "value": "Alternative", "songCount": 120, "albumCount": 11 },
+        { "songCount": 3, "albumCount": 1 }
+      ]
+    },
+    "license": { "valid": true },
+    "internetRadioStations": {
+      "internetRadioStation": [
+        {
+          "id": "rd-1",
+          "name": "Radio Paradise",
+          "streamUrl": "https://stream.radioparadise.com/flac",
+          "homePageUrl": "https://radioparadise.com",
+          "coverArt": ""
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "subsonic-response": {
+    "status": "ok",
+    "version": "1.16.1",
+    "type": "navidrome",
+    "serverVersion": "0.58.0 (fe1b0a2)",
+    "openSubsonic": true,
+    "searchResult3": {
+      "artist": [{ "id": "4Z8W4fKeB5YxbusRsdQVPb", "name": "Radiohead", "albumCount": 9 }],
+      "album": [
+        {
+          "id": "3AFHPHxJIYHtKsRfXkpbrF",
+          "name": "In Rainbows",
+          "artist": "Radiohead",
+          "songCount": 10,
+          "duration": 2564,
+          "created": "2024-03-01T10:20:30Z"
+        }
+      ]
+    }
+  }
+}

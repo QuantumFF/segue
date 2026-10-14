@@ -59,6 +59,7 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWork" }
 androidx-paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "androidxPaging" }
 androidx-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "androidxPaging" }
+androidx-paging-common = { module = "androidx.paging:paging-common", version.ref = "androidxPaging" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "androidxProfileInstaller" }
 androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "androidxBenchmark" }
 
