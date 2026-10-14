@@ -20,16 +20,16 @@ class HiltConventionPlugin : Plugin<Project> {
             }
         }
 
-        val configureAndroid = {
-            apply(plugin = "com.google.dagger.hilt.android")
-            dependencies {
-                "implementation"(libs.library("hilt-android"))
+        listOf("com.android.application", "com.android.library").forEach { androidPlugin ->
+            pluginManager.withPlugin(androidPlugin) {
+                apply(plugin = "com.google.dagger.hilt.android")
+                dependencies {
+                    "implementation"(libs.library("hilt-android"))
+                }
+                // The Hilt plugin adds generated test sources, so a module without tests would
+                // otherwise fail Gradle's "no tests discovered" check.
+                tasks.withType<Test>().configureEach { failOnNoDiscoveredTests.set(false) }
             }
         }
-        pluginManager.withPlugin("com.android.application") { configureAndroid() }
-        // The Hilt plugin adds generated test sources, so modules with no tests would fail
-        // Gradle's "no tests discovered" check.
-        tasks.withType<Test>().configureEach { failOnNoDiscoveredTests.set(false) }
-        pluginManager.withPlugin("com.android.library") { configureAndroid() }
     }
 }
