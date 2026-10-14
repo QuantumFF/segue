@@ -15,6 +15,20 @@ android {
         versionName = "0.1.0"
     }
 
+    // Release signing comes from SEGUE_* environment variables (set by .github/workflows/release.yml).
+    // Without them, release builds are signed with the debug key, so local builds need no keystore.
+    val releaseKeystore = providers.environmentVariable("SEGUE_KEYSTORE_FILE")
+    if (releaseKeystore.isPresent) {
+        fun requiredEnv(name: String): String = providers.environmentVariable(name).orNull
+            ?: error("SEGUE_KEYSTORE_FILE is set, so release signing also needs $name.")
+        signingConfigs.create("release") {
+            storeFile = file(releaseKeystore.get())
+            storePassword = requiredEnv("SEGUE_KEYSTORE_PASSWORD")
+            keyAlias = requiredEnv("SEGUE_KEY_ALIAS")
+            keyPassword = requiredEnv("SEGUE_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -23,8 +37,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signed with the debug key until a release keystore is configured.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

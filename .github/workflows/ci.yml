@@ -1,0 +1,108 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches:
+            - main
+            - initial-build
+            # CI-only branches, so workflow changes can be tested before a PR exists.
+            - "ci/**"
+
+# A newer push to the same branch or PR cancels the run in progress. Runs on main always finish,
+# so every main commit gets a result and writes the Gradle cache.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+    contents: read
+
+jobs:
+    spotless:
+        name: Spotless
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/setup-build
+              with:
+                  cache-read-only: ${{ github.event_name == 'pull_request' }}
+            - run: ./gradlew spotlessCheck
+
+    unit-tests:
+        name: Unit tests
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/setup-build
+              with:
+                  cache-read-only: ${{ github.event_name == 'pull_request' }}
+            # `test` covers both kinds of module: JVM modules run `test`, and Android modules run only
+            # testDebugUnitTest (AGP 9 creates unit tests for the tested build type only).
+            - run: ./gradlew test --continue
+            - name: Publish test results
+              if: ${{ !cancelled() }}
+              uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+              with:
+                  report_paths: "**/build/test-results/**/TEST-*.xml"
+                  # Job summary and annotations only; no check run, so no checks: write permission.
+                  annotate_only: true
+                  detailed_summary: true
+                  group_suite: true
+            - name: Upload test reports
+              if: ${{ !cancelled() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: test-reports
+                  path: |
+                      **/build/reports/tests/
+                      **/build/test-results/
+                  if-no-files-found: ignore
+                  retention-days: 14
+
+    lint:
+        name: Android lint
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/setup-build
+              with:
+                  cache-read-only: ${{ github.event_name == 'pull_request' }}
+            - run: ./gradlew lintDebug --continue
+            - name: Upload lint reports
+              if: ${{ !cancelled() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: lint-reports
+                  path: "**/build/reports/lint-results-debug.*"
+                  if-no-files-found: ignore
+                  retention-days: 14
+
+    assemble:
+        name: Assemble debug APK
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/setup-build
+              with:
+                  cache-read-only: ${{ github.event_name == 'pull_request' }}
+            - run: ./gradlew assembleDebug
+            - name: Upload debug APK
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: segue-debug-apk
+                  path: app/build/outputs/apk/debug/*.apk
+                  if-no-files-found: error
+                  retention-days: 14
