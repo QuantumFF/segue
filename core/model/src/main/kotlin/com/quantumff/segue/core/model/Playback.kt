@@ -39,12 +39,6 @@ data class QueueItem(
     val isStarred: Boolean,
 )
 
-enum class RepeatMode {
-    Off,
-    All,
-    One,
-}
-
 /** Another device's saved queue, newer than this device's. */
 data class RemoteQueueOffer(val deviceName: String, val trackCount: Int, val currentTitle: String?)
 

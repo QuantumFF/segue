@@ -18,7 +18,7 @@ spotless {
     val ktlintVersion = libs.versions.ktlint.get()
     kotlin {
         target("**/*.kt")
-        targetExclude("**/build/**", "**/.gradle/**")
+        targetExclude("**/build/**", "**/.gradle/**", ".claude/**")
         ktlint(ktlintVersion)
             .customRuleSets(listOf("io.nlopez.compose.rules:ktlint:${libs.versions.composeRules.get()}"))
             .editorConfigOverride(
@@ -31,7 +31,7 @@ spotless {
     }
     kotlinGradle {
         target("**/*.gradle.kts")
-        targetExclude("**/build/**", "**/.gradle/**")
+        targetExclude("**/build/**", "**/.gradle/**", ".claude/**")
         ktlint(ktlintVersion)
     }
 }
