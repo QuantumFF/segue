@@ -50,9 +50,22 @@ class AccountsDataSource @Inject constructor(
         }
     }
 
-    /** Null when the account is unknown or its password can no longer be decrypted. */
-    suspend fun password(serverId: String): String? =
-        dataStore.data.first().accounts.firstOrNull { it.id == serverId }?.let { cipher.decrypt(it.encryptedPassword) }
+    /**
+     * Null when the account is unknown or its password can no longer be decrypted. Decrypted
+     * passwords are kept in memory by ciphertext, so the Keystore runs once per stored password
+     * rather than on every server call.
+     */
+    suspend fun password(serverId: String): String? {
+        val encrypted =
+            dataStore.data.first().accounts.firstOrNull { it.id == serverId }?.encryptedPassword ?: return null
+        synchronized(decrypted) { decrypted[serverId] }?.takeIf { it.first == encrypted }?.let { return it.second }
+        val password = cipher.decrypt(encrypted) ?: return null
+        synchronized(decrypted) { decrypted[serverId] = encrypted to password }
+        return password
+    }
+
+    /** Server ID to (ciphertext, plaintext). A re-stored password has a new ciphertext. */
+    private val decrypted = mutableMapOf<String, Pair<String, String>>()
 
     suspend fun setActive(serverId: String) {
         dataStore.updateData { stored ->

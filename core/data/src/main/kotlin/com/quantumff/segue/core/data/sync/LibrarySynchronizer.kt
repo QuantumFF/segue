@@ -18,8 +18,6 @@ import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.network.SubsonicClient
 import com.quantumff.segue.core.network.SubsonicDates
 import com.quantumff.segue.core.network.SubsonicException
-import com.quantumff.segue.core.network.model.NetworkAlbum
-import com.quantumff.segue.core.network.model.NetworkPlaylist
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
@@ -94,7 +92,7 @@ internal class LibrarySynchronizer @Inject constructor(
         full: Boolean,
         onProgress: SyncProgressListener,
     ): Long? {
-        onProgress(SyncProgress.Running(SyncPhase.Artists, 0, 1))
+        onProgress(SyncProgress.Running(SyncPhase.Artists, completed = 0, total = 1))
         val known = metadata.artistsLastModified.takeUnless { full }
         val index = client.getArtists(ifModifiedSince = known)
         val artists = index.index.flatMap { it.artist }
@@ -109,27 +107,27 @@ internal class LibrarySynchronizer @Inject constructor(
                 artistDao.deleteByIds(serverId, artistDao.ids(serverId).filterNot { it in remoteIds })
             }
         }
-        onProgress(SyncProgress.Running(SyncPhase.Artists, 1, 1))
+        onProgress(SyncProgress.Running(SyncPhase.Artists, completed = 1, total = 1))
         return if (changed) index.lastModified else metadata.artistsLastModified
     }
 
     private suspend fun syncGenres(client: SubsonicClient, serverId: String, onProgress: SyncProgressListener) {
-        onProgress(SyncProgress.Running(SyncPhase.Genres, 0, 1))
+        onProgress(SyncProgress.Running(SyncPhase.Genres, completed = 0, total = 1))
         genreDao.replaceAll(serverId, client.getGenres().map { it.asEntity(serverId) })
-        onProgress(SyncProgress.Running(SyncPhase.Genres, 1, 1))
+        onProgress(SyncProgress.Running(SyncPhase.Genres, completed = 1, total = 1))
     }
 
     private suspend fun fullAlbumSync(client: SubsonicClient, serverId: String, onProgress: SyncProgressListener) {
         val remoteIds = LinkedHashSet<String>()
         var offset = 0
         do {
-            onProgress(SyncProgress.Running(SyncPhase.Albums, remoteIds.size, 0))
+            onProgress(SyncProgress.Running(SyncPhase.Albums, completed = remoteIds.size, total = 0))
             val page = client.getAlbumList2(AlbumListType.AlphabeticalByName, size = PAGE_SIZE, offset = offset)
             writer.writeAlbumSummaries(serverId, page)
             page.mapTo(remoteIds) { it.id }
             offset += PAGE_SIZE
         } while (page.size == PAGE_SIZE)
-        onProgress(SyncProgress.Running(SyncPhase.Albums, remoteIds.size, remoteIds.size))
+        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = remoteIds.size, total = remoteIds.size))
 
         albumDao.deleteByIds(serverId, albumDao.ids(serverId).filterNot { it in remoteIds })
         fetchAlbumDetails(client, serverId, remoteIds.toList(), onProgress)
@@ -143,14 +141,14 @@ internal class LibrarySynchronizer @Inject constructor(
         val newIds = mutableListOf<String>()
         var offset = 0
         while (true) {
-            onProgress(SyncProgress.Running(SyncPhase.Albums, newIds.size, 0))
+            onProgress(SyncProgress.Running(SyncPhase.Albums, completed = newIds.size, total = 0))
             val page = client.getAlbumList2(AlbumListType.Newest, size = NEWEST_PAGE_SIZE, offset = offset)
             val known = albumDao.knownIds(serverId, page.map { it.id }).toSet()
             page.filterNot { it.id in known }.mapTo(newIds) { it.id }
             if (known.isNotEmpty() || page.size < NEWEST_PAGE_SIZE) break
             offset += NEWEST_PAGE_SIZE
         }
-        onProgress(SyncProgress.Running(SyncPhase.Albums, newIds.size, newIds.size))
+        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = newIds.size, total = newIds.size))
         fetchAlbumDetails(client, serverId, newIds, onProgress)
     }
 
@@ -161,28 +159,16 @@ internal class LibrarySynchronizer @Inject constructor(
         albumIds: List<String>,
         onProgress: SyncProgressListener,
     ) {
-        val permits = Semaphore(ALBUM_FETCH_CONCURRENCY)
-        var done = 0
-        onProgress(SyncProgress.Running(SyncPhase.Songs, 0, albumIds.size))
-        albumIds.chunked(WRITE_BATCH_SIZE).forEach { batch ->
-            val results = coroutineScope {
-                batch.map { id -> async { permits.withPermit { id to fetchAlbumOrNull(client, id) } } }.awaitAll()
-            }
+        onProgress(SyncProgress.Running(SyncPhase.Songs, completed = 0, total = albumIds.size))
+        fetchInBatches(albumIds, fetch = { id -> notFoundAsNull { client.getAlbum(id) } }) { results, done ->
             writer.writeAlbums(
                 serverId,
-                albums = results.mapNotNull { it.second },
-                missing = results.filter { it.second == null }.map { it.first },
+                albums = results.values.filterNotNull(),
+                // Listed, then deleted before it was fetched.
+                missing = results.filterValues { it == null }.keys,
             )
-            done += batch.size
-            onProgress(SyncProgress.Running(SyncPhase.Songs, done, albumIds.size))
+            onProgress(SyncProgress.Running(SyncPhase.Songs, completed = done, total = albumIds.size))
         }
-    }
-
-    /** Null when the album was deleted after it was listed. */
-    private suspend fun fetchAlbumOrNull(client: SubsonicClient, id: String): NetworkAlbum? = try {
-        client.getAlbum(id)
-    } catch (_: SubsonicException.NotFound) {
-        null
     }
 
     /** Playlists only: fetches those whose `changed` moved and deletes those gone from the server. */
@@ -191,30 +177,46 @@ internal class LibrarySynchronizer @Inject constructor(
     }
 
     private suspend fun syncPlaylists(client: SubsonicClient, serverId: String, onProgress: SyncProgressListener) {
-        onProgress(SyncProgress.Running(SyncPhase.Playlists, 0, 0))
+        onProgress(SyncProgress.Running(SyncPhase.Playlists, completed = 0, total = 0))
         val remote = client.getPlaylists()
         val local = playlistDao.getAll(serverId).associateBy { it.id }
-        val changed = remote.filter {
-            local[it.id]?.changedAt != SubsonicDates.toEpochMillis(it.changed) ||
-                it.id !in local
-        }
-        val permits = Semaphore(ALBUM_FETCH_CONCURRENCY)
-        var done = 0
-        changed.chunked(WRITE_BATCH_SIZE).forEach { batch ->
-            val playlists = coroutineScope {
-                batch.map { async { permits.withPermit { fetchPlaylistOrNull(client, it.id) } } }.awaitAll()
-            }.filterNotNull()
-            writer.writePlaylists(serverId, playlists)
-            done += batch.size
-            onProgress(SyncProgress.Running(SyncPhase.Playlists, done, changed.size))
+        val changedIds = remote.filter { playlist ->
+            val changedAt = SubsonicDates.toEpochMillis(playlist.changed)
+            // Without a timestamp there is no way to tell, so refetch.
+            changedAt == null || local[playlist.id]?.changedAt != changedAt
+        }.map { it.id }
+        fetchInBatches(changedIds, fetch = { id -> notFoundAsNull { client.getPlaylist(id) } }) { results, done ->
+            writer.writePlaylists(serverId, results.values.filterNotNull())
+            onProgress(SyncProgress.Running(SyncPhase.Playlists, completed = done, total = changedIds.size))
         }
         val remoteIds = remote.mapTo(HashSet()) { it.id }
         playlistDao.deleteByIds(serverId, local.keys.filterNot { it in remoteIds })
-        onProgress(SyncProgress.Running(SyncPhase.Playlists, changed.size, changed.size))
+        onProgress(SyncProgress.Running(SyncPhase.Playlists, completed = changedIds.size, total = changedIds.size))
     }
 
-    private suspend fun fetchPlaylistOrNull(client: SubsonicClient, id: String): NetworkPlaylist? = try {
-        client.getPlaylist(id)
+    /**
+     * Fetches [ids] at most [ALBUM_FETCH_CONCURRENCY] at a time, handing each batch of
+     * [WRITE_BATCH_SIZE] results to [write] with the running count of IDs done.
+     */
+    private suspend fun <T> fetchInBatches(
+        ids: List<String>,
+        fetch: suspend (String) -> T,
+        write: suspend (results: Map<String, T>, done: Int) -> Unit,
+    ) {
+        val permits = Semaphore(ALBUM_FETCH_CONCURRENCY)
+        var done = 0
+        ids.chunked(WRITE_BATCH_SIZE).forEach { batch ->
+            val results = coroutineScope {
+                batch.map { id -> async { permits.withPermit { id to fetch(id) } } }.awaitAll()
+            }
+            done += batch.size
+            write(results.toMap(), done)
+        }
+    }
+
+    /** Null when the item was deleted on the server after it was listed. */
+    private suspend fun <T : Any> notFoundAsNull(fetch: suspend () -> T): T? = try {
+        fetch()
     } catch (_: SubsonicException.NotFound) {
         null
     }

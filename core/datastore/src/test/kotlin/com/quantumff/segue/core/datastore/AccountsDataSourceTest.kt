@@ -3,6 +3,7 @@ package com.quantumff.segue.core.datastore
 import androidx.datastore.core.DataStoreFactory
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.datastore.crypto.AesGcmPasswordCipher
+import com.quantumff.segue.core.datastore.crypto.PasswordCipher
 import com.quantumff.segue.core.model.Server
 import java.io.File
 import javax.crypto.KeyGenerator
@@ -90,6 +91,30 @@ class AccountsDataSourceTest {
         assertThat(source.accounts.first()).containsExactly(office)
         assertThat(source.activeServerId.first()).isEqualTo("office")
         assertThat(source.password("home")).isNull()
+    }
+
+    @Test
+    fun `a stored password is decrypted once, and again only after it changes`() = runTest {
+        val file = File(tmp.root, "counted.json")
+        val dataStore = DataStoreFactory.create(serializer = StoredAccountsSerializer, scope = backgroundScope) { file }
+        val cipher = CountingCipher(AesGcmPasswordCipher { key })
+        val source = AccountsDataSource(dataStore, cipher)
+        source.upsert(home, "first")
+
+        repeat(3) { assertThat(source.password("home")).isEqualTo("first") }
+        source.upsert(home, "second")
+        repeat(3) { assertThat(source.password("home")).isEqualTo("second") }
+
+        assertThat(cipher.decryptions).isEqualTo(2)
+    }
+
+    private class CountingCipher(private val delegate: PasswordCipher) : PasswordCipher by delegate {
+        var decryptions = 0
+
+        override fun decrypt(encoded: String): String? {
+            decryptions++
+            return delegate.decrypt(encoded)
+        }
     }
 
     @Test

@@ -211,6 +211,22 @@ class LibrarySynchronizerTest {
     }
 
     @Test
+    fun `a playlist without a changed time is always refetched`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "No timestamps")
+        val synchronizer = synchronizer()
+        synchronizer.sync(SERVER_ID)
+        server.playlistRequests.clear()
+
+        server.playlists["p"] =
+            NetworkPlaylist(id = "p", name = "No timestamps", entry = listOf(networkSong("x", "al")))
+        clock.now += 60_000
+        synchronizer.sync(SERVER_ID)
+
+        assertThat(server.playlistRequests).containsExactly("p")
+        assertThat(db.playlistDao().observeSongs(SERVER_ID, "p").first().map { it.id }).containsExactly("x")
+    }
+
+    @Test
     fun `an album deleted between listing and fetching does not fail the sync`() = runTest {
         seedLibrary()
         server.addAlbum(networkAlbum("ghost"))
