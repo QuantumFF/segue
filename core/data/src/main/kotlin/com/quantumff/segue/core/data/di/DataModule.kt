@@ -1,6 +1,6 @@
 package com.quantumff.segue.core.data.di
 
-import com.quantumff.segue.core.data.repository.OfflineFirstServerRepository
+import com.quantumff.segue.core.data.repository.DataStoreServerRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import dagger.Binds
 import dagger.Module
@@ -11,5 +11,5 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 internal interface DataModule {
     @Binds
-    fun serverRepository(impl: OfflineFirstServerRepository): ServerRepository
+    fun serverRepository(impl: DataStoreServerRepository): ServerRepository
 }
