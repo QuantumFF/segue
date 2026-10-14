@@ -40,5 +40,6 @@ runs:
           echo "Android SDK $platform is already installed."
         else
           echo "Installing Android SDK $platform"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$platform" > /dev/null
+          # `|| true`: yes dies of SIGPIPE when sdkmanager exits, which pipefail would treat as failure.
+          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$platform" > /dev/null
         fi
