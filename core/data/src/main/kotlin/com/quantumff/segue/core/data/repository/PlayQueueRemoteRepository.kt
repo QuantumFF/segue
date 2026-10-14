@@ -6,6 +6,7 @@ import com.quantumff.segue.core.data.model.asEntity
 import com.quantumff.segue.core.data.remote
 import com.quantumff.segue.core.data.session.SubsonicClientProvider
 import com.quantumff.segue.core.data.session.requireActiveServerId
+import com.quantumff.segue.core.data.sync.LibraryWriter
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.datastore.UserPreferencesDataSource
 import com.quantumff.segue.core.model.RemotePlayQueue
@@ -24,7 +25,11 @@ import kotlinx.coroutines.withContext
  * duplicate tracks apart.
  */
 interface PlayQueueRemoteRepository {
-    /** Null when nothing is saved. Throws RemoteException. */
+    /**
+     * Null when nothing is saved. The queue's songs are also stored in Room, so a local snapshot of
+     * an adopted queue can be restored offline. With the ID-based endpoints, a current song that
+     * appears more than once maps to its first occurrence. Throws RemoteException.
+     */
     suspend fun fetch(): RemotePlayQueue?
 
     /** Saves [songIds] in effective play order. Empty [songIds] clears the saved queue. Throws RemoteException. */
@@ -53,6 +58,7 @@ internal class SubsonicPlayQueueRemoteRepository @Inject constructor(
     private val clients: SubsonicClientProvider,
     private val capabilities: CachedServerCapabilitiesRepository,
     private val deviceClientName: DeviceClientName,
+    private val writer: LibraryWriter,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : PlayQueueRemoteRepository {
     override suspend fun fetch(): RemotePlayQueue? = withContext(ioDispatcher) {
@@ -85,7 +91,7 @@ internal class SubsonicPlayQueueRemoteRepository @Inject constructor(
     override suspend fun deviceClientName(): String = deviceClientName.get()
 
     @Suppress("LongParameterList")
-    private fun remoteQueue(
+    private suspend fun remoteQueue(
         serverId: String,
         entries: List<NetworkChild>,
         currentIndex: Int,
@@ -93,7 +99,9 @@ internal class SubsonicPlayQueueRemoteRepository @Inject constructor(
         changed: String?,
         changedBy: String?,
     ): RemotePlayQueue {
-        val songs = entries.filterNot { it.isDir }.map { it.asEntity(serverId).asExternalModel() }
+        val songEntries = entries.filterNot { it.isDir }
+        writer.writeSongs(serverId, songEntries)
+        val songs = songEntries.map { it.asEntity(serverId).asExternalModel() }
         return RemotePlayQueue(
             songs = songs.toImmutableList(),
             currentIndex = currentIndex.coerceIn(0, (songs.size - 1).coerceAtLeast(0)),

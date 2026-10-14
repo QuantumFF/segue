@@ -4,7 +4,9 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.testing.FakeClientProvider
 import com.quantumff.segue.core.data.testing.FakeClock
 import com.quantumff.segue.core.data.testing.FakeSubsonicClient
+import com.quantumff.segue.core.data.testing.SERVER_ID
 import com.quantumff.segue.core.data.testing.inMemoryDatabase
+import com.quantumff.segue.core.data.testing.libraryWriter
 import com.quantumff.segue.core.data.testing.networkSong
 import com.quantumff.segue.core.model.ServerCapabilities
 import com.quantumff.segue.core.network.model.NetworkPlayQueue
@@ -49,6 +51,7 @@ class PlayQueueRemoteRepositoryTest {
                 dispatcher,
             ),
             deviceClientName = { "Segue-1234abcd" },
+            writer = libraryWriter(db),
             ioDispatcher = dispatcher,
         )
     }
@@ -93,6 +96,30 @@ class PlayQueueRemoteRepositoryTest {
 
         assertThat(queue.currentIndex).isEqualTo(1)
         assertThat(queue.changedBy).isEqualTo("Segue-1234abcd")
+    }
+
+    @Test
+    fun `legacy servers map a duplicated current id to its first occurrence`() = runTest {
+        server.playQueue = NetworkPlayQueue(
+            entry = listOf(networkSong("a", "al"), networkSong("b", "al"), networkSong("a", "al")),
+            current = "a",
+            position = 0,
+        )
+
+        assertThat(repository(indexBased = false).fetch()!!.currentIndex).isEqualTo(0)
+    }
+
+    @Test
+    fun `fetched queue songs are stored for offline restore`() = runTest {
+        server.playQueueByIndex = NetworkPlayQueueByIndex(
+            entry = listOf(networkSong("x", "al"), networkSong("y", "al")),
+            currentIndex = 0,
+            position = 0,
+        )
+
+        repository(indexBased = true).fetch()
+
+        assertThat(db.songDao().getByIds(SERVER_ID, listOf("x", "y")).map { it.id }).containsExactly("x", "y")
     }
 
     @Test

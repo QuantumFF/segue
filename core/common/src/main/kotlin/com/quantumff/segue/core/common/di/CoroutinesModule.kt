@@ -25,6 +25,10 @@ object CoroutinesModule {
     fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 
     @Provides
+    @Dispatcher(SegueDispatchers.Main)
+    fun mainDispatcher(): CoroutineDispatcher = Dispatchers.Main.immediate
+
+    @Provides
     @Singleton
     @ApplicationScope
     fun applicationScope(@Dispatcher(SegueDispatchers.Default) dispatcher: CoroutineDispatcher): CoroutineScope =

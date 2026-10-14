@@ -3,6 +3,7 @@ package com.quantumff.segue.core.data.repository
 import com.quantumff.segue.core.datastore.UserPreferencesDataSource
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -29,6 +30,14 @@ interface UserPreferencesRepository {
     suspend fun setQueueSyncEnabled(enabled: Boolean)
 
     suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean)
+
+    suspend fun setReplayGainMode(mode: ReplayGainMode)
+
+    suspend fun setReplayGainPreampDb(preampDb: Float)
+
+    suspend fun setStreamCacheSizeMb(sizeMb: Int)
+
+    suspend fun setStopWhenPausedMinutes(minutes: Int)
 }
 
 internal class DataStoreUserPreferencesRepository @Inject constructor(private val source: UserPreferencesDataSource) :
@@ -52,4 +61,12 @@ internal class DataStoreUserPreferencesRepository @Inject constructor(private va
 
     override suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean) =
         source.setAdoptRemoteQueueAutomatically(enabled)
+
+    override suspend fun setReplayGainMode(mode: ReplayGainMode) = source.setReplayGainMode(mode)
+
+    override suspend fun setReplayGainPreampDb(preampDb: Float) = source.setReplayGainPreampDb(preampDb)
+
+    override suspend fun setStreamCacheSizeMb(sizeMb: Int) = source.setStreamCacheSizeMb(sizeMb)
+
+    override suspend fun setStopWhenPausedMinutes(minutes: Int) = source.setStopWhenPausedMinutes(minutes)
 }

@@ -165,6 +165,14 @@ abstract class SongDao {
     open suspend fun getByIds(serverId: String, ids: Collection<String>): List<SongEntity> =
         ids.distinct().chunked(SQL_CHUNK).flatMap { getByIdsChunk(serverId, it) }
 
+    /** Songs of [albumIds], each album in disc then track order; albums in no particular order. */
+    open suspend fun getByAlbumIds(serverId: String, albumIds: Collection<String>): List<SongEntity> =
+        albumIds.distinct().chunked(SQL_CHUNK).flatMap { getByAlbumIdsChunk(serverId, it) }
+
+    /** Albums with at least one song in [genre]. */
+    @Query("SELECT DISTINCT albumId FROM songs WHERE serverId = :serverId AND genre = :genre AND albumId IS NOT NULL")
+    abstract suspend fun albumIdsByGenre(serverId: String, genre: String): List<String>
+
     @Upsert
     abstract suspend fun upsertAll(songs: List<SongEntity>)
 
@@ -187,6 +195,12 @@ abstract class SongDao {
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND id IN (:ids)")
     protected abstract suspend fun getByIdsChunk(serverId: String, ids: List<String>): List<SongEntity>
+
+    @Query(
+        "SELECT * FROM songs WHERE serverId = :serverId AND albumId IN (:albumIds) " +
+            "ORDER BY albumId, discNumber, track, sortName",
+    )
+    protected abstract suspend fun getByAlbumIdsChunk(serverId: String, albumIds: List<String>): List<SongEntity>
 
     @Query("SELECT id FROM songs WHERE serverId = :serverId AND albumId IN (:albumIds)")
     protected abstract suspend fun idsOfAlbumsChunk(serverId: String, albumIds: List<String>): List<String>

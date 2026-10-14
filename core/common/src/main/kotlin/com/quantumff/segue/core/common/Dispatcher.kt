@@ -10,6 +10,9 @@ annotation class Dispatcher(val dispatcher: SegueDispatchers)
 enum class SegueDispatchers {
     Default,
     IO,
+
+    /** `Dispatchers.Main.immediate`: for APIs bound to the main looper, such as a Media3 MediaController. */
+    Main,
 }
 
 /** An app-lifetime scope for work that must outlive a screen, such as a debounced queue upload. */

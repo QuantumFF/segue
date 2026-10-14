@@ -17,9 +17,11 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.Song
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -34,6 +36,9 @@ interface LibraryRepository {
     fun song(id: String): Flow<Song?>
 
     val starredSongs: Flow<ImmutableList<Song>>
+
+    /** Songs for [ids] in that order, duplicates kept. IDs not in the local library are skipped. */
+    suspend fun songsByIds(ids: List<String>): ImmutableList<Song>
 
     /** Random songs from the server, for "shuffle all". Also stored in Room. Throws RemoteException. */
     suspend fun randomSongs(size: Int = DEFAULT_RANDOM_SIZE): ImmutableList<Song>
@@ -65,6 +70,12 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
 
     override val starredSongs: Flow<ImmutableList<Song>> =
         clients.listForActiveServer(songDao::observeStarred, SongEntity::asExternalModel)
+
+    override suspend fun songsByIds(ids: List<String>): ImmutableList<Song> = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext persistentListOf()
+        val byId = songDao.getByIds(serverId, ids).associateBy { it.id }
+        ids.mapNotNull { byId[it]?.asExternalModel() }.toImmutableList()
+    }
 
     override suspend fun randomSongs(size: Int): ImmutableList<Song> = withContext(ioDispatcher) {
         val serverId = clients.requireActiveServerId()
