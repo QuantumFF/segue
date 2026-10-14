@@ -6,6 +6,7 @@ import com.quantumff.segue.core.network.auth.SubsonicAuthParams
 import com.quantumff.segue.core.network.model.NetworkAlbum
 import com.quantumff.segue.core.network.model.NetworkArtist
 import com.quantumff.segue.core.network.model.NetworkArtistIndex
+import com.quantumff.segue.core.network.model.NetworkArtistInfo
 import com.quantumff.segue.core.network.model.NetworkChild
 import com.quantumff.segue.core.network.model.NetworkExtension
 import com.quantumff.segue.core.network.model.NetworkGenre
@@ -197,6 +198,9 @@ internal class RetrofitSubsonicClient(
 
     override suspend fun getSimilarSongs2(artistId: String, count: Int): List<NetworkChild> =
         call { getSimilarSongs2(artistId, count) }.similarSongs2?.song.orEmpty()
+
+    override suspend fun getArtistInfo2(artistId: String, similarCount: Int): NetworkArtistInfo =
+        call { getArtistInfo2(artistId, similarCount) }.artistInfo2 ?: NetworkArtistInfo()
 
     override suspend fun getTopSongs(artistName: String, artistId: String?, count: Int): List<NetworkChild> =
         call { getTopSongs(artistName, artistId, count) }.topSongs?.song.orEmpty()

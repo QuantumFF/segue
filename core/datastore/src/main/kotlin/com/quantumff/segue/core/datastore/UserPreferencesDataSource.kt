@@ -4,10 +4,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -36,8 +38,16 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             ),
             queueSyncEnabled = prefs[Keys.QueueSyncEnabled] ?: defaults.queueSyncEnabled,
             adoptRemoteQueueAutomatically = prefs[Keys.AdoptRemoteQueue] ?: defaults.adoptRemoteQueueAutomatically,
+            replayGainMode = prefs.enum(Keys.ReplayGainMode, defaults.replayGainMode),
+            replayGainPreampDb = prefs[Keys.ReplayGainPreamp] ?: defaults.replayGainPreampDb,
+            audioCacheSizeMb = prefs[Keys.AudioCacheSize] ?: defaults.audioCacheSizeMb,
         )
     }.distinctUntilChanged()
+
+    /** Recent search queries, newest first. */
+    val recentSearches: Flow<List<String>> = dataStore.data
+        .map { prefs -> prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR)?.filter { it.isNotEmpty() }.orEmpty() }
+        .distinctUntilChanged()
 
     suspend fun setThemeMode(mode: ThemeMode) = set(Keys.ThemeMode, mode.name)
 
@@ -58,6 +68,32 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     suspend fun setQueueSyncEnabled(enabled: Boolean) = set(Keys.QueueSyncEnabled, enabled)
 
     suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean) = set(Keys.AdoptRemoteQueue, enabled)
+
+    suspend fun setReplayGainMode(mode: ReplayGainMode) = set(Keys.ReplayGainMode, mode.name)
+
+    suspend fun setReplayGainPreampDb(db: Float) = set(Keys.ReplayGainPreamp, db)
+
+    suspend fun setAudioCacheSizeMb(megabytes: Int) = set(Keys.AudioCacheSize, megabytes)
+
+    /** Moves [query] to the front of the recent searches, keeping at most [MAX_RECENT_SEARCHES]. */
+    suspend fun addRecentSearch(query: String) {
+        val clean = query.trim().replace(RECENT_SEPARATOR, " ")
+        if (clean.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR).orEmpty()
+            val updated = (listOf(clean) + current.filterNot { it.equals(clean, ignoreCase = true) })
+                .filter { it.isNotEmpty() }
+                .take(MAX_RECENT_SEARCHES)
+            prefs[Keys.RecentSearches] = updated.joinToString(RECENT_SEPARATOR)
+        }
+    }
+
+    suspend fun removeRecentSearch(query: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR).orEmpty()
+            prefs[Keys.RecentSearches] = current.filterNot { it == query }.joinToString(RECENT_SEPARATOR)
+        }
+    }
 
     /**
      * A random ID for this install, created on first call and then stable. Queue sync uses it to
@@ -100,5 +136,14 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val QueueSyncEnabled = booleanPreferencesKey("queue_sync_enabled")
         val AdoptRemoteQueue = booleanPreferencesKey("adopt_remote_queue_automatically")
         val DeviceId = stringPreferencesKey("device_id")
+        val ReplayGainMode = stringPreferencesKey("replay_gain_mode")
+        val ReplayGainPreamp = floatPreferencesKey("replay_gain_preamp_db")
+        val AudioCacheSize = intPreferencesKey("audio_cache_size_mb")
+        val RecentSearches = stringPreferencesKey("recent_searches")
+    }
+
+    private companion object {
+        const val RECENT_SEPARATOR = "\n"
+        const val MAX_RECENT_SEARCHES = 10
     }
 }

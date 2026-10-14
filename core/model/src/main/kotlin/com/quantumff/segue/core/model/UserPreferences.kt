@@ -11,7 +11,24 @@ data class UserPreferences(
     val queueSyncEnabled: Boolean = true,
     /** Adopt a newer server play queue without asking. See PLAN.md, "Server queue sync". */
     val adoptRemoteQueueAutomatically: Boolean = false,
-)
+    val replayGainMode: ReplayGainMode = ReplayGainMode.Track,
+    /** Added to the ReplayGain adjustment, in dB. Range [REPLAY_GAIN_PREAMP_RANGE]. */
+    val replayGainPreampDb: Float = 0f,
+    /** Size limit of the streaming (audio) cache, in MB. One of [AUDIO_CACHE_SIZES_MB]. */
+    val audioCacheSizeMb: Int = DEFAULT_AUDIO_CACHE_MB,
+) {
+    companion object {
+        val REPLAY_GAIN_PREAMP_RANGE = -15f..15f
+        const val DEFAULT_AUDIO_CACHE_MB = 1024
+        val AUDIO_CACHE_SIZES_MB = listOf(256, 512, 1024, 2048, 4096)
+    }
+}
+
+enum class ReplayGainMode {
+    Off,
+    Track,
+    Album,
+}
 
 enum class ThemeMode {
     System,

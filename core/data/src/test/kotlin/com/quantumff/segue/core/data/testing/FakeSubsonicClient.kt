@@ -7,6 +7,7 @@ import com.quantumff.segue.core.network.SubsonicException
 import com.quantumff.segue.core.network.model.NetworkAlbum
 import com.quantumff.segue.core.network.model.NetworkArtist
 import com.quantumff.segue.core.network.model.NetworkArtistIndex
+import com.quantumff.segue.core.network.model.NetworkArtistInfo
 import com.quantumff.segue.core.network.model.NetworkChild
 import com.quantumff.segue.core.network.model.NetworkExtension
 import com.quantumff.segue.core.network.model.NetworkGenre
@@ -275,6 +276,10 @@ class FakeSubsonicClient : SubsonicClient {
     }
 
     override suspend fun getSimilarSongs2(artistId: String, count: Int) = emptyList<NetworkChild>()
+
+    var artistInfo = NetworkArtistInfo()
+
+    override suspend fun getArtistInfo2(artistId: String, similarCount: Int) = artistInfo
 
     override suspend fun getTopSongs(artistName: String, artistId: String?, count: Int) = emptyList<NetworkChild>()
 

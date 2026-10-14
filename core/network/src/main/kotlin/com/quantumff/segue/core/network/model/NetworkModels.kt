@@ -31,6 +31,7 @@ data class SubsonicResponse(
     val songsByGenre: NetworkSongList? = null,
     val similarSongs2: NetworkSongList? = null,
     val topSongs: NetworkSongList? = null,
+    val artistInfo2: NetworkArtistInfo? = null,
     val genres: NetworkGenres? = null,
     val searchResult3: NetworkSearchResult3? = null,
     val playlists: NetworkPlaylists? = null,
@@ -92,6 +93,14 @@ data class NetworkArtist(
     val sortName: String? = null,
     val roles: List<String> = emptyList(),
     val album: List<NetworkAlbum> = emptyList(),
+)
+
+/** `getArtistInfo2`: biography and similar artists, usually from Last.fm. */
+@Serializable
+data class NetworkArtistInfo(
+    val biography: String? = null,
+    val musicBrainzId: String? = null,
+    val similarArtist: List<NetworkArtist> = emptyList(),
 )
 
 /** The `{id, name}` pairs in OpenSubsonic `artists`, `albumArtists`, and contributors. */

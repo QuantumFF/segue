@@ -22,6 +22,11 @@ import kotlinx.coroutines.flow.Flow
  */
 internal const val SQL_CHUNK = 500
 
+/** The album filter row (DESIGN.md §4.2): favorites only, one genre, one year. Null parameters do not filter. */
+private const val ALBUM_FILTER =
+    "serverId = :serverId AND (:starredOnly = 0 OR starredAt IS NOT NULL) " +
+        "AND (:genre IS NULL OR genre = :genre) AND (:year IS NULL OR year = :year)"
+
 @Dao
 abstract class ArtistDao {
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
@@ -32,6 +37,9 @@ abstract class ArtistDao {
 
     @Query("SELECT * FROM artists WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<ArtistEntity?>
+
+    @Query("SELECT COUNT(*) FROM artists WHERE serverId = :serverId")
+    abstract fun observeCount(serverId: String): Flow<Int>
 
     @Query("SELECT * FROM artists WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
     abstract fun observeStarred(serverId: String): Flow<List<ArtistEntity>>
@@ -59,17 +67,46 @@ abstract class ArtistDao {
 
 @Dao
 abstract class AlbumDao {
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY sortName")
-    abstract fun pagingSourceByName(serverId: String): PagingSource<Int, AlbumEntity>
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY sortName")
+    abstract fun pagingSourceByName(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY artist COLLATE NOCASE, year, sortName")
-    abstract fun pagingSourceByArtist(serverId: String): PagingSource<Int, AlbumEntity>
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName")
+    abstract fun pagingSourceByArtist(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY createdAt DESC, sortName")
-    abstract fun pagingSourceByRecentlyAdded(serverId: String): PagingSource<Int, AlbumEntity>
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY createdAt DESC, sortName")
+    abstract fun pagingSourceByRecentlyAdded(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY year DESC, sortName")
-    abstract fun pagingSourceByYear(serverId: String): PagingSource<Int, AlbumEntity>
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY year DESC, sortName")
+    abstract fun pagingSourceByYear(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE $ALBUM_FILTER")
+    abstract fun observeCount(serverId: String, starredOnly: Boolean, genre: String?, year: Int?): Flow<Int>
+
+    /** Release years present in the library, newest first. */
+    @Query(
+        "SELECT DISTINCT year FROM albums WHERE serverId = :serverId AND year IS NOT NULL AND year > 0 ORDER BY year DESC",
+    )
+    abstract fun observeYears(serverId: String): Flow<List<Int>>
 
     @Query("SELECT * FROM albums WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<AlbumEntity?>
@@ -157,6 +194,9 @@ abstract class SongDao {
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<SongEntity?>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE serverId = :serverId")
+    abstract fun observeCount(serverId: String): Flow<Int>
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
     abstract fun observeStarred(serverId: String): Flow<List<SongEntity>>

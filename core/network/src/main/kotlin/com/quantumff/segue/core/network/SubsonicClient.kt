@@ -5,6 +5,7 @@ import com.quantumff.segue.core.model.ServerCapabilities
 import com.quantumff.segue.core.network.model.NetworkAlbum
 import com.quantumff.segue.core.network.model.NetworkArtist
 import com.quantumff.segue.core.network.model.NetworkArtistIndex
+import com.quantumff.segue.core.network.model.NetworkArtistInfo
 import com.quantumff.segue.core.network.model.NetworkChild
 import com.quantumff.segue.core.network.model.NetworkExtension
 import com.quantumff.segue.core.network.model.NetworkGenre
@@ -143,6 +144,9 @@ interface SubsonicClient {
     suspend fun getLyricsBySongId(id: String): List<NetworkStructuredLyrics>
 
     suspend fun getSimilarSongs2(artistId: String, count: Int): List<NetworkChild>
+
+    /** Biography and up to [similarCount] similar artists. Empty when the server has none. */
+    suspend fun getArtistInfo2(artistId: String, similarCount: Int): NetworkArtistInfo
 
     /** [artistId] is used by servers with the `topSongsByArtistId` extension. */
     suspend fun getTopSongs(artistName: String, artistId: String? = null, count: Int): List<NetworkChild>
