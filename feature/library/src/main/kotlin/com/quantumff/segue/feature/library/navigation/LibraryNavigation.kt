@@ -1,8 +1,6 @@
 package com.quantumff.segue.feature.library.navigation
 
-import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import com.quantumff.segue.feature.library.LibraryScreen
 import kotlinx.serialization.Serializable
@@ -10,10 +8,16 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object LibraryRoute
 
-fun NavController.navigateToLibrary(navOptions: NavOptions? = null) = navigate(LibraryRoute, navOptions)
-
-fun NavGraphBuilder.libraryScreen() {
+fun NavGraphBuilder.libraryScreen(
+    onAccountClick: () -> Unit,
+    onArtistClick: (String) -> Unit,
+    onDownloadsClick: () -> Unit,
+) {
     composable<LibraryRoute> {
-        LibraryScreen()
+        LibraryScreen(
+            onAccountClick = onAccountClick,
+            onArtistClick = onArtistClick,
+            onDownloadsClick = onDownloadsClick,
+        )
     }
 }

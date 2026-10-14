@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.segue.compose.application)
     alias(libs.plugins.segue.hilt)
     alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -33,6 +35,11 @@ android {
     }
 }
 
+// Shell screenshot goldens: ./gradlew :app:recordRoborazziDebug, check with verifyRoborazziDebug.
+roborazzi {
+    outputDir.set(file("src/test/screenshots"))
+}
+
 baselineProfile {
     // Generate on demand with :app:generateBaselineProfile, not on every release build.
     automaticGenerationDuringBuild = false
@@ -60,13 +67,22 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.hilt.work)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.collections.immutable)
+    implementation(libs.kotlinx.serialization.json)
     ksp(libs.androidx.hilt.compiler)
 
     baselineProfile(projects.baselineprofile)
+
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

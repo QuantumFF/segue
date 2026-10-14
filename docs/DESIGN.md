@@ -133,13 +133,16 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 | Medium (600 to 839) | `NavigationRail`, 80 wide | Mini player across the content area, at the bottom |
 | Expanded (≥ 840) | Permanent sidebar, 240 wide, Feishin-style: destinations, then a "Playlists" list | Player bar, 80 tall, full width (§5.5) |
 
-- **Destinations:** Home, Library, Search. Settings opens from the account icon in the Home/Library top bar. Downloads is a Library tab and is also linked from Settings > Storage.
+- **Destinations:** Home, Library, Playlists, Search (four tabs). Settings opens from the account icon in the Home, Library and Playlists top bars. Downloads is a Library tab and is also linked from Settings > Storage.
+- **Back stacks:** each tab keeps its own back stack, saved and restored on tab switches (Home included). Album, artist and playlist detail, Settings and Downloads push onto the current tab's stack. Re-selecting the current tab returns to its root. Back at the root of another tab goes to Home; back at Home's root leaves the app.
+- **Playlists tab:** the playlist list (rows as in §4.2 Playlists), with a "+" in the top bar to create a playlist. Library keeps its Playlists tab too.
+- **Secondary screens** (Settings, Downloads, Queue) use an opaque 56 top bar: back arrow, then the title in `titleMedium` (optional muted subtitle such as "Playing from <source>"), then actions.
 - Bar icons: Lucide outline when unselected, filled or bold when selected. Labels always shown. Indicator pill uses `primary` @ 16%.
 - **Mini player** (compact and medium): 64 tall, full width, `surfaceContainer`. A 2dp progress line sits at its top edge (`primary`, track `outlineVariant`).
   - Hidden when the queue is empty, while Now Playing is open, and while the IME is visible (the nav bar hides then too).
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
 - Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
-- Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme.
+- Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
 
 ## 4. Screens
 
@@ -178,7 +181,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 │[▣] Song title          (▶)  ⏭   │
 │    Artist                        │
 ├──────────────────────────────────┤
-│   ⌂ Home   ▤ Library   ⌕ Search  │
+│ ⌂Home ▤Library ♫Playlists ⌕Search│
 └──────────────────────────────────┘
 ```
 
@@ -226,7 +229,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ```
 
 ### 4.4 Artist detail
-- Hero: the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
+- Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
 - Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
@@ -241,7 +244,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.6 Search
 - Search field pinned at the top: 48 tall, `surfaceContainerHighest`, radius `full`, leading search icon, trailing clear. It auto-focuses when the tab is opened.
-- Empty query: recent searches (rows with a history icon, swipe to delete), then "Browse genres" pills.
+- Empty query: recent searches (rows with a history icon (Lucide `rotate-ccw-clock`), swipe to delete), then "Browse genres" pills.
 - Results: `search3`, debounced 300ms. While offline, search Room FTS and show an "Offline results" chip.
   - Filter chips: All · Songs · Albums · Artists · Playlists.
   - "All" shows Artists (a row of 72 circles), Albums (a carousel of 128 cards), then Songs (up to 20 track rows, plus "See all").
@@ -320,7 +323,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Row actions:
   - Drag handle (Lucide `grip-vertical`) on the right to reorder. Long-press anywhere on a row also starts a drag. In Albums mode a drag moves the whole block when started on a block header.
   - Swipe right: play next (icon `list-start`, `primary`).
-  - Swipe left: remove (icon `trash-2`, `error`), with an "Undo" snackbar.
+  - Swipe left: remove (icon `trash`, `error`), with an "Undo" snackbar.
   - Both swipes trigger at 40% of the width with haptic feedback.
 
 ### 4.9 Downloads (Library tab)

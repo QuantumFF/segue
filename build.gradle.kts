@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.room) apply false
     alias(libs.plugins.baselineprofile) apply false
+    alias(libs.plugins.roborazzi) apply false
     alias(libs.plugins.spotless)
 }
 
@@ -18,9 +19,15 @@ spotless {
     kotlin {
         target("**/*.kt")
         targetExclude("**/build/**", "**/.gradle/**")
-        ktlint(ktlintVersion).customRuleSets(
-            listOf("io.nlopez.compose.rules:ktlint:${libs.versions.composeRules.get()}"),
-        )
+        ktlint(ktlintVersion)
+            .customRuleSets(listOf("io.nlopez.compose.rules:ktlint:${libs.versions.composeRules.get()}"))
+            .editorConfigOverride(
+                // Theme-scoped values only (core:designsystem, app shell). Anything else is a parameter.
+                mapOf(
+                    "compose_allowed_composition_locals" to
+                        "LocalSegueColors,LocalDarkTheme,LocalReduceMotion,LocalShellContentPadding",
+                ),
+            )
     }
     kotlinGradle {
         target("**/*.gradle.kts")

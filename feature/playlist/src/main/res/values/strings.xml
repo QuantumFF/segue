@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_playlist_list_title">Playlists</string>
+    <string name="feature_playlist_list_placeholder">Your playlists will appear here</string>
+    <string name="feature_playlist_create">New playlist</string>
+    <string name="feature_playlist_open_sample">Open a sample playlist</string>
+    <string name="feature_playlist_overline">Playlist</string>
+    <string name="feature_playlist_sample_title">Playlist %1$s</string>
+    <string name="feature_playlist_placeholder">Tracks will appear here</string>
+    <string name="feature_playlist_shuffle">Shuffle</string>
+    <string name="feature_playlist_shuffle_albums">Shuffle albums</string>
+    <string name="feature_playlist_download">Download</string>
+    <string name="feature_playlist_more">More options</string>
+</resources>

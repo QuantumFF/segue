@@ -12,8 +12,8 @@ data object QueueRoute
 
 fun NavController.navigateToQueue(navOptions: NavOptions? = null) = navigate(QueueRoute, navOptions)
 
-fun NavGraphBuilder.queueScreen() {
+fun NavGraphBuilder.queueScreen(onBackClick: () -> Unit) {
     composable<QueueRoute> {
-        QueueScreen()
+        QueueScreen(onBackClick = onBackClick)
     }
 }

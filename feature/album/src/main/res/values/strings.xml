@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_album_overline">Album</string>
+    <string name="feature_album_sample_title">Album %1$s</string>
+    <string name="feature_album_sample_artist">Sample artist</string>
+    <string name="feature_album_placeholder">Tracks will appear here</string>
+    <string name="feature_album_shuffle">Shuffle</string>
+    <string name="feature_album_favorite">Favorite</string>
+    <string name="feature_album_download">Download</string>
+</resources>

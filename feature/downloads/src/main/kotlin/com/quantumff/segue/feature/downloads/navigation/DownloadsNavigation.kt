@@ -12,8 +12,8 @@ data object DownloadsRoute
 
 fun NavController.navigateToDownloads(navOptions: NavOptions? = null) = navigate(DownloadsRoute, navOptions)
 
-fun NavGraphBuilder.downloadsScreen() {
+fun NavGraphBuilder.downloadsScreen(onBackClick: () -> Unit) {
     composable<DownloadsRoute> {
-        DownloadsScreen()
+        DownloadsScreen(onBackClick = onBackClick)
     }
 }

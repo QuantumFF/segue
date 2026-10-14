@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_settings_title">Settings</string>
+    <string name="feature_settings_placeholder">Servers, appearance, playback and storage settings will appear here</string>
+    <string name="feature_settings_open_downloads">Downloads</string>
+</resources>

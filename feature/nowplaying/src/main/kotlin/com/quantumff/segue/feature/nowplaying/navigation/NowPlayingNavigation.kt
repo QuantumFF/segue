@@ -12,8 +12,8 @@ data object NowPlayingRoute
 
 fun NavController.navigateToNowPlaying(navOptions: NavOptions? = null) = navigate(NowPlayingRoute, navOptions)
 
-fun NavGraphBuilder.nowPlayingScreen() {
+fun NavGraphBuilder.nowPlayingScreen(onCollapseClick: () -> Unit, onQueueClick: () -> Unit) {
     composable<NowPlayingRoute> {
-        NowPlayingScreen()
+        NowPlayingScreen(onCollapseClick = onCollapseClick, onQueueClick = onQueueClick)
     }
 }

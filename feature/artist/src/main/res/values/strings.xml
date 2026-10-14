@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_artist_overline">Artist</string>
+    <string name="feature_artist_sample_title">Artist %1$s</string>
+    <string name="feature_artist_placeholder">Top songs and albums will appear here</string>
+    <string name="feature_artist_open_sample_album">Open a sample album</string>
+    <string name="feature_artist_shuffle">Shuffle</string>
+    <string name="feature_artist_shuffle_albums">Shuffle albums</string>
+    <string name="feature_artist_instant_mix">Instant mix</string>
+</resources>
