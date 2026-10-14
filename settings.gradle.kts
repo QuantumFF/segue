@@ -36,6 +36,9 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 rootProject.name = "segue"
 
+include(":app")
+include(":baselineprofile")
+
 include(":core:common")
 include(":core:data")
 include(":core:database")
