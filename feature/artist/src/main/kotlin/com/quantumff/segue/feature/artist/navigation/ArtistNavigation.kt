@@ -14,8 +14,12 @@ data class ArtistRoute(val artistId: String)
 fun NavController.navigateToArtist(artistId: String, navOptions: NavOptions? = null) =
     navigate(ArtistRoute(artistId), navOptions)
 
-fun NavGraphBuilder.artistScreen() {
+fun NavGraphBuilder.artistScreen(onBackClick: () -> Unit, onAlbumClick: (String) -> Unit) {
     composable<ArtistRoute> { entry ->
-        ArtistScreen(artistId = entry.toRoute<ArtistRoute>().artistId)
+        ArtistScreen(
+            artistId = entry.toRoute<ArtistRoute>().artistId,
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+        )
     }
 }

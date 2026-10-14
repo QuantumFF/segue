@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_nowplaying_source_label">Playing from album</string>
+    <string name="feature_nowplaying_placeholder_source">Nothing playing</string>
+    <string name="feature_nowplaying_open_queue">Up next</string>
+</resources>

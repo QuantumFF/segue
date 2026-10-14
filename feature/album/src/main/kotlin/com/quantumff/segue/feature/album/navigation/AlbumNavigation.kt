@@ -14,8 +14,12 @@ data class AlbumRoute(val albumId: String)
 fun NavController.navigateToAlbum(albumId: String, navOptions: NavOptions? = null) =
     navigate(AlbumRoute(albumId), navOptions)
 
-fun NavGraphBuilder.albumScreen() {
+fun NavGraphBuilder.albumScreen(onBackClick: () -> Unit, onArtistClick: (String) -> Unit) {
     composable<AlbumRoute> { entry ->
-        AlbumScreen(albumId = entry.toRoute<AlbumRoute>().albumId)
+        AlbumScreen(
+            albumId = entry.toRoute<AlbumRoute>().albumId,
+            onBackClick = onBackClick,
+            onArtistClick = onArtistClick,
+        )
     }
 }

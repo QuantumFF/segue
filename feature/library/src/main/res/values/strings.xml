@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_library_title">Library</string>
+    <string name="feature_library_placeholder">Albums, artists, songs and genres will appear here</string>
+    <string name="feature_library_sort">Sort</string>
+    <string name="feature_library_view_mode">Switch between grid and list</string>
+    <string name="feature_library_open_sample_artist">Open a sample artist</string>
+    <string name="feature_library_open_downloads">Downloads</string>
+</resources>

@@ -99,6 +99,8 @@ object SegueSizes {
     val heroWideMinHeight = 340.dp
     val heroWideBreakpoint = SegueBreakpoints.medium
     val heroTintOverhang = 64.dp
+    val nowPlayingArtMax = 400.dp
+    val loginMaxWidth = 400.dp
     val primaryPlayButton = 56.dp
     val shuffleControl = 40.dp
 

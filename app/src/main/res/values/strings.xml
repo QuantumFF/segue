@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Segue</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_library">Library</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_search">Search</string>
+    <string name="sidebar_playlists">Playlists</string>
+    <string name="sidebar_no_playlists">No playlists yet</string>
+    <string name="placeholder_track_title">Nothing playing</string>
+    <string name="placeholder_track_artist">Pick an album to start</string>
 </resources>

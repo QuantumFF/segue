@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_downloads_title">Downloads</string>
+    <string name="feature_downloads_empty_title">No downloads yet</string>
+    <string name="feature_downloads_empty_message">Pin albums or playlists to listen offline</string>
+</resources>

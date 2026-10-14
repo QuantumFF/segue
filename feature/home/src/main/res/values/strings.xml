@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_home_title">Home</string>
+    <string name="feature_home_placeholder">Your sections will appear here</string>
+    <string name="feature_home_open_sample_album">Open a sample album</string>
+</resources>
