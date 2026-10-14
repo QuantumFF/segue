@@ -1,61 +1,61 @@
 name: Set up Segue build
 description: >
-  JDK 21, Gradle with caching, and the Android SDK platform matching the project's compileSdk.
-  Run after actions/checkout.
+    JDK 21, Gradle with caching, and the Android SDK platform matching the project's compileSdk.
+    Run after actions/checkout.
 
 inputs:
-  cache-read-only:
-    description: Restore the Gradle cache but never write it.
-    required: false
-    default: "true"
+    cache-read-only:
+        description: Restore the Gradle cache but never write it.
+        required: false
+        default: "true"
 
 runs:
-  using: composite
-  steps:
-    - name: Set up JDK 21
-      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-      with:
-        distribution: temurin
-        java-version: "21"
+    using: composite
+    steps:
+        - name: Set up JDK 21
+          uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+          with:
+              distribution: temurin
+              java-version: "21"
 
-    - name: Set up Gradle
-      uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-      with:
-        # Default "enhanced" provider (free for public repos). It keys entries per job; the "basic"
-        # provider uses one key per workflow, so parallel jobs race and the smallest job's cache wins.
-        cache-read-only: ${{ inputs.cache-read-only }}
+        - name: Set up Gradle
+          uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+          with:
+              # Default "enhanced" provider (free for public repos). It keys entries per job; the "basic"
+              # provider uses one key per workflow, so parallel jobs race and the smallest job's cache wins.
+              cache-read-only: ${{ inputs.cache-read-only }}
 
-    # The runner image ships an SDK, but not necessarily the platform compileSdk needs.
-    # compileSdk comes from the version catalog, so bumping it there is enough.
-    - name: Install Android SDK platform
-      shell: bash
-      run: |
-        compile_sdk="$(sed -nE 's/^compileSdk[[:space:]]*=[[:space:]]*"([0-9]+)".*/\1/p' gradle/libs.versions.toml)"
-        if [[ -z "$compile_sdk" ]]; then
-          echo "::error file=gradle/libs.versions.toml::Could not read compileSdk from the version catalog."
-          exit 1
-        fi
-        # From API 37 the platform carries a minor version: compileSdk 37 uses platforms/android-37.0.
-        platforms=("android-${compile_sdk}" "android-${compile_sdk}.0")
-        installed() {
-          local platform
-          for platform in "${platforms[@]}"; do
-            [[ -f "$ANDROID_HOME/platforms/$platform/android.jar" ]] && return 0
-          done
-          return 1
-        }
-        if installed; then
-          echo "Android SDK platform $compile_sdk is already installed."
-          exit 0
-        fi
-        for platform in "${platforms[@]}"; do
-          echo "Installing platforms;$platform"
-          # `yes || true`: yes dies of SIGPIPE when sdkmanager exits, which pipefail treats as failure.
-          # sdkmanager can exit 0 without installing anything, so success is checked on disk instead.
-          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;$platform" > /dev/null || true
-          if installed; then
-            exit 0
-          fi
-        done
-        echo "::error::Could not install Android SDK platform $compile_sdk (compileSdk in gradle/libs.versions.toml)."
-        exit 1
+        # The runner image ships an SDK, but not necessarily the platform compileSdk needs.
+        # compileSdk comes from the version catalog, so bumping it there is enough.
+        - name: Install Android SDK platform
+          shell: bash
+          run: |
+              compile_sdk="$(sed -nE 's/^compileSdk[[:space:]]*=[[:space:]]*"([0-9]+)".*/\1/p' gradle/libs.versions.toml)"
+              if [[ -z "$compile_sdk" ]]; then
+                  echo "::error file=gradle/libs.versions.toml::Could not read compileSdk from the version catalog."
+                  exit 1
+              fi
+              # From API 37 the platform carries a minor version: compileSdk 37 uses platforms/android-37.0.
+              platforms=("android-${compile_sdk}" "android-${compile_sdk}.0")
+              installed() {
+                  local platform
+                  for platform in "${platforms[@]}"; do
+                      [[ -f "$ANDROID_HOME/platforms/$platform/android.jar" ]] && return 0
+                  done
+                  return 1
+              }
+              if installed; then
+                  echo "Android SDK platform $compile_sdk is already installed."
+                  exit 0
+              fi
+              for platform in "${platforms[@]}"; do
+                  echo "Installing platforms;$platform"
+                  # `yes || true`: yes dies of SIGPIPE when sdkmanager exits, which pipefail treats as failure.
+                  # sdkmanager can exit 0 without installing anything, so success is checked on disk instead.
+                  { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;$platform" > /dev/null || true
+                  if installed; then
+                      exit 0
+                  fi
+              done
+              echo "::error::Could not install Android SDK platform $compile_sdk (compileSdk in gradle/libs.versions.toml)."
+              exit 1

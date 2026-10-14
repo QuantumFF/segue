@@ -1,52 +1,52 @@
 version: 2
 
 updates:
-  # Covers gradle/libs.versions.toml (shared with build-logic), the settings plugins and the wrapper.
-  - package-ecosystem: gradle
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-    groups:
-      # AGP, Kotlin, KSP and the build plugins move together; one PR keeps them compatible.
-      build-tooling:
-        patterns:
-          - "com.android.*"
-          - "org.jetbrains.kotlin*"
-          - "com.google.devtools.ksp*"
-          - "com.diffplug.spotless*"
-          - "com.pinterest.ktlint*"
-          - "io.nlopez.compose.rules*"
-          - "org.gradle.toolchains.foojay-resolver*"
-      # Includes the Room and Baseline Profile Gradle plugins, which share versions with their libraries.
-      androidx:
-        patterns:
-          - "androidx.*"
-      kotlinx:
-        patterns:
-          - "org.jetbrains.kotlinx*"
-      hilt:
-        patterns:
-          - "com.google.dagger*"
-      network-and-images:
-        patterns:
-          - "com.squareup.*"
-          - "io.coil-kt*"
-      testing:
-        patterns:
-          - "junit:*"
-          - "com.google.truth*"
-          - "app.cash.turbine*"
-          - "org.robolectric*"
+    # Covers gradle/libs.versions.toml (shared with build-logic), the settings plugins and the wrapper.
+    - package-ecosystem: gradle
+      directory: /
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 10
+      groups:
+          # AGP, Kotlin, KSP and the build plugins move together; one PR keeps them compatible.
+          build-tooling:
+              patterns:
+                  - "com.android.*"
+                  - "org.jetbrains.kotlin*"
+                  - "com.google.devtools.ksp*"
+                  - "com.diffplug.spotless*"
+                  - "com.pinterest.ktlint*"
+                  - "io.nlopez.compose.rules*"
+                  - "org.gradle.toolchains.foojay-resolver*"
+          # Includes the Room and Baseline Profile Gradle plugins, which share versions with their libraries.
+          androidx:
+              patterns:
+                  - "androidx.*"
+          kotlinx:
+              patterns:
+                  - "org.jetbrains.kotlinx*"
+          hilt:
+              patterns:
+                  - "com.google.dagger*"
+          network-and-images:
+              patterns:
+                  - "com.squareup.*"
+                  - "io.coil-kt*"
+          testing:
+              patterns:
+                  - "junit:*"
+                  - "com.google.truth*"
+                  - "app.cash.turbine*"
+                  - "org.robolectric*"
 
-  # Workflows and the local composite action (.github/actions/*).
-  - package-ecosystem: github-actions
-    directories:
-      - /
-      - /.github/actions/*
-    schedule:
-      interval: weekly
-    groups:
-      github-actions:
-        patterns:
-          - "*"
+    # Workflows and the local composite action (.github/actions/*).
+    - package-ecosystem: github-actions
+      directories:
+          - /
+          - /.github/actions/*
+      schedule:
+          interval: weekly
+      groups:
+          github-actions:
+              patterns:
+                  - "*"
