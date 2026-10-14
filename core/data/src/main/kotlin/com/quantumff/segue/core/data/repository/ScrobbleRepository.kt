@@ -67,10 +67,12 @@ internal class ScrobbleFlusher @Inject constructor(
         while (true) {
             val batch = scrobbleDao.oldest(serverId, BATCH_SIZE)
             if (batch.isEmpty()) return
-            batch.partition { it.submission }.toList().filter { it.isNotEmpty() }.forEach { rows ->
-                remote { client.scrobble(rows.map { it.songId }, rows.map { it.playedAt }, rows.first().submission) }
+            // One call per submission flag; each group is deleted as soon as it is sent, so a later
+            // failure never resends it.
+            batch.groupBy { it.submission }.forEach { (submission, rows) ->
+                remote { client.scrobble(rows.map { it.songId }, rows.map { it.playedAt }, submission) }
+                scrobbleDao.delete(rows.map { it.id })
             }
-            scrobbleDao.delete(batch.map { it.id })
         }
     }
 

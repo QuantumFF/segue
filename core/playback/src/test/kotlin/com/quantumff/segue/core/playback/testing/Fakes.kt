@@ -38,14 +38,15 @@ class FakePlayQueueRemoteRepository(private val clientName: String) : PlayQueueR
     override suspend fun deviceClientName(): String = clientName
 }
 
-/** Snapshots saved through [save] get `updatedAt` 0, so any timestamped remote queue is newer. */
+/** Snapshots saved through [save] get `updatedAt` [now] (0 by default, so any timestamped remote queue is newer). */
 class FakeQueueSnapshotRepository : QueueSnapshotRepository {
     override val snapshot = MutableStateFlow<QueueSnapshot?>(null)
     val saves = mutableListOf<QueueState>()
+    var now = 0L
 
     override suspend fun save(songIds: List<String>, currentIndex: Int, positionMillis: Long) {
         saves += QueueState(songIds, currentIndex, positionMillis)
-        snapshot.value = QueueSnapshot(songIds.toImmutableList(), currentIndex, positionMillis, updatedAt = 0)
+        snapshot.value = QueueSnapshot(songIds.toImmutableList(), currentIndex, positionMillis, updatedAt = now)
     }
 }
 

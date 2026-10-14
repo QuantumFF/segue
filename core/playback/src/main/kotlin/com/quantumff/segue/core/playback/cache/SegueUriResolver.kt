@@ -3,7 +3,6 @@ package com.quantumff.segue.core.playback.cache
 import android.net.Uri
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
-import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.MediaUrlRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.StreamingQuality
@@ -44,7 +43,10 @@ class SegueUriResolver @Inject constructor(
                     else -> throw IOException("Unknown media URI $uri")
                 }
             }
-        } catch (e: RemoteException) {
+        } catch (e: IOException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // Signed out, a server error, or storage trouble: a load error the player reports, not a crash.
             throw IOException(e)
         }
     }

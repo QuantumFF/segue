@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 
 /**
  * Keeps the play queue in sync with the server and with the local Room snapshot. See
@@ -26,7 +27,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
  *   [DEBOUNCE_MILLIS] and then saved in effective play order. Going to the background flushes at
  *   once. Nothing is uploaded while playback simply runs.
  * - **Snapshot**: the same events save the queue to Room, so a cold start can restore it offline.
- *   An empty queue is never saved or uploaded: that is what the player looks like before restore.
+ *   An empty queue is saved and uploaded only through [onQueueCleared], because an empty player is
+ *   also what the service looks like before it restores the snapshot.
  * - **Download** happens in [checkRemote] (app start and foreground). A newer queue from another
  *   client becomes [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions].
  */
@@ -35,7 +37,7 @@ class QueueSyncEngine @Inject constructor(
     private val remote: PlayQueueRemoteRepository,
     private val snapshots: QueueSnapshotRepository,
     private val preferences: UserPreferencesRepository,
-    @ApplicationScope scope: CoroutineScope,
+    @ApplicationScope private val scope: CoroutineScope,
 ) {
     private val uploader = DebouncedQueueWriter(scope, DEBOUNCE_MILLIS, ::upload)
     private val snapshotWriter = DebouncedQueueWriter(scope, DEBOUNCE_MILLIS, ::saveSnapshot)
@@ -57,6 +59,13 @@ class QueueSyncEngine @Inject constructor(
         if (state.songIds.isEmpty()) return
         snapshotWriter.submit(state)
         uploader.submit(state)
+    }
+
+    /** The user emptied a queue that had songs: clear the snapshot and the server's saved queue. */
+    fun onQueueCleared() {
+        val cleared = QueueState(emptyList(), currentIndex = -1, positionMillis = 0)
+        snapshotWriter.submit(cleared)
+        uploader.submit(cleared)
     }
 
     /** The app left the foreground: save now. [state] is the current queue, or null to flush the latest event's. */
@@ -110,8 +119,16 @@ class QueueSyncEngine @Inject constructor(
     /** Takes the offered queue to adopt it; null if there is none. */
     fun acceptOffer(): RemotePlayQueue? = offeredQueue.value?.also { clearOffer(handled = it) }
 
+    /**
+     * Keeps the local queue. Its snapshot is saved again so it counts as newer than the dismissed
+     * remote queue, which then stays dismissed after a restart too.
+     */
     fun dismissOffer() {
-        offeredQueue.value?.let { clearOffer(handled = it) }
+        offeredQueue.value?.let { clearOffer(handled = it) } ?: return
+        scope.launch {
+            val local = snapshots.snapshot.first() ?: return@launch
+            saveSnapshot(QueueState(local.songIds, local.currentIndex, local.positionMillis))
+        }
     }
 
     /** The player was restored from the local snapshot: that state is already saved everywhere. */

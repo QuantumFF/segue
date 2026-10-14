@@ -6,7 +6,6 @@ import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import com.quantumff.segue.core.model.UserPreferences
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,8 +30,7 @@ fun megabytes(mb: Int): Long = mb * BYTES_PER_MB
 object StreamCacheModule {
     @Provides
     @Singleton
-    fun evictor(): AdjustableLruCacheEvictor =
-        AdjustableLruCacheEvictor(megabytes(UserPreferences.DEFAULT_STREAM_CACHE_MB))
+    fun evictor(): AdjustableLruCacheEvictor = AdjustableLruCacheEvictor()
 
     @Provides
     @Singleton

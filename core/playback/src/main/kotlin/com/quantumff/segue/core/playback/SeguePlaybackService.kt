@@ -67,6 +67,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
     private var idleStop: Job? = null
+    private var hadItems = false
 
     override fun onCreate() {
         super.onCreate()
@@ -128,6 +129,10 @@ class SeguePlaybackService : MediaLibraryService() {
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) return
+            val hasItems = player.mediaItemCount > 0
+            // Empty after having songs is a deliberate clear, not the empty player before restore.
+            if (hadItems && !hasItems) components.queueSync.onQueueCleared()
+            hadItems = hasItems
             queueEvent(QueueEvent.QueueEdit)
             updatePrefetch()
             updateSessionState()
@@ -148,13 +153,14 @@ class SeguePlaybackService : MediaLibraryService() {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) {
-                idleStop?.cancel()
                 updatePrefetch()
             } else {
                 queueEvent(QueueEvent.Pause)
-                scheduleIdleStop()
             }
+            updateIdleStop()
         }
+
+        override fun onPlaybackStateChanged(playbackState: Int) = updateIdleStop()
     }
 
     private fun queueEvent(event: QueueEvent) {
@@ -171,11 +177,22 @@ class SeguePlaybackService : MediaLibraryService() {
         if (exoPlayer.playWhenReady) prefetcher.update(player.upNext(PREFETCH_LOOKAHEAD))
     }
 
-    private fun scheduleIdleStop() {
-        idleStop?.cancel()
+    /** Paused, or stopped at the end of the queue: nothing will play until the user acts. */
+    private fun isIdle() = !exoPlayer.playWhenReady ||
+        exoPlayer.playbackState == Player.STATE_ENDED ||
+        exoPlayer.playbackState == Player.STATE_IDLE
+
+    /** Arms one timer while idle; stops the service if it is still idle when it fires. */
+    private fun updateIdleStop() {
+        if (!isIdle()) {
+            idleStop?.cancel()
+            idleStop = null
+            return
+        }
+        if (idleStop?.isActive == true) return
         idleStop = scope.launch {
             delay(preferences.stopWhenPausedMinutes * MILLIS_PER_MINUTE)
-            if (!exoPlayer.playWhenReady) pauseAllPlayersAndStopSelf()
+            if (isIdle()) pauseAllPlayersAndStopSelf()
         }
     }
 

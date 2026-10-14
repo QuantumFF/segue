@@ -100,6 +100,19 @@ class QueueSyncEngineTest {
     }
 
     @Test
+    fun `clearing the queue clears the snapshot and the server queue`() = runTest {
+        val engine = engine()
+        engine.onQueueEvent(QueueEvent.QueueEdit, state)
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+        engine.onQueueCleared()
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+
+        val cleared = QueueState(emptyList(), -1, 0)
+        assertThat(snapshots.saves).containsExactly(state, cleared).inOrder()
+        assertThat(remote.saves).containsExactly(state, cleared).inOrder()
+    }
+
+    @Test
     fun `a queue restored from the snapshot is not written back or uploaded`() = runTest {
         val engine = engine()
         engine.markRestored(state)
@@ -160,6 +173,22 @@ class QueueSyncEngineTest {
 
         engine.checkRemote(isPlayingLocally = false)
         assertThat(engine.remoteOffer.value).isNull()
+    }
+
+    @Test
+    fun `a dismissed queue stays dismissed after a restart`() = runTest {
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        snapshots.now = 6_000
+        engine.dismissOffer()
+        runCurrent()
+
+        val afterRestart = engine()
+        afterRestart.checkRemote(isPlayingLocally = false)
+        assertThat(afterRestart.remoteOffer.value).isNull()
+        assertThat(snapshots.snapshot.value!!.songIds).containsExactly("x")
     }
 
     @Test

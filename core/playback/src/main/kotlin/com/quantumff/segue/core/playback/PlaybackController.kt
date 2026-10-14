@@ -52,7 +52,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.emitAll
@@ -84,28 +83,39 @@ class PlaybackController @Inject constructor(
     private val random = Random.Default
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
+
+    /** The connected controller, or null while disconnected (for example after the service stopped). */
+    private val connected = MutableStateFlow<MediaController?>(null)
     private val queueCache = QueueCache()
 
     /**
      * Player state. Observing it connects to the service. The position updates every
      * [POSITION_TICK_MILLIS] only while someone observes and music plays; otherwise it changes
-     * only on player events.
+     * only on player events. While disconnected it is empty; the next command reconnects.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<PlayerUiState> = flow {
-        val controller = controller()
+        try {
+            controller()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.w(TAG, "Could not connect to the playback service", e)
+        }
         emitAll(
-            controller.events()
-                .combine(sessionExtras) { _, extras -> snapshot(controller, extras) }
-                .flatMapLatest { snapshot ->
-                    if (snapshot.isPlaying) ticking(controller, snapshot) else flowOf(snapshot)
-                },
+            connected.flatMapLatest { controller ->
+                if (controller == null) {
+                    flowOf(PlayerUiState())
+                } else {
+                    controller.events()
+                        .combine(sessionExtras) { _, extras -> snapshot(controller, extras) }
+                        .flatMapLatest { snapshot ->
+                            if (snapshot.isPlaying) ticking(controller, snapshot) else flowOf(snapshot)
+                        }
+                }
+            },
         )
     }
-        .catch { error ->
-            Log.w(TAG, "Could not connect to the playback service", error)
-            emit(PlayerUiState())
-        }
         .combine(queueSync.remoteOffer) { state, offer -> state.copy(remoteQueue = offer) }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
 
@@ -295,7 +305,10 @@ class PlaybackController @Inject constructor(
     private suspend fun controller(): MediaController = withContext(mainDispatcher) {
         val future = controllerFuture ?: buildController().also { controllerFuture = it }
         try {
-            future.await().also { sessionExtras.value = it.sessionExtras }
+            future.await().also {
+                sessionExtras.value = it.sessionExtras
+                connected.value = it
+            }
         } catch (e: ExecutionException) {
             controllerFuture = null
             throw e
@@ -313,6 +326,7 @@ class PlaybackController @Inject constructor(
 
                     override fun onDisconnected(controller: MediaController) {
                         controllerFuture = null
+                        if (connected.value === controller) connected.value = null
                     }
                 },
             )

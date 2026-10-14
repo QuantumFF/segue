@@ -31,7 +31,14 @@ sealed interface RemoteQueueDecision {
     }
 }
 
-/** Decides whether a remote play queue should replace the local one. See docs/PLAN.md, "Server queue sync". */
+/**
+ * Decides whether a remote play queue should replace the local one. See docs/PLAN.md, "Server queue sync".
+ *
+ * "Newer" compares the server's `changed` time with this device's snapshot time, so it assumes the
+ * two clocks roughly agree (both are normally network-synced). Because this device uploads on
+ * every queue event, a save by another client is newer than ours in practice anyway; the time
+ * check matters when this device changed its queue offline.
+ */
 object RemoteQueuePolicy {
     /**
      * [ownClientName] is this device's `changedBy`. [handledChangedAt] is the `changed` time of the

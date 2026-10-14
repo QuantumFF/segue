@@ -20,7 +20,9 @@ import kotlin.random.Random
  * - **Inserts.** Inserted tracks of the same album as their queue neighbour join that neighbour's
  *   block, right after the previous track or right before the next one. Other inserted tracks form
  *   new blocks (grouped by the rules above): appended to the queue, they play last; inserted
- *   elsewhere ("play next"), they play right after the current album's block.
+ *   elsewhere ("play next"), they play right after the current album's block. An inserted album
+ *   that is already queued somewhere not adjacent becomes a second block: the user chose where
+ *   it goes, so it is not pulled into the existing block. The next fresh shuffle merges them.
  * - **Moves** in the queue keep the moment each track plays.
  *
  * [ShuffleOrder] callbacks carry only indices, so album keys and the current item of an insert
