@@ -16,3 +16,6 @@ keystore.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Claude Code agent worktrees
+.claude/worktrees/
