@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ds_see_all">See all</string>
+    <string name="ds_more_options">More options</string>
+    <string name="ds_back">Back</string>
+    <string name="ds_play">Play</string>
+    <string name="ds_pause">Pause</string>
+    <string name="ds_next">Next</string>
+    <string name="ds_previous">Previous</string>
+    <string name="ds_shuffle">Shuffle</string>
+    <string name="ds_repeat">Repeat</string>
+    <string name="ds_lyrics">Lyrics</string>
+    <string name="ds_queue">Queue</string>
+    <string name="ds_volume">Volume</string>
+    <string name="ds_account">Account</string>
+    <string name="ds_refresh">Refresh</string>
+    <string name="ds_clear">Clear</string>
+    <string name="ds_collapse">Collapse</string>
+    <string name="ds_retry">Retry</string>
+    <string name="ds_explicit">E</string>
+    <string name="ds_explicit_description">Explicit</string>
+    <string name="ds_download_queued">Download queued</string>
+    <string name="ds_downloading">Downloading</string>
+    <string name="ds_downloaded">Downloaded</string>
+    <string name="ds_now_playing">Now playing</string>
+    <string name="ds_shuffle_off">Off</string>
+    <string name="ds_shuffle_tracks">Tracks</string>
+    <string name="ds_shuffle_albums">Albums</string>
+    <string name="ds_continue_from">Continue from %1$s</string>
+    <string name="ds_continue">Continue</string>
+    <string name="ds_dismiss">Dismiss</string>
+    <string name="ds_offline_cached">Offline · showing cached library</string>
+    <string name="ds_search_hint">Search</string>
+    <string name="ds_playing_from">Playing from %1$s</string>
+    <string name="ds_overline_album">Album</string>
+</resources>
