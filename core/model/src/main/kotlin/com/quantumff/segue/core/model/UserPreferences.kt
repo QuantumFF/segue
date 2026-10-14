@@ -38,13 +38,6 @@ enum class AccentPreset {
     Green,
 }
 
-/** How the play queue is shuffled. See docs/PLAN.md, "Album shuffle". */
-enum class ShuffleMode {
-    Off,
-    Tracks,
-    Albums,
-}
-
 /**
  * A `stream` request's transcoding parameters. [maxBitRateKbps] 0 and a null [format] stream the
  * original file.
