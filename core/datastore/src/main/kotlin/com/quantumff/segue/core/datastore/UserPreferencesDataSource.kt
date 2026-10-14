@@ -4,10 +4,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -36,6 +38,10 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             ),
             queueSyncEnabled = prefs[Keys.QueueSyncEnabled] ?: defaults.queueSyncEnabled,
             adoptRemoteQueueAutomatically = prefs[Keys.AdoptRemoteQueue] ?: defaults.adoptRemoteQueueAutomatically,
+            replayGainMode = prefs.enum(Keys.ReplayGainMode, defaults.replayGainMode),
+            replayGainPreampDb = prefs[Keys.ReplayGainPreamp] ?: defaults.replayGainPreampDb,
+            streamCacheSizeMb = prefs[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
+            stopWhenPausedMinutes = prefs[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
         )
     }.distinctUntilChanged()
 
@@ -58,6 +64,14 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     suspend fun setQueueSyncEnabled(enabled: Boolean) = set(Keys.QueueSyncEnabled, enabled)
 
     suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean) = set(Keys.AdoptRemoteQueue, enabled)
+
+    suspend fun setReplayGainMode(mode: ReplayGainMode) = set(Keys.ReplayGainMode, mode.name)
+
+    suspend fun setReplayGainPreampDb(preampDb: Float) = set(Keys.ReplayGainPreamp, preampDb)
+
+    suspend fun setStreamCacheSizeMb(sizeMb: Int) = set(Keys.StreamCacheSizeMb, sizeMb)
+
+    suspend fun setStopWhenPausedMinutes(minutes: Int) = set(Keys.StopWhenPausedMinutes, minutes)
 
     /**
      * A random ID for this install, created on first call and then stable. Queue sync uses it to
@@ -100,5 +114,9 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val QueueSyncEnabled = booleanPreferencesKey("queue_sync_enabled")
         val AdoptRemoteQueue = booleanPreferencesKey("adopt_remote_queue_automatically")
         val DeviceId = stringPreferencesKey("device_id")
+        val ReplayGainMode = stringPreferencesKey("replay_gain_mode")
+        val ReplayGainPreamp = floatPreferencesKey("replay_gain_preamp_db")
+        val StreamCacheSizeMb = intPreferencesKey("stream_cache_size_mb")
+        val StopWhenPausedMinutes = intPreferencesKey("stop_when_paused_minutes")
     }
 }

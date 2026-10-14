@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -41,6 +42,10 @@ class UserPreferencesDataSourceTest {
         source.setCellularStreamingQuality(StreamingQuality(maxBitRateKbps = 128, format = "opus"))
         source.setQueueSyncEnabled(false)
         source.setAdoptRemoteQueueAutomatically(true)
+        source.setReplayGainMode(ReplayGainMode.Album)
+        source.setReplayGainPreampDb(-3f)
+        source.setStreamCacheSizeMb(256)
+        source.setStopWhenPausedMinutes(30)
 
         assertThat(source.preferences.first()).isEqualTo(
             UserPreferences(
@@ -52,6 +57,10 @@ class UserPreferencesDataSourceTest {
                 cellularStreamingQuality = StreamingQuality(maxBitRateKbps = 128, format = "opus"),
                 queueSyncEnabled = false,
                 adoptRemoteQueueAutomatically = true,
+                replayGainMode = ReplayGainMode.Album,
+                replayGainPreampDb = -3f,
+                streamCacheSizeMb = 256,
+                stopWhenPausedMinutes = 30,
             ),
         )
     }
