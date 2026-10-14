@@ -11,6 +11,10 @@ dependencies {
     api(libs.androidx.media3.session)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.datasource.okhttp)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.process)
+    // The app's shared OkHttpClient (provided by core:network) streams audio.
+    implementation(libs.okhttp.core)
 
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
