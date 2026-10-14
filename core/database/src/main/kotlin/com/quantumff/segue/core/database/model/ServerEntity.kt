@@ -12,4 +12,4 @@ data class ServerEntity(
     val username: String,
 )
 
-fun ServerEntity.asExternalModel() = Server(id = id, name = name, baseUrl = baseUrl, username = username)
+fun ServerEntity.asExternalModel() = Server(id = id.toString(), name = name, baseUrl = baseUrl, username = username)

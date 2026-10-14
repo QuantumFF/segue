@@ -23,7 +23,7 @@ class OfflineFirstServerRepositoryTest {
             dao.upsert(ServerEntity(id = 7, name = "Home", baseUrl = "https://a.example", username = "me"))
 
             assertThat(awaitItem()).containsExactly(
-                Server(id = 7, name = "Home", baseUrl = "https://a.example", username = "me"),
+                Server(id = "7", name = "Home", baseUrl = "https://a.example", username = "me"),
             )
         }
     }
