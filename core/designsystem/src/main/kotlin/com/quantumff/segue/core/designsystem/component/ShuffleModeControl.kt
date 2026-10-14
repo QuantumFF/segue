@@ -19,6 +19,7 @@ import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.designsystem.theme.navigationIndicator
 import com.quantumff.segue.core.model.ShuffleMode
 
 /**
@@ -28,7 +29,7 @@ import com.quantumff.segue.core.model.ShuffleMode
 @Composable
 fun ShuffleModeControl(selected: ShuffleMode, onSelect: (ShuffleMode) -> Unit, modifier: Modifier = Modifier) {
     val colors = SegmentedButtonDefaults.colors(
-        activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+        activeContainerColor = MaterialTheme.colorScheme.navigationIndicator,
         activeContentColor = MaterialTheme.colorScheme.onSurface,
         activeBorderColor = MaterialTheme.colorScheme.outline,
         inactiveContainerColor = MaterialTheme.colorScheme.surface,

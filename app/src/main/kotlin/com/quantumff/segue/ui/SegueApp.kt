@@ -25,6 +25,7 @@ import androidx.compose.material3.adaptive.WindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -69,7 +70,10 @@ fun SegueApp(modifier: Modifier = Modifier, windowAdaptiveInfo: WindowAdaptiveIn
 fun SegueApp(appState: SegueAppState, modifier: Modifier = Modifier) {
     val destination = appState.currentDestination
     val fullScreen = appState.isFullScreen(destination)
-    val showChrome = !fullScreen && !WindowInsets.isImeVisible
+    // Full-screen routes hide all chrome. The IME hides the phone bar and the mini players only;
+    // the rail, sidebar and player bar stay (DESIGN.md §3).
+    val imeVisible = WindowInsets.isImeVisible
+    val chrome = ShellChrome(navigation = !fullScreen, player = !fullScreen && !imeVisible)
     val onTabClick = appState::navigateToTab
 
     // Back at the root of another tab returns to Home, then leaves the app.
@@ -88,38 +92,43 @@ fun SegueApp(appState: SegueAppState, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.background),
     ) {
         when (appState.shellLayout) {
-            ShellLayout.Compact -> CompactShell(appState, showChrome, player, onTabClick, onOpenNowPlaying)
-            ShellLayout.Medium -> MediumShell(appState, showChrome, player, onTabClick, onOpenNowPlaying)
-            ShellLayout.Expanded -> ExpandedShell(appState, showChrome, player, onTabClick, onOpenNowPlaying)
+            ShellLayout.Compact -> CompactShell(appState, chrome, player, onTabClick, onOpenNowPlaying)
+            ShellLayout.Medium -> MediumShell(appState, chrome, player, onTabClick, onOpenNowPlaying)
+            ShellLayout.Expanded -> ExpandedShell(appState, chrome, player, onTabClick, onOpenNowPlaying)
         }
     }
 }
 
+/** Which parts of the shell chrome are visible right now. */
+@Immutable
+private data class ShellChrome(
+    /** Bottom bar, rail or sidebar. */
+    val navigation: Boolean,
+    /** Mini player (phone and medium) or player bar (expanded). */
+    val player: Boolean,
+)
+
 @Composable
 private fun CompactShell(
     appState: SegueAppState,
-    showChrome: Boolean,
+    chrome: ShellChrome,
     player: PlayerBarState,
     onTabClick: (TopLevelDestination) -> Unit,
     onOpenNowPlaying: () -> Unit,
 ) {
+    // On phones the bar hides with the IME too, so it follows the player flag.
+    val visible = chrome.player
     val systemBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(Modifier.fillMaxSize()) {
         ShellContent(
             appState,
-            bottomChrome = if (showChrome) bottomChromeHeight(systemBottom, navBar = true) else SegueSpacing.none,
+            bottomChrome = if (visible) bottomChromeHeight(systemBottom, navBar = true) else SegueSpacing.none,
         )
         Column(Modifier.align(Alignment.BottomCenter)) {
-            ChromeVisibility(showChrome) {
-                MiniPlayer(
-                    state = player.track,
-                    progress = { 0f },
-                    onClick = onOpenNowPlaying,
-                    onPlayPauseClick = {},
-                    onNextClick = {},
-                )
+            ChromeVisibility(visible) {
+                PlaceholderMiniPlayer(player = player, onOpenNowPlaying = onOpenNowPlaying)
             }
-            ChromeVisibility(showChrome) {
+            ChromeVisibility(visible) {
                 SegueNavigationBar(currentTab = appState.currentTab, onTabClick = onTabClick)
             }
         }
@@ -129,26 +138,30 @@ private fun CompactShell(
 @Composable
 private fun MediumShell(
     appState: SegueAppState,
-    showChrome: Boolean,
+    chrome: ShellChrome,
     player: PlayerBarState,
     onTabClick: (TopLevelDestination) -> Unit,
     onOpenNowPlaying: () -> Unit,
 ) {
     val systemBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Row(Modifier.fillMaxSize()) {
-        if (showChrome) SegueNavigationRail(currentTab = appState.currentTab, onTabClick = onTabClick)
+        if (chrome.navigation) SegueNavigationRail(currentTab = appState.currentTab, onTabClick = onTabClick)
         Box(Modifier.weight(1f)) {
             ShellContent(
                 appState,
-                bottomChrome = if (showChrome) bottomChromeHeight(systemBottom, navBar = false) else SegueSpacing.none,
+                bottomChrome = if (chrome.player) {
+                    bottomChromeHeight(
+                        systemBottom,
+                        navBar = false,
+                    )
+                } else {
+                    SegueSpacing.none
+                },
             )
-            ChromeVisibility(showChrome, Modifier.align(Alignment.BottomCenter)) {
-                MiniPlayer(
-                    state = player.track,
-                    progress = { 0f },
-                    onClick = onOpenNowPlaying,
-                    onPlayPauseClick = {},
-                    onNextClick = {},
+            ChromeVisibility(chrome.player, Modifier.align(Alignment.BottomCenter)) {
+                PlaceholderMiniPlayer(
+                    player = player,
+                    onOpenNowPlaying = onOpenNowPlaying,
                     modifier = Modifier
                         .background(MaterialTheme.colorScheme.surfaceContainer)
                         .navigationBarsPadding(),
@@ -161,7 +174,7 @@ private fun MediumShell(
 @Composable
 private fun ExpandedShell(
     appState: SegueAppState,
-    showChrome: Boolean,
+    chrome: ShellChrome,
     player: PlayerBarState,
     onTabClick: (TopLevelDestination) -> Unit,
     onOpenNowPlaying: () -> Unit,
@@ -169,10 +182,11 @@ private fun ExpandedShell(
     val actions = remember(onOpenNowPlaying) { placeholderPlayerActions(onOpenNowPlaying) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.weight(1f)) {
-            if (showChrome) SegueSidebar(currentTab = appState.currentTab, onTabClick = onTabClick)
+            if (chrome.navigation) SegueSidebar(currentTab = appState.currentTab, onTabClick = onTabClick)
             Box(Modifier.weight(1f)) { ShellContent(appState, bottomChrome = SegueSpacing.none) }
         }
-        if (showChrome) {
+        // The player bar is permanent chrome on expanded width: only full-screen routes hide it.
+        if (chrome.navigation) {
             PlayerBar(
                 state = player,
                 positionSeconds = { 0L },
@@ -183,6 +197,19 @@ private fun ExpandedShell(
             )
         }
     }
+}
+
+/** Mini player bound to the placeholder track; controls are no-ops until playback exists. */
+@Composable
+private fun PlaceholderMiniPlayer(player: PlayerBarState, onOpenNowPlaying: () -> Unit, modifier: Modifier = Modifier) {
+    MiniPlayer(
+        state = player.track,
+        progress = { 0f },
+        onClick = onOpenNowPlaying,
+        onPlayPauseClick = {},
+        onNextClick = {},
+        modifier = modifier,
+    )
 }
 
 @Composable

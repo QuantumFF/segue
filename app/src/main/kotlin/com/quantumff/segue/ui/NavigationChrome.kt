@@ -33,6 +33,7 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.designsystem.theme.navigationIndicator
 import com.quantumff.segue.navigation.TopLevelDestination
 
 /**
@@ -66,7 +67,7 @@ fun SegueNavigationBar(
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.onSurface,
                     selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    indicatorColor = MaterialTheme.colorScheme.navigationIndicator,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
@@ -98,7 +99,7 @@ fun SegueNavigationRail(
                 colors = NavigationRailItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.onSurface,
                     selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    indicatorColor = MaterialTheme.colorScheme.navigationIndicator,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
@@ -134,7 +135,7 @@ fun SegueSidebar(
                 label = { Text(stringResource(tab.label), style = MaterialTheme.typography.labelLarge) },
                 shape = SegueShapes.full,
                 colors = NavigationDrawerItemDefaults.colors(
-                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedContainerColor = MaterialTheme.colorScheme.navigationIndicator,
                     unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     selectedIconColor = MaterialTheme.colorScheme.onSurface,
                     selectedTextColor = MaterialTheme.colorScheme.onSurface,

@@ -142,7 +142,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Hidden when the queue is empty, while Now Playing is open, and while the IME is visible (the nav bar hides then too).
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
 - Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
-- Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme.
+- Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
 
 ## 4. Screens
 

@@ -28,7 +28,7 @@ import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
-import com.quantumff.segue.core.designsystem.theme.DISABLED_CONTENT_ALPHA
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -86,7 +86,7 @@ fun TrackRow(
             .fillMaxWidth()
             .height(if (dense) SegueSizes.trackRowDense else SegueSizes.trackRow)
             .rowClickable(enabled = state.isAvailable, onClick = onClick, onLongClick = onLongClick)
-            .then(if (state.isAvailable) Modifier else Modifier.alpha(DISABLED_CONTENT_ALPHA))
+            .then(if (state.isAvailable) Modifier else Modifier.alpha(SegueAlpha.DISABLED))
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {

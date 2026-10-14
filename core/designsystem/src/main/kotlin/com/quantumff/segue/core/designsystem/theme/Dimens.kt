@@ -122,9 +122,6 @@ object SegueSizes {
     val noElevation = 0.dp
 }
 
-/** Content alpha for unavailable (offline, not downloaded) rows. */
-const val DISABLED_CONTENT_ALPHA = 0.38f
-
 /** The only three shadows allowed, all outside scrolling lists (DESIGN.md §2.4). */
 object SegueShadows {
     val heroArt = 8.dp

@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import com.quantumff.segue.core.designsystem.art.ArtNoise
 import com.quantumff.segue.core.designsystem.art.BlurredArt
@@ -26,6 +25,7 @@ import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShadows
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -51,8 +51,8 @@ fun NowPlayingScreen(onCollapseClick: () -> Unit, onQueueClick: () -> Unit, modi
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            SegueTheme.colors.artShade.copy(alpha = SHADE_TOP_ALPHA),
-                            SegueTheme.colors.artShade.copy(alpha = SHADE_BOTTOM_ALPHA),
+                            SegueTheme.colors.artShade.copy(alpha = SegueAlpha.NOW_PLAYING_SHADE_TOP),
+                            SegueTheme.colors.artShade.copy(alpha = SegueAlpha.NOW_PLAYING_SHADE_BOTTOM),
                         ),
                     ),
                 ),
@@ -65,7 +65,7 @@ fun NowPlayingScreen(onCollapseClick: () -> Unit, onQueueClick: () -> Unit, modi
                 onCollapseClick = onCollapseClick,
                 onMoreClick = {},
             )
-            val shadowColor = Color.Black.copy(alpha = SegueShadows.NOW_PLAYING_ART_ALPHA)
+            val shadowColor = SegueTheme.colors.shadow.copy(alpha = SegueShadows.NOW_PLAYING_ART_ALPHA)
             CoverArt(
                 coverArtId = coverArtId,
                 displaySize = SegueSizes.nowPlayingArtMax,
@@ -92,9 +92,6 @@ fun NowPlayingScreen(onCollapseClick: () -> Unit, onQueueClick: () -> Unit, modi
         }
     }
 }
-
-private const val SHADE_TOP_ALPHA = 0.30f
-private const val SHADE_BOTTOM_ALPHA = 0.85f
 
 @PreviewSegueThemes
 @Composable

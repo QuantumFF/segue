@@ -88,6 +88,35 @@ internal object SeguePalettes {
     )
 }
 
+/** Alpha tokens (DESIGN.md §2.1, §2.4, §4.7, §5.4, §5.6, §5.8). */
+object SegueAlpha {
+    /** Unavailable rows (offline, not downloaded). */
+    const val DISABLED = 0.38f
+
+    /** Navigation indicator pill: `primary` @ 16% (DESIGN.md §3). */
+    const val NAV_INDICATOR = 0.16f
+
+    /** Secondary text over art. */
+    const val ON_ART_MUTED = 0.70f
+
+    /** Hero "Blurred art" bitmap opacity, and the `background` gradient over it (top 5%). */
+    const val HERO_BLURRED_ART = 0.70f
+    const val HERO_BLUR_GRADIENT_TOP = 0.05f
+
+    /** Now Playing "Blurred art" shade: black 30% at the top to 85% at the bottom. */
+    const val NOW_PLAYING_SHADE_TOP = 0.30f
+    const val NOW_PLAYING_SHADE_BOTTOM = 0.85f
+
+    /** Anti-banding noise over art backdrops. */
+    const val ART_NOISE = 0.04f
+
+    /** Pill fill: `background` @ 50%. */
+    const val PILL_FILL = 0.5f
+
+    /** Skeleton pulse lower bound (pulses to 1.0). */
+    const val SKELETON_MIN = 0.5f
+}
+
 /** The accent roles that may vary (fixed preset, Material You, or album art). */
 @Immutable
 data class AccentColors(
@@ -117,25 +146,34 @@ data class SegueExtendedColors(
     val onArtMuted: Color,
     /** Gradient end for art backdrops. */
     val artShade: Color,
+    /** Base color of the three allowed shadows (DESIGN.md §2.4); apply the per-shadow alpha. */
+    val shadow: Color,
 )
 
 internal val LocalSegueColors = staticCompositionLocalOf {
     SegueExtendedColors(
         success = SeguePalettes.Dark.success,
         onArt = Color.White,
-        onArtMuted = Color.White.copy(alpha = ON_ART_MUTED_ALPHA),
+        onArtMuted = Color.White.copy(alpha = SegueAlpha.ON_ART_MUTED),
         artShade = Color.Black,
+        shadow = Color.Black,
     )
 }
-
-private const val ON_ART_MUTED_ALPHA = 0.70f
 
 internal fun NeutralPalette.extendedColors() = SegueExtendedColors(
     success = success,
     onArt = Color.White,
-    onArtMuted = Color.White.copy(alpha = ON_ART_MUTED_ALPHA),
+    onArtMuted = Color.White.copy(alpha = SegueAlpha.ON_ART_MUTED),
     artShade = Color.Black,
+    shadow = Color.Black,
 )
+
+/**
+ * Navigation indicator pill: `primary` @ 16% in every accent mode, including Material You
+ * (whose dynamic `secondaryContainer` would otherwise be used by M3).
+ */
+val ColorScheme.navigationIndicator: Color
+    get() = primary.copy(alpha = SegueAlpha.NAV_INDICATOR)
 
 /** Builds the M3 scheme: neutrals from [this], accent roles from [accent]. Tonal elevation is unused. */
 internal fun NeutralPalette.colorScheme(accent: AccentColors): ColorScheme {

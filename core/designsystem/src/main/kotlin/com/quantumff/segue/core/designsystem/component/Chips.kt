@@ -29,6 +29,7 @@ import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -84,7 +85,7 @@ fun Pill(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = 
         modifier = modifier
             .height(SegueSizes.pill)
             .clip(SegueShapes.full)
-            .background(MaterialTheme.colorScheme.background.copy(alpha = PILL_FILL_ALPHA))
+            .background(MaterialTheme.colorScheme.background.copy(alpha = SegueAlpha.PILL_FILL))
             .border(SegueSizes.hairline, MaterialTheme.colorScheme.outlineVariant, SegueShapes.full)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = SegueSpacing.md),
@@ -124,8 +125,6 @@ fun StatusChip(
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
     }
 }
-
-private const val PILL_FILL_ALPHA = 0.5f
 
 @PreviewSegueThemes
 @Composable

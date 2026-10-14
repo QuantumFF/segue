@@ -54,7 +54,8 @@ fun SegueTheme(
                 animationSpec = SegueMotion.longEnter(),
                 label = "artAccent",
             )
-            AccentColors(primary = animated)
+            // Art accents can be light (L up to 0.70 on dark), so pick readable content.
+            AccentColors(primary = animated, onPrimary = animated.readableContent())
         }
     }
     val colorScheme = remember(palette, accent) { palette.colorScheme(accent) }

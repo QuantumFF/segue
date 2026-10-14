@@ -43,6 +43,7 @@ import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -147,7 +148,7 @@ fun rememberDelayedVisibility(delayMillis: Long = SKELETON_DELAY_MS): Boolean {
 fun SkeletonPulse(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val transition = rememberInfiniteTransition(label = "skeleton")
     val alpha by transition.animateFloat(
-        initialValue = SKELETON_MIN_ALPHA,
+        initialValue = SegueAlpha.SKELETON_MIN,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(SKELETON_PULSE_MS), RepeatMode.Reverse),
         label = "skeletonAlpha",
@@ -199,7 +200,6 @@ fun AlbumCardSkeleton(width: Dp, modifier: Modifier = Modifier) {
 
 private const val SKELETON_DELAY_MS = 150L
 private const val SKELETON_PULSE_MS = 1000
-private const val SKELETON_MIN_ALPHA = 0.5f
 private const val TITLE_FRACTION = 0.6f
 private const val SUBTITLE_FRACTION = 0.4f
 

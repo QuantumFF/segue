@@ -28,7 +28,7 @@ internal fun Modifier.pressableCard(onClick: () -> Unit, onLongClick: (() -> Uni
         animationSpec = SegueMotion.medium(),
         label = "pressScale",
     )
-    val haptics = LocalHapticFeedback.current
+    val longClickWithHaptic = onLongClick.withLongPressHaptic()
     return this
         .graphicsLayer {
             scaleX = scale
@@ -38,28 +38,27 @@ internal fun Modifier.pressableCard(onClick: () -> Unit, onLongClick: (() -> Uni
             interactionSource = interactionSource,
             indication = null,
             onClick = onClick,
-            onLongClick = onLongClick?.let { longClick ->
-                {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    longClick()
-                }
-            },
+            onLongClick = longClickWithHaptic,
         )
 }
 
 /** Tap plus long-press with a haptic and the default ripple. For rows. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun Modifier.rowClickable(enabled: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
-    val haptics = LocalHapticFeedback.current
-    return combinedClickable(
+internal fun Modifier.rowClickable(enabled: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier =
+    combinedClickable(
         enabled = enabled,
         onClick = onClick,
-        onLongClick = onLongClick?.let { longClick ->
-            {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                longClick()
-            }
-        },
+        onLongClick = onLongClick.withLongPressHaptic(),
     )
+
+/** Wraps a long-press action so it performs the long-press haptic first. */
+@Composable
+private fun (() -> Unit)?.withLongPressHaptic(): (() -> Unit)? {
+    val longClick = this ?: return null
+    val haptics = LocalHapticFeedback.current
+    return {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        longClick()
+    }
 }

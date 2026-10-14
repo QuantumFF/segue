@@ -65,6 +65,18 @@ class ColorTokensTest {
     }
 
     @Test
+    fun `art accents get readable content`() {
+        assertThat(Color(0xFF3574FC).readableContent()).isEqualTo(Color.White)
+        assertThat(Color(0xFFF2D35B).readableContent()).isEqualTo(Color.Black)
+    }
+
+    @Test
+    fun `navigation indicator is primary at 16 percent`() {
+        val scheme = SeguePalettes.Dark.colorScheme(AccentColors(primary = AccentPreset.Teal.dark))
+        assertThat(scheme.navigationIndicator).isEqualTo(AccentPreset.Teal.dark.copy(alpha = 0.16f))
+    }
+
+    @Test
     fun `hsl round trip keeps the color`() {
         val color = Color(0xFF8B5CF6)
         val back = color.toHsl().toColor()

@@ -39,10 +39,12 @@ import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShadows
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 
 /** The "Hero style" setting (DESIGN.md §5.4). */
@@ -102,7 +104,7 @@ fun HeroHeader(
             HeroStyle.BlurredArt -> {
                 BlurredArt(
                     coverArtId = state.coverArtId,
-                    alpha = BLURRED_ART_ALPHA,
+                    alpha = SegueAlpha.HERO_BLURRED_ART,
                     modifier = Modifier.matchParentSize(),
                 )
                 Spacer(
@@ -111,7 +113,7 @@ fun HeroHeader(
                         .drawBehind {
                             drawRect(
                                 Brush.verticalGradient(
-                                    listOf(background.copy(alpha = BLUR_GRADIENT_TOP_ALPHA), background),
+                                    listOf(background.copy(alpha = SegueAlpha.HERO_BLUR_GRADIENT_TOP), background),
                                 ),
                             )
                         },
@@ -167,7 +169,7 @@ private fun WideHero(state: HeroHeaderState, onSubtitleClick: (() -> Unit)?, act
             .padding(horizontal = SegueSpacing.screenMarginWide),
         verticalAlignment = Alignment.Bottom,
     ) {
-        HeroArt(state, SegueSizes.heroArtWide)
+        HeroArt(state, if (state.circularArt) SegueSizes.heroArtArtist else SegueSizes.heroArtWide)
         Spacer(Modifier.width(SegueSpacing.xl))
         Column(Modifier.weight(1f)) {
             HeroText(state, MaterialTheme.typography.displaySmall, TextAlign.Start, onSubtitleClick)
@@ -184,7 +186,7 @@ private fun WideHero(state: HeroHeaderState, onSubtitleClick: (() -> Unit)?, act
 @Composable
 private fun HeroArt(state: HeroHeaderState, size: Dp) {
     val shape = if (state.circularArt) SegueShapes.full else SegueShapes.md
-    val shadowColor = Color.Black.copy(alpha = SegueShadows.HERO_ART_ALPHA)
+    val shadowColor = SegueTheme.colors.shadow.copy(alpha = SegueShadows.HERO_ART_ALPHA)
     CoverArt(
         coverArtId = state.coverArtId,
         displaySize = size,
@@ -250,8 +252,6 @@ private fun ColumnScope.HeroText(
     }
 }
 
-private const val BLURRED_ART_ALPHA = 0.7f
-private const val BLUR_GRADIENT_TOP_ALPHA = 0.05f
 private const val TITLE_MAX_LINES = 3
 private val WIDE_BREAKPOINT = SegueSizes.heroWideBreakpoint
 

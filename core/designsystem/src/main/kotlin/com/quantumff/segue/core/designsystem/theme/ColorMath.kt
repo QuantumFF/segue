@@ -42,6 +42,15 @@ internal fun contrastRatio(a: Color, b: Color): Float {
 }
 
 /**
+ * Content color on an arbitrary accent: white (the design's default on `primary`) unless it drops
+ * below 3:1, the WCAG minimum for icons and large text; black then.
+ */
+internal fun Color.readableContent(): Color =
+    if (contrastRatio(Color.White, this) >= MIN_CONTENT_CONTRAST) Color.White else Color.Black
+
+private const val MIN_CONTENT_CONTRAST = 3f
+
+/**
  * Darkens [this] in HSL lightness steps until it reaches [minContrast] against [background].
  * Used for light-theme accent presets (DESIGN.md §2.1: 4.5:1 on #F5F5F5).
  */
