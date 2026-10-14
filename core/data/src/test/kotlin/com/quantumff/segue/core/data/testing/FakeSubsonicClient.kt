@@ -243,7 +243,14 @@ class FakeSubsonicClient : SubsonicClient {
         starCalls += "rate $id $rating"
     }
 
-    override suspend fun scrobble(songIds: List<String>, timesMillis: List<Long>, submission: Boolean) = Unit
+    data class Scrobble(val songIds: List<String>, val timesMillis: List<Long>, val submission: Boolean)
+
+    val scrobbles = mutableListOf<Scrobble>()
+
+    override suspend fun scrobble(songIds: List<String>, timesMillis: List<Long>, submission: Boolean) {
+        write()
+        scrobbles += Scrobble(songIds, timesMillis, submission)
+    }
 
     override suspend fun getPlayQueue() = playQueue
 
