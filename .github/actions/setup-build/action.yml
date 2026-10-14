@@ -36,19 +36,23 @@ runs:
           exit 1
         fi
         # From API 37 the platform carries a minor version: compileSdk 37 uses platforms/android-37.0.
+        platforms=("android-${compile_sdk}" "android-${compile_sdk}.0")
         installed() {
-          [[ -f "$ANDROID_HOME/platforms/android-${compile_sdk}/android.jar" ||
-             -f "$ANDROID_HOME/platforms/android-${compile_sdk}.0/android.jar" ]]
+          local platform
+          for platform in "${platforms[@]}"; do
+            [[ -f "$ANDROID_HOME/platforms/$platform/android.jar" ]] && return 0
+          done
+          return 1
         }
         if installed; then
           echo "Android SDK platform $compile_sdk is already installed."
           exit 0
         fi
-        for package in "platforms;android-${compile_sdk}" "platforms;android-${compile_sdk}.0"; do
-          echo "Installing $package"
+        for platform in "${platforms[@]}"; do
+          echo "Installing platforms;$platform"
           # `yes || true`: yes dies of SIGPIPE when sdkmanager exits, which pipefail treats as failure.
           # sdkmanager can exit 0 without installing anything, so success is checked on disk instead.
-          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$package" > /dev/null || true
+          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;$platform" > /dev/null || true
           if installed; then
             exit 0
           fi

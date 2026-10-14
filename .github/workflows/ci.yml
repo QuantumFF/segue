@@ -9,10 +9,11 @@ on:
       # CI-only branches, so workflow changes can be tested before a PR exists.
       - "ci/**"
 
-# A newer push to the same branch or PR cancels the run in progress.
+# A newer push to the same branch or PR cancels the run in progress. Runs on main always finish,
+# so every main commit gets a result and writes the Gradle cache.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read

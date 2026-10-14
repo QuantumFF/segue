@@ -5,7 +5,9 @@
 #   SEGUE_KEYSTORE_PASSWORD  The keystore password
 #   SEGUE_KEY_ALIAS          Alias of the signing key inside the keystore
 #   SEGUE_KEY_PASSWORD       Password of that key
-# app/build.gradle.kts reads them as SEGUE_* environment variables.
+# app/build.gradle.kts reads the last three as environment variables, plus SEGUE_KEYSTORE_FILE, which
+# this workflow sets to the decoded keystore's path. Without SEGUE_KEYSTORE_FILE (e.g. local builds),
+# release builds are signed with the debug key.
 name: Release
 
 on:
