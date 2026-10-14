@@ -1,0 +1,454 @@
+# Segue: design spec
+
+Implementation agents follow this file exactly. If something is not covered here, use the closest pattern in this file and stay consistent with it. Do not invent new visual styles.
+Values are in dp/sp unless noted. "Feishin" values come from its v1.17.0 renderer source (theme tokens, CSS modules).
+
+## 1. Principles
+
+- **Content first, chrome last.** Album art and titles carry the color. Neutral gray surfaces, no decorative gradients, no card borders, no shadows on list content.
+- **Feishin's look, Symfonium's hands.** Visual language comes from Feishin (dark neutral palette, heavy 800-weight titles, album-art hero headers, blurred-art player, table-like track lists). Mobile ergonomics come from Symfonium (gesture-driven mini player and Now Playing, swipe actions in the queue, a customisable home, dense readable lists).
+- **Dense but calm.** 56dp rows, 1-line metadata, muted secondary text. One accent color, used sparingly: the active track, the primary action, selected state.
+- **Cheap to draw.** No real-time blur, no shadows inside scrolling lists, cover art fetched at display size. Animate with transform and alpha only.
+- **Offline is first-class.** Every screen renders from Room. Network problems show up as a small status chip, not as a blocking error.
+
+| Taken from Feishin | Taken from Symfonium |
+|---|---|
+| Palette (#0C0C0C bg, #141414 surface, #3574FC accent), Inter font | Mini player: swipe to skip, drag up to expand |
+| Hero header: art + 800-weight title, tinted with the art color or blurred art behind it | Now Playing art gestures; swipe up opens the queue |
+| Header bar that fades in on scroll, with title and play button | Queue: swipe right = play next, swipe left = remove, with haptics |
+| Feature carousel on Home with blurred art backdrop | Home sections can be reordered and toggled, with a size per section |
+| Fullscreen player with Up Next / Lyrics / Related panels | Compact-header option, fast scroller with letter bubble |
+| Table-style track list with columns (tablet), pills for genres | Bottom navigation, bottom-sheet context menus |
+| Lyrics: active line full opacity, others dimmed and scaled | |
+
+## 2. Tokens (`core:designsystem`)
+
+### 2.1 Color
+
+Neutrals are pure gray in every mode and never tinted by dynamic color. That is the Feishin look.
+
+| Role (M3 `ColorScheme`) | Dark (default) | Black (AMOLED) | Light |
+|---|---|---|---|
+| `background` / `surface` | `#0C0C0C` | `#000000` | `#F5F5F5` |
+| `surfaceContainerLowest` | `#080808` | `#000000` | `#FFFFFF` |
+| `surfaceContainerLow` | `#101010` | `#050505` | `#EFEFEF` |
+| `surfaceContainer` (nav bar, mini player) | `#141414` | `#0A0A0A` | `#E9E9E9` |
+| `surfaceContainerHigh` (sheets, menus, placeholders) | `#1C1C1C` | `#121212` | `#E1E1E1` |
+| `surfaceContainerHighest` (banners, inputs, selected chip) | `#242424` | `#1A1A1A` | `#D8D8D8` |
+| `onSurface` / `onBackground` | `#E1E1E1` | `#E1E1E1` | `#191919` |
+| `onSurfaceVariant` (muted text, icons) | `#969696` | `#8C8C8C` | `#505050` |
+| `outline` | `#3B3B3B` | `#2E2E2E` | `#BDBDBD` |
+| `outlineVariant` (dividers, pill borders) | `#FFFFFF` @ 10% | `#FFFFFF` @ 8% | `#000000` @ 6% |
+| `primary` (fixed default accent) | `#3574FC` | `#3574FC` | `#0066E0` |
+| `onPrimary` | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` |
+| `primaryContainer` | primary @ 16% over surface | same | primary @ 12% over surface |
+| `error` | `#E5484D` | `#E5484D` | `#D93025` |
+| `success` (extended: download done) | `#3DCC5C` | `#3DCC5C` | `#1E8E3E` |
+| `scrim` | `#000000` @ 60% | @ 70% | `#000000` @ 40% |
+
+- Theme setting: System (default) / Light / Dark / Black. "Black" replaces Dark when the system is in dark mode.
+- **Accent source** setting:
+  - **Fixed** (default). Presets: Blue `#3574FC`, Teal `#14B8A6`, Violet `#8B5CF6`, Pink `#EC4899`, Orange `#F97316`, Green `#22C55E`. Light theme uses each preset darkened until it reaches 4.5:1 on `#F5F5F5`.
+  - **Material You** (API 31+). Take only `primary`, `secondary`, `tertiary` and their `on*`/container roles from `dynamicDark/LightColorScheme`. Keep the neutral table above.
+  - **Album art**. `primary` follows the current track's art color (see below), animated over 300ms.
+- **Art color** (used for hero tint, Now Playing, and the "Album art" accent): run `androidx.palette` on the 32px pre-blur bitmap (§6). Pick vibrant, then dominant, then muted swatches. Clamp HSL as follows:
+  - Hero/Now Playing tint: S ≤ 0.55, L in [0.18, 0.30] for dark themes, L in [0.82, 0.90] for light.
+  - Accent use: L in [0.55, 0.70] for dark, L in [0.35, 0.45] for light.
+  - Fallback: `surfaceContainerHigh`.
+  - Cache per `coverArtId` in a memory LRU (200 entries).
+
+### 2.2 Typography
+
+Inter variable font (OFL), bundled at `core/designsystem/src/main/res/font/inter_variable.ttf`. Use `FontVariation.weight`. Fallback is the system sans, which covers CJK.
+
+| M3 style | Size / line | Weight | Use |
+|---|---|---|---|
+| `displaySmall` | 34/40 | 800 | Hero title on expanded width |
+| `headlineMedium` | 28/34 | 800 | Hero title on phone (Feishin: 1.75 to 2.75rem, weight 800) |
+| `headlineSmall` | 24/30 | 800 | Top-level screen titles ("Home", "Library") |
+| `titleLarge` | 20/26 | 700 | Section headers, Now Playing title (22/28 there) |
+| `titleMedium` | 16/22 | 600 | Sheet headers, dialog titles |
+| `titleSmall` | 14/20 | 500 | Card title, track row title, mini player title |
+| `bodyLarge` | 16/24 | 400 | Body text, Now Playing artist |
+| `bodyMedium` | 14/20 | 400 | Settings summaries, biography |
+| `bodySmall` | 13/18 | 400 | Secondary line in rows and cards (muted) |
+| `labelLarge` | 14/20 | 600 | Buttons, tabs |
+| `labelMedium` | 12/16 | 500 | Chips, pills, durations |
+| `labelSmall` | 11/14 | 600 | Overlines ("ALBUM"), uppercase, +0.08em letter spacing |
+
+Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. Titles truncate to 1 line with an ellipsis. The only marquee (`basicMarquee`) is the Now Playing title.
+
+### 2.3 Spacing, size, radius
+
+| Spacing token | `xxs` | `xs` | `sm` | `md` | `lg` | `xl` | `xxl` | `xxxl` |
+|---|---|---|---|---|---|---|---|---|
+| dp | 2 | 4 | 8 | 12 | 16 | 24 | 32 | 48 |
+
+- Screen side margin: 16 on compact width, 24 on medium and expanded. Grid gutter: 12. Gap between home sections: 24.
+- Minimum touch target: 48. Icons: 24 by default, 20 inside rows, 28 for the Now Playing transport buttons.
+- Icons: **Lucide** (ISC, same set as Feishin), stroke 2. Vendor the ImageVectors that are used, or use `com.composables:icons-lucide`. Use filled variants for active play, pause and favorite.
+
+| Radius token | dp | Use |
+|---|---|---|
+| `xs` | 2 | Progress tracks, explicit badge |
+| `sm` | 4 | Row thumbnails, mini player art |
+| `md` | 6 | Album cards, hero art, feature carousel items |
+| `lg` | 12 | Now Playing art, banners, cards on Settings/Login |
+| `xl` | 16 | Bottom-sheet top corners, dialogs |
+| `full` | 50% | Chips, pills, play buttons, artist images |
+
+### 2.4 Elevation and blur
+
+- Use flat tonal surfaces only. M3 `tonalElevation = 0` everywhere. Use the container roles above.
+- Only three shadows are allowed, all outside scrolling lists:
+  - Hero art: 8dp shadow, black 50%.
+  - Now Playing art: 24dp shadow, black 30%, y offset 8dp.
+  - Feature carousel art: 20dp shadow, black 50%.
+- Blur is always a **pre-blurred low-res bitmap** (§6). Never use `Modifier.blur` or `RenderEffect` on live content.
+- To stop gradient banding, every art backdrop gets a tiled 64px noise PNG overlay at 4% alpha (Feishin does the same).
+
+### 2.5 Motion
+
+| Token | Duration | Easing | Use |
+|---|---|---|---|
+| `short` | 100ms | `standard` | Press states, icon toggles |
+| `medium` | 200ms | `standard` | Fades, image crossfade, chip select, card press scale 0.97 |
+| `long` | 300ms | `emphasizedDecel` in, `emphasizedAccel` out | Screen transitions, panels, sheets, accent change |
+| `lyric` | 600ms | `expoOut` | Lyric line opacity and scale |
+| `player` | spring | dampingRatio 0.85, stiffness 400 | Mini player to Now Playing, settle after drag |
+
+- Curves:
+  - `standard` = `CubicBezier(0.2, 0, 0, 1)`
+  - `emphasizedDecel` = `(0.05, 0.7, 0.1, 1)`
+  - `emphasizedAccel` = `(0.3, 0, 0.8, 0.15)`
+  - `expoOut` = `(0.16, 1, 0.3, 1)`
+- Navigation: shared-axis X (fade plus 30dp slide, `long`) for forward and back. Bottom-tab switches crossfade (`medium`).
+- When `ANIMATOR_DURATION_SCALE == 0` or the reduce-motion setting is on, every transition becomes a `medium` crossfade.
+
+## 3. App shell
+
+| Width class | Navigation | Player |
+|---|---|---|
+| Compact (< 600) | `NavigationBar`, 64 tall, `surfaceContainer`, no tonal elevation | Mini player docked above the bar |
+| Medium (600 to 839) | `NavigationRail`, 80 wide | Mini player across the content area, at the bottom |
+| Expanded (≥ 840) | Permanent sidebar, 240 wide, Feishin-style: destinations, then a "Playlists" list | Player bar, 80 tall, full width (§5.5) |
+
+- **Destinations:** Home, Library, Search. Settings opens from the account icon in the Home/Library top bar. Downloads is a Library tab and is also linked from Settings > Storage.
+- Bar icons: Lucide outline when unselected, filled or bold when selected. Labels always shown. Indicator pill uses `primary` @ 16%.
+- **Mini player** (compact and medium): 64 tall, full width, `surfaceContainer`. A 2dp progress line sits at its top edge (`primary`, track `outlineVariant`).
+  - Hidden when the queue is empty, while Now Playing is open, and while the IME is visible (the nav bar hides then too).
+  - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
+- Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
+- Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme.
+
+## 4. Screens
+
+### 4.1 Home
+- Top bar (not pinned, scrolls away): "Home" in `headlineSmall`. On the right, an account icon that opens Settings and shows the server name in a tooltip.
+- **Feature carousel** (Feishin): a `HorizontalPager` of 10 random albums. Each item:
+  - Card: 200 tall, radius `md`, page spacing 12, peek 16.
+  - Backdrop: pre-blurred art at 80% opacity, plus a bottom gradient to black 60%.
+  - Content: 120dp art on the left, then the overline "FEATURED", title `titleLarge` in white, artist, year · track count, and a 48dp play button.
+  - No auto-advance (battery). Pager dots below, 6dp.
+- Default section order: Recently played (`getAlbumList2 type=recent`), Recently added (`newest`), Most played (`frequent`), Explore (`random`, with a refresh icon in the header), Playlists, Genres (pills).
+- Section = section header + `LazyRow` with contentPadding 16, spacing 12, snap fling, 20 items, and a trailing "See all" tile.
+- Settings > Home lets the user reorder and toggle sections, and set a size per section: S 112 / M 144 (default) / L 176 card width (Symfonium).
+
+```
+┌──────────────────────────────────┐
+│ Home                         (◉) │
+│ ┌──────────────────────────────┐ │
+│ │░░blurred art░░░░░░░░░░░░░░░░░│ │
+│ │ ┌──────┐ FEATURED            │ │
+│ │ │ art  │ In Rainbows         │ │
+│ │ │120dp │ Radiohead           │ │
+│ │ └──────┘ 2007 · 10 tracks (▶)│ │
+│ └──────────────────────────────┘ │
+│              • ○ ○               │
+│ Recently played               ›  │
+│ ┌────┐ ┌────┐ ┌────┐ ┌──         │
+│ │    │ │    │ │    │ │           │
+│ └────┘ └────┘ └────┘ └──         │
+│ Title  Title  Title  Ti          │
+│ Artist Artist Artist Ar          │
+│ Recently added                ›  │
+│ ┌────┐ ┌────┐ ┌────┐ ┌──         │
+├──────────────────────────────────┤
+│▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ progress          │
+│[▣] Song title          (▶)  ⏭   │
+│    Artist                        │
+├──────────────────────────────────┤
+│   ⌂ Home   ▤ Library   ⌕ Search  │
+└──────────────────────────────────┘
+```
+
+### 4.2 Library
+- Top bar: "Library" in `headlineSmall`, plus actions: sort, view toggle (grid/list), account.
+- Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab.
+- Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
+- **Albums:** grid `GridCells.Adaptive(150)` with album cards, or a list of 64-tall rows with 48 art. Paging 3.
+- **Artists:** list rows with a 48 circular image, name, and "N albums". The grid toggle switches to circular cards.
+- **Songs:** track rows (§5.2), paged, with a "Shuffle all" button in the filter row.
+- **Playlists:** 64-tall rows with 48 art, name, and "N tracks · 1 h 12 m". A "+" in the top bar creates a playlist.
+- **Genres:** 2-column tiles, 72 tall, radius `md`. Background is a color hashed from the genre name, clamped like a hero tint. Name in `titleSmall`, counts in `bodySmall`.
+- Name sorts get a fast scroller: a 4dp thumb on the right and a 56dp letter bubble while dragging.
+
+### 4.3 Album detail (Feishin hero)
+- Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
+- Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle long-press opens "Shuffle albums" options where relevant.
+- Genre pills below the actions (§5.6).
+- Track list: rows in album mode (number column, no art). For multi-disc albums, add a sticky "Disc N · subtitle" header (`labelLarge`, 40 tall).
+- Footer: "Released 3 Oct 2019 · 12 tracks, 48:21" in `bodySmall` muted, then a "More by <artist>" carousel.
+- On scroll: the top bar starts transparent with a back arrow and ⋮. Once the hero title scrolls under it, it fades to the art-tint color (`medium`) and shows the title in `titleMedium` plus a 36 play button (Feishin page header).
+- The "Compact headers" setting (Symfonium) switches to 120 art on the left with text on the right, total height about 168.
+
+```
+┌──────────────────────────────────┐
+│ ←                             ⋮  │ ← transparent bar
+│░░░░░░░ art-tint gradient ░░░░░░░░│
+│░░░░░░░░┌──────────────┐░░░░░░░░░│
+│░░░░░░░░│              │░░░░░░░░░│
+│░░░░░░░░│  album art   │░░░░░░░░░│
+│░░░░░░░░│    220dp     │░░░░░░░░░│
+│░░░░░░░░└──────────────┘░░░░░░░░░│
+│              ALBUM               │
+│           In Rainbows            │
+│            Radiohead             │
+│    2007 · 10 tracks · 42 min     │
+│     (▶)   ⤨   ♡   ⤓   ⋮          │
+│      (Alternative) (Rock)        │
+│──────────────────────────────────│
+│  1  15 Step               3:57 ⋮ │
+│  2  Bodysnatchers         4:02 ⋮ │
+│ ▮▮  Nude (playing, accent) 4:15 ⋮│
+│  4  Weird Fishes          5:18 ⋮ │
+└──────────────────────────────────┘
+```
+
+### 4.4 Artist detail
+- Hero: the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮.
+- Sections, in this order:
+  1. Top songs: 5 rows, with "See all".
+  2. Album carousels grouped by OpenSubsonic `releaseTypes`: Albums, EPs & Singles, Compilations, Appears on. Without that extension, show one "Albums" carousel sorted by year descending.
+  3. Similar artists: a carousel of 96 circles.
+  4. About: biography, 3 lines with "More".
+
+### 4.5 Playlist detail
+- Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
+- Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete).
+- Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar.
+
+### 4.6 Search
+- Search field pinned at the top: 48 tall, `surfaceContainerHighest`, radius `full`, leading search icon, trailing clear. It auto-focuses when the tab is opened.
+- Empty query: recent searches (rows with a history icon, swipe to delete), then "Browse genres" pills.
+- Results: `search3`, debounced 300ms. While offline, search Room FTS and show an "Offline results" chip.
+  - Filter chips: All · Songs · Albums · Artists · Playlists.
+  - "All" shows Artists (a row of 72 circles), Albums (a carousel of 128 cards), then Songs (up to 20 track rows, plus "See all").
+
+### 4.7 Now Playing (full screen)
+- Opens from the mini player with a `player` spring. The art morphs from the mini thumbnail to full size (shared bounds). Drag down anywhere, or tap the chevron, to collapse.
+- Background, set by the "Now Playing background" setting:
+  - **Blurred art** (default): pre-blurred bitmap, scaled to cover, plus a gradient from black 30% at the top to black 85% at the bottom (Feishin `overlay-header`), plus noise.
+  - **Art tint**: a solid tint at the top fading into `background`.
+  - **Plain**: `background` only. Black theme defaults to Plain.
+- Text and icons on this screen are always light (`#FFFFFF` at 100% for primary, 70% for secondary), except with Plain on the Light theme.
+- Layout, top to bottom:
+  - Top bar, 56 tall: chevron-down · "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮.
+  - Art: square, width = screen − 48, radius `lg`, shadow.
+  - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
+  - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill such as "FLAC · 16/44.1". In transcoding mode it reads "OPUS 128".
+  - Transport row: shuffle mode · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One).
+  - Bottom row of 4 icon buttons, each 48 tall with a label, spread evenly: Lyrics · Up next · Related · ⋮ (Sleep timer, Speed, Add to playlist, Go to album or artist, Info). The sleep timer shows a dot badge on ⋮ while it is active.
+- **Shuffle control** cycles Off → Tracks → Albums:
+  - Off: Lucide `shuffle`, white @ 50%.
+  - Tracks: `shuffle` in white with a 4dp dot under it.
+  - Albums: a custom `shuffle` icon with a small disc badge, plus the dot.
+  - A toast-free tooltip label ("Shuffle albums") shows for 1.5s on change.
+- **Panels:** Lyrics, Up next and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
+  - Swiping horizontally inside a panel moves between panels.
+  - Tapping the active bottom button, or the compact header, returns to the art.
+- **Gestures:**
+  - Art swipe left/right: next/previous. Threshold 30% of the width or 1000dp/s. The art slides out and the next one slides in. Haptic tick at the threshold.
+  - Tap on art: switch to the Lyrics panel.
+  - Long-press on art: track context sheet.
+  - Swipe up anywhere outside a panel: open Up next.
+  - Long-press play/pause: stop.
+- **Lyrics** (synced):
+  - Text: 24sp, weight 700, line height 1.25, left-aligned with 24 side padding.
+  - The active line is at 100% opacity and scale 1.0. Other lines are at 35% and scale 0.96 (`lyric` motion). The active line is held at 35% of the panel height.
+  - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
+  - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
+- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
+- Landscape and Expanded: art on the left at 45% width, and the active panel on the right as tabs (Up next · Lyrics · Related). Both are visible at the same time, and controls run under the art.
+
+```
+┌──────────────────────────────────┐
+│ ⌄    PLAYING FROM ALBUM        ⋮ │
+│          In Rainbows             │
+│ ░░░░░░░░ blurred art ░░░░░░░░░░░ │
+│  ┌────────────────────────────┐  │
+│  │                            │  │
+│  │                            │  │
+│  │      album art (sq)        │  │
+│  │      swipe ◀ ▶ = skip      │  │
+│  │                            │  │
+│  └────────────────────────────┘  │
+│  Nude                        ♡   │
+│  Radiohead · In Rainbows         │
+│  ━━━━━━━━━━●──────────────────   │
+│  1:52     FLAC 16/44.1     4:15  │
+│   ⤨     ⏮     ( ▶ )     ⏭    ↻   │
+│                                  │
+│  ♪ Lyrics  ≡ Up next  ✦ Related ⋮│
+└──────────────────────────────────┘
+```
+
+### 4.8 Queue (Up next)
+- Header: "Up next" in `titleMedium`, plus "Playing from <source>" muted. On the right: a scroll-to-current icon (shown only when the current track is off-screen) and ⋮ (Save as playlist, Clear queue).
+- **Shuffle control:** an M3 `SingleChoiceSegmentedButtonRow`, 40 tall, full width: `Off | Tracks | Albums`, with the shuffle-album icon on Albums. A repeat toggle sits to its right. Changes apply instantly and keep the current track.
+- **Continue from another device** banner, shown when the server queue is newer and `changedBy` is a different client:
+  - Card: radius `lg`, `surfaceContainerHighest`, 16 padding, Lucide `monitor-smartphone` icon.
+  - Text: "Continue from **Feishin**" in `titleSmall`, then "Nude · 2:31 · 5 min ago" in `bodySmall` muted.
+  - Buttons: `FilledTonalButton` "Continue" and `TextButton` "Dismiss".
+  - Placement: at the top of the queue. On app start, a compact one-line version also docks above the mini player. When the local queue is empty it replaces the mini player. It stays until acted on or until local playback starts. Not shown if auto-adopt is on; show a snackbar "Continued from Feishin · Undo" instead.
+- List:
+  - Collapsed history row at the top: "N played", tap to expand.
+  - The current track: `primaryContainer` background, animated 3-bar equalizer over its art (paused = static bars).
+  - Then the upcoming tracks.
+  - In **Albums** shuffle mode, each album block starts with a 40-tall header: 32 art, album title in `labelLarge`, artist muted. Tracks inside a block keep disc and track order.
+- Row actions:
+  - Drag handle (Lucide `grip-vertical`) on the right to reorder. Long-press anywhere on a row also starts a drag. In Albums mode a drag moves the whole block when started on a block header.
+  - Swipe right: play next (icon `list-start`, `primary`).
+  - Swipe left: remove (icon `trash-2`, `error`), with an "Undo" snackbar.
+  - Both swipes trigger at 40% of the width with haptic feedback.
+
+### 4.9 Downloads (Library tab)
+- Storage bar at the top: an 8-tall `LinearProgressIndicator` labelled "3.2 GB used · limit 10 GB", plus an "Offline mode" switch row.
+- Sections:
+  - Active: rows with art, title, a 2dp progress bar under the text, and pause/cancel.
+  - Pinned: albums and playlists as 64 rows with a status badge and size.
+  - Failed: shows a retry action.
+- Download state badge, used everywhere art appears:
+  - 16dp circle at the bottom-right of the art (cards) or after the title (rows).
+  - Queued: outline `arrow-down`. In progress: ring progress. Done: filled check in `success`.
+
+### 4.10 Settings
+- `LazyColumn` of M3 `ListItem`s: 56 tall for one line, 72 for two. Section headers in `labelLarge` `primary`, with 24 top padding.
+- Groups:
+  - **Servers:** list, add, switch.
+  - **Appearance:** Theme, Accent source with preset swatches, Now Playing background, Hero style (Tint / Blurred art), Compact headers, Dense rows (48), Home sections.
+  - **Playback:** gapless, ReplayGain mode and preamp, audio offload, crossfade (later).
+  - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
+  - **Downloads & storage:** download quality, cache size, storage limit.
+  - **Queue sync:** enabled, auto-continue from other devices.
+  - **Lyrics**, **Scrobbling**, **About**.
+- Pickers open as bottom sheets with radio rows. Do not use dialogs for pickers.
+
+### 4.11 Login / server setup
+- One centered column, max width 400, 24 padding.
+- Content, top to bottom:
+  - "Segue" wordmark in `displaySmall`, weight 800, with "Connect to your Navidrome server" in `bodyMedium` muted.
+  - Fields: M3 `OutlinedTextField`, radius `sm`. Server URL (prefix hint `https://`, URL keyboard), Username, Password (with a visibility toggle).
+  - A collapsed "Advanced" section: plaintext legacy auth, self-signed certificate, custom headers.
+  - "Connect" button: full width, 48 tall.
+- Steps: the `ping` and `getOpenSubsonicExtensions` checks run inline as the button changes to "Checking…" (with a spinner). Errors show under the relevant field ("Server not reachable", "Wrong username or password").
+- On success, go to Home immediately. The first sync shows a thin `LinearProgressIndicator` under the Home top bar with "Syncing library · 1,240 / 5,600 albums".
+
+## 5. Components
+
+### 5.1 Album card
+- Width W comes from the grid cell or the section size. Art is a W×W square, radius `md`, with a `surfaceContainerHigh` placeholder showing a 24 Lucide `disc-3` icon in muted color.
+- Below the art (Feishin "poster" style: no card surface, no padding): 8 gap, title in `titleSmall` (1 line), 2 gap, subtitle in `bodySmall` muted (1 line). The subtitle is the artist, or the year on artist pages.
+- Artist variant: circular art, centered text.
+- Press: scale 0.97 (`medium`). Long-press: context sheet with a haptic. Download badge per §4.9.
+
+### 5.2 Track row
+- 56 tall, 48 in dense mode. Horizontal padding 16. The row is the touch target; tap plays.
+
+| Slot | Phone | Expanded (table, Feishin) |
+|---|---|---|
+| Leading | 40 art radius `sm`, **or** track # (32 wide, `labelMedium` tnum, muted) in album context | # · 40 art |
+| Main | Title in `titleSmall` 1 line; secondary in `bodySmall` muted: "Artist · Album" (just "Artist" in album context) | Title/artist column (flex 2) |
+| — | — | Album (flex 1.5) · Genre (optional) · Plays (optional) |
+| Badges | Explicit "E" (14 square, radius `xs`), download badge | same |
+| Duration | `labelMedium` muted tnum | Duration column |
+| Trailing | ⋮ 40 icon button | ♡ · ⋮ |
+
+- Expanded width gets a sticky column header row: 36 tall, `labelSmall` uppercase muted, `outlineVariant` bottom divider. Columns can be configured via the header's ⋮.
+- Playing: title and number in `primary`, and the equalizer bars replace the number or overlay the art. Unavailable offline: 38% alpha, not clickable.
+
+### 5.3 Section header
+- 48 tall, horizontal padding 16. Title in `titleLarge`. Trailing: a `TextButton` "See all" (muted) or a 24 chevron. Optional extra icon (Explore refresh).
+
+### 5.4 Hero header
+- Height wraps its content. Top padding = status bar + 56. Bottom padding 16.
+- Background, set by the "Hero style" setting:
+  - **Tint** (default): a vertical gradient from the art tint at 100% to `background`, spanning hero height + 64.
+  - **Blurred art** (Feishin `albumBackground`): pre-blurred bitmap at 70% opacity under `background`-colored gradients (top 5% to bottom 100%).
+- Art: 220 on compact width, 250 on medium and wider, radius `md`, shadow per §2.4.
+- Compact width is centered: art, then 16, overline, title (max 3 lines, `headlineMedium`), metadata. Medium and wider follows the Feishin desktop grid: art on the left, text bottom-aligned on the right, title in `displaySmall`, min height 340.
+
+### 5.5 Player bar (expanded) and mini player
+- **Mini player:** see §3.
+  - Layout: 16 start padding, 48 art (radius `sm`), 12 gap, title `titleSmall` / artist `bodySmall` muted, play/pause (48), next (48).
+  - Tap: expand. Drag up: interactive expand, where progress 0..1 drives the morph.
+  - Horizontal swipe on the text area: next/previous. The text pages like a pager to reveal the adjacent track. Threshold 30% or 1000dp/s, with a haptic.
+  - Long-press: track context sheet.
+- **Player bar:** 80 tall, `surfaceContainer`, top border `outlineVariant`. Grid 1fr : 2fr : 1fr (Feishin).
+  - Left: 56 art, title, artists.
+  - Center: transport (shuffle, prev, 40 play circle, next, repeat) above a seekbar with times.
+  - Right: lyrics, queue, volume slider (96 wide), ⋮.
+
+### 5.6 Chips and pills
+- **Filter chip:** M3 `FilterChip`, 32 tall, radius `full`, `labelMedium`. Unselected: transparent with an `outlineVariant` border. Selected: `surfaceContainerHighest`, no border, leading check.
+- **Pill** (genres, metadata on the hero), Feishin pill: 28 tall, radius `full`, `background` @ 50% fill, 1dp `outlineVariant` border, `labelMedium`, 12 horizontal padding. Tapping opens the genre.
+
+### 5.7 Context menus and sheets
+- Phone: `ModalBottomSheet`, `surfaceContainerHigh`, top radius `xl`, with a drag handle.
+- Header: 48 art + title (`titleSmall`) + subtitle (muted), then a divider.
+- Rows: 48 tall, 20 icon, `bodyLarge` label.
+- Order for a song: Play next · Add to queue · Instant mix · Add to playlist · Favorite · Go to album · Go to artist · Download · Info.
+- Albums, artists and playlists add Play, Shuffle and **Shuffle albums** at the top. Destructive items use `error`.
+- Expanded width: `DropdownMenu` anchored at the press point, radius `lg`, same items.
+- Snackbars: `inverseSurface`, radius `sm`, placed above the mini player.
+
+### 5.8 Empty, loading, error
+- **Empty:** centered, 48 Lucide icon muted, 16 gap, `titleMedium`, `bodyMedium` muted (max 2 lines), optional `FilledTonalButton`. Example: "No downloads yet / Pin albums or playlists to listen offline".
+- **Loading:**
+  - Skeleton placeholders using the real layout: `surfaceContainerHigh` blocks with an alpha pulse 0.5 to 1.0 (1000ms, reverse). No shimmer gradient.
+  - Show skeletons only when Room has no data and the load takes longer than 150ms.
+  - Inline spinners: 20 `CircularProgressIndicator`, stroke 2.
+- **Error:**
+  - Room has data: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
+  - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
+  - Image load failure: keep the placeholder. Never show a broken-image icon.
+
+## 6. Performance constraints that shape the design
+
+- **No real-time blur.** Every "blurred art" is built like this:
+  1. Fetch `getCoverArt?size=128`. Reuse the row-size cache entry, so there is no extra request.
+  2. Downscale to 32×32 and apply a CPU box blur (radius 3, 2 passes) in a Coil `Transformation` off the main thread.
+  3. Cache under key `blur:<coverArtId>` in a memory LRU of 24 entries, and in the disk cache.
+  4. Draw it scaled to fill with `FilterQuality.Low`. Bilinear upscaling of a 32px image looks blurred enough.
+- Palette extraction (§2.1) uses the same 32px bitmap.
+- **Cover sizes:** request `size` = the smallest bucket in {128, 256, 512, 1024} that is ≥ 0.9 × (display dp × density). The fixed set keeps Navidrome's resize cache hot and gives Coil only a few keys per image.
+
+| Component | Display dp | `size` @ 2.625x (typical) |
+|---|---|---|
+| Track row, mini player, queue header, sheet header | 32–48 | 128 |
+| Artist list circle, search circles | 48–96 | 128 / 256 |
+| Album card (grid 150–190, carousel 112–176) | 112–190 | 256 / 512 |
+| Feature carousel art, compact hero | 120 | 512 |
+| Hero art | 220–250 | 1024 |
+| Now Playing art | 312–400 | 1024 |
+| Blur / palette source | 32 px | 128 (reused) |
+
+- Coil config: memory cache 20% of the app heap, disk cache 512MB. Use `crossfade(200)` in lists, but no crossfade for Now Playing art (the pager handles that). Prefetch the next track's 1024 art when the track changes.
+- Lists:
+  - Fixed-height rows, stable `key` and `contentType`.
+  - No `Modifier.shadow`, `alpha` layers or `clip` on nested layouts inside items. Clip only the image.
+  - Equalizer bars run only for the visible playing row.
+- Position ticker (battery): it runs only while a player surface is composed and at least `STARTED`. Mini player: 1Hz. Now Playing seekbar: 4Hz with `animateFloat` interpolation between ticks. Synced lyrics: next-line timer. Never poll from the background.
+- Animate with `graphicsLayer` (translation, scale, alpha) only. Never animate layout size in lists. Lyric lines are a `LazyColumn`, and only the 2 lines around the active line animate.
+- Marquee: only on the Now Playing title, and only while the screen is resumed.
