@@ -56,13 +56,14 @@ class BrowseTreeTest {
     private val MediaItem.extras get() = mediaMetadata.extras!!
 
     @Test
-    fun `root is browsable and advertises search and list style`() {
+    fun `root is browsable and defaults to list style`() {
         val root = tree.root()
 
         assertThat(root.mediaId).isEqualTo(BrowseId.Root.encode())
         assertThat(root.mediaMetadata.isBrowsable).isTrue()
         assertThat(root.mediaMetadata.isPlayable).isFalse()
-        assertThat(BrowseTree.rootExtras().getBoolean(MediaConstants.EXTRAS_KEY_MEDIA_SEARCH_SUPPORTED)).isTrue()
+        assertThat(BrowseTree.rootExtras().getInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE))
+            .isEqualTo(MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
     }
 
     @Test
