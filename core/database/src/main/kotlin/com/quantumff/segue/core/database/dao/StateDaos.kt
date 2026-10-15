@@ -130,6 +130,28 @@ abstract class DownloadDao {
     @Query("SELECT songId FROM downloads WHERE serverId = :serverId AND state = 'Completed'")
     abstract fun observeCompletedSongIds(serverId: String): Flow<List<String>>
 
+    /** Albums with at least one downloaded song (the offline filter's albums). */
+    @Query(
+        """
+        SELECT DISTINCT s.albumId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+        WHERE s.serverId = :serverId AND d.state = 'Completed' AND s.albumId IS NOT NULL
+        """,
+    )
+    abstract fun observeDownloadedAlbumIds(serverId: String): Flow<List<String>>
+
+    /** Artists with a downloaded song, as track artist or as the artist of an album with one. */
+    @Query(
+        """
+        SELECT s.artistId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+        WHERE s.serverId = :serverId AND d.state = 'Completed' AND s.artistId IS NOT NULL
+        UNION
+        SELECT a.artistId FROM albums a INNER JOIN songs s ON s.serverId = a.serverId AND s.albumId = a.id
+        INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+        WHERE a.serverId = :serverId AND d.state = 'Completed' AND a.artistId IS NOT NULL
+        """,
+    )
+    abstract fun observeDownloadedArtistIds(serverId: String): Flow<List<String>>
+
     @Upsert
     abstract suspend fun upsert(download: DownloadEntity)
 

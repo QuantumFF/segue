@@ -15,6 +15,7 @@ import com.quantumff.segue.core.database.model.PinEntity
 import com.quantumff.segue.core.datastore.DownloadPreferencesDataSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
@@ -61,6 +62,9 @@ interface DownloadRepository {
 
     /** IDs of the active server's songs that are fully downloaded. */
     val downloadedSongIds: Flow<ImmutableSet<String>>
+
+    /** The active server's downloaded songs, with the albums and artists they make available offline. */
+    val downloadedLibrary: Flow<DownloadedLibrary>
 
     /** The pin's status, or null when it is not pinned. */
     fun pinStatus(kind: PinKind, id: String): Flow<DownloadStatus?>
@@ -144,6 +148,16 @@ internal class OfflineDownloadRepository @Inject constructor(
     override val downloadedSongIds: Flow<ImmutableSet<String>> =
         clients.forActiveServer(persistentSetOf()) { serverId ->
             dao.observeCompletedSongIds(serverId).map { it.toImmutableSet() }.distinctUntilChanged()
+        }
+
+    override val downloadedLibrary: Flow<DownloadedLibrary> =
+        clients.forActiveServer(DownloadedLibrary()) { serverId ->
+            combine(
+                dao.observeCompletedSongIds(serverId),
+                dao.observeDownloadedAlbumIds(serverId),
+                dao.observeDownloadedArtistIds(serverId),
+            ) { songs, albums, artists -> DownloadedLibrary(songs.toSet(), albums.toSet(), artists.toSet()) }
+                .distinctUntilChanged()
         }
 
     override fun pinStatus(kind: PinKind, id: String): Flow<DownloadStatus?> =

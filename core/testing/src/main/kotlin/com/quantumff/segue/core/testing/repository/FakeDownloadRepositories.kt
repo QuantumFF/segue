@@ -5,6 +5,7 @@ import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.SongDownload
@@ -24,6 +25,7 @@ class FakeDownloadRepository : DownloadRepository {
     override val overview = MutableStateFlow(DownloadOverview())
     override val songDownloads = MutableStateFlow<ImmutableMap<String, SongDownload>>(persistentMapOf())
     override val downloadedSongIds = MutableStateFlow<ImmutableSet<String>>(persistentSetOf())
+    override val downloadedLibrary = MutableStateFlow(DownloadedLibrary())
 
     /** Pins by kind and ID, with the status [pinStatus] reports. */
     val pins = MutableStateFlow<Map<Pair<PinKind, String>, DownloadStatus>>(emptyMap())
