@@ -61,6 +61,7 @@ internal val Licenses: ImmutableList<LicenseEntry> = persistentListOf(
     LicenseEntry("OkHttp and Retrofit", R.string.feature_settings_license_apache, summaryRes = APACHE),
     LicenseEntry("Kotlin and kotlinx libraries", R.string.feature_settings_license_apache, summaryRes = APACHE),
     LicenseEntry("Coil", R.string.feature_settings_license_apache, summaryRes = APACHE),
+    LicenseEntry("Reorderable", R.string.feature_settings_license_apache, summaryRes = APACHE),
 )
 
 /** About › Open-source licenses: tap an entry to show its license text. */

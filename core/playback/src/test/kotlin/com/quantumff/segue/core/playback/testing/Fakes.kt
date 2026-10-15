@@ -4,6 +4,7 @@ import com.quantumff.segue.core.data.repository.PlayQueueRemoteRepository
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.RemotePlayQueue
+import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.sync.QueueState
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,14 +30,34 @@ class FakePlayQueueRemoteRepository(private val clientName: String) : PlayQueueR
     override suspend fun deviceClientName(): String = clientName
 }
 
-/** Snapshots saved through [save] get `updatedAt` [now] (0 by default, so any timestamped remote queue is newer). */
+/** Snapshots saved through [save] get `updatedAt` [now], the device clock, which sync must not rely on. */
 class FakeQueueSnapshotRepository : QueueSnapshotRepository {
     override val snapshot = MutableStateFlow<QueueSnapshot?>(null)
     val saves = mutableListOf<QueueState>()
     var now = 0L
+    var seen: Long? = null
 
-    override suspend fun save(songIds: List<String>, currentIndex: Int, positionMillis: Long) {
-        saves += QueueState(songIds, currentIndex, positionMillis)
-        snapshot.value = QueueSnapshot(songIds.toImmutableList(), currentIndex, positionMillis, updatedAt = now)
+    override suspend fun save(
+        songIds: List<String>,
+        currentIndex: Int,
+        positionMillis: Long,
+        shuffleMode: ShuffleMode,
+        playOrder: List<Int>?,
+    ) {
+        saves += QueueState(songIds, currentIndex, positionMillis, shuffleMode, playOrder)
+        snapshot.value = QueueSnapshot(
+            songIds.toImmutableList(),
+            currentIndex,
+            positionMillis,
+            updatedAt = now,
+            shuffleMode = shuffleMode,
+            playOrder = playOrder?.toImmutableList(),
+        )
+    }
+
+    override suspend fun seenRemoteChange(): Long? = seen
+
+    override suspend fun markRemoteChangeSeen(changedAt: Long) {
+        seen = maxOf(seen ?: changedAt, changedAt)
     }
 }

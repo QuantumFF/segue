@@ -4,6 +4,7 @@ import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.media.albumKey
 import com.quantumff.segue.core.playback.shuffle.AlbumShuffleOrder
@@ -32,6 +33,7 @@ class SeguePlayer(
     var preferredShuffleMode: ShuffleMode = ShuffleMode.Tracks
 
     private var pendingKeys: List<String?>? = null
+    private var expectedRestore: QueueState? = null
     private var pendingCurrent = C.INDEX_UNSET
 
     override fun albumKeys(count: Int): List<String?>? = pendingKeys
@@ -49,6 +51,44 @@ class SeguePlayer(
                 AlbumShuffleOrder.create(currentAlbumKeys(), current, random, this),
             )
         }
+        applyMode(mode)
+    }
+
+    /**
+     * Restores a saved queue exactly: [items] in queue order (they match [state]'s songs), the
+     * current item and position, and the shuffle with its saved play order, so album blocks and
+     * any manual reordering come back as they were instead of being reshuffled.
+     */
+    fun restore(items: List<MediaItem>, state: QueueState) {
+        val playOrder = state.playOrder?.takeIf {
+            state.shuffleMode != ShuffleMode.Off && it.sorted() == items.indices.toList()
+        }
+        if (playOrder == null) setShuffleMode(ShuffleMode.Off)
+        setMediaItems(items, state.currentIndex, state.positionMillis)
+        if (playOrder == null) return
+        val order = when (state.shuffleMode) {
+            ShuffleMode.Albums -> AlbumShuffleOrder.fromPlayOrder(currentAlbumKeys(), playOrder, random, this)
+            else -> DefaultShuffleOrder(playOrder.toIntArray(), random.nextLong())
+        }
+        exo.setShuffleOrder(order)
+        applyMode(state.shuffleMode)
+    }
+
+    /**
+     * Puts back an item removed from queue position [timelineIndex] and play position
+     * [playPosition] (the queue screen's undo), so it plays exactly where it did.
+     */
+    fun reinsert(item: MediaItem, timelineIndex: Int, playPosition: Int) {
+        val index = timelineIndex.coerceIn(0, exo.mediaItemCount)
+        addMediaItems(index, listOf(item))
+        if (shuffleMode == ShuffleMode.Off) return
+        val order = playOrder()
+        val from = order.indexOf(index)
+        val to = playPosition.coerceIn(0, order.lastIndex)
+        if (from >= 0 && from != to) moveInPlayOrder(from, to)
+    }
+
+    private fun applyMode(mode: ShuffleMode) {
         exo.shuffleModeEnabled = mode != ShuffleMode.Off
         if (shuffleMode != mode) {
             shuffleMode = mode
@@ -64,27 +104,35 @@ class SeguePlayer(
         setShuffleMode(mode ?: ShuffleMode.Tracks)
     }
 
-    /** Moves an item in play order: the queue order when shuffle is off, the shuffle order otherwise. */
-    fun moveInPlayOrder(from: Int, to: Int) {
+    /**
+     * Moves [count] items at play position [from] so the first lands at play position [to]: in the
+     * queue order when shuffle is off, in the shuffle order otherwise. A count above 1 moves an
+     * album block in album shuffle.
+     */
+    fun moveInPlayOrder(from: Int, to: Int, count: Int = 1) {
+        if (count < 1 || from < 0 || from + count > exo.mediaItemCount || to < 0 ||
+            to + count > exo.mediaItemCount
+        ) {
+            return
+        }
         if (shuffleMode == ShuffleMode.Off) {
-            exo.moveMediaItem(from, to)
+            exo.moveMediaItems(from, from + count, to)
         } else {
-            exo.setShuffleOrder(ShuffleOrders.moveInPlayOrder(exo.shuffleOrder, from, to, random))
+            exo.setShuffleOrder(ShuffleOrders.moveInPlayOrder(exo.shuffleOrder, from, to, count, random))
         }
     }
 
     /** Queue indices in the order they play. */
     fun playOrder(): List<Int> = ShuffleOrders.effectivePlayOrder(shuffleMode, exo.shuffleOrder)
 
-    /** The queue in effective play order, for queue sync. */
-    fun queueState(): QueueState {
-        val order = playOrder()
-        return QueueState(
-            songIds = order.map { exo.getMediaItemAt(it).mediaId },
-            currentIndex = order.indexOf(exo.currentMediaItemIndex),
-            positionMillis = exo.currentPosition,
-        )
-    }
+    /** The queue with its shuffle, for queue sync and the snapshot. See [QueueState.inPlayOrder] for uploads. */
+    fun queueState(): QueueState = QueueState(
+        songIds = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId },
+        currentIndex = exo.currentMediaItemIndex,
+        positionMillis = exo.currentPosition,
+        shuffleMode = shuffleMode,
+        playOrder = if (shuffleMode == ShuffleMode.Off) null else playOrder(),
+    )
 
     /** Song IDs after the current item in play order, at most [limit]. */
     fun upNext(limit: Int): List<String> {
@@ -104,8 +152,22 @@ class SeguePlayer(
     }
 
     override fun setMediaItems(mediaItems: List<MediaItem>, startIndex: Int, startPositionMs: Long) {
+        val restoring = expectedRestore?.takeIf { it.songIds == mediaItems.map(MediaItem::mediaId) }
+        expectedRestore = null
+        if (restoring != null) {
+            restore(mediaItems, restoring.copy(currentIndex = startIndex, positionMillis = startPositionMs))
+            return
+        }
         inserting(mediaItems) { super.setMediaItems(mediaItems, startIndex, startPositionMs) }
         afterReplacingPlaylist()
+    }
+
+    /**
+     * The session is about to set [state]'s songs (system playback resumption): restore its
+     * shuffle along with them. Ignored if different items arrive.
+     */
+    fun expectRestore(state: QueueState) {
+        expectedRestore = state
     }
 
     override fun setMediaItem(mediaItem: MediaItem) = setMediaItems(listOf(mediaItem))

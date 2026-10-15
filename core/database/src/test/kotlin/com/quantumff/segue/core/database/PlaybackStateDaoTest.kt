@@ -2,9 +2,11 @@ package com.quantumff.segue.core.database
 
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.database.model.DownloadEntity
+import com.quantumff.segue.core.database.model.IndexList
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
 import com.quantumff.segue.core.database.model.QueueStateEntity
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.ShuffleMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -37,6 +39,35 @@ class PlaybackStateDaoTest {
         db.queueDao().replaceSnapshot(QueueStateEntity("s1", 2, 0, 1), listOf("a", "b", "a"))
 
         assertThat(db.queueDao().songIds("s1")).containsExactly("a", "b", "a").inOrder()
+    }
+
+    @Test
+    fun `the queue snapshot keeps its shuffle mode and play order`() = runTest {
+        val dao = db.queueDao()
+        val state = QueueStateEntity(
+            "s1",
+            currentIndex = 2,
+            positionMillis = 0,
+            updatedAt = 1,
+            shuffleMode = ShuffleMode.Albums,
+            playOrder = IndexList(listOf(2, 0, 1)),
+        )
+        dao.replaceSnapshot(state, listOf("a", "b", "c"))
+
+        assertThat(dao.observeState("s1").first()).isEqualTo(state)
+    }
+
+    @Test
+    fun `the last seen remote queue change only moves forward, per server`() = runTest {
+        val dao = db.queueDao()
+        assertThat(dao.seenRemoteChangedAt("s1")).isNull()
+
+        dao.markRemoteChangeSeen("s1", 2_000)
+        dao.markRemoteChangeSeen("s1", 1_000)
+        dao.markRemoteChangeSeen("s2", 500)
+
+        assertThat(dao.seenRemoteChangedAt("s1")).isEqualTo(2_000)
+        assertThat(dao.seenRemoteChangedAt("s2")).isEqualTo(500)
     }
 
     @Test

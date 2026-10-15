@@ -60,14 +60,27 @@ object ShuffleOrders {
         return withPlayOrder(order, rest, random)
     }
 
-    /** Moves the item at play position [from] to play position [to]. */
-    fun moveInPlayOrder(order: ShuffleOrder, from: Int, to: Int, random: Random = Random.Default): ShuffleOrder {
+    /**
+     * Moves the [count] items from play position [from] so the first of them ends up at play
+     * position [to] (like [androidx.media3.common.Player.moveMediaItems]).
+     */
+    fun moveInPlayOrder(
+        order: ShuffleOrder,
+        from: Int,
+        to: Int,
+        count: Int = 1,
+        random: Random = Random.Default,
+    ): ShuffleOrder {
         val playOrder = playOrder(order).toMutableList()
-        playOrder.add(to, playOrder.removeAt(from))
+        val block = playOrder.subList(from, from + count)
+        val moved = block.toList()
+        block.clear()
+        playOrder.addAll(to, moved)
         return withPlayOrder(order, playOrder, random)
     }
 
-    private fun withPlayOrder(order: ShuffleOrder, playOrder: List<Int>, random: Random): ShuffleOrder =
+    /** [order] changed to play exactly [playOrder], keeping its kind (album or track shuffle). */
+    fun withPlayOrder(order: ShuffleOrder, playOrder: List<Int>, random: Random): ShuffleOrder =
         if (order is AlbumShuffleOrder) {
             order.withPlayOrder(playOrder)
         } else {

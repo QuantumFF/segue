@@ -20,30 +20,31 @@ sealed interface RemoteQueueDecision {
         /** This device saved it: our own upload coming back. */
         OwnSave,
 
-        /** Same songs and current track as the local queue. */
+        /** Same songs (in play order) and current track as the local queue. */
         SameQueue,
 
-        /** Not newer than the local snapshot, or its age is unknown while a local queue exists. */
+        /**
+         * Not newer than the last server change this device accounted for: its own save, or a
+         * queue the user already adopted or dismissed.
+         */
         NotNewer,
-
-        /** The user already dismissed or adopted this save. */
-        AlreadyHandled,
     }
 }
 
 /**
  * Decides whether a remote play queue should replace the local one. See docs/PLAN.md, "Server queue sync".
  *
- * "Newer" compares the server's `changed` time with this device's snapshot time, so it assumes the
- * two clocks roughly agree (both are normally network-synced). Because this device uploads on
- * every queue event, a save by another client is newer than ours in practice anyway; the time
- * check matters when this device changed its queue offline.
+ * "Newer" never involves this device's clock. Only server timestamps are compared: the remote
+ * queue's `changed` against `seen`, the server's `changed` of the newest queue this device has
+ * accounted for (its own save as read back from the server, or another client's save that the
+ * user adopted or dismissed). The server holds one queue, so a save by another client that
+ * this device has not accounted for is always the newest state there.
  */
 object RemoteQueuePolicy {
     /**
-     * [ownClientName] is this device's `changedBy`. [handledChangedAt] is the `changed` time of the
-     * last remote queue the user dismissed or adopted (0 for one without a timestamp). Auto adopt
-     * never replaces a queue that is playing here; that is offered instead.
+     * [ownClientName] is this device's `changedBy`. [seen] is the remembered server change time,
+     * or null when this device has never accounted for one. Auto adopt never replaces a queue
+     * that is playing here; that is offered instead.
      */
     @Suppress("LongParameterList", "ReturnCount")
     fun decide(
@@ -52,26 +53,23 @@ object RemoteQueuePolicy {
         ownClientName: String,
         autoAdopt: Boolean,
         isPlayingLocally: Boolean,
-        handledChangedAt: Long?,
+        seen: Long?,
     ): RemoteQueueDecision {
         if (remote == null || remote.songs.isEmpty()) return ignore(RemoteQueueDecision.IgnoreReason.Empty)
         if (remote.changedBy == ownClientName) return ignore(RemoteQueueDecision.IgnoreReason.OwnSave)
-        if (local != null) {
-            val sameQueue = local.currentIndex == remote.currentIndex && local.songIds == remote.songs.map { it.id }
-            if (sameQueue) return ignore(RemoteQueueDecision.IgnoreReason.SameQueue)
-            val changedAt = remote.changedAt
-            if (changedAt == null || changedAt <= local.updatedAt) {
-                return ignore(RemoteQueueDecision.IgnoreReason.NotNewer)
-            }
-        }
-        if (handledChangedAt != null && handledKey(remote) == handledChangedAt) {
-            return ignore(RemoteQueueDecision.IgnoreReason.AlreadyHandled)
-        }
+        if (seen != null && seenKey(remote) <= seen) return ignore(RemoteQueueDecision.IgnoreReason.NotNewer)
+        if (local != null && local.isSameAs(remote)) return ignore(RemoteQueueDecision.IgnoreReason.SameQueue)
         return if (autoAdopt && !isPlayingLocally) RemoteQueueDecision.Adopt else RemoteQueueDecision.Offer
     }
 
-    /** The value to remember as handled for [remote]. */
-    fun handledKey(remote: RemotePlayQueue): Long = remote.changedAt ?: 0L
+    /**
+     * The value to remember once [remote] is accounted for. A server that sends no `changed`
+     * counts as 0: such a queue is offered once, and later timestamped saves are newer.
+     */
+    fun seenKey(remote: RemotePlayQueue): Long = remote.changedAt ?: 0L
+
+    private fun QueueSnapshot.isSameAs(remote: RemotePlayQueue): Boolean =
+        currentIndexInPlayOrder == remote.currentIndex && songIdsInPlayOrder == remote.songs.map { it.id }
 
     private fun ignore(reason: RemoteQueueDecision.IgnoreReason) = RemoteQueueDecision.Ignore(reason)
 }

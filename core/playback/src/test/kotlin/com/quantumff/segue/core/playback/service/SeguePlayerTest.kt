@@ -114,14 +114,102 @@ class SeguePlayerTest {
     }
 
     @Test
-    fun `the queue state is in effective play order with the current song's position in it`() {
+    fun `the queue state carries the shuffle and uploads in effective play order`() {
         player.setMediaItems(queue.map { it.toMediaItem() }, 6, 1_000)
         player.setShuffleMode(ShuffleMode.Albums)
 
         val state = player.queueState()
-        assertThat(state.songIds).isEqualTo(playOrderIds())
-        assertThat(state.songIds[state.currentIndex]).isEqualTo("c2")
-        assertThat(state.positionMillis).isEqualTo(1_000)
+        assertThat(state.songIds).isEqualTo(queue.map { it.id })
+        assertThat(state.currentIndex).isEqualTo(6)
+        assertThat(state.shuffleMode).isEqualTo(ShuffleMode.Albums)
+        assertThat(state.playOrder).isEqualTo(player.playOrder())
+
+        val uploaded = state.inPlayOrder()
+        assertThat(uploaded.songIds).isEqualTo(playOrderIds())
+        assertThat(uploaded.songIds[uploaded.currentIndex]).isEqualTo("c2")
+        assertThat(uploaded.positionMillis).isEqualTo(1_000)
+    }
+
+    @Test
+    fun `an unshuffled queue state has no play order`() {
+        player.setMediaItems(queue.map { it.toMediaItem() }, 2, 0)
+        assertThat(player.queueState().playOrder).isNull()
+        assertThat(player.queueState().shuffleMode).isEqualTo(ShuffleMode.Off)
+    }
+
+    @Test
+    fun `restoring a saved album shuffle resumes exactly, and inserts still keep albums whole`() {
+        player.setMediaItems(queue.map { it.toMediaItem() }, 7, 0)
+        player.setShuffleMode(ShuffleMode.Albums)
+        player.moveInPlayOrder(player.playOrder().lastIndex, 4) // A user tweak a reshuffle would lose.
+        val saved = player.queueState()
+        val savedOrder = playOrderIds()
+
+        val freshExo = ExoPlayer.Builder(ApplicationProvider.getApplicationContext<Context>()).build()
+        try {
+            val restoredModes = mutableListOf<ShuffleMode>()
+            val restored = SeguePlayer(freshExo, Random(99)) { restoredModes += it }
+            restored.restore(queue.map { it.toMediaItem() }, saved.copy(positionMillis = 4_000))
+
+            assertThat(restored.shuffleMode).isEqualTo(ShuffleMode.Albums)
+            assertThat(restoredModes).containsExactly(ShuffleMode.Albums)
+            assertThat(restored.playOrder().map { freshExo.getMediaItemAt(it).mediaId }).isEqualTo(savedOrder)
+            assertThat(freshExo.currentMediaItemIndex).isEqualTo(7)
+            assertThat(freshExo.currentPosition).isEqualTo(4_000)
+            assertThat(restored.queueState().copy(positionMillis = 0)).isEqualTo(saved.copy(positionMillis = 0))
+
+            restored.addMediaItems(album("e", 2).map { it.toMediaItem() })
+            val order = restored.playOrder().map { freshExo.getMediaItemAt(it).mediaId }
+            assertThat(order.takeLast(2)).containsExactly("e1", "e2").inOrder()
+        } finally {
+            freshExo.release()
+        }
+    }
+
+    @Test
+    fun `restoring a track shuffle keeps its order`() {
+        player.setMediaItems(queue.map { it.toMediaItem() }, 0, 0)
+        player.setShuffleMode(ShuffleMode.Tracks)
+        val saved = player.queueState()
+
+        val freshExo = ExoPlayer.Builder(ApplicationProvider.getApplicationContext<Context>()).build()
+        try {
+            val restored = SeguePlayer(freshExo, Random(1))
+            restored.restore(queue.map { it.toMediaItem() }, saved)
+            assertThat(restored.shuffleMode).isEqualTo(ShuffleMode.Tracks)
+            assertThat(restored.playOrder()).isEqualTo(saved.playOrder)
+        } finally {
+            freshExo.release()
+        }
+    }
+
+    @Test
+    fun `an item removed and reinserted returns to the same place in queue and play order`() {
+        player.setMediaItems(queue.map { it.toMediaItem() }, 0, 0)
+        player.setShuffleMode(ShuffleMode.Tracks)
+        val before = playOrderIds()
+        val timelineIndex = 5
+        val item = exo.getMediaItemAt(timelineIndex)
+        val playPosition = player.playOrder().indexOf(timelineIndex)
+
+        player.removeMediaItem(timelineIndex)
+        player.reinsert(item, timelineIndex, playPosition)
+
+        assertThat(playOrderIds()).isEqualTo(before)
+        assertThat((0 until exo.mediaItemCount).map { exo.getMediaItemAt(it).mediaId }).isEqualTo(queue.map { it.id })
+    }
+
+    @Test
+    fun `moving an album block in play order moves all its tracks`() {
+        player.setMediaItems(queue.map { it.toMediaItem() }, 0, 0)
+        player.setShuffleMode(ShuffleMode.Albums)
+        val before = playOrderIds()
+        val blockStart = before.indexOfFirst { it.startsWith("c") }
+
+        player.moveInPlayOrder(blockStart, to = 0, count = 4)
+
+        assertThat(playOrderIds().take(4)).containsExactly("c1", "c2", "c3", "c4").inOrder()
+        assertAlbumsContiguous()
     }
 
     @Test

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.quantumff.segue.core.database.RoomTransactionRunner
 import com.quantumff.segue.core.database.SegueDatabase
+import com.quantumff.segue.core.database.SegueMigrations
 import com.quantumff.segue.core.database.TransactionRunner
 import com.quantumff.segue.core.database.dao.AlbumDao
 import com.quantumff.segue.core.database.dao.AlbumListDao
@@ -32,7 +33,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): SegueDatabase =
-        Room.databaseBuilder(context, SegueDatabase::class.java, "segue.db").build()
+        Room.databaseBuilder(context, SegueDatabase::class.java, "segue.db")
+            .addMigrations(*SegueMigrations.ALL)
+            .build()
 
     @Provides
     fun artistDao(db: SegueDatabase): ArtistDao = db.artistDao()

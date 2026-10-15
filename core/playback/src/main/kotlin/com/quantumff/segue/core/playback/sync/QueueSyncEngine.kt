@@ -23,14 +23,17 @@ import kotlinx.coroutines.launch
  * Keeps the play queue in sync with the server and with the local Room snapshot. See
  * docs/PLAN.md, "Server queue sync".
  *
- * - **Upload** is event-driven: the player reports [QueueEvent]s, which are debounced for
- *   [DEBOUNCE_MILLIS] and then saved in effective play order. Going to the background flushes at
- *   once. Nothing is uploaded while playback simply runs.
- * - **Snapshot**: the same events save the queue to Room, so a cold start can restore it offline.
- *   An empty queue is saved and uploaded only through [onQueueCleared], because an empty player is
- *   also what the service looks like before it restores the snapshot.
- * - **Download** happens in [checkRemote] (app start and foreground). A newer queue from another
- *   client becomes [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions].
+ * - **Upload** is event-driven: the player reports [QueueEvent]s (track change, queue edit, pause,
+ *   seek), which are debounced for [DEBOUNCE_MILLIS] and then saved in effective play order.
+ *   Going to the background flushes at once. Nothing is uploaded while playback simply runs.
+ * - **Snapshot**: the same events save the queue to Room with its shuffle, so a cold start can
+ *   restore it exactly, offline. An empty queue is saved and uploaded only through
+ *   [onQueueCleared], because an empty player is also what the service looks like before it
+ *   restores the snapshot.
+ * - **Download** happens in [checkRemote] (app start and foreground). A queue saved by another
+ *   client that is newer than the last server change this device accounted for becomes
+ *   [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions]. Only server
+ *   timestamps are compared (see [RemoteQueuePolicy]), so a skewed device clock does not matter.
  */
 @Singleton
 class QueueSyncEngine @Inject constructor(
@@ -38,7 +41,7 @@ class QueueSyncEngine @Inject constructor(
     private val snapshots: QueueSnapshotRepository,
     private val preferences: UserPreferencesRepository,
     @ApplicationScope private val scope: CoroutineScope,
-) {
+) : QueueSyncSink {
     private val uploader = DebouncedQueueWriter(scope, DEBOUNCE_MILLIS, ::upload)
     private val snapshotWriter = DebouncedQueueWriter(scope, DEBOUNCE_MILLIS, ::saveSnapshot)
 
@@ -46,8 +49,9 @@ class QueueSyncEngine @Inject constructor(
     private val offer = MutableStateFlow<RemoteQueueOffer?>(null)
     private val adoptionRequests = Channel<RemotePlayQueue>(Channel.BUFFERED)
 
+    /** Seen server changes not yet confirmed in Room, so a check right after a dismiss sees it. */
     @Volatile
-    private var handledChangedAt: Long? = null
+    private var seenInMemory: Long? = null
 
     /** A newer queue from another device, for the "Continue from <device>" banner. */
     val remoteOffer: StateFlow<RemoteQueueOffer?> = offer.asStateFlow()
@@ -55,14 +59,14 @@ class QueueSyncEngine @Inject constructor(
     /** Remote queues to adopt without asking, when the user enabled that. */
     val adoptions: Flow<RemotePlayQueue> = adoptionRequests.receiveAsFlow()
 
-    fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
+    override fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
         if (state.songIds.isEmpty()) return
         snapshotWriter.submit(state)
-        uploader.submit(state)
+        uploader.submit(state.inPlayOrder())
     }
 
     /** The user emptied a queue that had songs: clear the snapshot and the server's saved queue. */
-    fun onQueueCleared() {
+    override fun onQueueCleared() {
         val cleared = QueueState(emptyList(), currentIndex = -1, positionMillis = 0)
         snapshotWriter.submit(cleared)
         uploader.submit(cleared)
@@ -72,7 +76,15 @@ class QueueSyncEngine @Inject constructor(
     fun onAppBackground(state: QueueState?) {
         if (state != null && state.songIds.isEmpty()) return
         snapshotWriter.flush(state)
-        uploader.flush(state)
+        uploader.flush(state?.inPlayOrder())
+    }
+
+    /**
+     * Local playback started: the banner goes (DESIGN.md §4.8), and the offered queue counts as
+     * declined. This device's next upload replaces it on the server anyway.
+     */
+    override fun onLocalPlaybackStarted() {
+        offeredQueue.value?.let(::clearOffer)
     }
 
     /**
@@ -88,8 +100,8 @@ class QueueSyncEngine @Inject constructor(
     suspend fun checkRemote(isPlayingLocally: Boolean) {
         val prefs = preferences.preferences.first()
         if (!prefs.queueSyncEnabled) return
-        val (queue, ownName) = try {
-            remote.fetch() to remote.deviceClientName()
+        val (queue, ownName, seen) = try {
+            Triple(remote.fetch(), remote.deviceClientName(), maxOrNull(snapshots.seenRemoteChange(), seenInMemory))
         } catch (_: RemoteException) {
             return
         }
@@ -99,7 +111,7 @@ class QueueSyncEngine @Inject constructor(
             ownClientName = ownName,
             autoAdopt = prefs.adoptRemoteQueueAutomatically,
             isPlayingLocally = isPlayingLocally,
-            handledChangedAt = handledChangedAt,
+            seen = seen,
         )
         when (decision) {
             RemoteQueueDecision.Offer -> {
@@ -109,6 +121,8 @@ class QueueSyncEngine @Inject constructor(
                     deviceName = offered.changedBy ?: UNKNOWN_DEVICE,
                     trackCount = offered.songs.size,
                     currentTitle = offered.songs.getOrNull(offered.currentIndex)?.title,
+                    positionMillis = offered.positionMillis,
+                    changedAt = offered.changedAt,
                 )
             }
 
@@ -118,7 +132,11 @@ class QueueSyncEngine @Inject constructor(
                 adoptionRequests.send(adopted)
             }
 
-            is RemoteQueueDecision.Ignore -> if (decision.reason != RemoteQueueDecision.IgnoreReason.AlreadyHandled) {
+            is RemoteQueueDecision.Ignore -> {
+                // Our own save, or the queue we already have: the server state is accounted for.
+                val accountedFor = decision.reason == RemoteQueueDecision.IgnoreReason.OwnSave ||
+                    decision.reason == RemoteQueueDecision.IgnoreReason.SameQueue
+                if (accountedFor) markSeen(RemoteQueuePolicy.seenKey(checkNotNull(queue)))
                 offeredQueue.value = null
                 offer.value = null
             }
@@ -126,35 +144,39 @@ class QueueSyncEngine @Inject constructor(
     }
 
     /** Takes the offered queue to adopt it; null if there is none. */
-    fun acceptOffer(): RemotePlayQueue? = offeredQueue.value?.also { clearOffer(handled = it) }
+    fun acceptOffer(): RemotePlayQueue? = offeredQueue.value?.also(::clearOffer)
 
-    /**
-     * Keeps the local queue. Its snapshot is saved again so it counts as newer than the dismissed
-     * remote queue, which then stays dismissed after a restart too.
-     */
+    /** Keeps the local queue. The dismissed save is remembered, so it stays dismissed after a restart too. */
     fun dismissOffer() {
-        offeredQueue.value?.let { clearOffer(handled = it) } ?: return
-        scope.launch {
-            val local = snapshots.snapshot.first() ?: return@launch
-            saveSnapshot(QueueState(local.songIds, local.currentIndex, local.positionMillis))
-        }
+        offeredQueue.value?.let(::clearOffer)
     }
 
     /** The player was restored from the local snapshot: that state is already saved everywhere. */
     fun markRestored(state: QueueState) {
         snapshotWriter.markWritten(state)
-        uploader.markWritten(state)
+        uploader.markWritten(state.inPlayOrder())
     }
 
     /** The player adopted a remote queue: do not upload it straight back. The snapshot still saves it. */
     fun markAdopted(state: QueueState) {
-        uploader.markWritten(state)
+        uploader.markWritten(state.inPlayOrder())
     }
 
     private fun clearOffer(handled: RemotePlayQueue) {
-        handledChangedAt = RemoteQueuePolicy.handledKey(handled)
         offeredQueue.value = null
         offer.value = null
+        val key = RemoteQueuePolicy.seenKey(handled)
+        seenInMemory = maxOrNull(seenInMemory, key)
+        scope.launch { markSeen(key) }
+    }
+
+    private suspend fun markSeen(changedAt: Long) {
+        seenInMemory = maxOrNull(seenInMemory, changedAt)
+        try {
+            snapshots.markRemoteChangeSeen(changedAt)
+        } catch (_: RemoteException) {
+            // Signed out: there is no server to file it under.
+        }
     }
 
     private suspend fun upload(state: QueueState): Boolean {
@@ -168,11 +190,13 @@ class QueueSyncEngine @Inject constructor(
     }
 
     private suspend fun saveSnapshot(state: QueueState): Boolean = try {
-        snapshots.save(state.songIds, state.currentIndex, state.positionMillis)
+        snapshots.save(state.songIds, state.currentIndex, state.positionMillis, state.shuffleMode, state.playOrder)
         true
     } catch (_: RemoteException) {
         false // Signed out: there is no server to file the snapshot under.
     }
+
+    private fun maxOrNull(a: Long?, b: Long?): Long? = listOfNotNull(a, b).maxOrNull()
 
     companion object {
         const val DEBOUNCE_MILLIS = 2_000L

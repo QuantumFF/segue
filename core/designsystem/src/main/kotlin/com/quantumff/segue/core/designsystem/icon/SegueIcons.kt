@@ -77,6 +77,7 @@ object SegueIcons {
     val AddToPlaylist by lazy { lucide("list-plus", LucidePaths.ListPlus) }
     val DragHandle by lazy { lucide("grip-vertical", LucidePaths.GripVertical) }
     val Remove by lazy { lucide("trash", LucidePaths.Trash) }
+    val ScrollToCurrent by lazy { lucide("locate-fixed", LucidePaths.LocateFixed) }
 
     val Download by lazy { lucide("download", LucidePaths.Download) }
     val DownloadQueued by lazy { lucide("arrow-down", LucidePaths.ArrowDown) }

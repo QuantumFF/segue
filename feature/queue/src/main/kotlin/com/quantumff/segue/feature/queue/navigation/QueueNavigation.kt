@@ -4,7 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import com.quantumff.segue.feature.queue.QueueScreen
+import com.quantumff.segue.feature.queue.QueueRoute as QueueRouteScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -14,6 +14,6 @@ fun NavController.navigateToQueue(navOptions: NavOptions? = null) = navigate(Que
 
 fun NavGraphBuilder.queueScreen(onBackClick: () -> Unit) {
     composable<QueueRoute> {
-        QueueScreen(onBackClick = onBackClick)
+        QueueRouteScreen(onBackClick = onBackClick)
     }
 }

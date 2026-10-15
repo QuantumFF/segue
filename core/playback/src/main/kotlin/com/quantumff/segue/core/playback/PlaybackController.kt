@@ -5,9 +5,11 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
@@ -87,6 +89,10 @@ class PlaybackController @Inject constructor(
     /** The connected controller, or null while disconnected (for example after the service stopped). */
     private val connected = MutableStateFlow<MediaController?>(null)
     private val queueCache = QueueCache()
+
+    private class Removal(val item: MediaItem, val timelineIndex: Int, val playPosition: Int)
+
+    private var lastRemoval: Removal? = null
 
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
@@ -168,19 +174,39 @@ class PlaybackController @Inject constructor(
         }
     }
 
-    /** Moves the item at play position [from] to [to]. With shuffle on, only the play order changes. */
-    fun move(from: Int, to: Int) = command { controller ->
+    /**
+     * Moves [count] items at play position [from] so the first lands at play position [to] (an
+     * album block when [count] > 1). With shuffle on, only the play order changes.
+     */
+    fun move(from: Int, to: Int, count: Int = 1) = command { controller ->
         if (controller.shuffleModeEnabled) {
             controller.sendCustomCommand(
                 SegueSessionCommands.command(SegueSessionCommands.MOVE_IN_PLAY_ORDER),
-                SegueSessionCommands.moveArgs(from, to),
+                SegueSessionCommands.moveArgs(from, to, count),
             )
         } else {
-            controller.moveMediaItem(from, to)
+            controller.moveMediaItems(from, from + count, to)
         }
     }
 
-    fun remove(timelineIndex: Int) = command { it.removeMediaItem(timelineIndex) }
+    /** Removes the item at [timelineIndex]. [undoRemove] puts the last removed item back. */
+    fun remove(timelineIndex: Int) = command { controller ->
+        if (timelineIndex !in 0 until controller.mediaItemCount) return@command
+        val (order, _) = queueCache.get(controller)
+        lastRemoval = Removal(controller.getMediaItemAt(timelineIndex), timelineIndex, order.indexOf(timelineIndex))
+        controller.removeMediaItem(timelineIndex)
+    }
+
+    /** Puts the last removed item back where it was, in the queue and in play order. */
+    fun undoRemove() = command { controller ->
+        val removal = lastRemoval ?: return@command
+        lastRemoval = null
+        val result = controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.REINSERT),
+            SegueSessionCommands.reinsertArgs(removal.item, removal.timelineIndex, removal.playPosition),
+        ).await()
+        if (result.resultCode != SessionResult.RESULT_SUCCESS) Log.w(TAG, "Undo failed: ${result.resultCode}")
+    }
 
     fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
 

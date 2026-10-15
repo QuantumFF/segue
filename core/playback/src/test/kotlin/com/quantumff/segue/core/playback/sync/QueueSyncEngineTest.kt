@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
+import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.testing.FakePlayQueueRemoteRepository
 import com.quantumff.segue.core.playback.testing.FakeQueueSnapshotRepository
@@ -133,7 +134,9 @@ class QueueSyncEngineTest {
         val engine = engine()
         engine.checkRemote(isPlayingLocally = false)
 
-        assertThat(engine.remoteOffer.value).isEqualTo(RemoteQueueOffer("Feishin", 2, "Title r2"))
+        assertThat(
+            engine.remoteOffer.value,
+        ).isEqualTo(RemoteQueueOffer("Feishin", 2, "Title r2", positionMillis = 3_000, changedAt = 5_000))
     }
 
     @Test
@@ -182,9 +185,9 @@ class QueueSyncEngineTest {
         remote.queue = remoteQueue(changedAt = 5_000)
         val engine = engine()
         engine.checkRemote(isPlayingLocally = false)
-        snapshots.now = 6_000
         engine.dismissOffer()
         runCurrent()
+        assertThat(snapshots.seen).isEqualTo(5_000)
 
         val afterRestart = engine()
         afterRestart.checkRemote(isPlayingLocally = false)
@@ -218,5 +221,123 @@ class QueueSyncEngineTest {
         engine.checkRemote(isPlayingLocally = false)
         assertThat(engine.remoteOffer.value).isNull()
         assertThat(remote.fetches).isEqualTo(0)
+    }
+
+    // --- Shuffle -----------------------------------------------------------------------------
+
+    @Test
+    fun `a shuffled queue is snapshotted with its shuffle and uploaded in play order`() = runTest {
+        val shuffled = QueueState(
+            songIds = listOf("a1", "a2", "b1", "b2"),
+            currentIndex = 2,
+            positionMillis = 7_000,
+            shuffleMode = ShuffleMode.Albums,
+            playOrder = listOf(2, 3, 0, 1),
+        )
+        val engine = engine()
+        engine.onQueueEvent(QueueEvent.QueueEdit, shuffled)
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+
+        assertThat(snapshots.saves).containsExactly(shuffled)
+        assertThat(remote.saves).containsExactly(QueueState(listOf("b1", "b2", "a1", "a2"), 0, 7_000))
+    }
+
+    @Test
+    fun `a reshuffle that keeps the play order uploads nothing new`() = runTest {
+        val tracks = QueueState(listOf("a", "b"), 0, 0, ShuffleMode.Tracks, listOf(0, 1))
+        val engine = engine()
+        engine.onQueueEvent(QueueEvent.QueueEdit, tracks)
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+        engine.onQueueEvent(QueueEvent.QueueEdit, tracks.copy(shuffleMode = ShuffleMode.Off, playOrder = null))
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+
+        assertThat(remote.saves).hasSize(1)
+        assertThat(snapshots.saves).hasSize(2)
+    }
+
+    @Test
+    fun `a restored shuffled queue is not uploaded again`() = runTest {
+        val shuffled = QueueState(listOf("a", "b", "c"), 1, 0, ShuffleMode.Tracks, listOf(1, 2, 0))
+        val engine = engine()
+        engine.markRestored(shuffled)
+        engine.onAppBackground(shuffled)
+        advanceTimeBy(10_000)
+        assertThat(remote.saves).isEmpty()
+        assertThat(snapshots.saves).isEmpty()
+    }
+
+    // --- Clock skew ---------------------------------------------------------------------------
+
+    @Test
+    fun `our own save read back from the server is remembered by its server time`() = runTest {
+        remote.queue = remoteQueue(by = "Segue-own", changedAt = 8_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(snapshots.seen).isEqualTo(8_000)
+
+        // Another client saves later by the server clock: offered whatever this device's clock says.
+        snapshots.now = Long.MAX_VALUE / 2
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue(changedAt = 9_000)
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value?.deviceName).isEqualTo("Feishin")
+    }
+
+    @Test
+    fun `a device clock far ahead does not hide another device's newer queue`() = runTest {
+        snapshots.now = 10_000_000_000_000 // Local snapshot written with a clock years ahead.
+        snapshots.save(listOf("x"), 0, 0)
+        snapshots.seen = 4_000
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value).isNotNull()
+    }
+
+    @Test
+    fun `an old queue of another device is not offered once a later server change was seen`() = runTest {
+        snapshots.now = 0 // Local clock far behind: must not matter either.
+        snapshots.save(listOf("x"), 0, 0)
+        snapshots.seen = 6_000
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value).isNull()
+    }
+
+    @Test
+    fun `adopting remembers the adopted save so it is not offered again`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        engine.acceptOffer()
+        runCurrent()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value).isNull()
+    }
+
+    @Test
+    fun `starting local playback retires the offer`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value).isNotNull()
+
+        engine.onLocalPlaybackStarted()
+        runCurrent()
+        assertThat(engine.remoteOffer.value).isNull()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+    }
+
+    @Test
+    fun `an offer is withdrawn when our own save has replaced it on the server`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        remote.queue = remoteQueue(by = "Segue-own", changedAt = 6_000)
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value).isNull()
     }
 }
