@@ -343,7 +343,7 @@ internal fun QueueMessages(
             val result = hostState.showSnackbar(
                 message = text,
                 actionLabel = if (undoable) resources.getString(R.string.feature_queue_undo) else null,
-                duration = SnackbarDuration.Short,
+                duration = if (undoable) SnackbarDuration.Long else SnackbarDuration.Short,
             )
             if (undoable && result == SnackbarResult.ActionPerformed) latestOnUndo()
         }

@@ -9,6 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
@@ -200,10 +201,11 @@ class PlaybackController @Inject constructor(
     fun undoRemove() = command { controller ->
         val removal = lastRemoval ?: return@command
         lastRemoval = null
-        controller.sendCustomCommand(
+        val result = controller.sendCustomCommand(
             SegueSessionCommands.command(SegueSessionCommands.REINSERT),
             SegueSessionCommands.reinsertArgs(removal.item, removal.timelineIndex, removal.playPosition),
-        )
+        ).await()
+        if (result.resultCode != SessionResult.RESULT_SUCCESS) Log.w(TAG, "Undo failed: ${result.resultCode}")
     }
 
     fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
