@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "ceb2f98f58c1872e8c8f761748967ad1",
+    "identityHash": "3cf7108d39a725fb2bc5af4c611f8d1a",
     "entities": [
       {
         "tableName": "artists",
@@ -1041,8 +1041,67 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_downloads_serverId_state` ON `${TABLE_NAME}` (`serverId`, `state`)"
+          },
+          {
+            "name": "index_downloads_state_updatedAt",
+            "unique": false,
+            "columnNames": [
+              "state",
+              "updatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_downloads_state_updatedAt` ON `${TABLE_NAME}` (`state`, `updatedAt`)"
           }
         ]
+      },
+      {
+        "tableName": "pins",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `kind` TEXT NOT NULL, `itemId` TEXT NOT NULL, `name` TEXT NOT NULL, `coverArtId` TEXT, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `kind`, `itemId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverArtId",
+            "columnName": "coverArtId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "kind",
+            "itemId"
+          ]
+        }
       },
       {
         "tableName": "sync_metadata",
@@ -1132,7 +1191,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ceb2f98f58c1872e8c8f761748967ad1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3cf7108d39a725fb2bc5af4c611f8d1a')"
     ]
   }
 }

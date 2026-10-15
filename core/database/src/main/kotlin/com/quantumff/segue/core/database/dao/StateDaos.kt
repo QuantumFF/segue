@@ -2,6 +2,7 @@ package com.quantumff.segue.core.database.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -9,12 +10,15 @@ import com.quantumff.segue.core.database.model.AlbumEntity
 import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
+import com.quantumff.segue.core.database.model.PinEntity
+import com.quantumff.segue.core.database.model.PinSongRow
 import com.quantumff.segue.core.database.model.QueueItemEntity
 import com.quantumff.segue.core.database.model.QueueStateEntity
 import com.quantumff.segue.core.database.model.ServerCapabilitiesEntity
 import com.quantumff.segue.core.database.model.SongEntity
 import com.quantumff.segue.core.database.model.SyncMetadataEntity
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.PinKind
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -66,22 +70,188 @@ abstract class ScrobbleDao {
     protected abstract suspend fun deleteChunk(ids: List<Long>)
 }
 
+/** Songs covered by each pin of a server: album tracks, playlist entries, all albums of an artist, single songs. */
+private const val PIN_MEMBERSHIP = """
+    SELECT p.kind AS kind, p.itemId AS itemId, s.id AS songId FROM pins p
+    INNER JOIN songs s ON s.serverId = p.serverId AND s.albumId = p.itemId
+    WHERE p.serverId = :serverId AND p.kind = 'Album'
+    UNION ALL
+    SELECT p.kind, p.itemId, ps.songId FROM pins p
+    INNER JOIN playlist_songs ps ON ps.serverId = p.serverId AND ps.playlistId = p.itemId
+    WHERE p.serverId = :serverId AND p.kind = 'Playlist'
+    UNION ALL
+    SELECT p.kind, p.itemId, s.id FROM pins p
+    INNER JOIN albums a ON a.serverId = p.serverId AND (
+        a.artistId = p.itemId OR a.id IN (
+            SELECT aa.albumId FROM album_artists aa WHERE aa.serverId = p.serverId AND aa.artistId = p.itemId
+        )
+    )
+    INNER JOIN songs s ON s.serverId = a.serverId AND s.albumId = a.id
+    WHERE p.serverId = :serverId AND p.kind = 'Artist'
+    UNION ALL
+    SELECT p.kind, p.itemId, p.itemId FROM pins p WHERE p.serverId = :serverId AND p.kind = 'Song'
+"""
+
+/**
+ * Pins and the per-song download rows they produce. Which songs should be on the device is
+ * always derived from the pins ([pinMembership]); the download engine reconciles the rows to it.
+ */
 @Dao
-interface DownloadDao {
+abstract class DownloadDao {
     @Query("SELECT * FROM downloads WHERE serverId = :serverId ORDER BY updatedAt DESC")
-    fun observeAll(serverId: String): Flow<List<DownloadEntity>>
+    abstract fun observeAll(serverId: String): Flow<List<DownloadEntity>>
 
     @Query("SELECT * FROM downloads WHERE serverId = :serverId AND state = :state ORDER BY updatedAt DESC")
-    fun observeByState(serverId: String, state: DownloadState): Flow<List<DownloadEntity>>
+    abstract fun observeByState(serverId: String, state: DownloadState): Flow<List<DownloadEntity>>
 
     @Query("SELECT * FROM downloads WHERE serverId = :serverId AND songId = :songId")
-    fun observe(serverId: String, songId: String): Flow<DownloadEntity?>
+    abstract fun observe(serverId: String, songId: String): Flow<DownloadEntity?>
+
+    @Query("SELECT * FROM downloads WHERE serverId = :serverId AND songId = :songId")
+    abstract suspend fun get(serverId: String, songId: String): DownloadEntity?
+
+    @Query("SELECT * FROM downloads WHERE serverId = :serverId")
+    abstract suspend fun getAll(serverId: String): List<DownloadEntity>
+
+    /** Every server's rows, for removing all downloads. */
+    @Query("SELECT * FROM downloads")
+    abstract suspend fun getEverything(): List<DownloadEntity>
+
+    @Query("SELECT songId FROM downloads WHERE serverId = :serverId AND state = 'Completed'")
+    abstract fun observeCompletedSongIds(serverId: String): Flow<List<String>>
+
+    @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloads")
+    abstract fun observeUsedBytes(): Flow<Long>
 
     @Upsert
-    suspend fun upsert(download: DownloadEntity)
+    abstract suspend fun upsert(download: DownloadEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertAll(downloads: List<DownloadEntity>)
 
     @Query("DELETE FROM downloads WHERE serverId = :serverId AND songId = :songId")
-    suspend fun delete(serverId: String, songId: String)
+    abstract suspend fun delete(serverId: String, songId: String)
+
+    @Transaction
+    open suspend fun delete(serverId: String, songIds: Collection<String>) {
+        songIds.chunked(SQL_CHUNK).forEach { deleteChunk(serverId, it) }
+    }
+
+    @Query("DELETE FROM downloads WHERE serverId = :serverId AND songId IN (:songIds)")
+    protected abstract suspend fun deleteChunk(serverId: String, songIds: List<String>)
+
+    // --- Pins -------------------------------------------------------------------------------------
+
+    @Query("SELECT * FROM pins WHERE serverId = :serverId ORDER BY createdAt DESC")
+    abstract fun observePins(serverId: String): Flow<List<PinEntity>>
+
+    @Query("SELECT * FROM pins")
+    abstract suspend fun allPins(): List<PinEntity>
+
+    @Upsert
+    abstract suspend fun upsertPin(pin: PinEntity)
+
+    @Query("DELETE FROM pins WHERE serverId = :serverId AND kind = :kind AND itemId = :itemId")
+    abstract suspend fun deletePin(serverId: String, kind: PinKind, itemId: String)
+
+    @Query("DELETE FROM pins")
+    abstract suspend fun deleteAllPins()
+
+    @Query(PIN_MEMBERSHIP)
+    abstract fun observePinMembership(serverId: String): Flow<List<PinSongRow>>
+
+    @Query(PIN_MEMBERSHIP)
+    abstract suspend fun pinMembership(serverId: String): List<PinSongRow>
+
+    // --- Download engine ----------------------------------------------------------------------------
+
+    /**
+     * Claims the oldest queued download of any server: marks it Downloading and returns it, or
+     * returns null when nothing is queued. Atomic, so parallel downloaders never take the same row.
+     */
+    @Transaction
+    open suspend fun claimNext(now: Long): DownloadEntity? {
+        val next = oldestQueued() ?: return null
+        setState(next.serverId, next.songId, DownloadState.Downloading, now)
+        return next.copy(state = DownloadState.Downloading, updatedAt = now)
+    }
+
+    @Query("SELECT * FROM downloads WHERE state = 'Queued' ORDER BY updatedAt, songId LIMIT 1")
+    protected abstract suspend fun oldestQueued(): DownloadEntity?
+
+    @Query("UPDATE downloads SET state = :state, updatedAt = :now WHERE serverId = :serverId AND songId = :songId")
+    protected abstract suspend fun setState(serverId: String, songId: String, state: DownloadState, now: Long)
+
+    /** Downloads left Downloading by a stopped or killed worker go back to the queue. */
+    @Query("UPDATE downloads SET state = 'Queued' WHERE state = 'Downloading'")
+    abstract suspend fun requeueInterrupted()
+
+    @Query("SELECT COUNT(*) FROM downloads WHERE state = 'Queued'")
+    abstract suspend fun queuedCount(): Int
+
+    /**
+     * Marks a running download finished. Returns false when the row is no longer Downloading
+     * (paused, removed): the caller then discards the file.
+     */
+    open suspend fun complete(serverId: String, songId: String, path: String, bytes: Long, now: Long): Boolean =
+        completeRow(serverId, songId, path, bytes, now) > 0
+
+    @Query(
+        """
+        UPDATE downloads SET state = 'Completed', filePath = :path, bytesDownloaded = :bytes, totalBytes = :bytes,
+            failureReason = NULL, updatedAt = :now
+        WHERE serverId = :serverId AND songId = :songId AND state = 'Downloading'
+        """,
+    )
+    protected abstract suspend fun completeRow(serverId: String, songId: String, path: String, bytes: Long, now: Long): Int
+
+    /** Saves how far a stopped download got. Only touches a row that is still Downloading. */
+    @Query(
+        """
+        UPDATE downloads SET state = :state, bytesDownloaded = :bytes, totalBytes = :total, failureReason = :reason,
+            updatedAt = :now
+        WHERE serverId = :serverId AND songId = :songId AND state = 'Downloading'
+        """,
+    )
+    abstract suspend fun finishAttempt(
+        serverId: String,
+        songId: String,
+        state: DownloadState,
+        bytes: Long,
+        total: Long?,
+        reason: String?,
+        now: Long,
+    ): Int
+
+    /** Whether the row is still Downloading: false once it was paused or removed mid-download. */
+    @Query("SELECT COUNT(*) > 0 FROM downloads WHERE serverId = :serverId AND songId = :songId AND state = 'Downloading'")
+    abstract suspend fun isDownloading(serverId: String, songId: String): Boolean
+
+    /** Moves [songIds] in state [from] to [to]; for pause, resume and retry. */
+    @Transaction
+    open suspend fun transition(
+        serverId: String,
+        songIds: Collection<String>,
+        from: Collection<DownloadState>,
+        to: DownloadState,
+        now: Long,
+    ) {
+        songIds.chunked(SQL_CHUNK).forEach { transitionChunk(serverId, it, from.toList(), to, now) }
+    }
+
+    @Query(
+        """
+        UPDATE downloads SET state = :to, updatedAt = :now
+        WHERE serverId = :serverId AND songId IN (:songIds) AND state IN (:from)
+        """,
+    )
+    protected abstract suspend fun transitionChunk(
+        serverId: String,
+        songIds: List<String>,
+        from: List<DownloadState>,
+        to: DownloadState,
+        now: Long,
+    )
 }
 
 @Dao
@@ -156,6 +326,7 @@ abstract class ServerDataDao {
         deleteQueueState(serverId)
         deleteScrobbles(serverId)
         deleteDownloads(serverId)
+        deletePins(serverId)
         deleteSyncMetadata(serverId)
         deleteCapabilities(serverId)
     }
@@ -195,6 +366,9 @@ abstract class ServerDataDao {
 
     @Query("DELETE FROM downloads WHERE serverId = :serverId")
     protected abstract suspend fun deleteDownloads(serverId: String)
+
+    @Query("DELETE FROM pins WHERE serverId = :serverId")
+    protected abstract suspend fun deletePins(serverId: String)
 
     @Query("DELETE FROM sync_metadata WHERE serverId = :serverId")
     protected abstract suspend fun deleteSyncMetadata(serverId: String)

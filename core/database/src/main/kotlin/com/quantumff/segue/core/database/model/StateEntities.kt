@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.PinKind
 
 /** The local play queue snapshot: where playback was, so it can resume offline. */
 @Entity(tableName = "queue_state")
@@ -28,21 +29,46 @@ data class PendingScrobbleEntity(
     val submission: Boolean,
 )
 
+/**
+ * A song kept on the device for offline use. Rows exist while some pin covers the song; the file
+ * is at [filePath] once [state] is Completed. Live byte progress of a running download is kept in
+ * memory, not here, so progress does not rewrite the table many times a second.
+ */
 @Entity(
     tableName = "downloads",
     primaryKeys = ["serverId", "songId"],
-    indices = [Index("serverId", "state")],
+    indices = [Index("serverId", "state"), Index("state", "updatedAt")],
 )
 data class DownloadEntity(
     val serverId: String,
     val songId: String,
     val state: DownloadState,
+    /** The file size once completed; bytes saved so far for a paused or interrupted download. */
     val bytesDownloaded: Long = 0,
     val totalBytes: Long? = null,
     val filePath: String? = null,
     val failureReason: String? = null,
+    /** When the row last changed state. Queued rows download oldest first. */
     val updatedAt: Long,
 )
+
+/**
+ * An album, playlist, artist or song pinned for offline use. The songs it covers are worked out
+ * from the library tables each time, so a pinned playlist follows its server copy and an artist
+ * pin picks up new albums. [name] and [coverArtId] are kept for display if the item disappears.
+ */
+@Entity(tableName = "pins", primaryKeys = ["serverId", "kind", "itemId"])
+data class PinEntity(
+    val serverId: String,
+    val kind: PinKind,
+    val itemId: String,
+    val name: String,
+    val coverArtId: String? = null,
+    val createdAt: Long,
+)
+
+/** One song covered by one pin. A song covered by several pins appears once per pin. */
+data class PinSongRow(val kind: PinKind, val itemId: String, val songId: String)
 
 /** Library sync bookkeeping per server. */
 @Entity(tableName = "sync_metadata")
