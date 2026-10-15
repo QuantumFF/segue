@@ -32,7 +32,8 @@ import com.quantumff.segue.core.playback.service.ScreenOffOffload
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.sleep.SleepTimerController
-import com.quantumff.segue.core.playback.sync.QueueEvent
+import com.quantumff.segue.core.playback.sync.QueueRestore
+import com.quantumff.segue.core.playback.sync.QueueSyncListener
 import com.quantumff.segue.core.playback.sync.QueueState
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -62,19 +63,23 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var scope: CoroutineScope
     private lateinit var exoPlayer: ExoPlayer
     private lateinit var player: SeguePlayer
+    private lateinit var queueSyncListener: QueueSyncListener
     private lateinit var offload: ScreenOffOffload
     private lateinit var sleepTimer: SleepTimerController
     private lateinit var prefetcher: NextTrackPrefetcher
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
     private var idleStop: Job? = null
-    private var hadItems = false
 
     override fun onCreate() {
         super.onCreate()
         scope = CoroutineScope(SupervisorJob() + components.mainDispatcher)
         exoPlayer = components.createExoPlayer(this)
-        player = SeguePlayer(exoPlayer) { updateSessionState() }
+        player = SeguePlayer(exoPlayer) {
+            updateSessionState()
+            queueSyncListener.onShuffleModeChanged()
+        }
+        queueSyncListener = QueueSyncListener(player, components.queueSync)
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
@@ -85,6 +90,7 @@ class SeguePlaybackService : MediaLibraryService() {
             .build()
 
         exoPlayer.addListener(PlayerEvents())
+        exoPlayer.addListener(queueSyncListener)
         exoPlayer.addListener(sleepTimer)
         exoPlayer.addListener(Scrobbler(player, components.scrobbles, scope, components.appScope))
         components.bridge.player = player
@@ -120,52 +126,28 @@ class SeguePlaybackService : MediaLibraryService() {
 
     // --- Player events ---------------------------------------------------------------------------
 
+    // Queue sync events come from QueueSyncListener; these are the service's other reactions.
     private inner class PlayerEvents : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             applyReplayGain()
             updateSessionState()
-            queueEvent(QueueEvent.TrackTransition)
             updatePrefetch()
         }
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) return
-            val hasItems = player.mediaItemCount > 0
-            // Empty after having songs is a deliberate clear, not the empty player before restore.
-            if (hadItems && !hasItems) components.queueSync.onQueueCleared()
-            hadItems = hasItems
-            queueEvent(QueueEvent.QueueEdit)
             updatePrefetch()
             updateSessionState()
         }
 
-        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            queueEvent(QueueEvent.QueueEdit)
-            updatePrefetch()
-        }
-
-        override fun onPositionDiscontinuity(
-            oldPosition: Player.PositionInfo,
-            newPosition: Player.PositionInfo,
-            reason: Int,
-        ) {
-            if (reason == Player.DISCONTINUITY_REASON_SEEK) queueEvent(QueueEvent.Seek)
-        }
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = updatePrefetch()
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-            if (playWhenReady) {
-                updatePrefetch()
-            } else {
-                queueEvent(QueueEvent.Pause)
-            }
+            if (playWhenReady) updatePrefetch()
             updateIdleStop()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) = updateIdleStop()
-    }
-
-    private fun queueEvent(event: QueueEvent) {
-        if (player.mediaItemCount > 0) components.queueSync.onQueueEvent(event, player.queueState())
     }
 
     private fun applyReplayGain() {
@@ -201,25 +183,20 @@ class SeguePlaybackService : MediaLibraryService() {
 
     private data class Restored(val items: List<MediaItem>, val state: QueueState)
 
-    /** The local snapshot as playable items, from Room only, so it works offline. */
+    /** The local snapshot as playable items with its shuffle, from Room only, so it works offline. */
     private suspend fun loadSnapshot(): Restored? {
         val snapshot = components.snapshots.snapshot.first() ?: return null
+        // In queue order with duplicates; songs missing from the library are dropped (see QueueRestore).
         val songs = components.library.songsByIds(snapshot.songIds)
-        if (songs.isEmpty()) return null
-        // Songs missing from the library are dropped; keep pointing at the same current song.
-        val found = songs.mapTo(HashSet()) { it.id }
-        val index = snapshot.songIds.take(snapshot.currentIndex).count { it in found }.coerceAtMost(songs.lastIndex)
-        val currentFound = snapshot.songIds.getOrNull(snapshot.currentIndex) in found
-        val position = if (currentFound) snapshot.positionMillis else 0
-        return Restored(songs.map { it.toMediaItem() }, QueueState(songs.map { it.id }, index, position))
+        val state = QueueRestore.plan(snapshot, songs.mapTo(HashSet()) { it.id }) ?: return null
+        return Restored(songs.map { it.toMediaItem() }, state)
     }
 
     private suspend fun restoreSnapshot() {
         val restored = loadSnapshot() ?: return
         if (player.mediaItemCount > 0) return // Something was queued while we read the snapshot.
-        // The snapshot is in effective play order, so it restores with shuffle off.
-        player.setMediaItems(restored.items, restored.state.currentIndex, restored.state.positionMillis)
-        components.queueSync.markRestored(restored.state)
+        player.restore(restored.items, restored.state)
+        components.queueSync.markRestored(player.queueState())
     }
 
     // --- Session state: extras and buttons -------------------------------------------------------
@@ -300,7 +277,12 @@ class SeguePlaybackService : MediaLibraryService() {
                 SegueSessionCommands.MOVE_IN_PLAY_ORDER -> player.moveInPlayOrder(
                     args.getInt(SegueSessionCommands.ARG_FROM),
                     args.getInt(SegueSessionCommands.ARG_TO),
+                    args.getInt(SegueSessionCommands.ARG_COUNT, 1),
                 )
+
+                SegueSessionCommands.REINSERT -> SegueSessionCommands.reinsertArgs(args)?.let { (item, index, position) ->
+                    player.reinsert(item.withPlayableUri(), index, position)
+                }
 
                 else -> return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
             }
@@ -325,6 +307,8 @@ class SeguePlaybackService : MediaLibraryService() {
                 if (restored == null) {
                     result.setException(UnsupportedOperationException("Nothing to resume"))
                 } else {
+                    // The session sets these items itself; the player then reapplies the saved shuffle.
+                    player.expectRestore(restored.state)
                     components.queueSync.markRestored(restored.state)
                     result.set(
                         MediaSession.MediaItemsWithStartPosition(

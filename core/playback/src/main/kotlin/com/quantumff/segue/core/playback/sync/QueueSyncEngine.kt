@@ -41,7 +41,7 @@ class QueueSyncEngine @Inject constructor(
     private val snapshots: QueueSnapshotRepository,
     private val preferences: UserPreferencesRepository,
     @ApplicationScope private val scope: CoroutineScope,
-) {
+) : QueueSyncSink {
     private val uploader = DebouncedQueueWriter(scope, DEBOUNCE_MILLIS, ::upload)
     private val snapshotWriter = DebouncedQueueWriter(scope, DEBOUNCE_MILLIS, ::saveSnapshot)
 
@@ -59,14 +59,14 @@ class QueueSyncEngine @Inject constructor(
     /** Remote queues to adopt without asking, when the user enabled that. */
     val adoptions: Flow<RemotePlayQueue> = adoptionRequests.receiveAsFlow()
 
-    fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
+    override fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
         if (state.songIds.isEmpty()) return
         snapshotWriter.submit(state)
         uploader.submit(state.inPlayOrder())
     }
 
     /** The user emptied a queue that had songs: clear the snapshot and the server's saved queue. */
-    fun onQueueCleared() {
+    override fun onQueueCleared() {
         val cleared = QueueState(emptyList(), currentIndex = -1, positionMillis = 0)
         snapshotWriter.submit(cleared)
         uploader.submit(cleared)
@@ -83,7 +83,7 @@ class QueueSyncEngine @Inject constructor(
      * Local playback started: the banner goes (DESIGN.md §4.8), and the offered queue counts as
      * declined. This device's next upload replaces it on the server anyway.
      */
-    fun onLocalPlaybackStarted() {
+    override fun onLocalPlaybackStarted() {
         offeredQueue.value?.let(::clearOffer)
     }
 
