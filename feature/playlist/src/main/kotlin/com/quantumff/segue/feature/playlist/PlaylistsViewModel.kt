@@ -3,19 +3,29 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
+import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -36,6 +46,10 @@ data class PlaylistsUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val message: PlaylistMessage? = null,
+    /** Pin status of pinned playlists by ID. */
+    val downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
+    /** Offline: only pinned playlists are listed. */
+    val isOffline: Boolean = false,
 )
 
 /** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh, plus CRUD. */
@@ -43,6 +57,8 @@ data class PlaylistsUiState(
 class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     serverRepository: ServerRepository,
+    private val downloadRepository: DownloadRepository,
+    offlineModeRepository: OfflineModeRepository,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
@@ -50,9 +66,15 @@ class PlaylistsViewModel @Inject constructor(
         playlistRepository.playlists,
         serverRepository.activeServer,
         local,
-    ) { playlists, server, local ->
+        downloadRepository.overview.map { overview ->
+            overview.pins.filter { it.kind == PinKind.Playlist }.associate { it.id to it.status }.toImmutableMap()
+        },
+        offlineModeRepository.isOffline,
+    ) { playlists, server, local, downloads, offline ->
         PlaylistsUiState(
-            playlists = playlists,
+            playlists = if (offline) playlists.filter { it.id in downloads }.toImmutableList() else playlists,
+            downloads = downloads,
+            isOffline = offline,
             serverName = server?.name,
             isLoading = false,
             isRefreshing = local.refreshing,
@@ -80,6 +102,12 @@ class PlaylistsViewModel @Inject constructor(
     fun rename(playlist: Playlist, name: String) = write { playlistRepository.updatePlaylist(playlist.id, name = name) }
 
     fun delete(playlist: Playlist) = write { playlistRepository.deletePlaylist(playlist.id) }
+
+    fun download(playlist: Playlist) = write {
+        downloadRepository.pin(PinTarget(PinKind.Playlist, playlist.id, playlist.name, playlist.coverArtId))
+    }
+
+    fun removeDownload(playlist: Playlist) = write { downloadRepository.unpin(PinKind.Playlist, playlist.id) }
 
     /** Loads the playlist's songs (fetching them when not cached yet) and hands them to [onLoaded]. */
     fun loadSongs(playlistId: String, onLoaded: (List<Song>) -> Unit) {

@@ -8,6 +8,8 @@ import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import java.io.IOException
@@ -15,9 +17,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
+import com.quantumff.segue.core.model.DownloadOverview
+import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PinnedDownload
+import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 
 class PlaylistsViewModelTest {
+    private val downloads = FakeDownloadRepository()
+    private val offlineMode = FakeOfflineModeRepository()
+
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
@@ -27,7 +37,7 @@ class PlaylistsViewModelTest {
         activeId.value = TestData.server.id
     }
 
-    private fun viewModel() = PlaylistsViewModel(playlists, servers)
+    private fun viewModel() = PlaylistsViewModel(playlists, servers, downloads, offlineMode)
 
     @Test
     fun showsPlaylistsAndServerName_andRefreshesOnEntry() = runTest {
@@ -117,5 +127,22 @@ class PlaylistsViewModelTest {
         assertThat(playlists.refreshed).containsExactly("p1")
         // Still empty after the refresh: nothing to play, and no callback.
         assertThat(loaded).isEmpty()
+    }
+
+    @Test
+    fun offlineListsOnlyPinnedPlaylistsWithTheirStatus() = runTest {
+        playlists.playlistsState.value = listOf(TestData.playlist("p1"), TestData.playlist("p2"))
+        downloads.overview.value = DownloadOverview(
+            pins = persistentListOf(
+                PinnedDownload(PinKind.Playlist, "p2", "Playlist p2", null, 2, 2, 0, 0, 1f, 10),
+            ),
+        )
+        offlineMode.isOffline.value = true
+
+        viewModel().uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.playlists.map { it.id }).containsExactly("p2")
+            assertThat(state.downloads).containsExactly("p2", DownloadStatus.Downloaded)
+        }
     }
 }

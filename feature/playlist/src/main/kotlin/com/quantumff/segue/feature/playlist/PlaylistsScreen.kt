@@ -33,13 +33,16 @@ import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Playlist
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 
 /** The Playlists tab (DESIGN.md §3): the playlist list with create, rename and delete. */
@@ -72,7 +75,10 @@ fun PlaylistsScreen(
 
                 MediaAction.AddToQueue -> viewModel.loadSongs(playlist.id, playActions.onAddToQueue)
 
-                // TODO(downloads): pin the playlist for offline once downloads exist.
+                MediaAction.Download -> viewModel.download(playlist)
+
+                MediaAction.RemoveDownload -> viewModel.removeDownload(playlist)
+
                 else -> Unit
             }
         },
@@ -137,6 +143,7 @@ fun PlaylistsScreenContent(
 
                     else -> PlaylistList(
                         playlists = uiState.playlists,
+                        downloads = uiState.downloads,
                         onPlaylistClick = onPlaylistClick,
                         onMoreClick = { menuFor = it },
                     )
@@ -149,7 +156,7 @@ fun PlaylistsScreenContent(
     menuFor?.let { playlist ->
         MediaContextMenu(
             header = playlist.toMenuHeader(),
-            actions = MediaActions.playlist(editable = !playlist.readonly),
+            actions = MediaActions.playlist(editable = !playlist.readonly, isDownloaded = playlist.id in uiState.downloads),
             onAction = { action ->
                 when (action) {
                     MediaAction.Rename -> dialog = PlaylistDialog.Rename(playlist)
@@ -172,6 +179,7 @@ fun PlaylistsScreenContent(
 @Composable
 private fun PlaylistList(
     playlists: ImmutableList<Playlist>,
+    downloads: ImmutableMap<String, DownloadStatus>,
     onPlaylistClick: (String) -> Unit,
     onMoreClick: (Playlist) -> Unit,
 ) {
@@ -186,6 +194,7 @@ private fun PlaylistList(
                 onLongClick = { onMoreClick(playlist) },
                 onMoreClick = { onMoreClick(playlist) },
                 placeholderIcon = SegueIcons.Playlists,
+                download = downloads[playlist.id]?.toBadgeState(),
             )
         }
     }
