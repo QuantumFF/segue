@@ -272,8 +272,10 @@ private fun QueueList(
 }
 
 /**
- * Keeps the current track in view: on first show, and when the track changes while the previous
- * current track was on screen (so browsing further down is not interrupted).
+ * Keeps the current track in view, with the row above it (its album header in Albums shuffle):
+ * on first show, on a shuffle mode change, and when the track changes while the previous current
+ * track was on screen (so browsing further down is not interrupted). A newly offered queue from
+ * another device scrolls its banner into view.
  */
 @Composable
 private fun AutoScrollToCurrent(
@@ -285,7 +287,7 @@ private fun AutoScrollToCurrent(
 ) {
     var previousKey by remember { mutableStateOf<String?>(null) }
     val latestRows by rememberUpdatedState(rows)
-    LaunchedEffect(state.currentKey) {
+    LaunchedEffect(state.currentKey, state.shuffleMode) {
         val key = state.currentKey ?: return@LaunchedEffect
         val previous = previousKey
         previousKey = key
@@ -297,6 +299,9 @@ private fun AutoScrollToCurrent(
             previous == null -> listState.scrollToItem((index - 1).coerceAtLeast(0))
             previous in visible -> listState.animateScrollToItem((index - 1).coerceAtLeast(0))
         }
+    }
+    LaunchedEffect(hasBanner) {
+        if (hasBanner && !dragging) listState.animateScrollToItem(0)
     }
 }
 
@@ -345,15 +350,24 @@ internal fun QueueMessages(
     }
 }
 
-/** "Nude · 2:31 · 5 min ago". The age uses the server's save time, clamped so a skewed clock never reads "in 3 min". */
+/**
+ * "Nude · 2:31 · 5 min ago". The age compares the server's save time with this device's clock;
+ * under a minute, or in the future (a skewed clock), it reads "Just now". Display only: sync
+ * decisions never use the device clock.
+ */
 @Composable
 private fun RemoteQueueOffer.toBannerState(): ContinueFromDeviceState {
     val now = System.currentTimeMillis()
+    val justNow = stringResource(R.string.feature_queue_just_now)
     val detail = listOfNotNull(
         currentTitle,
         formatDuration(positionMillis / MILLIS_PER_SECOND).takeIf { positionMillis > 0 },
         changedAt?.let {
-            DateUtils.getRelativeTimeSpanString(minOf(it, now), now, DateUtils.MINUTE_IN_MILLIS).toString()
+            if (now - it < DateUtils.MINUTE_IN_MILLIS) {
+                justNow
+            } else {
+                DateUtils.getRelativeTimeSpanString(it, now, DateUtils.MINUTE_IN_MILLIS).toString()
+            }
         },
     ).joinToString(" · ")
     return ContinueFromDeviceState(deviceName = deviceName, detail = detail)

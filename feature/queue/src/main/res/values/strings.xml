@@ -35,4 +35,5 @@
     <string name="feature_queue_save_title">Save queue as playlist</string>
     <string name="feature_queue_playlist_name">Playlist name</string>
     <string name="feature_queue_save_confirm">Save</string>
+    <string name="feature_queue_just_now">Just now</string>
 </resources>
