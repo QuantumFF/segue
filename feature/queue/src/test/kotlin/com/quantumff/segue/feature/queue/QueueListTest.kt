@@ -42,8 +42,7 @@ class QueueListTest {
         assertThat(rows.describe())
             .containsExactly("[Album b]", "B1*", "B2", "[Album a]", "A1", "A2", "[Album c]", "C1")
             .inOrder()
-        val header = rows[0] as QueueListItem.AlbumHeader
-        assertThat(header.trackCount).isEqualTo(2)
+        assertThat((rows[0] as QueueListItem.AlbumHeader).blockKey).isEqualTo((rows[1] as QueueListItem.Track).blockKey)
         // The header names the album, so the rows do not repeat it.
         assertThat((rows[1] as QueueListItem.Track).row.album).isNull()
         assertThat((rows[1] as QueueListItem.Track).row.isPlaying).isTrue()

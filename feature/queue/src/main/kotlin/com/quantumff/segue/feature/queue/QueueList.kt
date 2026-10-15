@@ -17,14 +17,11 @@ sealed interface QueueListItem {
         override val key: String get() = HISTORY_KEY
     }
 
-    /** Albums shuffle: the header that starts an album block. */
-    data class AlbumHeader(
-        override val key: String,
-        val title: String,
-        val artist: String?,
-        val coverArtId: String?,
-        val trackCount: Int,
-    ) : QueueListItem
+    /** Albums shuffle: the header that starts the album block [blockKey]. */
+    data class AlbumHeader(val blockKey: String, val title: String, val artist: String?, val coverArtId: String?) :
+        QueueListItem {
+        override val key: String get() = "header:$blockKey"
+    }
 
     data class Track(
         override val key: String,
@@ -71,11 +68,10 @@ object QueueList {
             val startsBlock = block != null && (position == first || blocks[position - 1] != block)
             if (startsBlock) {
                 rows += QueueListItem.AlbumHeader(
-                    key = "header:$block",
+                    blockKey = block,
                     title = item.album.orEmpty(),
                     artist = item.artist,
                     coverArtId = item.coverArtId,
-                    trackCount = blocks.count { it == block },
                 )
             }
             rows += QueueListItem.Track(
@@ -167,13 +163,13 @@ object QueueList {
     private fun unitRange(items: List<QueueListItem>, index: Int): IntRange {
         val item = items[index]
         val block = when (item) {
-            is QueueListItem.AlbumHeader -> item.key.removePrefix("header:")
+            is QueueListItem.AlbumHeader -> item.blockKey
             is QueueListItem.Track -> item.blockKey
             is QueueListItem.History -> null
         } ?: return index..index
         fun inBlock(i: Int) = items.getOrNull(i).let {
             (it is QueueListItem.Track && it.blockKey == block) ||
-                (it is QueueListItem.AlbumHeader && it.key == "header:$block")
+                (it is QueueListItem.AlbumHeader && it.blockKey == block)
         }
         var first = index
         while (inBlock(first - 1)) first--

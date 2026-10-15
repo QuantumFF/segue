@@ -56,6 +56,7 @@ import com.quantumff.segue.core.model.ShuffleMode
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
+import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -129,7 +130,7 @@ fun QueueContent(
                 )
             }
         } else {
-            QueueList(state, actions, listState, contentPadding)
+            ReorderableQueueList(state, actions, listState, contentPadding)
         }
     }
 }
@@ -177,7 +178,7 @@ private data class DragSession(
 )
 
 @Composable
-private fun QueueList(
+private fun ReorderableQueueList(
     state: QueueUiState,
     actions: QueueActions,
     listState: LazyListState,
@@ -213,6 +214,13 @@ private fun QueueList(
         }
     }
 
+    /** The reorder gesture for the row [key]: on its grip handle, or after a long press anywhere. */
+    fun ReorderableCollectionItemScope.dragModifier(key: Any, longPress: Boolean = false): Modifier = if (longPress) {
+        Modifier.longPressDraggableHandle(onDragStarted = { startDrag(key) }, onDragStopped = ::endDrag)
+    } else {
+        Modifier.draggableHandle(onDragStarted = { startDrag(key) }, onDragStopped = ::endDrag)
+    }
+
     AutoScrollToCurrent(listState, state, hasBanner = state.remoteOffer != null, rows = rows, dragging = drag != null)
 
     LazyColumn(state = listState, contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
@@ -238,10 +246,7 @@ private fun QueueList(
                     AlbumBlockHeader(
                         header = row,
                         isDragging = isDragging,
-                        handleModifier = Modifier.draggableHandle(
-                            onDragStarted = { startDrag(row.key) },
-                            onDragStopped = { endDrag() },
-                        ),
+                        handleModifier = dragModifier(row.key),
                     )
                 }
 
@@ -255,14 +260,8 @@ private fun QueueList(
                             state = row.row,
                             isDragging = isDragging,
                             onClick = { actions.onTrackClick(row) },
-                            modifier = Modifier.longPressDraggableHandle(
-                                onDragStarted = { startDrag(row.key) },
-                                onDragStopped = { endDrag() },
-                            ),
-                            handleModifier = Modifier.draggableHandle(
-                                onDragStarted = { startDrag(row.key) },
-                                onDragStopped = { endDrag() },
-                            ),
+                            modifier = dragModifier(row.key, longPress = true),
+                            handleModifier = dragModifier(row.key),
                         )
                     }
                 }
@@ -379,7 +378,7 @@ private const val MILLIS_PER_SECOND = 1_000L
 internal val PreviewQueue = QueueUiState(
     items = persistentListOf(
         QueueListItem.History(count = 3, expanded = false),
-        QueueListItem.AlbumHeader("header:a#1", "In Rainbows", "Radiohead", null, 3),
+        QueueListItem.AlbumHeader("a#1", "In Rainbows", "Radiohead", null),
         QueueListItem.Track(
             key = "s1#1",
             playPosition = 3,
@@ -394,7 +393,7 @@ internal val PreviewQueue = QueueUiState(
             row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", null, 318),
             blockKey = "a#1",
         ),
-        QueueListItem.AlbumHeader("header:b#1", "Kid A", "Radiohead", null, 1),
+        QueueListItem.AlbumHeader("b#1", "Kid A", "Radiohead", null),
         QueueListItem.Track(
             key = "s3#1",
             playPosition = 5,
