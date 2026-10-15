@@ -103,6 +103,31 @@ class SegueAppState(
         navController.navigateUp()
     }
 
+    /** No server is configured (first launch, or the last one was removed): show login alone. */
+    fun navigateToLogin() {
+        isTabSwitch = false
+        currentTabState.value = TopLevelDestination.Home
+        navController.navigate(LoginRoute()) {
+            popUpTo(navController.graph.id) { inclusive = true }
+        }
+    }
+
+    /**
+     * Login finished. Opened from Settings ("Add server") it returns there; on first launch there
+     * is nothing behind it, so it replaces itself with Home.
+     */
+    fun onSignedIn() {
+        if (navController.previousBackStackEntry != null) {
+            navigateBack()
+            return
+        }
+        isTabSwitch = true
+        currentTabState.value = TopLevelDestination.Home
+        navController.navigate(TopLevelDestination.Home.graph) {
+            popUpTo(navController.graph.id) { inclusive = true }
+        }
+    }
+
     private companion object {
         val FullScreenRoutes = listOf(NowPlayingRoute::class, QueueRoute::class, LoginRoute::class)
     }

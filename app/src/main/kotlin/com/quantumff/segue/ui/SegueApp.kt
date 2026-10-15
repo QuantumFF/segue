@@ -26,8 +26,12 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -49,16 +53,51 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ShuffleMode
+import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.navigateToNowPlaying
+import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
+import com.quantumff.segue.navigation.HomeGraph
 import com.quantumff.segue.navigation.SegueNavHost
 import com.quantumff.segue.navigation.TopLevelDestination
+import com.quantumff.segue.playback.placeholderPlayActions
+import kotlinx.collections.immutable.toImmutableList
 
-/** App shell entry point: picks the layout for the window size (DESIGN.md §3). */
+/**
+ * App shell entry point: picks the layout for the window size (DESIGN.md §3), starts at login
+ * when no server is configured, and hosts the add-to-playlist sheet that any screen can raise.
+ */
 @Composable
-fun SegueApp(modifier: Modifier = Modifier, windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo()) {
+fun SegueApp(
+    hasServer: Boolean,
+    modifier: Modifier = Modifier,
+    windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo(),
+) {
     val appState = rememberSegueAppState(shellLayout = windowAdaptiveInfo.windowSizeClass.toShellLayout())
-    SegueApp(appState = appState, modifier = modifier)
+    val playActions = remember { placeholderPlayActions() }
+    var addToPlaylist by remember { mutableStateOf<List<String>?>(null) }
+    // Fixed for the NavHost's lifetime; later sign-outs navigate to login instead.
+    val startDestination: Any = remember { if (hasServer) HomeGraph else LoginRoute() }
+    val destination = appState.currentDestination
+    LaunchedEffect(hasServer, destination) {
+        if (!hasServer && destination != null && !destination.hasRoute(LoginRoute::class)) appState.navigateToLogin()
+    }
+
+    SegueApp(appState = appState, modifier = modifier) { navModifier ->
+        SegueNavHost(
+            appState = appState,
+            startDestination = startDestination,
+            playActions = playActions,
+            onAddToPlaylist = { addToPlaylist = it },
+            modifier = navModifier,
+        )
+    }
+    addToPlaylist?.let { songIds ->
+        AddToPlaylistSheet(
+            songIds = remember(songIds) { songIds.toImmutableList() },
+            onDismissRequest = { addToPlaylist = null },
+        )
+    }
 }
 
 /**
@@ -67,7 +106,7 @@ fun SegueApp(modifier: Modifier = Modifier, windowAdaptiveInfo: WindowAdaptiveIn
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SegueApp(appState: SegueAppState, modifier: Modifier = Modifier) {
+fun SegueApp(appState: SegueAppState, modifier: Modifier = Modifier, navHost: @Composable (Modifier) -> Unit) {
     val destination = appState.currentDestination
     val fullScreen = appState.isFullScreen(destination)
     // Full-screen routes hide all chrome. The IME hides the phone bar and the mini players only;
@@ -92,9 +131,9 @@ fun SegueApp(appState: SegueAppState, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.background),
     ) {
         when (appState.shellLayout) {
-            ShellLayout.Compact -> CompactShell(appState, chrome, player, onTabClick, onOpenNowPlaying)
-            ShellLayout.Medium -> MediumShell(appState, chrome, player, onTabClick, onOpenNowPlaying)
-            ShellLayout.Expanded -> ExpandedShell(appState, chrome, player, onTabClick, onOpenNowPlaying)
+            ShellLayout.Compact -> CompactShell(appState, chrome, player, onTabClick, onOpenNowPlaying, navHost)
+            ShellLayout.Medium -> MediumShell(appState, chrome, player, onTabClick, onOpenNowPlaying, navHost)
+            ShellLayout.Expanded -> ExpandedShell(appState, chrome, player, onTabClick, onOpenNowPlaying, navHost)
         }
     }
 }
@@ -115,13 +154,14 @@ private fun CompactShell(
     player: PlayerBarState,
     onTabClick: (TopLevelDestination) -> Unit,
     onOpenNowPlaying: () -> Unit,
+    navHost: @Composable (Modifier) -> Unit,
 ) {
     // On phones the bar hides with the IME too, so it follows the player flag.
     val visible = chrome.player
     val systemBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(Modifier.fillMaxSize()) {
         ShellContent(
-            appState,
+            navHost,
             bottomChrome = if (visible) bottomChromeHeight(systemBottom, navBar = true) else SegueSpacing.none,
         )
         Column(Modifier.align(Alignment.BottomCenter)) {
@@ -142,13 +182,14 @@ private fun MediumShell(
     player: PlayerBarState,
     onTabClick: (TopLevelDestination) -> Unit,
     onOpenNowPlaying: () -> Unit,
+    navHost: @Composable (Modifier) -> Unit,
 ) {
     val systemBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Row(Modifier.fillMaxSize()) {
         if (chrome.navigation) SegueNavigationRail(currentTab = appState.currentTab, onTabClick = onTabClick)
         Box(Modifier.weight(1f)) {
             ShellContent(
-                appState,
+                navHost,
                 bottomChrome = if (chrome.player) {
                     bottomChromeHeight(
                         systemBottom,
@@ -178,12 +219,13 @@ private fun ExpandedShell(
     player: PlayerBarState,
     onTabClick: (TopLevelDestination) -> Unit,
     onOpenNowPlaying: () -> Unit,
+    navHost: @Composable (Modifier) -> Unit,
 ) {
     val actions = remember(onOpenNowPlaying) { placeholderPlayerActions(onOpenNowPlaying) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.weight(1f)) {
             if (chrome.navigation) SegueSidebar(currentTab = appState.currentTab, onTabClick = onTabClick)
-            Box(Modifier.weight(1f)) { ShellContent(appState, bottomChrome = SegueSpacing.none) }
+            Box(Modifier.weight(1f)) { ShellContent(navHost, bottomChrome = SegueSpacing.none) }
         }
         // The player bar is permanent chrome on expanded width: only full-screen routes hide it.
         if (chrome.navigation) {
@@ -213,9 +255,9 @@ private fun PlaceholderMiniPlayer(player: PlayerBarState, onOpenNowPlaying: () -
 }
 
 @Composable
-private fun ShellContent(appState: SegueAppState, bottomChrome: Dp) {
+private fun ShellContent(navHost: @Composable (Modifier) -> Unit, bottomChrome: Dp) {
     CompositionLocalProvider(LocalShellContentPadding provides PaddingValues(bottom = bottomChrome)) {
-        SegueNavHost(appState = appState, modifier = Modifier.fillMaxSize())
+        navHost(Modifier.fillMaxSize())
     }
 }
 

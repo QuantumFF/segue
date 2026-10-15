@@ -25,7 +25,10 @@ class SegueAppShellTest {
 
     private fun setShell(layout: ShellLayout) {
         compose.setContent {
-            SegueTheme { SegueApp(appState = rememberSegueAppState(shellLayout = layout)) }
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = layout)
+                SegueApp(appState = appState) { TestNavHost(appState, it) }
+            }
         }
     }
 
