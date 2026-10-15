@@ -51,6 +51,7 @@ class ShellPlayerStateTest {
     fun `adjacent tracks follow play order and carry their timeline index`() {
         val player = state(count = 3, current = 1).toShellPlayerState()
 
+        assertThat(player.currentTimelineIndex).isEqualTo(1)
         assertThat(player.previous?.track?.title).isEqualTo("Song 0")
         assertThat(player.previous?.timelineIndex).isEqualTo(2)
         assertThat(player.next?.track?.title).isEqualTo("Song 2")

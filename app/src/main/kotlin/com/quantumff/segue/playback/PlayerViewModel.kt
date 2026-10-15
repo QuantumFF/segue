@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.model.PlayActions
-import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -33,12 +31,15 @@ enum class PlayerMessage {
  */
 @HiltViewModel
 class PlayerViewModel @Inject constructor(private val playback: PlaybackController) : ViewModel() {
-    val player: StateFlow<ShellPlayerState> = playback.state
+    val player: StateFlow<ShellPlayerState> = playback.eventState
         .map { it.toShellPlayerState() }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ShellPlayerState())
 
-    /** Position in milliseconds. Read it in the draw phase only; it ticks while music plays. */
+    /**
+     * Position in milliseconds. Collect it only inside a visible player surface and read it in the
+     * draw phase: collecting it is what runs the position ticker while music plays.
+     */
     val positionMillis: StateFlow<Long> = playback.state
         .map { it.positionMillis }
         .distinctUntilChanged()
@@ -78,15 +79,13 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
         onCycleRepeat = ::cycleRepeatMode,
     )
 
-    fun cycleShuffleMode() {
-        val mode = player.value.shuffleMode
-        playback.setShuffleMode(ShuffleMode.entries[(mode.ordinal + 1) % ShuffleMode.entries.size])
-    }
+    /** Off → Tracks → Albums → Off (DESIGN.md §4.7). */
+    fun cycleShuffleMode() = playback.setShuffleMode(player.value.shuffleMode.cycled())
 
-    fun cycleRepeatMode() {
-        val mode = player.value.repeatMode
-        playback.setRepeatMode(RepeatMode.entries[(mode.ordinal + 1) % RepeatMode.entries.size])
-    }
+    /** Off → All → One → Off. */
+    fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.cycled())
+
+    private inline fun <reified E : Enum<E>> E.cycled(): E = enumValues<E>().let { it[(ordinal + 1) % it.size] }
 
     private companion object {
         const val TAG = "PlayerViewModel"

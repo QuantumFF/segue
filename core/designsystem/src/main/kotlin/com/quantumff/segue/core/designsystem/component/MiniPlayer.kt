@@ -39,6 +39,8 @@ data class MiniPlayerState(val title: String, val artist: String, val coverArtId
  * edge. Tap opens Now Playing. Swiping the art and text pages to [previous] or [next] like a pager
  * and skips there once released past 30% of the width (or flung); buttons stay put.
  *
+ * @param trackKey identifies the current queue item; the swipe recentres when it changes. Pass a
+ *   queue position so a skip to an identical-looking track (a duplicate) still recentres.
  * @param progress playback progress in [0, 1]. Read in the draw phase, so the position ticker does
  *   not recompose the bar.
  */
@@ -51,6 +53,7 @@ fun MiniPlayer(
     onNextClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    trackKey: Any? = state,
     previous: MiniPlayerState? = null,
     next: MiniPlayerState? = null,
     onSwipeToPrevious: () -> Unit = {},
@@ -73,6 +76,7 @@ fun MiniPlayer(
         ) {
             TrackSwipeBox(
                 current = state,
+                currentKey = trackKey,
                 previous = previous,
                 next = next,
                 onSwipeToPrevious = onSwipeToPrevious,

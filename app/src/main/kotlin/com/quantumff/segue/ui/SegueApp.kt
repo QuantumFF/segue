@@ -67,6 +67,7 @@ import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
 import com.quantumff.segue.playback.progressOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * App shell entry point: picks the layout for the window size (DESIGN.md §3), starts at login
@@ -81,7 +82,6 @@ fun SegueApp(
 ) {
     val appState = rememberSegueAppState(shellLayout = windowAdaptiveInfo.windowSizeClass.toShellLayout())
     val player by playerViewModel.player.collectAsStateWithLifecycle()
-    val position = playerViewModel.positionMillis.collectAsStateWithLifecycle()
     val playActions = playerViewModel.playActions
     val playerActions = remember(playerViewModel) { playerViewModel.shellActions() }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -108,7 +108,7 @@ fun SegueApp(
     SegueApp(
         appState = appState,
         player = player,
-        positionMillis = { position.value },
+        positionMillis = playerViewModel.positionMillis,
         playerActions = playerActions,
         modifier = modifier,
     ) { navModifier ->
@@ -135,14 +135,15 @@ fun SegueApp(
  * The shell: navigation chrome, the player surface, and the nav host. Content draws edge to
  * edge and scrolls under the bottom chrome; screens read [LocalShellContentPadding].
  *
- * @param positionMillis read only by the progress line and elapsed time, in the draw phase.
+ * @param positionMillis collected only by a visible player surface (collecting it runs the position
+ *   ticker) and read in the draw phase.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SegueApp(
     appState: SegueAppState,
     player: ShellPlayerState,
-    positionMillis: () -> Long,
+    positionMillis: StateFlow<Long>,
     playerActions: ShellPlayerActions,
     modifier: Modifier = Modifier,
     navHost: @Composable (Modifier) -> Unit,
@@ -168,7 +169,9 @@ fun SegueApp(
     SystemBarAppearance(lightStatusIcons = SegueTheme.isDark || destination?.hasRoute(NowPlayingRoute::class) == true)
 
     val onOpenNowPlaying = remember(appState) { { appState.navigate { navigateToNowPlaying() } } }
-    val shellPlayer = ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
+    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
+        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
+    }
 
     Box(
         modifier
@@ -197,9 +200,10 @@ private data class ShellChrome(
 )
 
 /** Everything the player surfaces need, bundled so each shell layout takes one parameter. */
+@Immutable
 private class ShellPlayer(
     val state: ShellPlayerState,
-    val positionMillis: () -> Long,
+    val positionMillis: StateFlow<Long>,
     val actions: ShellPlayerActions,
     val onOpenNowPlaying: () -> Unit,
 )
@@ -294,9 +298,11 @@ private fun ShellMiniPlayer(player: ShellPlayer, modifier: Modifier = Modifier) 
     val state = player.state
     val track = state.current ?: return
     val actions = player.actions
+    val position = player.positionMillis.collectAsStateWithLifecycle()
     MiniPlayer(
         state = track,
-        progress = { progressOf(player.positionMillis(), state.durationMillis) },
+        trackKey = state.currentTimelineIndex,
+        progress = { progressOf(position.value, state.durationMillis) },
         onClick = player.onOpenNowPlaying,
         onPlayPauseClick = actions.onPlayPause,
         onNextClick = actions.onNext,
@@ -320,6 +326,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
         volume = 1f,
     )
     val actions = player.actions
+    val position = player.positionMillis.collectAsStateWithLifecycle()
     val barActions = remember(actions, player.onOpenNowPlaying) {
         PlayerBarActions(
             onClick = player.onOpenNowPlaying,
@@ -337,7 +344,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     }
     PlayerBar(
         state = barState,
-        positionSeconds = { player.positionMillis() / MILLIS_PER_SECOND },
+        positionSeconds = { position.value / MILLIS_PER_SECOND },
         actions = barActions,
         modifier = modifier,
     )

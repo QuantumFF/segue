@@ -65,12 +65,13 @@ internal fun settleTrackSwipe(
 /**
  * Pages between the current track and its neighbors like a pager (Symfonium's mini player). The
  * neighbors sit one width to each side and slide in with the drag; a committed swipe calls
- * [onSwipeToNext] or [onSwipeToPrevious] and stays on the neighbor until [current] changes.
+ * [onSwipeToNext] or [onSwipeToPrevious] and stays on the neighbor until [currentKey] changes.
  * Offsets are read in the draw phase only, so dragging does not recompose.
  */
 @Composable
 internal fun TrackSwipeBox(
     current: MiniPlayerState,
+    currentKey: Any?,
     previous: MiniPlayerState?,
     next: MiniPlayerState?,
     onSwipeToPrevious: () -> Unit,
@@ -84,13 +85,19 @@ internal fun TrackSwipeBox(
     var widthPx by remember { mutableFloatStateOf(0f) }
     var pastThreshold by remember { mutableStateOf(false) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
+    // A committed skip waits at the neighbor for the new current track; no new drag until then.
+    var awaitingSkip by remember { mutableStateOf(false) }
     val hasPrevious = previous != null
     val hasNext = next != null
     val latestOnPrevious by rememberUpdatedState(onSwipeToPrevious)
     val latestOnNext by rememberUpdatedState(onSwipeToNext)
 
     // The skipped-to track became current: it is already in place, so recentre without animating.
-    LaunchedEffect(current.copy(isPlaying = false)) { offset.snapTo(0f) }
+    LaunchedEffect(currentKey) {
+        settleJob?.cancel()
+        awaitingSkip = false
+        offset.snapTo(0f)
+    }
 
     val dragState = rememberDraggableState { delta ->
         val value = offset.value
@@ -110,6 +117,7 @@ internal fun TrackSwipeBox(
             .draggable(
                 state = dragState,
                 orientation = Orientation.Horizontal,
+                enabled = !awaitingSkip,
                 onDragStarted = { settleJob?.cancel() },
                 onDragStopped = { velocity ->
                     pastThreshold = false
@@ -120,10 +128,12 @@ internal fun TrackSwipeBox(
 
                             TrackSwipe.Next, TrackSwipe.Previous -> {
                                 val toNext = outcome == TrackSwipe.Next
+                                awaitingSkip = true
                                 offset.animateTo(if (toNext) -widthPx else widthPx, SegueMotion.player(), velocity)
                                 if (toNext) latestOnNext() else latestOnPrevious()
                                 // Normally the new current track recentres first; this covers a skip that failed.
                                 delay(SKIP_CONFIRM_TIMEOUT_MILLIS)
+                                awaitingSkip = false
                                 offset.animateTo(0f, SegueMotion.player())
                             }
                         }

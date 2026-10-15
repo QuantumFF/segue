@@ -15,6 +15,8 @@ import com.quantumff.segue.core.model.ShuffleMode
 data class ShellPlayerState(
     /** Null when the queue is empty: the mini player hides. */
     val current: MiniPlayerState? = null,
+    /** Identifies [current] within the queue, so a swipe can tell a skip to an identical track happened. */
+    val currentTimelineIndex: Int = -1,
     /** The track a swipe right reveals and skips to. */
     val previous: AdjacentTrack? = null,
     /** The track a swipe left reveals and skips to. */
@@ -49,6 +51,7 @@ internal fun PlayerUiState.toShellPlayerState(): ShellPlayerState {
     val item = currentItem ?: return ShellPlayerState()
     return ShellPlayerState(
         current = item.toMiniPlayer(isPlaying),
+        currentTimelineIndex = item.timelineIndex,
         previous = neighbor(-1),
         next = neighbor(+1),
         durationMillis = durationMillis,

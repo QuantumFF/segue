@@ -89,12 +89,13 @@ class PlaybackController @Inject constructor(
     private val queueCache = QueueCache()
 
     /**
-     * Player state. Observing it connects to the service. The position updates every
-     * [POSITION_TICK_MILLIS] only while someone observes and music plays; otherwise it changes
-     * only on player events. While disconnected it is empty; the next command reconnects.
+     * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
+     * For surfaces that show no position, so observing them never runs the position ticker.
+     * Observing it connects to the service. While disconnected it is empty; the next command
+     * reconnects.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<PlayerUiState> = flow {
+    val eventState: StateFlow<PlayerUiState> = flow {
         try {
             controller()
         } catch (e: CancellationException) {
@@ -109,14 +110,23 @@ class PlaybackController @Inject constructor(
                 } else {
                     controller.events()
                         .combine(sessionExtras) { _, extras -> snapshot(controller, extras) }
-                        .flatMapLatest { snapshot ->
-                            if (snapshot.isPlaying) ticking(controller, snapshot) else flowOf(snapshot)
-                        }
                 }
             },
         )
     }
         .combine(queueSync.remoteOffer) { state, offer -> state.copy(remoteQueue = offer) }
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
+
+    /**
+     * [eventState] plus a position that updates every [POSITION_TICK_MILLIS] while someone observes
+     * and music plays (the battery rule: the ticker runs only for a visible position).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: StateFlow<PlayerUiState> = eventState
+        .flatMapLatest { snapshot ->
+            val controller = connected.value
+            if (snapshot.isPlaying && controller != null) ticking(controller, snapshot) else flowOf(snapshot)
+        }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
 
     // --- Queue -------------------------------------------------------------------------------------
