@@ -20,7 +20,6 @@
     <string name="feature_nowplaying_repeat_all">Repeat all</string>
     <string name="feature_nowplaying_repeat_one">Repeat one</string>
     <string name="feature_nowplaying_more">More</string>
-    <string name="feature_nowplaying_sleep_timer_active">Sleep timer on</string>
 
     <string name="feature_nowplaying_panel_lyrics">Lyrics</string>
     <string name="feature_nowplaying_panel_up_next">Up next</string>
@@ -53,7 +52,6 @@
     <string name="feature_nowplaying_sleep_end_of_track">End of track</string>
     <string name="feature_nowplaying_sleep_end_of_album">End of album</string>
     <string name="feature_nowplaying_sleep_custom">Custom</string>
-    <string name="feature_nowplaying_sleep_custom_value">%1$d min</string>
     <string name="feature_nowplaying_sleep_start">Start</string>
     <string name="feature_nowplaying_sleep_cancel">Cancel timer</string>
     <string name="feature_nowplaying_sleep_active_at">Pauses at %1$s</string>
@@ -75,7 +73,6 @@
     <string name="feature_nowplaying_details_album_gain">Album gain</string>
     <string name="feature_nowplaying_details_track_peak">Track peak</string>
     <string name="feature_nowplaying_details_album_peak">Album peak</string>
-    <string name="feature_nowplaying_details_gain_value">%1$s dB</string>
     <string name="feature_nowplaying_details_path">Path</string>
     <string name="feature_nowplaying_details_none">No details for this track</string>
 </resources>

@@ -32,7 +32,6 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
-import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.feature.nowplaying.NowPlayingTrack
 import com.quantumff.segue.feature.nowplaying.R
@@ -159,7 +158,7 @@ internal fun TrackDetailsContent(details: TrackDetails?, modifier: Modifier = Mo
                         )
                         Text(
                             text = value,
-                            style = MaterialTheme.typography.bodyLarge.tabularNumbers(),
+                            style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                     }

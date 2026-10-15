@@ -11,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.EmptyState
@@ -86,6 +88,7 @@ import com.quantumff.segue.feature.nowplaying.sheet.SleepTimerSheet
 import com.quantumff.segue.feature.nowplaying.sheet.TrackDetailsSheet
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
 /**
@@ -313,6 +316,10 @@ private fun OnArtContent(content: @Composable () -> Unit) {
             onSurface = colors.onArt,
             onSurfaceVariant = colors.onArtMuted,
             onBackground = colors.onArt,
+            // Tonal buttons (Play all, Retry, Open queue): a light veil instead of the accent tint.
+            secondaryContainer = colors.onArt.copy(alpha = TONAL_ON_ART_ALPHA),
+            onSecondaryContainer = colors.onArt,
+            outline = colors.onArt.copy(alpha = OUTLINE_ON_ART_ALPHA),
         ),
         typography = MaterialTheme.typography,
         shapes = MaterialTheme.shapes,
@@ -360,25 +367,29 @@ private fun PhoneLayout(
                     }
                 }
             } else {
-                Column(Modifier.fillMaxSize()) {
-                    ArtPager(
-                        track = track,
-                        previous = state.previous,
-                        next = state.next,
-                        onSkipTo = actions.onSkipTo,
-                        onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                        onLongClick = onMenuClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                    )
-                    TrackMetadata(
-                        track = track,
-                        onArtistClick = actions.onArtistClick,
-                        onAlbumClick = actions.onAlbumClick,
-                        onFavoriteClick = actions.onToggleFavorite,
-                        modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
-                    )
+                // Art and metadata stay together, centered in the space above the controls.
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE)
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                        ArtPager(
+                            track = track,
+                            previous = state.previous,
+                            next = state.next,
+                            onSkipTo = actions.onSkipTo,
+                            onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
+                            onLongClick = onMenuClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(artHeight),
+                        )
+                        TrackMetadata(
+                            track = track,
+                            onArtistClick = actions.onArtistClick,
+                            onAlbumClick = actions.onAlbumClick,
+                            onFavoriteClick = actions.onToggleFavorite,
+                            modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
+                        )
+                    }
                 }
             }
         }
@@ -563,7 +574,10 @@ private fun rememberDismissGestures(onDismiss: () -> Unit, onSwipeUp: () -> Unit
     val backShiftPx = with(density) { BACK_SHIFT.toPx() }
     val dragState = rememberDraggableState { delta ->
         rawDrag += delta
-        scope.launch { dragOffset.snapTo((dragOffset.value + delta).coerceAtLeast(0f)) }
+        // Undispatched, so a snap never lands after the release animation started and cancels it.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            dragOffset.snapTo((dragOffset.value + delta).coerceAtLeast(0f))
+        }
     }
     val modifier = Modifier
         .onSizeChanged { height = it.height.toFloat() }
@@ -614,12 +628,17 @@ private val TWO_PANE_MIN_WIDTH = 840.dp
 private val LANDSCAPE_TWO_PANE_MIN_WIDTH = 600.dp
 private val INDICATOR_HEIGHT = 2.dp
 private val BACK_SHIFT = 48.dp
+
+/** Room under the art for the title, artists and heart. */
+private val METADATA_ALLOWANCE = 72.dp
 private const val ART_PANE_WEIGHT = 0.45f
 private const val PANEL_SLIDE_FRACTION = 4
 private const val DISMISS_FRACTION = 0.25f
 private const val SWIPE_UP_FRACTION = 0.15f
 private const val DISMISS_FLING_DP_PER_SECOND = 1000
 private const val BACK_SCALE = 0.1f
+private const val TONAL_ON_ART_ALPHA = 0.16f
+private const val OUTLINE_ON_ART_ALPHA = 0.32f
 
 @PreviewSegueThemes
 @Composable
