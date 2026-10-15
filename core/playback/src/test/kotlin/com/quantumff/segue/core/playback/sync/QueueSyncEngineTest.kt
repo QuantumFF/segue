@@ -134,7 +134,9 @@ class QueueSyncEngineTest {
         val engine = engine()
         engine.checkRemote(isPlayingLocally = false)
 
-        assertThat(engine.remoteOffer.value).isEqualTo(RemoteQueueOffer("Feishin", 2, "Title r2", positionMillis = 3_000, changedAt = 5_000))
+        assertThat(
+            engine.remoteOffer.value,
+        ).isEqualTo(RemoteQueueOffer("Feishin", 2, "Title r2", positionMillis = 3_000, changedAt = 5_000))
     }
 
     @Test

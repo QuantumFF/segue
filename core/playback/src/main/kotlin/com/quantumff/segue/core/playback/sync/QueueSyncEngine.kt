@@ -187,7 +187,13 @@ class QueueSyncEngine @Inject constructor(
         false // Signed out: there is no server to file the snapshot under.
     }
 
-    private fun maxOrNull(a: Long?, b: Long?): Long? = if (a == null) b else if (b == null) a else maxOf(a, b)
+    private fun maxOrNull(a: Long?, b: Long?): Long? = if (a == null) {
+        b
+    } else if (b == null) {
+        a
+    } else {
+        maxOf(a, b)
+    }
 
     companion object {
         const val DEBOUNCE_MILLIS = 2_000L

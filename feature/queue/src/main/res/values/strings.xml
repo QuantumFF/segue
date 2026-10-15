@@ -1,5 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_queue_title">Up next</string>
-    <string name="feature_queue_placeholder">The play queue will appear here</string>
+    <plurals name="feature_queue_subtitle">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <plurals name="feature_queue_played">
+        <item quantity="one">%d played</item>
+        <item quantity="other">%d played</item>
+    </plurals>
+    <string name="feature_queue_scroll_to_current">Scroll to current track</string>
+    <string name="feature_queue_save_as_playlist">Save as playlist</string>
+    <string name="feature_queue_clear">Clear queue</string>
+    <string name="feature_queue_repeat_off">Repeat off</string>
+    <string name="feature_queue_repeat_all">Repeat all</string>
+    <string name="feature_queue_repeat_one">Repeat one</string>
+    <string name="feature_queue_reorder">Reorder</string>
+    <string name="feature_queue_move_album">Move album</string>
+    <string name="feature_queue_play_next">Play next</string>
+    <string name="feature_queue_remove">Remove</string>
+    <string name="feature_queue_removed">Removed %s</string>
+    <string name="feature_queue_undo">Undo</string>
+    <string name="feature_queue_saved">Saved as %s</string>
+    <string name="feature_queue_save_failed">Could not save the playlist</string>
+    <string name="feature_queue_empty_title">Nothing queued</string>
+    <string name="feature_queue_empty_message">Play an album, a playlist or a song to fill the queue</string>
+    <string name="feature_queue_clear_title">Clear the queue?</string>
+    <plurals name="feature_queue_clear_message">
+        <item quantity="one">%d track will be removed. This also clears the queue saved on the server.</item>
+        <item quantity="other">%d tracks will be removed. This also clears the queue saved on the server.</item>
+    </plurals>
+    <string name="feature_queue_clear_confirm">Clear</string>
+    <string name="feature_queue_cancel">Cancel</string>
+    <string name="feature_queue_save_title">Save queue as playlist</string>
+    <string name="feature_queue_playlist_name">Playlist name</string>
+    <string name="feature_queue_save_confirm">Save</string>
 </resources>

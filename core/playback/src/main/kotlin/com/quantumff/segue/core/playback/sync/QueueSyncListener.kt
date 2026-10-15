@@ -40,7 +40,11 @@ class QueueSyncListener(private val player: SeguePlayer, private val sink: Queue
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = event(QueueEvent.QueueEdit)
 
-    override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int,
+    ) {
         if (reason == Player.DISCONTINUITY_REASON_SEEK) event(QueueEvent.Seek)
     }
 

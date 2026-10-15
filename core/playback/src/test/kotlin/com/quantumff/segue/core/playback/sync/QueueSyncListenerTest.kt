@@ -79,7 +79,11 @@ class QueueSyncListenerTest {
         idle()
         player.removeMediaItem(1)
         idle()
-        assertThat(sink.events.map { it.first }).containsExactly(QueueEvent.QueueEdit, QueueEvent.QueueEdit, QueueEvent.QueueEdit)
+        assertThat(
+            sink.events.map {
+                it.first
+            },
+        ).containsExactly(QueueEvent.QueueEdit, QueueEvent.QueueEdit, QueueEvent.QueueEdit)
     }
 
     @Test

@@ -61,7 +61,10 @@ internal class RoomQueueSnapshotRepository @Inject constructor(
                     shuffleMode = it.shuffleMode,
                     // A play order that does not fit the items (should not happen) restores unshuffled.
                     playOrder = it.playOrder?.items
-                        ?.takeIf { order -> it.shuffleMode != ShuffleMode.Off && order.sorted() == songIds.indices.toList() }
+                        ?.takeIf { order ->
+                            it.shuffleMode != ShuffleMode.Off &&
+                                order.sorted() == songIds.indices.toList()
+                        }
                         ?.toImmutableList(),
                 )
             }

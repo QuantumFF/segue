@@ -34,7 +34,9 @@ class QueueRestoreTest {
     @Test
     fun `an unshuffled queue restores unshuffled`() {
         val saved = snapshot(listOf("a", "b", "c"), current = 1)
-        assertThat(QueueRestore.plan(saved, setOf("a", "b", "c"))).isEqualTo(QueueState(listOf("a", "b", "c"), 1, 9_000))
+        assertThat(
+            QueueRestore.plan(saved, setOf("a", "b", "c")),
+        ).isEqualTo(QueueState(listOf("a", "b", "c"), 1, 9_000))
     }
 
     @Test
@@ -48,7 +50,9 @@ class QueueRestoreTest {
 
         val restored = QueueRestore.plan(saved, available = setOf("a1", "b1", "b2"))
 
-        assertThat(restored).isEqualTo(QueueState(listOf("a1", "b1", "b2"), 2, 9_000, ShuffleMode.Albums, listOf(1, 2, 0)))
+        assertThat(
+            restored,
+        ).isEqualTo(QueueState(listOf("a1", "b1", "b2"), 2, 9_000, ShuffleMode.Albums, listOf(1, 2, 0)))
     }
 
     @Test

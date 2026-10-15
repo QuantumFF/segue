@@ -33,8 +33,8 @@ import com.quantumff.segue.core.playback.service.SeguePlayer
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.sleep.SleepTimerController
 import com.quantumff.segue.core.playback.sync.QueueRestore
-import com.quantumff.segue.core.playback.sync.QueueSyncListener
 import com.quantumff.segue.core.playback.sync.QueueState
+import com.quantumff.segue.core.playback.sync.QueueSyncListener
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -280,7 +280,9 @@ class SeguePlaybackService : MediaLibraryService() {
                     args.getInt(SegueSessionCommands.ARG_COUNT, 1),
                 )
 
-                SegueSessionCommands.REINSERT -> SegueSessionCommands.reinsertArgs(args)?.let { (item, index, position) ->
+                SegueSessionCommands.REINSERT -> SegueSessionCommands.reinsertArgs(
+                    args,
+                )?.let { (item, index, position) ->
                     player.reinsert(item.withPlayableUri(), index, position)
                 }
 

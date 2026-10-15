@@ -110,7 +110,11 @@ class SeguePlayer(
      * album block in album shuffle.
      */
     fun moveInPlayOrder(from: Int, to: Int, count: Int = 1) {
-        if (count < 1 || from < 0 || from + count > exo.mediaItemCount || to < 0 || to + count > exo.mediaItemCount) return
+        if (count < 1 || from < 0 || from + count > exo.mediaItemCount || to < 0 ||
+            to + count > exo.mediaItemCount
+        ) {
+            return
+        }
         if (shuffleMode == ShuffleMode.Off) {
             exo.moveMediaItems(from, from + count, to)
         } else {

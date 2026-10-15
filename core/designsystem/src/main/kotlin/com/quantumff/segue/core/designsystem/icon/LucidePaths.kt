@@ -187,6 +187,16 @@ internal object LucidePaths {
         "M21 19V7a2 2 0 0 0-2-2h-6",
     )
 
+    /** lucide:locate-fixed */
+    val LocateFixed: List<String> = listOf(
+        "M2 12h3",
+        "M19 12h3",
+        "M12 2v3",
+        "M12 19v3",
+        "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0z",
+        "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0z",
+    )
+
     /** lucide:mic-vocal */
     val MicVocal: List<String> = listOf(
         "m11 7.601-5.994 8.19a1 1 0 0 0 .1 1.298l.817.818a1 1 0 0 0 1.314.087L15.09 12",

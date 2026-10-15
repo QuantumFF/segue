@@ -20,7 +20,8 @@ data class QueueState(
      * song's index in that order, and no shuffle. This is what gets uploaded.
      */
     fun inPlayOrder(): QueueState {
-        val order = playOrder ?: return if (shuffleMode == ShuffleMode.Off) this else copy(shuffleMode = ShuffleMode.Off)
+        val order =
+            playOrder ?: return if (shuffleMode == ShuffleMode.Off) this else copy(shuffleMode = ShuffleMode.Off)
         return QueueState(order.map { songIds[it] }, order.indexOf(currentIndex), positionMillis)
     }
 }

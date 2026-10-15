@@ -151,8 +151,10 @@ object QueueList {
         if (start < 0) return null
         val moved = when (val dragged = local[start]) {
             is QueueListItem.Track -> listOf(dragged)
+
             is QueueListItem.AlbumHeader -> local.subList(start, unitRange(local, start).last + 1)
                 .filterIsInstance<QueueListItem.Track>()
+
             is QueueListItem.History -> emptyList()
         }
         if (moved.isEmpty()) return null
@@ -170,7 +172,8 @@ object QueueList {
             is QueueListItem.History -> null
         } ?: return index..index
         fun inBlock(i: Int) = items.getOrNull(i).let {
-            (it is QueueListItem.Track && it.blockKey == block) || (it is QueueListItem.AlbumHeader && it.key == "header:$block")
+            (it is QueueListItem.Track && it.blockKey == block) ||
+                (it is QueueListItem.AlbumHeader && it.key == "header:$block")
         }
         var first = index
         while (inBlock(first - 1)) first--
