@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="core_data_downloads_channel">Downloads</string>
+    <string name="core_data_downloading_title">Downloading for offline</string>
+    <string name="core_data_downloading_progress">%1$d of %2$d songs</string>
+</resources>

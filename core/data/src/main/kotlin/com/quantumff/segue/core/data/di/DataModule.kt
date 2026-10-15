@@ -2,6 +2,16 @@ package com.quantumff.segue.core.data.di
 
 import android.content.Context
 import androidx.work.WorkManager
+import com.quantumff.segue.core.data.download.ConnectivityManagerNetworkConnectivity
+import com.quantumff.segue.core.data.download.DefaultOfflineModeRepository
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.DownloadScheduler
+import com.quantumff.segue.core.data.download.HttpSongDownloader
+import com.quantumff.segue.core.data.download.NetworkConnectivity
+import com.quantumff.segue.core.data.download.OfflineDownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.SongDownloader
+import com.quantumff.segue.core.data.download.WorkManagerDownloadScheduler
 import com.quantumff.segue.core.data.image.ActiveServerCoverArtUrlResolver
 import com.quantumff.segue.core.data.image.CoverArtUrlResolver
 import com.quantumff.segue.core.data.repository.AccountServerRepository
@@ -123,6 +133,21 @@ internal interface DataModule {
 
     @Binds
     fun clock(impl: SystemClock): Clock
+
+    @Binds
+    fun downloadRepository(impl: OfflineDownloadRepository): DownloadRepository
+
+    @Binds
+    fun downloadScheduler(impl: WorkManagerDownloadScheduler): DownloadScheduler
+
+    @Binds
+    fun songDownloader(impl: HttpSongDownloader): SongDownloader
+
+    @Binds
+    fun networkConnectivity(impl: ConnectivityManagerNetworkConnectivity): NetworkConnectivity
+
+    @Binds
+    fun offlineModeRepository(impl: DefaultOfflineModeRepository): OfflineModeRepository
 
     companion object {
         @Provides

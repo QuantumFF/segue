@@ -189,6 +189,9 @@ abstract class DownloadDao {
     @Query("SELECT COUNT(*) FROM downloads WHERE state = 'Queued'")
     abstract suspend fun queuedCount(): Int
 
+    @Query("SELECT COUNT(*) FROM downloads WHERE state = 'Downloading'")
+    abstract suspend fun downloadingCount(): Int
+
     /**
      * Marks a running download finished. Returns false when the row is no longer Downloading
      * (paused, removed): the caller then discards the file.
