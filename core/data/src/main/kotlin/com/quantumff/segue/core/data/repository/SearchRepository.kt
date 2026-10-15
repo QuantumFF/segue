@@ -27,6 +27,9 @@ interface SearchRepository {
      * Debounce typing before calling.
      */
     fun search(query: String): Flow<SearchResult>
+
+    /** Local full-text matches only, in one emission. Cheap enough to run on every keystroke. */
+    fun searchLocal(query: String): Flow<SearchResult>
 }
 
 internal class OfflineFirstSearchRepository @Inject constructor(
@@ -54,6 +57,12 @@ internal class OfflineFirstSearchRepository @Inject constructor(
         }
         store(serverId, remote)
         emit(merge(serverId, remote, local))
+    }.flowOn(ioDispatcher)
+
+    override fun searchLocal(query: String): Flow<SearchResult> = flow {
+        val serverId = clients.activeServerId.first()
+        val match = FtsQuery.prefixMatch(query)
+        emit(if (serverId == null || match == null) SearchResult.Empty else localSearch(serverId, match))
     }.flowOn(ioDispatcher)
 
     private suspend fun localSearch(serverId: String, match: String) = SearchResult(

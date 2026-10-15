@@ -82,11 +82,24 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun everyKeystrokeSearchesLocallyAtOnce() = runTest(mainDispatcherRule.testDispatcher) {
+        search.script["ra"] = listOf(local)
+        val viewModel = viewModel()
+        viewModel.onQueryChange("r")
+        runCurrent()
+        viewModel.onQueryChange("ra")
+        runCurrent()
+
+        assertThat(search.localQueries).containsExactly("r", "ra").inOrder()
+        assertThat(search.queries).isEmpty()
+        assertThat((viewModel.uiState.value.results as SearchResults.Ready).result).isEqualTo(local)
+    }
+
+    @Test
     fun localResultsShowFirstThenServerResults() = runTest(mainDispatcherRule.testDispatcher) {
         search.script["rad"] = listOf(local, server)
         val viewModel = viewModel()
         viewModel.onQueryChange("rad")
-        advanceTimeBy(DEBOUNCE + 1)
         runCurrent()
 
         val first = viewModel.uiState.value.results as SearchResults.Ready
@@ -191,6 +204,12 @@ class SearchViewModelTest {
     private class ScriptedSearchRepository : SearchRepository {
         val script = mutableMapOf<String, List<SearchResult>>()
         val queries = mutableListOf<String>()
+        val localQueries = mutableListOf<String>()
+
+        override fun searchLocal(query: String): Flow<SearchResult> = flow {
+            localQueries += query
+            emit(script[query]?.firstOrNull() ?: SearchResult.Empty)
+        }
 
         override fun search(query: String): Flow<SearchResult> = flow {
             queries += query

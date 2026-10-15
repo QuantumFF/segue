@@ -89,6 +89,9 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
     private val status = MutableStateFlow(Status(isRefreshing = false, isOffline = false, message = null))
 
+    /** Featured albums held while Explore alone is refreshed, so the carousel does not reshuffle under the user. */
+    private val pinnedFeatured = MutableStateFlow<List<Album>?>(null)
+
     private val albums = combine(
         albumRepository.albumList(AlbumListType.Random),
         albumRepository.albumList(AlbumListType.Recent),
@@ -102,15 +105,17 @@ class HomeViewModel @Inject constructor(
         playlistRepository.playlists,
         libraryRepository.genres,
         combine(serverRepository.activeServer, syncRepository.progress, ::Pair),
-        status,
-    ) { sections, playlists, genres, (server, progress), status ->
+        combine(status, pinnedFeatured, ::Pair),
+    ) { sections, playlists, genres, (server, progress), (status, pinned) ->
+        val featured = pinned ?: sections.random.take(FEATURED_COUNT)
+        val featuredIds = featured.mapTo(HashSet()) { it.id }
         HomeUiState(
             serverName = server?.name,
-            featured = sections.random.take(FEATURED_COUNT).toImmutableList(),
+            featured = featured.toImmutableList(),
             recentlyPlayed = sections.recent.take(SECTION_SIZE).toImmutableList(),
             recentlyAdded = sections.newest.take(SECTION_SIZE).toImmutableList(),
             mostPlayed = sections.frequent.take(SECTION_SIZE).toImmutableList(),
-            explore = sections.random.drop(FEATURED_COUNT).take(SECTION_SIZE).toImmutableList(),
+            explore = sections.random.filterNot { it.id in featuredIds }.take(SECTION_SIZE).toImmutableList(),
             favorites = sections.favorites.take(SECTION_SIZE).toImmutableList(),
             playlists = playlists.take(SECTION_SIZE).toImmutableList(),
             genres = genres.sortedByDescending { it.albumCount }.take(GENRE_COUNT).toImmutableList(),
@@ -130,6 +135,8 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         if (status.value.isRefreshing) return
         status.update { it.copy(isRefreshing = true) }
+        // A full refresh may reshuffle Featured again.
+        pinnedFeatured.value = null
         viewModelScope.launch {
             val results = REFRESHED_LISTS.map { type ->
                 async {
@@ -144,6 +151,7 @@ class HomeViewModel @Inject constructor(
 
     /** The Explore header's refresh: a new random selection. */
     fun refreshExplore() {
+        uiState.value.featured.takeIf { it.isNotEmpty() }?.let { pinnedFeatured.value = it }
         viewModelScope.launch {
             runCatchingRemote { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
         }

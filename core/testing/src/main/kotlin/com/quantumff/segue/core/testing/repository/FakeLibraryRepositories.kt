@@ -156,6 +156,15 @@ class FakeSearchRepository : SearchRepository {
     /** Emissions per query; queries without an entry emit [SearchResult.Empty]. */
     val results = mutableMapOf<String, List<SearchResult>>()
     val queries = mutableListOf<String>()
+    val localQueries = mutableListOf<String>()
+
+    /** Local-only results per query; falls back to the first emission in [results]. */
+    val localResults = mutableMapOf<String, SearchResult>()
+
+    override fun searchLocal(query: String): Flow<SearchResult> {
+        localQueries += query
+        return flowOf(localResults[query] ?: results[query]?.firstOrNull() ?: SearchResult.Empty)
+    }
 
     override fun search(query: String): Flow<SearchResult> {
         queries += query

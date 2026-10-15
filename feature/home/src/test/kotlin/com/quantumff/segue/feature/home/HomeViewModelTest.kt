@@ -62,6 +62,24 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun exploreRefreshKeepsFeaturedInPlace() = runTest {
+        val first = (1..30).map { TestData.album("a$it") }
+        albums.lists.value = mapOf(AlbumListType.Random to first)
+        val viewModel = viewModel()
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().featured.map { it.id }).isEqualTo(first.take(10).map { it.id })
+            viewModel.refreshExplore()
+            val reshuffled = (31..60).map { TestData.album("b$it") }
+            albums.lists.value = mapOf(AlbumListType.Random to reshuffled)
+
+            val state = expectMostRecentItem()
+            assertThat(state.featured.map { it.id }).isEqualTo(first.take(10).map { it.id })
+            assertThat(state.explore.map { it.id }).isEqualTo(reshuffled.take(20).map { it.id })
+        }
+    }
+
+    @Test
     fun sectionsComeFromTheirLists() = runTest {
         albums.lists.value = mapOf(
             AlbumListType.Recent to listOf(TestData.album("recent")),

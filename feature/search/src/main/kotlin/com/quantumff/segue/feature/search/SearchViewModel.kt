@@ -17,7 +17,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,8 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -48,7 +48,7 @@ sealed interface SearchResults {
     /** Blank query: show recent searches and genres. */
     data object Idle : SearchResults
 
-    /** Typed, debounced, nothing back yet. */
+    /** Typed, nothing back yet. */
     data object Loading : SearchResults
 
     /**
@@ -75,7 +75,7 @@ enum class SearchMessage {
     FavoriteFailed,
 }
 
-@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
@@ -97,8 +97,7 @@ class SearchViewModel @Inject constructor(
     private val results: Flow<SearchResults> = queryState
         .map { it.trim() }
         .distinctUntilChanged()
-        // A cleared field shows recents at once; typing waits for a 300ms pause.
-        .debounce { if (it.isEmpty()) 0L else DEBOUNCE_MILLIS }
+        // Every keystroke searches Room at once; the server is asked after a 300ms pause (see search()).
         .flatMapLatest { query -> if (query.isEmpty()) flowOf(SearchResults.Idle) else search(query) }
 
     val uiState: StateFlow<SearchUiState> = combine(
@@ -165,7 +164,11 @@ class SearchViewModel @Inject constructor(
 
     private fun search(query: String): Flow<SearchResults> = flow {
         emit(SearchResults.Loading)
-        var last: SearchResult? = null
+        // Local FTS results instantly; flatMapLatest cancels this flow on the next keystroke, so
+        // the server search below only runs once typing pauses for DEBOUNCE_MILLIS.
+        var last: SearchResult? = searchRepository.searchLocal(query).firstOrNull()
+        last?.let { emit(SearchResults.Ready(it, serverPending = true, offline = false)) }
+        delay(DEBOUNCE_MILLIS)
         searchRepository.search(query)
             .catch { if (it !is RemoteException) throw it }
             .collect { result ->

@@ -72,9 +72,13 @@ fun SyncStatusBar(progress: SyncProgress, onRetryClick: () -> Unit, modifier: Mo
     }
 }
 
-/** "Syncing library · 1,240 / 5,600 albums", or just "Syncing library" while the size is unknown. */
+/**
+ * "Syncing library · 1,240 / 5,600 albums", or just "Syncing library" while the size is unknown.
+ * Pending means WorkManager is holding the job for its network and battery constraints.
+ */
 @Composable
 fun syncLabel(progress: SyncProgress): String {
+    if (progress == SyncProgress.Pending) return stringResource(R.string.ds_sync_waiting)
     val running = progress as? SyncProgress.Running
     if (running == null || running.total <= 0) return stringResource(R.string.ds_syncing_library)
     val format = NumberFormat.getIntegerInstance()
