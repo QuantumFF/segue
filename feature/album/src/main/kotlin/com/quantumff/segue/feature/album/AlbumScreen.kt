@@ -575,7 +575,7 @@ internal fun handleSongAction(
     when (action) {
         MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
         MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-        MediaAction.InstantMix -> playActions.onStartInstantMix(song.id)
+        MediaAction.InstantMix -> playActions.onStartInstantMix(song)
         MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
         MediaAction.Favorite, MediaAction.Unfavorite -> onToggleSongStar(song)
         MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)

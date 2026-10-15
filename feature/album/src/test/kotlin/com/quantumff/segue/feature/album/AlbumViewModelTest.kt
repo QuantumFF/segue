@@ -38,7 +38,7 @@ class AlbumViewModelTest {
         onShuffleAlbums = { shuffledAlbums += it },
         onPlayNext = {},
         onAddToQueue = {},
-        onStartInstantMix = { instantMixes += it },
+        onStartInstantMix = { instantMixes += it.id },
     )
 
     private val album = TestData.album("album-1", songCount = 3, genre = "Rock")

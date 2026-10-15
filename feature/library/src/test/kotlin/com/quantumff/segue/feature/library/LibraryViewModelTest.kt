@@ -217,7 +217,7 @@ internal class RecordingPlayActions {
         onShuffleAlbums = { shuffledAlbums += it },
         onPlayNext = { playedNext += it.ids() },
         onAddToQueue = { queued += it.ids() },
-        onStartInstantMix = { mixes += it },
+        onStartInstantMix = { mixes += it.id },
     )
 
     private fun List<Song>.ids() = map { it.id }

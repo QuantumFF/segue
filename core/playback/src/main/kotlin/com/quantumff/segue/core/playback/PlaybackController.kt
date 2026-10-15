@@ -121,10 +121,19 @@ class PlaybackController @Inject constructor(
 
     // --- Queue -------------------------------------------------------------------------------------
 
-    /** Replaces the queue with [songs] and plays from [startIndex]. */
-    fun play(songs: List<Song>, startIndex: Int = 0) = command { controller ->
+    /**
+     * An explicit "Play" or "Shuffle" of [songs]: in order from [startIndex] with shuffle Off, or
+     * with [shuffle] in track-shuffle order from a random song.
+     */
+    fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean) = command { controller ->
         if (songs.isEmpty()) return@command
-        controller.setMediaItems(songs.map { it.toMediaItem() }, startIndex.coerceIn(songs.indices), 0)
+        val start = if (shuffle) random.nextInt(songs.size) else startIndex.coerceIn(songs.indices)
+        // Before the new items, so the fresh track shuffle starts with the start item.
+        controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.SET_SHUFFLE),
+            SegueSessionCommands.shuffleArgs(if (shuffle) ShuffleMode.Tracks else ShuffleMode.Off),
+        )
+        controller.setMediaItems(songs.map { it.toMediaItem() }, start, 0)
         controller.prepare()
         controller.play()
     }
@@ -264,8 +273,7 @@ class PlaybackController @Inject constructor(
         val picked = AlbumPicker.pick(albumIds, count, random)
         val queue = AlbumPicker.queueInAlbumOrder(albumShuffle.songs(source, picked), picked)
         if (queue.isEmpty()) return false
-        setShuffleMode(ShuffleMode.Off)
-        play(queue)
+        play(queue, startIndex = 0, shuffle = false)
         return true
     }
 
@@ -283,8 +291,7 @@ class PlaybackController @Inject constructor(
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
         if (mix.size <= (if (seed == null) 0 else 1)) return false
-        setShuffleMode(ShuffleMode.Off)
-        play(mix)
+        play(mix, startIndex = 0, shuffle = false)
         return true
     }
 

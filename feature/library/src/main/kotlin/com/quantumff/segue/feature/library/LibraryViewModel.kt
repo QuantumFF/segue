@@ -281,7 +281,7 @@ class LibraryViewModel @Inject constructor(
 
             MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
 
-            MediaAction.InstantMix -> playActions.onStartInstantMix(song.id)
+            MediaAction.InstantMix -> playActions.onStartInstantMix(song)
 
             MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
 
