@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -173,25 +174,23 @@ internal fun TrackDetailsContent(details: TrackDetails?, modifier: Modifier = Mo
 private fun detailRows(details: TrackDetails?): List<Pair<String, String>> {
     if (details == null) return emptyList()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val rows = mutableListOf<Pair<String, String>>()
     fun add(label: Int, value: String?) {
-        if (value != null) rows += context.getString(label) to value
+        if (value != null) rows += resources.getString(label) to value
     }
     add(R.string.feature_nowplaying_details_format, details.format)
     add(
         R.string.feature_nowplaying_details_bitrate,
-        details.bitRateKbps?.let { context.getString(R.string.feature_nowplaying_details_bitrate_value, it) },
+        details.bitRateKbps?.let { resources.getString(R.string.feature_nowplaying_details_bitrate_value, it) },
     )
     add(
         R.string.feature_nowplaying_details_sample_rate,
         details.samplingRateHz?.let {
-            context.getString(R.string.feature_nowplaying_details_sample_rate_value, formatKiloHertz(it))
+            resources.getString(R.string.feature_nowplaying_details_sample_rate_value, formatKiloHertz(it))
         },
     )
-    add(
-        R.string.feature_nowplaying_details_bit_depth,
-        details.bitDepth?.let { context.getString(R.string.feature_nowplaying_details_bit_depth_value, it) },
-    )
+    add(R.string.feature_nowplaying_details_bit_depth, details.bitDepth?.toString())
     add(R.string.feature_nowplaying_details_channels, details.channelCount?.toString())
     add(R.string.feature_nowplaying_details_size, details.sizeBytes?.let { Formatter.formatFileSize(context, it) })
     details.replayGain?.let { gain -> addReplayGain(gain) { label, value -> add(label, value) } }

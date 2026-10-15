@@ -66,7 +66,6 @@
     <string name="feature_nowplaying_details_sample_rate">Sample rate</string>
     <string name="feature_nowplaying_details_sample_rate_value">%1$s kHz</string>
     <string name="feature_nowplaying_details_bit_depth">Bit depth</string>
-    <string name="feature_nowplaying_details_bit_depth_value">%1$d bit</string>
     <string name="feature_nowplaying_details_channels">Channels</string>
     <string name="feature_nowplaying_details_size">Size</string>
     <string name="feature_nowplaying_details_track_gain">Track gain</string>
