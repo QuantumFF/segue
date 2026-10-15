@@ -62,12 +62,7 @@ internal fun settleTrackSwipe(
     }
 }
 
-/**
- * Pages between the current track and its neighbors like a pager (Symfonium's mini player). The
- * neighbors sit one width to each side and slide in with the drag; a committed swipe calls
- * [onSwipeToNext] or [onSwipeToPrevious] and stays on the neighbor until [currentKey] changes.
- * Offsets are read in the draw phase only, so dragging does not recompose.
- */
+/** The mini player's swipe area: a [TrackSwipePager] over art-and-text pages. */
 @Composable
 internal fun TrackSwipeBox(
     current: MiniPlayerState,
@@ -77,6 +72,36 @@ internal fun TrackSwipeBox(
     onSwipeToPrevious: () -> Unit,
     onSwipeToNext: () -> Unit,
     modifier: Modifier = Modifier,
+) {
+    TrackSwipePager(
+        current = current,
+        currentKey = currentKey,
+        previous = previous,
+        next = next,
+        onSwipeToPrevious = onSwipeToPrevious,
+        onSwipeToNext = onSwipeToNext,
+        modifier = modifier,
+    ) { track, pageModifier -> MiniPlayerTrack(track, pageModifier) }
+}
+
+/**
+ * Pages between the current track and its neighbors like a pager (Symfonium's mini player, and
+ * the Now Playing art). The neighbors sit one width to each side and slide in with the drag; a
+ * committed swipe calls [onSwipeToNext] or [onSwipeToPrevious] and stays on the neighbor until
+ * [currentKey] changes. Offsets are read in the draw phase only, so dragging does not recompose.
+ *
+ * @param page draws one track. Apply the given modifier to the page's root: it carries the offset.
+ */
+@Composable
+fun <T> TrackSwipePager(
+    current: T,
+    currentKey: Any?,
+    previous: T?,
+    next: T?,
+    onSwipeToPrevious: () -> Unit,
+    onSwipeToNext: () -> Unit,
+    modifier: Modifier = Modifier,
+    page: @Composable (track: T, modifier: Modifier) -> Unit,
 ) {
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -142,11 +167,11 @@ internal fun TrackSwipeBox(
             ),
     ) {
         previous?.let { track ->
-            MiniPlayerTrack(track, Modifier.graphicsLayer { translationX = offset.value - size.width })
+            page(track, Modifier.graphicsLayer { translationX = offset.value - size.width })
         }
-        MiniPlayerTrack(current, Modifier.graphicsLayer { translationX = offset.value })
+        page(current, Modifier.graphicsLayer { translationX = offset.value })
         next?.let { track ->
-            MiniPlayerTrack(track, Modifier.graphicsLayer { translationX = offset.value + size.width })
+            page(track, Modifier.graphicsLayer { translationX = offset.value + size.width })
         }
     }
 }
