@@ -4,6 +4,10 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.DownloadOverview
+import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -13,15 +17,11 @@ import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import java.io.IOException
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
-import com.quantumff.segue.core.model.DownloadOverview
-import com.quantumff.segue.core.model.DownloadStatus
-import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.PinnedDownload
-import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 
 class PlaylistsViewModelTest {

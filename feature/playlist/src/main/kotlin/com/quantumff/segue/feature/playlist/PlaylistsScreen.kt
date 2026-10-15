@@ -38,8 +38,8 @@ import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.model.AlbumShuffleSource
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -66,19 +66,12 @@ fun PlaylistsScreen(
         onMenuAction = { playlist, action ->
             when (action) {
                 MediaAction.Play -> viewModel.loadSongs(playlist.id) { playActions.onPlaySongs(it, 0, false) }
-
                 MediaAction.Shuffle -> viewModel.loadSongs(playlist.id) { playActions.onPlaySongs(it, 0, true) }
-
                 MediaAction.ShuffleAlbums -> playActions.onShuffleAlbums(AlbumShuffleSource.Playlist(playlist.id))
-
                 MediaAction.PlayNext -> viewModel.loadSongs(playlist.id, playActions.onPlayNext)
-
                 MediaAction.AddToQueue -> viewModel.loadSongs(playlist.id, playActions.onAddToQueue)
-
                 MediaAction.Download -> viewModel.download(playlist)
-
                 MediaAction.RemoveDownload -> viewModel.removeDownload(playlist)
-
                 else -> Unit
             }
         },
@@ -156,7 +149,11 @@ fun PlaylistsScreenContent(
     menuFor?.let { playlist ->
         MediaContextMenu(
             header = playlist.toMenuHeader(),
-            actions = MediaActions.playlist(editable = !playlist.readonly, isDownloaded = playlist.id in uiState.downloads),
+            actions = MediaActions.playlist(
+                editable = !playlist.readonly,
+                isDownloaded =
+                    playlist.id in uiState.downloads,
+            ),
             onAction = { action ->
                 when (action) {
                     MediaAction.Rename -> dialog = PlaylistDialog.Rename(playlist)

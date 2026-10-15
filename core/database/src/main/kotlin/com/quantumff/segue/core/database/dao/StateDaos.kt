@@ -206,7 +206,13 @@ abstract class DownloadDao {
         WHERE serverId = :serverId AND songId = :songId AND state = 'Downloading'
         """,
     )
-    protected abstract suspend fun completeRow(serverId: String, songId: String, path: String, bytes: Long, now: Long): Int
+    protected abstract suspend fun completeRow(
+        serverId: String,
+        songId: String,
+        path: String,
+        bytes: Long,
+        now: Long,
+    ): Int
 
     /** Saves how far a stopped download got. Only touches a row that is still Downloading. */
     @Query(
@@ -227,7 +233,9 @@ abstract class DownloadDao {
     ): Int
 
     /** Whether the row is still Downloading: false once it was paused or removed mid-download. */
-    @Query("SELECT COUNT(*) > 0 FROM downloads WHERE serverId = :serverId AND songId = :songId AND state = 'Downloading'")
+    @Query(
+        "SELECT COUNT(*) > 0 FROM downloads WHERE serverId = :serverId AND songId = :songId AND state = 'Downloading'",
+    )
     abstract suspend fun isDownloading(serverId: String, songId: String): Boolean
 
     /** Moves [songIds] in state [from] to [to]; for pause, resume and retry. */

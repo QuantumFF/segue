@@ -4,11 +4,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
 import kotlinx.coroutines.test.runTest
@@ -23,7 +25,8 @@ class SettingsViewModelTest {
     private val preferences = FakeUserPreferencesRepository()
 
     // Lazy: viewModelScope must be created after MainDispatcherRule has installed the test dispatcher.
-    private val viewModel by lazy { SettingsViewModel(servers, preferences) }
+    private val downloads = FakeDownloadRepository()
+    private val viewModel by lazy { SettingsViewModel(servers, preferences, downloads) }
 
     private val home = TestData.server.copy(id = "home", name = "Home")
 
@@ -102,5 +105,20 @@ class SettingsViewModelTest {
         assertThat(preampLabel(3f)).isEqualTo("+3.0 dB")
         assertThat(preampLabel(0f)).isEqualTo("0.0 dB")
         assertThat(preampLabel(-1.5f)).isEqualTo("−1.5 dB")
+    }
+
+    @Test
+    fun downloadSettersReachTheRepositoryAndShowInState() = runTest {
+        val mp3 = StreamingQuality(maxBitRateKbps = 192, format = "mp3")
+        viewModel.setDownloadQuality(mp3)
+        viewModel.setDownloadWifiOnly(false)
+        viewModel.setDownloadChargingOnly(true)
+        viewModel.setOfflineMode(true)
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().downloads).isEqualTo(
+                DownloadPreferences(quality = mp3, wifiOnly = false, chargingOnly = true, forceOffline = true),
+            )
+        }
     }
 }

@@ -9,11 +9,11 @@ import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
-import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository

@@ -34,7 +34,10 @@ class FakeDownloadRepository : DownloadRepository {
 
     override fun pinStatus(kind: PinKind, id: String): Flow<DownloadStatus?> = pins.map { it[kind to id] }
 
-    override suspend fun pin(target: PinTarget) = pins.update { it + ((target.kind to target.id) to DownloadStatus.Queued) }
+    override suspend fun pin(target: PinTarget) = pins.update {
+        it +
+            ((target.kind to target.id) to DownloadStatus.Queued)
+    }
 
     override suspend fun unpin(kind: PinKind, id: String) = pins.update { it - (kind to id) }
 

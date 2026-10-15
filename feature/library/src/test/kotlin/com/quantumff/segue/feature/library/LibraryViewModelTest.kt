@@ -8,19 +8,26 @@ import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.DownloadOverview
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeLibrarySyncRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import java.io.IOException
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
@@ -37,6 +44,8 @@ class LibraryViewModelTest {
     private val sync = FakeLibrarySyncRepository()
     private val stars = FakeStarRatingRepository()
     private val servers = FakeServerRepository()
+    private val downloads = FakeDownloadRepository()
+    private val offlineMode = FakeOfflineModeRepository()
     private val savedState = SavedStateHandle()
     private val play = RecordingPlayActions()
     private lateinit var viewModel: LibraryViewModel
@@ -53,7 +62,52 @@ class LibraryViewModelTest {
         library.genresState.value = listOf(TestData.genre("Jazz"), TestData.genre("Rock"))
         servers.serversState.value = listOf(TestData.server)
         servers.activeId.value = TestData.server.id
-        viewModel = LibraryViewModel(savedState, albums, artists, library, playlists, sync, stars, servers)
+        viewModel = LibraryViewModel(
+            savedState,
+            albums,
+            artists,
+            library,
+            playlists,
+            sync,
+            stars,
+            servers,
+            downloads,
+            offlineMode,
+        )
+    }
+
+    @Test
+    fun downloadedChipFiltersAlbumsToDownloadedOnes() = runTest {
+        albums.downloadedAlbumIds = setOf("2")
+        viewModel.uiState.test {
+            viewModel.toggleDownloadedFilter()
+            val state = expectMostRecentItem()
+            assertThat(state.filter.downloadedOnly).isTrue()
+            assertThat(state.albumCount).isEqualTo(1)
+
+            viewModel.clearFilters()
+            assertThat(expectMostRecentItem().filter.downloadedOnly).isFalse()
+        }
+    }
+
+    @Test
+    fun offlineShowsOnlyDownloadedAlbumsSongsAndPinnedPlaylists() = runTest {
+        albums.downloadedAlbumIds = setOf("1")
+        library.downloadedSongsState.value = listOf(TestData.song("s2"))
+        playlists.playlistsState.value = listOf(TestData.playlist("p1"), TestData.playlist("p2"))
+        downloads.overview.value = DownloadOverview(
+            pins = persistentListOf(PinnedDownload(PinKind.Playlist, "p2", "p2", null, 1, 1, 0, 0, 1f, 1)),
+        )
+        offlineMode.isOffline.value = true
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.isOffline).isTrue()
+            assertThat(state.showsDownloadedOnly).isTrue()
+            assertThat(state.albumCount).isEqualTo(1)
+            assertThat(state.songCount).isEqualTo(1)
+            assertThat(state.playlists?.map { it.id }).containsExactly("p2")
+            assertThat(state.pinnedPlaylists).containsExactly("p2", DownloadStatus.Downloaded)
+        }
     }
 
     @Test

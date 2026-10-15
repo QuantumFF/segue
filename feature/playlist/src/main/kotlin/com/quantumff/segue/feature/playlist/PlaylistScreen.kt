@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
+import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
@@ -59,7 +60,6 @@ import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
@@ -101,23 +101,14 @@ fun PlaylistScreen(
         onTrackAction = { index, song, action ->
             when (action) {
                 MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-
                 MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-
                 MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-
                 MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-
                 MediaAction.Favorite, MediaAction.Unfavorite -> viewModel.toggleStar(song)
-
                 MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-
                 MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-
                 MediaAction.RemoveFromPlaylist -> viewModel.removeAt(index)
-
                 MediaAction.Download -> viewModel.downloadSong(song)
-
                 else -> Unit
             }
         },

@@ -73,7 +73,15 @@ class DownloadRepositoryTest {
             writeText("audio")
         }
         dao.upsert(
-            DownloadEntity(SERVER_ID, songId, DownloadState.Completed, file.length(), file.length(), file.path, updatedAt = 1),
+            DownloadEntity(
+                SERVER_ID,
+                songId,
+                DownloadState.Completed,
+                file.length(),
+                file.length(),
+                file.path,
+                updatedAt = 1,
+            ),
         )
         return file
     }

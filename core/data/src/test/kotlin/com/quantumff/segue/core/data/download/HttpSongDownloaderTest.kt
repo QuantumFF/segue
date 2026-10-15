@@ -103,7 +103,13 @@ class HttpSongDownloaderTest {
 
     @Test
     fun `a subsonic error body fails and a server error retries`() = runTest {
-        server.enqueue(response(200, """{"subsonic-response":{"status":"failed"}}""", "Content-Type" to "application/json"))
+        server.enqueue(
+            response(
+                200,
+                """{"subsonic-response":{"status":"failed"}}""",
+                "Content-Type" to "application/json",
+            ),
+        )
         server.enqueue(response(503, "busy"))
 
         val refused = downloader().download(row, StreamingQuality.Original, { _, _ -> }, { true })

@@ -138,7 +138,10 @@ internal class DownloadWorker @AssistedInject constructor(
     }
 
     /** False when the network failed and the worker should retry later. */
-    private suspend fun downloadOne(row: DownloadEntity, quality: com.quantumff.segue.core.model.StreamingQuality): Boolean {
+    private suspend fun downloadOne(
+        row: DownloadEntity,
+        quality: com.quantumff.segue.core.model.StreamingQuality,
+    ): Boolean {
         var bytes = row.bytesDownloaded
         var total = row.totalBytes
         try {
@@ -154,7 +157,13 @@ internal class DownloadWorker @AssistedInject constructor(
             )
             return when (outcome) {
                 is DownloadOutcome.Completed -> {
-                    val saved = dao.complete(row.serverId, row.songId, outcome.file.path, outcome.bytes, clock.nowMillis())
+                    val saved = dao.complete(
+                        row.serverId,
+                        row.songId,
+                        outcome.file.path,
+                        outcome.bytes,
+                        clock.nowMillis(),
+                    )
                     // Unpinned (or paused) during the last bytes: the row no longer wants this file.
                     if (!saved && dao.get(row.serverId, row.songId) == null) files.delete(outcome.file.path)
                     true

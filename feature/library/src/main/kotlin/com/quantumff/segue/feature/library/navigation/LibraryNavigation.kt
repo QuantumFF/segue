@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.library.navigation
 
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
@@ -29,6 +30,7 @@ fun NavGraphBuilder.libraryScreen(
     onDownloadsClick: () -> Unit,
     playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
+    downloadsTab: (@Composable () -> Unit)? = null,
 ) {
     composable<LibraryRoute> {
         LibraryScreen(
@@ -40,6 +42,7 @@ fun NavGraphBuilder.libraryScreen(
             onDownloadsClick = onDownloadsClick,
             playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
+            downloadsTab = downloadsTab,
         )
     }
 }

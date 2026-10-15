@@ -66,6 +66,7 @@ import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
@@ -79,12 +80,15 @@ import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongDownload
 import java.text.NumberFormat
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.flowOf
@@ -134,6 +138,8 @@ internal sealed interface LibraryEvent {
     data class SongMenu(val song: Song, val action: MediaAction) : LibraryEvent
 
     data object MessageShown : LibraryEvent
+
+    data object ToggleDownloaded : LibraryEvent
 }
 
 /** Library tab root (DESIGN.md §4.2). Stateful wrapper around [LibraryContent]. */
@@ -149,6 +155,7 @@ fun LibraryScreen(
     playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
+    downloadsTab: (@Composable () -> Unit)? = null,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -207,9 +214,12 @@ fun LibraryScreen(
                     viewModel.onSongAction(event.song, event.action, playActions, onAddToPlaylist)
 
                 LibraryEvent.MessageShown -> viewModel.onMessageDismiss()
+
+                LibraryEvent.ToggleDownloaded -> viewModel.toggleDownloadedFilter()
             }
         },
         modifier = modifier,
+        downloadsTab = downloadsTab,
     )
 }
 
@@ -237,6 +247,7 @@ internal fun LibraryContent(
     songs: LazyPagingItems<Song>,
     onEvent: (LibraryEvent) -> Unit,
     modifier: Modifier = Modifier,
+    downloadsTab: (@Composable () -> Unit)? = null,
 ) {
     var menu by remember { mutableStateOf<MenuTarget?>(null) }
     var picker by remember { mutableStateOf<LibraryPicker?>(null) }
@@ -258,27 +269,31 @@ internal fun LibraryContent(
             if (state.tab != LibraryTab.Downloads) {
                 FilterRow(state, onEvent, onPickerClick = { picker = it })
             }
-            PullToRefreshBox(
-                isRefreshing = state.isRefreshing,
-                onRefresh = { onEvent(LibraryEvent.Refresh) },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            ) {
-                TabContent(
-                    state = state,
-                    albums = albums,
-                    artists = artists,
-                    songs = songs,
-                    onEvent = onEvent,
-                    onMenu = { menu = it },
-                )
+            if (state.tab == LibraryTab.Downloads && downloadsTab != null) {
+                Box(Modifier.weight(1f).fillMaxWidth()) { downloadsTab() }
+            } else {
+                PullToRefreshBox(
+                    isRefreshing = state.isRefreshing,
+                    onRefresh = { onEvent(LibraryEvent.Refresh) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    TabContent(
+                        state = state,
+                        albums = albums,
+                        artists = artists,
+                        songs = songs,
+                        onEvent = onEvent,
+                        onMenu = { menu = it },
+                    )
+                }
             }
         }
         SegueSnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
-    menu?.let { target -> LibraryMenu(target, onEvent, onDismissRequest = { menu = null }) }
+    menu?.let { target -> LibraryMenu(target, state, onEvent, onDismissRequest = { menu = null }) }
     picker?.let { which -> LibraryPickerSheet(which, state, onEvent, onDismissRequest = { picker = null }) }
 }
 
@@ -394,6 +409,12 @@ private fun RowScope.AlbumFilterChips(
         selected = state.filter.starredOnly,
         onClick = { onEvent(LibraryEvent.ToggleFavorites) },
     )
+    // Offline keeps it on: only downloaded albums can play (DESIGN.md §4.2 filter row).
+    SegueFilterChip(
+        label = stringResource(R.string.feature_library_filter_downloaded),
+        selected = state.showsDownloadedOnly,
+        onClick = { if (!state.isOffline) onEvent(LibraryEvent.ToggleDownloaded) },
+    )
     DropdownChip(
         label = state.filter.year?.toString() ?: stringResource(R.string.feature_library_filter_year),
         selected = state.filter.year != null,
@@ -486,6 +507,8 @@ private fun TabContent(
     val listPadding = PaddingValues(bottom = bottom)
     when (state.tab) {
         LibraryTab.Albums -> when {
+            state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
+
             state.albumCount == 0 && state.filter.isActive -> ScrollableEmpty(listPadding) {
                 EmptyState(
                     icon = SegueIcons.Disc3,
@@ -504,6 +527,7 @@ private fun TabContent(
                 onAlbumLongClick = { onMenu(MenuTarget.ForAlbum(it)) },
                 contentPadding = gridPadding,
                 modifier = Modifier.fillMaxSize(),
+                downloads = state.pinnedAlbums,
             )
 
             else -> LazyColumn(contentPadding = listPadding, modifier = Modifier.fillMaxSize()) {
@@ -520,24 +544,30 @@ private fun TabContent(
                         onClick = { album?.let { onEvent(LibraryEvent.OpenAlbum(it.id)) } },
                         onLongClick = album?.let { { onMenu(MenuTarget.ForAlbum(it)) } },
                         onMoreClick = album?.let { { onMenu(MenuTarget.ForAlbum(it)) } },
+                        download = album?.let { state.pinnedAlbums[it.id]?.toBadgeState() },
                     )
                 }
             }
         }
 
         LibraryTab.Artists -> when {
+            state.isOffline && artists.itemCount == 0 -> OfflineEmpty(listPadding)
             state.artistCount == 0 -> LibraryEmpty(listPadding, onEvent)
             state.viewMode == LibraryViewMode.Grid -> ArtistGrid(artists, gridPadding, onEvent, onMenu)
-            else -> ArtistList(artists, listPadding, onEvent, onMenu)
+            else -> ArtistList(artists, listPadding, onEvent, onMenu, state.pinnedArtists)
         }
 
-        LibraryTab.Songs -> if (state.songCount == 0) {
-            LibraryEmpty(listPadding, onEvent)
+        LibraryTab.Songs -> when {
+            state.songCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
+            state.songCount == 0 -> LibraryEmpty(listPadding, onEvent)
+            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads)
+        }
+
+        LibraryTab.Playlists -> if (state.isOffline && state.playlists?.isEmpty() == true) {
+            OfflineEmpty(listPadding)
         } else {
-            SongList(songs, listPadding, onEvent, onMenu)
+            PlaylistList(state.playlists, listPadding, onEvent, state.pinnedPlaylists)
         }
-
-        LibraryTab.Playlists -> PlaylistList(state.playlists, listPadding, onEvent)
 
         LibraryTab.Genres -> GenreGrid(state, gridPadding, listPadding, onEvent)
 
@@ -598,6 +628,7 @@ private fun ArtistList(
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (MenuTarget) -> Unit,
+    downloads: ImmutableMap<String, DownloadStatus>,
 ) {
     val format = NumberFormat.getIntegerInstance()
     LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
@@ -621,6 +652,7 @@ private fun ArtistList(
                 onLongClick = artist?.let { { onMenu(MenuTarget.ForArtist(it)) } },
                 artShape = SegueShapes.full,
                 placeholderIcon = SegueIcons.Artist,
+                download = artist?.let { downloads[it.id]?.toBadgeState() },
             )
         }
     }
@@ -632,6 +664,7 @@ private fun SongList(
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (MenuTarget) -> Unit,
+    downloads: ImmutableMap<String, SongDownload>,
 ) {
     LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         items(
@@ -647,8 +680,11 @@ private fun SongList(
                         .height(SegueSizes.trackRow),
                 )
             } else {
+                val download = downloads[song.id]
                 TrackRow(
-                    state = song.toTrackRowState(),
+                    state = remember(song, download) {
+                        song.toTrackRowState(download = download?.status?.toBadgeState())
+                    },
                     onClick = { onEvent(LibraryEvent.PlaySong(song)) },
                     onLongClick = { onMenu(MenuTarget.ForSong(song)) },
                     onMoreClick = { onMenu(MenuTarget.ForSong(song)) },
@@ -663,6 +699,7 @@ private fun PlaylistList(
     playlists: kotlinx.collections.immutable.ImmutableList<Playlist>?,
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
+    downloads: ImmutableMap<String, DownloadStatus>,
 ) {
     when {
         playlists == null -> Unit
@@ -683,6 +720,7 @@ private fun PlaylistList(
                     coverArtId = playlist.coverArtId,
                     onClick = { onEvent(LibraryEvent.OpenPlaylist(playlist.id)) },
                     placeholderIcon = SegueIcons.Playlists,
+                    download = downloads[playlist.id]?.toBadgeState(),
                 )
             }
         }
@@ -726,6 +764,18 @@ private fun GenreGrid(
 
 private const val GENRE_COLUMNS = 2
 
+/** Offline with nothing downloaded in this tab. */
+@Composable
+private fun OfflineEmpty(contentPadding: PaddingValues) {
+    ScrollableEmpty(contentPadding) {
+        EmptyState(
+            icon = SegueIcons.Offline,
+            title = stringResource(R.string.feature_library_offline_empty_title),
+            message = stringResource(R.string.feature_library_offline_empty_message),
+        )
+    }
+}
+
 @Composable
 private fun LibraryEmpty(contentPadding: PaddingValues, onEvent: (LibraryEvent) -> Unit) {
     ScrollableEmpty(contentPadding) {
@@ -754,20 +804,25 @@ private fun LazyListScope.emptyItem(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun LibraryMenu(target: MenuTarget, onEvent: (LibraryEvent) -> Unit, onDismissRequest: () -> Unit) {
+private fun LibraryMenu(
+    target: MenuTarget,
+    state: LibraryUiState,
+    onEvent: (LibraryEvent) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
     when (target) {
         is MenuTarget.ForAlbum -> {
             val album = target.album
             MediaContextMenu(
                 header = album.toMenuHeader(),
-                actions = MediaActions.album(isStarred = album.isStarred, hasArtist = album.artistId != null),
+                actions = MediaActions.album(
+                    isStarred = album.isStarred,
+                    hasArtist = album.artistId != null,
+                    isDownloaded = album.id in state.pinnedAlbums,
+                ),
                 onAction = { action ->
                     when (action) {
                         MediaAction.GoToArtist -> album.artistId?.let { onEvent(LibraryEvent.OpenArtist(it)) }
-
-                        // TODO(downloads): pin the album for offline once downloads exist.
-                        MediaAction.Download -> Unit
-
                         else -> onEvent(LibraryEvent.AlbumMenu(album, action))
                     }
                 },
@@ -777,7 +832,10 @@ private fun LibraryMenu(target: MenuTarget, onEvent: (LibraryEvent) -> Unit, onD
 
         is MenuTarget.ForArtist -> MediaContextMenu(
             header = target.artist.toMenuHeader(),
-            actions = MediaActions.artist(isStarred = target.artist.isStarred),
+            actions = MediaActions.artist(
+                isStarred = target.artist.isStarred,
+                isDownloaded = target.artist.id in state.pinnedArtists,
+            ),
             onAction = { onEvent(LibraryEvent.ArtistMenu(target.artist, it)) },
             onDismissRequest = onDismissRequest,
         )
@@ -794,12 +852,7 @@ private fun LibraryMenu(target: MenuTarget, onEvent: (LibraryEvent) -> Unit, onD
                 onAction = { action ->
                     when (action) {
                         MediaAction.GoToAlbum -> song.albumId?.let { onEvent(LibraryEvent.OpenAlbum(it)) }
-
                         MediaAction.GoToArtist -> song.artistId?.let { onEvent(LibraryEvent.OpenArtist(it)) }
-
-                        // TODO(downloads): download the song once downloads exist.
-                        MediaAction.Download -> Unit
-
                         else -> onEvent(LibraryEvent.SongMenu(song, action))
                     }
                 },

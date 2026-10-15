@@ -57,8 +57,11 @@ object MediaActions {
     }.toImmutableList()
 
     /** [isDownloaded]: pinned for offline, so the menu offers "Remove download" instead of "Download". */
-    fun album(isStarred: Boolean, hasArtist: Boolean = true, isDownloaded: Boolean = false): ImmutableList<MediaAction> =
-        buildList {
+    fun album(
+        isStarred: Boolean,
+        hasArtist: Boolean = true,
+        isDownloaded: Boolean = false,
+    ): ImmutableList<MediaAction> = buildList {
         add(MediaAction.Play)
         add(MediaAction.Shuffle)
         if (hasArtist) add(MediaAction.ShuffleArtistAlbums)

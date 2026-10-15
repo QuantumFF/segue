@@ -2,10 +2,12 @@ package com.quantumff.segue.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StreamingQuality
@@ -26,19 +28,27 @@ data class SettingsUiState(
     val servers: ImmutableList<Server> = persistentListOf(),
     val activeServerId: String? = null,
     val preferences: UserPreferences = UserPreferences(),
+    val downloads: DownloadPreferences = DownloadPreferences(),
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val preferencesRepository: UserPreferencesRepository,
+    private val downloadRepository: DownloadRepository,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> = combine(
         serverRepository.servers,
         serverRepository.activeServer,
         preferencesRepository.preferences,
-    ) { servers, active, preferences ->
-        SettingsUiState(servers = servers, activeServerId = active?.id, preferences = preferences)
+        downloadRepository.preferences,
+    ) { servers, active, preferences, downloads ->
+        SettingsUiState(
+            servers = servers,
+            activeServerId = active?.id,
+            preferences = preferences,
+            downloads = downloads,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SettingsUiState())
 
     fun switchServer(serverId: String) = launch { serverRepository.switchTo(serverId) }
@@ -67,6 +77,14 @@ class SettingsViewModel @Inject constructor(
     fun setStreamCacheSize(megabytes: Int) = launch { preferencesRepository.setStreamCacheSizeMb(megabytes) }
 
     fun setStopWhenPaused(minutes: Int) = launch { preferencesRepository.setStopWhenPausedMinutes(minutes) }
+
+    fun setDownloadQuality(quality: StreamingQuality) = launch { downloadRepository.setQuality(quality) }
+
+    fun setDownloadWifiOnly(enabled: Boolean) = launch { downloadRepository.setWifiOnly(enabled) }
+
+    fun setDownloadChargingOnly(enabled: Boolean) = launch { downloadRepository.setChargingOnly(enabled) }
+
+    fun setOfflineMode(enabled: Boolean) = launch { downloadRepository.setForceOffline(enabled) }
 
     fun setQueueSyncEnabled(enabled: Boolean) = launch { preferencesRepository.setQueueSyncEnabled(enabled) }
 

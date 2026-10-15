@@ -75,4 +75,11 @@
     <string name="feature_settings_license_gpl_text">Segue is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\n\nSegue is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.\n\nhttps://www.gnu.org/licenses/gpl-3.0.html</string>
     <string name="feature_settings_license_apache_text">Licensed under the Apache License, Version 2.0. You may not use these files except in compliance with the License. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n\nhttps://www.apache.org/licenses/LICENSE-2.0</string>
     <string name="feature_settings_license_loading">Loading…</string>
+    <string name="feature_settings_download_quality">Download quality</string>
+    <string name="feature_settings_download_wifi_only">Download on Wi-Fi only</string>
+    <string name="feature_settings_download_wifi_only_summary">Wait for an unmetered network</string>
+    <string name="feature_settings_download_charging_only">Download while charging only</string>
+    <string name="feature_settings_download_charging_only_summary">Wait until the device is charging</string>
+    <string name="feature_settings_offline_mode">Offline mode</string>
+    <string name="feature_settings_offline_mode_summary">Use only downloaded music, even with a connection</string>
 </resources>

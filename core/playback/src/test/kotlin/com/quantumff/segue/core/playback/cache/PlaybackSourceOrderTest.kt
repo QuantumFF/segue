@@ -62,7 +62,12 @@ class PlaybackSourceOrderTest {
     @After
     fun tearDown() = cache.release()
 
-    private val resolver get() = SegueUriResolver(downloads, mediaUrls, FakeUserPreferencesRepository(), NetworkMonitor(context))
+    private val resolver get() = SegueUriResolver(
+        downloads,
+        mediaUrls,
+        FakeUserPreferencesRepository(),
+        NetworkMonitor(context),
+    )
 
     private fun read(songId: String): String {
         val source = playbackDataSourceFactory(context, streamFactory, resolver).createDataSource()
@@ -130,7 +135,8 @@ class PlaybackSourceOrderTest {
             return delegate.open(dataSpec.buildUpon().setUri(android.net.Uri.fromFile(file)).build())
         }
 
-        override fun read(buffer: ByteArray, offset: Int, length: Int): Int = checkNotNull(source).read(buffer, offset, length)
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+            checkNotNull(source).read(buffer, offset, length)
 
         override fun getUri() = source?.uri
 

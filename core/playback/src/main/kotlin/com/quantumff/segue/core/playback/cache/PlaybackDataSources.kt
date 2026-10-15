@@ -16,4 +16,5 @@ fun playbackDataSourceFactory(
     context: Context,
     streamDataSourceFactory: DataSource.Factory,
     resolver: ResolvingDataSource.Resolver,
-): DataSource.Factory = ResolvingDataSource.Factory(DefaultDataSource.Factory(context, streamDataSourceFactory), resolver)
+): DataSource.Factory =
+    ResolvingDataSource.Factory(DefaultDataSource.Factory(context, streamDataSourceFactory), resolver)

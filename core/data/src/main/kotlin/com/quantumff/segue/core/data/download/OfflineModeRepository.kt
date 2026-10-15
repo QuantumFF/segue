@@ -26,7 +26,8 @@ interface NetworkConnectivity {
 internal class ConnectivityManagerNetworkConnectivity @Inject constructor(@ApplicationContext context: Context) :
     NetworkConnectivity {
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
-    private val connected = MutableStateFlow(hasInternet(connectivity.getNetworkCapabilities(connectivity.activeNetwork)))
+    private val connected =
+        MutableStateFlow(hasInternet(connectivity.getNetworkCapabilities(connectivity.activeNetwork)))
 
     override val isConnected: StateFlow<Boolean> = connected.asStateFlow()
 
@@ -63,6 +64,9 @@ internal class DefaultOfflineModeRepository @Inject constructor(
     @ApplicationScope scope: CoroutineScope,
 ) : OfflineModeRepository {
     override val isOffline: StateFlow<Boolean> =
-        combine(connectivity.isConnected, preferences.preferences) { connected, prefs -> !connected || prefs.forceOffline }
+        combine(connectivity.isConnected, preferences.preferences) { connected, prefs ->
+            !connected ||
+                prefs.forceOffline
+        }
             .stateIn(scope, SharingStarted.Eagerly, !connectivity.isConnected.value)
 }

@@ -4,7 +4,9 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class OfflinePlaybackTest {
-    private val songs = listOf("a", "b", "c", "d").map { Song(id = it, title = it, albumId = null, album = null, artist = null, artistId = null) }
+    private val songs = listOf("a", "b", "c", "d").map {
+        Song(id = it, title = it, albumId = null, album = null, artist = null, artistId = null)
+    }
 
     private fun ids(selection: PlayableSelection?) = selection?.songs?.map { it.id }
 

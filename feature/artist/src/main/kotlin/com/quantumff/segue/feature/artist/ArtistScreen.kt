@@ -30,6 +30,7 @@ import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
@@ -41,7 +42,6 @@ import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
-import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
@@ -468,21 +468,13 @@ internal fun handleTopSongAction(
 ) {
     when (action) {
         MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-
         MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-
         MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-
         MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-
         MediaAction.Favorite, MediaAction.Unfavorite -> onToggleSongStar(song)
-
         MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-
         MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-
         MediaAction.Download -> onDownloadSong(song)
-
         else -> Unit
     }
 }

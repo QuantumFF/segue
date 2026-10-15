@@ -40,7 +40,10 @@ class DownloadPlannerTest {
             desired = DownloadPlanner.desiredSongs(playlist),
             existing = setOf("shared", "a"),
         )
-        val afterUnpinningBoth = DownloadPlanner.plan(desired = DownloadPlanner.desiredSongs(emptyList()), existing = setOf("shared"))
+        val afterUnpinningBoth = DownloadPlanner.plan(
+            desired = DownloadPlanner.desiredSongs(emptyList()),
+            existing = setOf("shared"),
+        )
 
         assertThat(DownloadPlanner.desiredSongs(album + playlist)).containsExactly("shared", "a")
         assertThat(afterUnpinningAlbum.toRemove).containsExactly("a")
@@ -55,7 +58,10 @@ class DownloadPlannerTest {
             PinSongRow(PinKind.Playlist, "p", "b"),
             PinSongRow(PinKind.Playlist, "p", "a"),
         )
-        val rows = mapOf("a" to row("a", DownloadState.Completed, bytes = 100), "b" to row("b", DownloadState.Downloading))
+        val rows = mapOf(
+            "a" to row("a", DownloadState.Completed, bytes = 100),
+            "b" to row("b", DownloadState.Downloading),
+        )
         val live = mapOf("b" to LiveProgress(bytes = 50, total = 100))
 
         val status = DownloadPlanner.pinStatuses(pins, membership, rows, live).single()

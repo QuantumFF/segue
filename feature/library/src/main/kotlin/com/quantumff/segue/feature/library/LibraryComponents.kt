@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,7 @@ import androidx.paging.compose.itemKey
 import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -52,12 +54,15 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.Playlist
 import java.text.NumberFormat
 import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 
 /**
  * Paged album grid (DESIGN.md §4.2): `GridCells.Adaptive(150)`, gutter 12, side margin 16.
@@ -70,6 +75,7 @@ internal fun PagedAlbumGrid(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
     onAlbumLongClick: ((Album) -> Unit)? = null,
+    downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(SegueSizes.albumGridCell),
@@ -87,8 +93,9 @@ internal fun PagedAlbumGrid(
             if (album == null) {
                 AlbumPlaceholder()
             } else {
+                val download = downloads[album.id]
                 AlbumCard(
-                    state = album.toCardState(),
+                    state = remember(album, download) { album.toCardState(download = download?.toBadgeState()) },
                     onClick = { onAlbumClick(album) },
                     onLongClick = onAlbumLongClick?.let { { it(album) } },
                     artDisplaySize = SegueSizes.albumGridCell,

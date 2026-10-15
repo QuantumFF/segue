@@ -33,6 +33,11 @@ interface LibraryRepository {
 
     val songCount: Flow<Int>
 
+    /** Songs with a finished download, by name. For offline mode. */
+    fun downloadedSongs(): Flow<PagingData<Song>>
+
+    val downloadedSongCount: Flow<Int>
+
     fun songsByGenre(genre: String): Flow<PagingData<Song>>
 
     fun song(id: String): Flow<Song?>
@@ -64,6 +69,11 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
         clients.pagedForActiveServer(songDao::pagingSource, SongEntity::asExternalModel)
 
     override val songCount: Flow<Int> = clients.forActiveServer(0, songDao::observeCount)
+
+    override fun downloadedSongs(): Flow<PagingData<Song>> =
+        clients.pagedForActiveServer(songDao::pagingSourceDownloaded, SongEntity::asExternalModel)
+
+    override val downloadedSongCount: Flow<Int> = clients.forActiveServer(0, songDao::observeDownloadedCount)
 
     override fun songsByGenre(genre: String): Flow<PagingData<Song>> = clients.pagedForActiveServer({ serverId ->
         songDao.pagingSourceByGenre(serverId, genre)

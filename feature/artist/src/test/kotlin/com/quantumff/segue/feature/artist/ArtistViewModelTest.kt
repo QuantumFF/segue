@@ -12,10 +12,10 @@ import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
-import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
-import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
