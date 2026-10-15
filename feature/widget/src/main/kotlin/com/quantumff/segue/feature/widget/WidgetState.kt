@@ -25,12 +25,12 @@ class WidgetStateStore @Inject constructor(@ApplicationContext context: Context)
     private val store: DataStore<Preferences> =
         PreferenceDataStoreFactory.create { context.preferencesDataStoreFile(FILE_NAME) }
 
-    val snapshots: Flow<NowPlayingSnapshot> = store.data.map(WidgetState::read).distinctUntilChanged()
+    val snapshots: Flow<NowPlayingSnapshot> = store.data.map(NowPlayingPreferences::read).distinctUntilChanged()
 
     suspend fun read(): NowPlayingSnapshot = snapshots.first()
 
     suspend fun write(snapshot: NowPlayingSnapshot) {
-        store.edit { WidgetState.write(it, snapshot) }
+        store.edit { NowPlayingPreferences.write(it, snapshot) }
     }
 
     private companion object {
@@ -38,8 +38,8 @@ class WidgetStateStore @Inject constructor(@ApplicationContext context: Context)
     }
 }
 
-/** [NowPlayingSnapshot] in preferences. */
-internal object WidgetState {
+/** The preferences codec for [NowPlayingSnapshot]. */
+internal object NowPlayingPreferences {
     val SONG_ID = stringPreferencesKey("songId")
     val TITLE = stringPreferencesKey("title")
     val ARTIST = stringPreferencesKey("artist")
@@ -69,9 +69,3 @@ internal object WidgetState {
         if (value == null) remove(key) else this[key] = value
     }
 }
-
-/** Off → Tracks → Albums → Off, like the notification's shuffle button. */
-internal fun nextShuffleMode(mode: ShuffleMode): ShuffleMode = ShuffleMode.entries[
-    (mode.ordinal + 1) %
-        ShuffleMode.entries.size,
-]

@@ -153,15 +153,24 @@ class BrowseTree(
     }
 
     private suspend fun trackRequest(id: BrowseId.Track): PlayRequest? {
+        // Long lists queue a window of MAX_QUEUE songs around the track, so deep tracks keep their neighbours.
+        val windowStart = (id.index - MAX_QUEUE / 2).coerceAtLeast(0)
         val list = when (val parent = id.parent) {
             is BrowseId.Album -> repository.albumSongsForPlayback(parent.id)
             is BrowseId.Playlist -> repository.playlistSongs(parent.id)
-            BrowseId.Starred -> repository.starredSongs(0, MAX_QUEUE)
-            BrowseId.Downloads -> repository.downloadedSongs(0, MAX_QUEUE)
+            BrowseId.Starred -> repository.starredSongs(windowStart, MAX_QUEUE)
+            BrowseId.Downloads -> repository.downloadedSongs(windowStart, MAX_QUEUE)
             else -> emptyList()
         }
+        val index = if (id.parent == BrowseId.Starred ||
+            id.parent == BrowseId.Downloads
+        ) {
+            id.index - windowStart
+        } else {
+            id.index
+        }
         // The list may have changed since it was browsed: find the song again if it moved.
-        val start = id.index.takeIf { list.getOrNull(it)?.id == id.songId } ?: list.indexOfFirst { it.id == id.songId }
+        val start = index.takeIf { list.getOrNull(it)?.id == id.songId } ?: list.indexOfFirst { it.id == id.songId }
         if (start >= 0) return PlayRequest(list, start)
         return repository.song(id.songId)?.let { PlayRequest(listOf(it)) }
     }
@@ -342,7 +351,12 @@ class BrowseTree(
          * Root extras: children default to list rows. Media3 adds "search supported" itself when
          * the browser may search.
          */
-        fun rootExtras(): Bundle = styles(LIST, LIST)
+        fun rootExtras(): Bundle = styles(LIST, LIST).apply {
+            // Older Android Auto versions honour the hints only with this flag.
+            putBoolean(CONTENT_STYLE_SUPPORTED, true)
+        }
+
+        private const val CONTENT_STYLE_SUPPORTED = "android.media.browse.CONTENT_STYLE_SUPPORTED"
 
         /** How a node's browsable and playable children are drawn. */
         private fun styles(browsable: Int, playable: Int) = Bundle().apply {

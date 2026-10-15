@@ -217,6 +217,11 @@ class PlaybackController @Inject constructor(
         )
     }
 
+    /** Off → Tracks → Albums → Off, from the service's current mode (for widgets, which may show a stale one). */
+    fun cycleShuffleMode() = command { controller ->
+        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.CYCLE_SHUFFLE), Bundle.EMPTY)
+    }
+
     fun setRepeatMode(mode: RepeatMode) = command { controller ->
         controller.repeatMode = when (mode) {
             RepeatMode.Off -> Player.REPEAT_MODE_OFF

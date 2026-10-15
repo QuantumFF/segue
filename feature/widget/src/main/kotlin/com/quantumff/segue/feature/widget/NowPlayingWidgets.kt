@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -11,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -276,7 +279,7 @@ private fun PlayPause(state: NowPlayingSnapshot, colors: WidgetColors, filled: B
 }
 
 @Composable
-private fun ControlButton(icon: Int, label: Int, onClick: Action, tint: ColorProvider) {
+private fun ControlButton(@DrawableRes icon: Int, @StringRes label: Int, onClick: Action, tint: ColorProvider) {
     Box(
         modifier = GlanceModifier.size(44.dp).cornerRadius(22.dp).clickable(onClick),
         contentAlignment = Alignment.Center,
@@ -333,12 +336,15 @@ private class WidgetColors(context: Context) {
     private val dark: ColorScheme = segueColorScheme(context, dark = true)
 
     val glance = ColorProviders(light = light, dark = dark)
-    val background = ColorProvider(day = light.surfaceContainer, night = dark.surfaceContainer)
-    val placeholder = ColorProvider(day = light.surfaceContainerHigh, night = dark.surfaceContainerHigh)
-    val onSurface = ColorProvider(day = light.onSurface, night = dark.onSurface)
-    val onSurfaceVariant = ColorProvider(day = light.onSurfaceVariant, night = dark.onSurfaceVariant)
-    val primary = ColorProvider(day = light.primary, night = dark.primary)
-    val onPrimary = ColorProvider(day = light.onPrimary, night = dark.onPrimary)
+    val background = role { surfaceContainer }
+    val placeholder = role { surfaceContainerHigh }
+    val onSurface = role { onSurface }
+    val onSurfaceVariant = role { onSurfaceVariant }
+    val primary = role { primary }
+    val onPrimary = role { onPrimary }
+
+    /** One color role, switching with the system theme. */
+    private fun role(color: ColorScheme.() -> Color) = ColorProvider(day = light.color(), night = dark.color())
 }
 
 /** Art requests use the app's cover size buckets (DESIGN.md §6). */

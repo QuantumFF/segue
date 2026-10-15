@@ -126,20 +126,7 @@ class SessionLibrary(
         }
     }
 
-    private fun <T> future(block: suspend () -> T): ListenableFuture<T> {
-        val result = SettableFuture.create<T>()
-        scope.launch {
-            try {
-                result.set(block())
-            } catch (e: CancellationException) {
-                result.cancel(false)
-                throw e
-            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                result.setException(e)
-            }
-        }
-        return result
-    }
+    private fun <T> future(block: suspend () -> T): ListenableFuture<T> = scope.launchFuture(block)
 
     private companion object {
         const val TAG = "SessionLibrary"

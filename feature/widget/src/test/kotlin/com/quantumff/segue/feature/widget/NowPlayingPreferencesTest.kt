@@ -6,7 +6,7 @@ import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 import org.junit.Test
 
-class WidgetStateTest {
+class NowPlayingPreferencesTest {
     private val nude = NowPlayingSnapshot(
         songId = "so-1",
         title = "Nude",
@@ -19,38 +19,31 @@ class WidgetStateTest {
     @Test
     fun `a snapshot survives the preferences round trip`() {
         val prefs = mutablePreferencesOf()
-        WidgetState.write(prefs, nude)
+        NowPlayingPreferences.write(prefs, nude)
 
-        assertThat(WidgetState.read(prefs)).isEqualTo(nude)
+        assertThat(NowPlayingPreferences.read(prefs)).isEqualTo(nude)
     }
 
     @Test
     fun `writing an empty snapshot clears the track`() {
         val prefs = mutablePreferencesOf()
-        WidgetState.write(prefs, nude)
-        WidgetState.write(prefs, NowPlayingSnapshot.Empty)
+        NowPlayingPreferences.write(prefs, nude)
+        NowPlayingPreferences.write(prefs, NowPlayingSnapshot.Empty)
 
-        assertThat(WidgetState.read(prefs)).isEqualTo(NowPlayingSnapshot.Empty)
+        assertThat(NowPlayingPreferences.read(prefs)).isEqualTo(NowPlayingSnapshot.Empty)
     }
 
     @Test
     fun `nothing stored reads as empty`() {
-        assertThat(WidgetState.read(mutablePreferencesOf())).isEqualTo(NowPlayingSnapshot.Empty)
+        assertThat(NowPlayingPreferences.read(mutablePreferencesOf())).isEqualTo(NowPlayingSnapshot.Empty)
     }
 
     @Test
     fun `an unknown shuffle mode reads as off`() {
         val prefs = mutablePreferencesOf()
-        WidgetState.write(prefs, nude)
-        prefs[WidgetState.SHUFFLE] = "Sideways"
+        NowPlayingPreferences.write(prefs, nude)
+        prefs[NowPlayingPreferences.SHUFFLE] = "Sideways"
 
-        assertThat(WidgetState.read(prefs).shuffleMode).isEqualTo(ShuffleMode.Off)
-    }
-
-    @Test
-    fun `the next shuffle mode cycles off, tracks, albums`() {
-        assertThat(nextShuffleMode(ShuffleMode.Off)).isEqualTo(ShuffleMode.Tracks)
-        assertThat(nextShuffleMode(ShuffleMode.Tracks)).isEqualTo(ShuffleMode.Albums)
-        assertThat(nextShuffleMode(ShuffleMode.Albums)).isEqualTo(ShuffleMode.Off)
+        assertThat(NowPlayingPreferences.read(prefs).shuffleMode).isEqualTo(ShuffleMode.Off)
     }
 }

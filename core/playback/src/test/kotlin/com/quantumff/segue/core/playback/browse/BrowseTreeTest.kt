@@ -64,6 +64,8 @@ class BrowseTreeTest {
         assertThat(root.mediaMetadata.isPlayable).isFalse()
         assertThat(BrowseTree.rootExtras().getInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE))
             .isEqualTo(MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
+        // Older Android Auto versions ignore style hints without this flag.
+        assertThat(BrowseTree.rootExtras().getBoolean("android.media.browse.CONTENT_STYLE_SUPPORTED")).isTrue()
     }
 
     @Test
@@ -254,6 +256,17 @@ class BrowseTreeTest {
         val request = tree.playRequest(BrowseId.Track("b", BrowseId.Playlist("pl-1"), 0).encode())!!
 
         assertThat(request.startIndex).isEqualTo(1)
+    }
+
+    @Test
+    fun `a track deep in a long list plays with the songs around it`() = runTest {
+        repo.songs = (0 until 700).map { TestData.song("s$it", starredAt = (1000 - it).toLong()) }
+
+        val request = tree.playRequest(BrowseId.Track("s600", BrowseId.Starred, 600).encode())!!
+
+        assertThat(request.songs.size).isAtMost(BrowseTree.MAX_QUEUE)
+        assertThat(request.songs[request.startIndex].id).isEqualTo("s600")
+        assertThat(request.songs.last().id).isEqualTo("s699")
     }
 
     @Test

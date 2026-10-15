@@ -47,13 +47,10 @@ internal class PreviousAction : ActionCallback {
         context.widgetEntryPoint().playbackController().skipToPrevious()
 }
 
-/** Off → Tracks → Albums, from the shuffle mode the widget shows. */
+/** Off → Tracks → Albums, decided by the service, so a stale widget cannot pick the wrong next mode. */
 internal class CycleShuffleAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val entryPoint = context.widgetEntryPoint()
-        val shown = entryPoint.stateStore().read().shuffleMode
-        entryPoint.playbackController().setShuffleMode(nextShuffleMode(shown))
-    }
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        context.widgetEntryPoint().playbackController().cycleShuffleMode()
 }
 
 /** The app, on Now Playing when something is queued. */

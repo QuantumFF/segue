@@ -21,6 +21,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.browse.SessionLibrary
+import com.quantumff.segue.core.playback.browse.launchFuture
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.megabytes
 import com.quantumff.segue.core.playback.media.coverArtId
@@ -295,6 +296,9 @@ class SeguePlaybackService : MediaLibraryService() {
         }
     }
 
+    private fun notAllowed(controller: MediaSession.ControllerInfo) =
+        SecurityException("${controller.packageName} may not play from the library")
+
     private fun currentQueue() = MediaSession.MediaItemsWithStartPosition(
         List(player.mediaItemCount) { player.getMediaItemAt(it) },
         player.currentMediaItemIndex,
@@ -358,16 +362,13 @@ class SeguePlaybackService : MediaLibraryService() {
             if (!library.hasBrowseNodes(mediaItems)) {
                 return Futures.immediateFuture(mediaItems.map { it.withPlayableUri() })
             }
-            // Browse nodes (Android Auto) stand for songs from Room.
-            val result = SettableFuture.create<List<MediaItem>>()
-            scope.launch {
-                result.set(
-                    mediaItems.flatMap { item ->
-                        library.songsFor(item)?.map { it.toMediaItem() } ?: listOf(item.withPlayableUri())
-                    },
-                )
+            // Browse nodes (Android Auto) stand for songs from Room; only allowed browsers may use them.
+            if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
+            return scope.launchFuture {
+                mediaItems.flatMap { item ->
+                    library.songsFor(item)?.map { it.toMediaItem() } ?: listOf(item.withPlayableUri())
+                }
             }
-            return result
         }
 
         /** A browse node or a voice "play <query>": the whole list, from the chosen track. */
@@ -381,34 +382,18 @@ class SeguePlaybackService : MediaLibraryService() {
             if (!library.resolves(mediaItems)) {
                 return super.onSetMediaItems(mediaSession, controller, mediaItems, startIndex, startPositionMs)
             }
+            if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
             val item = mediaItems.single()
-            val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
-            scope.launch {
+            return scope.launchFuture {
                 if (item.requestMetadata.searchQuery?.isBlank() == true && player.mediaItemCount > 0) {
                     // "Play music on Segue" with a queue: carry on with it.
-                    result.set(currentQueue())
-                    return@launch
+                    return@launchFuture currentQueue()
                 }
-                val request = try {
-                    library.playRequest(item)
-                } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                    result.setException(e)
-                    return@launch
-                }
-                if (request == null) {
-                    result.setException(UnsupportedOperationException("Nothing to play for ${item.mediaId}"))
-                    return@launch
-                }
+                val request = library.playRequest(item)
+                    ?: throw UnsupportedOperationException("Nothing to play for ${item.mediaId}")
                 request.shuffleMode?.let(player::setShuffleMode)
-                result.set(
-                    MediaSession.MediaItemsWithStartPosition(
-                        request.songs.map { it.toMediaItem() },
-                        request.startIndex,
-                        0,
-                    ),
-                )
+                MediaSession.MediaItemsWithStartPosition(request.songs.map { it.toMediaItem() }, request.startIndex, 0)
             }
-            return result
         }
 
         override fun onGetLibraryRoot(
