@@ -8,6 +8,7 @@ import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
+import java.io.ByteArrayOutputStream
 import java.util.regex.Pattern
 
 /*
@@ -43,13 +44,18 @@ private fun UiDevice.waitFor(selector: BySelector, timeout: Long = UI_TIMEOUT_MS
  * has content (the first library sync). Leaves the app on Home.
  */
 fun MacrobenchmarkScope.signInIfNeeded() {
+    // A notification shade left open (emulator boot notices) hides the app from UiAutomator.
+    device.executeShellCommand("cmd statusbar collapse")
     startActivityAndWait()
     val connect = By.text("Connect")
     val home = By.text("Home")
-    device.wait(Until.hasObject(By.text(Pattern.compile("Connect|Home"))), UI_TIMEOUT_MS)
-    if (device.hasObject(home)) return
+    device.wait(Until.hasObject(By.text(Pattern.compile("Connect|Home|Library"))), UI_TIMEOUT_MS)
+    if (device.hasObject(By.text("Library"))) return
     val fields = device.wait(Until.findObjects(By.clazz("android.widget.EditText")), UI_TIMEOUT_MS)
-    check(fields != null && fields.size >= 3) { "Login fields not found" }
+    check(fields != null && fields.size >= 3) {
+        val shown = ByteArrayOutputStream().also { device.dumpWindowHierarchy(it) }.toString()
+        "Login fields not found. Window hierarchy:\n$shown"
+    }
     fields[0].text = argument("segue.server", "https://demo.navidrome.org")
     fields[1].text = argument("segue.user", "demo")
     fields[2].text = argument("segue.password", "demo")
