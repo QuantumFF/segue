@@ -7,6 +7,6 @@
     <string name="tab_search">Search</string>
     <string name="sidebar_playlists">Playlists</string>
     <string name="sidebar_no_playlists">No playlists yet</string>
-    <string name="placeholder_track_title">Nothing playing</string>
-    <string name="placeholder_track_artist">Pick an album to start</string>
+    <string name="player_nothing_to_play">Nothing to play</string>
+    <string name="player_instant_mix_failed">Couldn\'t start an instant mix</string>
 </resources>

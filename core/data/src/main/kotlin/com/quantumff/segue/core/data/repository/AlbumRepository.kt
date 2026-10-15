@@ -16,6 +16,7 @@ import com.quantumff.segue.core.database.model.AlbumEntity
 import com.quantumff.segue.core.database.model.SongEntity
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Song
@@ -23,11 +24,18 @@ import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 interface AlbumRepository {
-    fun albums(sort: AlbumSortOrder): Flow<PagingData<Album>>
+    fun albums(sort: AlbumSortOrder, filter: AlbumFilter = AlbumFilter()): Flow<PagingData<Album>>
+
+    /** How many albums [filter] matches. */
+    fun albumCount(filter: AlbumFilter = AlbumFilter()): Flow<Int>
+
+    /** Release years in the library, newest first, for the year filter. */
+    val albumYears: Flow<ImmutableList<Int>>
 
     fun album(id: String): Flow<Album?>
 
@@ -41,6 +49,12 @@ interface AlbumRepository {
 
     /** Fetches the album and its songs. An album deleted on the server is removed. Throws RemoteException. */
     suspend fun refreshAlbum(id: String)
+
+    /**
+     * The album's songs in disc and track order, for playing it from a card or menu: from Room, or
+     * fetched first when the album's songs have not been synced yet. Throws RemoteException.
+     */
+    suspend fun songsForPlayback(id: String): ImmutableList<Song>
 
     /** Fetches the first [size] albums of [type]. Throws RemoteException. */
     suspend fun refreshAlbumList(type: AlbumListType, size: Int = DEFAULT_LIST_SIZE)
@@ -59,17 +73,30 @@ internal class OfflineFirstAlbumRepository @Inject constructor(
     private val transactions: TransactionRunner,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : AlbumRepository {
-    override fun albums(sort: AlbumSortOrder): Flow<PagingData<Album>> = clients.pagedForActiveServer(
-        source = { serverId ->
-            when (sort) {
-                AlbumSortOrder.Name -> albumDao.pagingSourceByName(serverId)
-                AlbumSortOrder.Artist -> albumDao.pagingSourceByArtist(serverId)
-                AlbumSortOrder.RecentlyAdded -> albumDao.pagingSourceByRecentlyAdded(serverId)
-                AlbumSortOrder.Year -> albumDao.pagingSourceByYear(serverId)
-            }
-        },
-        mapper = AlbumEntity::asExternalModel,
-    )
+    override fun albums(sort: AlbumSortOrder, filter: AlbumFilter): Flow<PagingData<Album>> =
+        clients.pagedForActiveServer(
+            source = { serverId ->
+                val starred = filter.starredOnly
+                when (sort) {
+                    AlbumSortOrder.Name -> albumDao.pagingSourceByName(serverId, starred, filter.genre, filter.year)
+
+                    AlbumSortOrder.Artist -> albumDao.pagingSourceByArtist(serverId, starred, filter.genre, filter.year)
+
+                    AlbumSortOrder.RecentlyAdded ->
+                        albumDao.pagingSourceByRecentlyAdded(serverId, starred, filter.genre, filter.year)
+
+                    AlbumSortOrder.Year -> albumDao.pagingSourceByYear(serverId, starred, filter.genre, filter.year)
+                }
+            },
+            mapper = AlbumEntity::asExternalModel,
+        )
+
+    override fun albumCount(filter: AlbumFilter): Flow<Int> = clients.forActiveServer(0) { serverId ->
+        albumDao.observeCount(serverId, filter.starredOnly, filter.genre, filter.year)
+    }
+
+    override val albumYears: Flow<ImmutableList<Int>> =
+        clients.listForActiveServer(albumDao::observeYears) { it }
 
     override fun album(id: String): Flow<Album?> =
         clients.forActiveServer(null) { serverId -> albumDao.observe(serverId, id).map { it?.asExternalModel() } }
@@ -93,6 +120,15 @@ internal class OfflineFirstAlbumRepository @Inject constructor(
             throw e
         }
         writer.writeAlbums(serverId, listOf(album))
+    }
+
+    override suspend fun songsForPlayback(id: String): ImmutableList<Song> {
+        val cached = albumSongs(id).first()
+        val album = album(id).first()
+        // A partial track list (only some songs synced through search or playlists) is refetched too.
+        if (cached.isNotEmpty() && (album == null || cached.size >= album.songCount)) return cached
+        refreshAlbum(id)
+        return albumSongs(id).first()
     }
 
     override suspend fun refreshAlbumList(type: AlbumListType, size: Int) = withContext(ioDispatcher) {

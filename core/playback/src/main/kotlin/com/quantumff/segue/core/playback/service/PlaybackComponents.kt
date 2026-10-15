@@ -1,9 +1,11 @@
 package com.quantumff.segue.core.playback.service
 
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.BitmapLoader
+import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
@@ -61,6 +63,8 @@ class PlaybackComponents @Inject constructor(
      * Dynamic scheduling lets the playback thread sleep between renders, which pays off most with
      * offload.
      */
+    // Dynamic scheduling lets the playback thread sleep between renders (battery, PLAN.md).
+    @OptIn(ExperimentalApi::class)
     fun createExoPlayer(context: Context): ExoPlayer {
         val dataSourceFactory = ResolvingDataSource.Factory(cacheDataSourceFactory, resolver)
         return ExoPlayer.Builder(context)

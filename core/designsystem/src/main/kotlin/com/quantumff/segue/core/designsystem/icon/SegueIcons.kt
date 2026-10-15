@@ -41,6 +41,8 @@ object SegueIcons {
     val RepeatOne by lazy { lucide("repeat-1", LucidePaths.Repeat1) }
     val Heart by lazy { lucide("heart", LucidePaths.Heart) }
     val HeartFilled by lazy { lucide("heart", LucidePaths.Heart, filled = true) }
+    val Star by lazy { lucide("star", LucidePaths.Star) }
+    val StarFilled by lazy { lucide("star", LucidePaths.Star, filled = true) }
     val Lyrics by lazy { lucide("mic-vocal", LucidePaths.MicVocal) }
     val UpNext by lazy { lucide("list-ordered", LucidePaths.ListOrdered) }
     val Related by lazy { lucide("sparkles", LucidePaths.Sparkles) }
@@ -64,6 +66,9 @@ object SegueIcons {
     val ListView by lazy { lucide("list", LucidePaths.List) }
     val Settings by lazy { lucide("settings", LucidePaths.Settings) }
     val Info by lazy { lucide("info", LucidePaths.Info) }
+    val Server by lazy { lucide("server", LucidePaths.Server) }
+    val Visible by lazy { lucide("eye", LucidePaths.Eye) }
+    val Hidden by lazy { lucide("eye-off", LucidePaths.EyeOff) }
     val Refresh by lazy { lucide("refresh-cw", LucidePaths.RefreshCw) }
     val History by lazy { lucide("rotate-ccw-clock", LucidePaths.RotateCcwClock) }
 

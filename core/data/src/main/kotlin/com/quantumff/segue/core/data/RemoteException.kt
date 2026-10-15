@@ -14,8 +14,22 @@ sealed class RemoteException(message: String?, cause: Throwable? = null) : Excep
     /** The server rejected the credentials. Sign in again. */
     class AuthFailed(cause: Throwable) : RemoteException(cause.message, cause)
 
-    /** No connection, a timeout, or a proxy error. Retrying later may work. */
-    class Unreachable(cause: Throwable) : RemoteException(cause.message, cause)
+    /**
+     * No connection, a timeout, a TLS failure, or a non-Subsonic HTTP error such as a proxy's 502.
+     * [httpCode] is set for HTTP errors; a 404 usually means the address is not a Subsonic server.
+     * Retrying later may work.
+     */
+    class Unreachable(cause: Throwable, val httpCode: Int? = null) : RemoteException(cause.message, cause) {
+        /** The TLS handshake or certificate check failed, for example a self-signed certificate. */
+        val isTlsFailure: Boolean
+            get() = generateSequence(cause) { it.cause }.any {
+                it is javax.net.ssl.SSLException || it is java.security.cert.CertificateException
+            }
+
+        /** The host name did not resolve. */
+        val isUnknownHost: Boolean
+            get() = generateSequence(cause) { it.cause }.any { it is java.net.UnknownHostException }
+    }
 
     class NotFound(cause: Throwable) : RemoteException(cause.message, cause)
 
@@ -30,7 +44,9 @@ internal fun SubsonicException.toRemoteException(): RemoteException = when (this
         else -> RemoteException.ServerError(serverMessage, this)
     }
 
-    is SubsonicException.Network, is SubsonicException.Http -> RemoteException.Unreachable(this)
+    is SubsonicException.Network -> RemoteException.Unreachable(this)
+
+    is SubsonicException.Http -> RemoteException.Unreachable(this, httpCode = httpCode)
 
     is SubsonicException.Malformed -> RemoteException.ServerError(message, this)
 }

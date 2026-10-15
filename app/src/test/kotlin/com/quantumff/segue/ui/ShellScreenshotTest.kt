@@ -23,7 +23,10 @@ class ShellScreenshotTest {
 
     private fun capture(name: String, layout: ShellLayout, dark: Boolean = true) {
         compose.setContent {
-            SegueTheme(systemDark = dark) { SegueApp(appState = rememberSegueAppState(shellLayout = layout)) }
+            SegueTheme(systemDark = dark) {
+                val appState = rememberSegueAppState(shellLayout = layout)
+                TestShell(appState)
+            }
         }
         compose.onRoot().captureRoboImage("src/test/screenshots/$name.png")
     }

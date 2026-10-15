@@ -11,17 +11,23 @@ data class UserPreferences(
     val queueSyncEnabled: Boolean = true,
     /** Adopt a newer server play queue without asking. See PLAN.md, "Server queue sync". */
     val adoptRemoteQueueAutomatically: Boolean = false,
-    val replayGainMode: ReplayGainMode = ReplayGainMode.Off,
-    /** Added to the ReplayGain adjustment, in dB. Only applies when [replayGainMode] is not Off. */
+    val replayGainMode: ReplayGainMode = ReplayGainMode.Track,
+    /** Added to the ReplayGain adjustment, in dB. Range [REPLAY_GAIN_PREAMP_RANGE]. Only applies when [replayGainMode] is not Off. */
     val replayGainPreampDb: Float = 0f,
-    /** Upper bound of the on-disk stream cache. Least recently played tracks are evicted first. */
+    /**
+     * Upper bound of the on-disk stream cache, in MB. One of [STREAM_CACHE_SIZES_MB]. Least
+     * recently played tracks are evicted first.
+     */
     val streamCacheSizeMb: Int = DEFAULT_STREAM_CACHE_MB,
     /** The playback service stops itself after being paused this long. */
     val stopWhenPausedMinutes: Int = DEFAULT_STOP_WHEN_PAUSED_MINUTES,
 ) {
     companion object {
+        val REPLAY_GAIN_PREAMP_RANGE = -15f..15f
         const val DEFAULT_STREAM_CACHE_MB = 1024
+        val STREAM_CACHE_SIZES_MB = listOf(256, 512, 1024, 2048, 4096)
         const val DEFAULT_STOP_WHEN_PAUSED_MINUTES = 10
+        val STOP_WHEN_PAUSED_MINUTES = listOf(5, 10, 30, 60)
     }
 }
 

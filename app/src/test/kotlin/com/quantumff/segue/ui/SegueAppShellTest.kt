@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.playback.ShellPlayerState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,9 +24,12 @@ class SegueAppShellTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private fun setShell(layout: ShellLayout) {
+    private fun setShell(layout: ShellLayout, player: ShellPlayerState = testPlayer) {
         compose.setContent {
-            SegueTheme { SegueApp(appState = rememberSegueAppState(shellLayout = layout)) }
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = layout)
+                TestShell(appState, player)
+            }
         }
     }
 
@@ -79,7 +83,7 @@ class SegueAppShellTest {
     fun `phone layout docks the mini player above the bar`() {
         setShell(ShellLayout.Compact)
 
-        compose.onNodeWithText("Nothing playing").assertExists()
+        compose.onNodeWithText(TEST_TRACK).assertExists()
         tab("Search").assertExists()
     }
 
@@ -88,7 +92,7 @@ class SegueAppShellTest {
         setShell(ShellLayout.Expanded)
 
         compose.onNodeWithText("PLAYLISTS").assertExists()
-        compose.onNodeWithText("Nothing playing").assertExists()
+        compose.onNodeWithText(TEST_TRACK).assertExists()
         tab("Library").performClick()
         compose.onNodeWithText("Open a sample artist").assertExists()
     }
@@ -97,10 +101,26 @@ class SegueAppShellTest {
     fun `now playing hides the navigation chrome`() {
         setShell(ShellLayout.Compact)
 
-        compose.onNodeWithText("Nothing playing").performClick()
+        compose.onNodeWithText(TEST_TRACK).performClick()
 
         compose.onNodeWithText("PLAYING FROM ALBUM").assertExists()
         tab("Search").assertDoesNotExist()
-        compose.onNodeWithText("Pick an album to start").assertDoesNotExist()
+        compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an empty queue hides the mini player but keeps the bar`() {
+        setShell(ShellLayout.Compact, player = ShellPlayerState())
+
+        tab("Search").assertExists()
+        compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an empty queue hides the expanded player bar`() {
+        setShell(ShellLayout.Expanded, player = ShellPlayerState())
+
+        compose.onNodeWithText("PLAYLISTS").assertExists()
+        compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
     }
 }

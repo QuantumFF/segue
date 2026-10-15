@@ -4,41 +4,40 @@ agp = "9.4.1"
 kotlin = "2.4.20"
 ksp = "2.3.12"
 hilt = "2.60.1"
-androidxHilt = "1.3.0"
+androidxHilt = "1.4.0"
 room = "2.8.5"
 baselineprofile = "1.5.0"
 spotless = "8.10.3"
 ktlint = "1.8.0"
 composeRules = "0.6.7"
 
-# SDK levels. compileSdk 36 caps several AndroidX/Compose/OkHttp/Coil versions:
-# their newer releases require compileSdk 37 and fail checkDebugAarMetadata.
+# SDK levels. CI installs the platform compileSdk names (android-37.0 from API 37 on).
 minSdk = "29"
-targetSdk = "36"
-compileSdk = "36"
+targetSdk = "37"
+compileSdk = "37"
 
 # AndroidX
-androidxCore = "1.18.0"
+androidxCore = "1.19.1"
 androidxActivity = "1.13.0"
-androidxLifecycle = "2.10.0"
-androidxNavigation = "2.9.8"
+androidxLifecycle = "2.11.0"
+androidxNavigation = "2.10.2"
 androidxDataStore = "1.2.1"
 androidxWork = "2.12.0"
 androidxPaging = "3.5.1"
 androidxProfileInstaller = "1.4.1"
 androidxBenchmark = "1.5.0"
-composeBom = "2026.06.01"
+composeBom = "2026.09.00"
 media3 = "1.11.1"
 androidxPalette = "1.0.0"
-material3Adaptive = "1.2.0"
+material3Adaptive = "1.3.0"
 
 # Kotlin / third party
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCollectionsImmutable = "0.5.2"
 retrofit = "3.0.0"
-okhttp = "5.4.0"
-coil = "3.5.0"
+okhttp = "5.5.0"
+coil = "3.6.3"
 
 # Testing
 junit4 = "4.13.2"
@@ -49,7 +48,7 @@ androidxTestCore = "1.7.0"
 androidxTestExtJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
 androidxUiAutomator = "2.4.0"
-roborazzi = "1.74.0"
+roborazzi = "1.76.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }

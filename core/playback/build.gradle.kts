@@ -16,6 +16,7 @@ dependencies {
     // The app's shared OkHttpClient (provided by core:network) streams audio.
     implementation(libs.okhttp.core)
 
+    testImplementation(projects.core.testing)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
 }

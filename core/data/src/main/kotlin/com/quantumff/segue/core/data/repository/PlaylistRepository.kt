@@ -45,6 +45,13 @@ interface PlaylistRepository {
     /** [positions] are 0-based indexes into the playlist. */
     suspend fun removeSongs(id: String, positions: List<Int>)
 
+    /**
+     * Makes [songIds] the playlist's complete track list, in order: reorders and removals in one
+     * `updatePlaylist` call. Only the part after the longest unchanged prefix is sent, because
+     * Subsonic can only append.
+     */
+    suspend fun replaceSongs(id: String, songIds: List<String>)
+
     suspend fun deletePlaylist(id: String)
 }
 
@@ -100,6 +107,15 @@ internal class OfflineFirstPlaylistRepository @Inject constructor(
         refetch(serverId, client, id)
     }
 
+    override suspend fun replaceSongs(id: String, songIds: List<String>) = edit { serverId, client ->
+        val current = client.getPlaylist(id).entry.map { it.id }
+        val edit = PlaylistEdit.between(current, songIds)
+        if (!edit.isEmpty) {
+            client.updatePlaylist(id, songIdsToAdd = edit.idsToAdd, songIndexesToRemove = edit.indexesToRemove)
+        }
+        refetch(serverId, client, id)
+    }
+
     override suspend fun deletePlaylist(id: String) = edit { serverId, client ->
         client.deletePlaylist(id)
         playlistDao.deleteByIds(serverId, listOf(id))
@@ -115,4 +131,21 @@ internal class OfflineFirstPlaylistRepository @Inject constructor(
             val client = clients.client(serverId)
             remote { block(serverId, client) }
         }
+}
+
+/** The append-only `updatePlaylist` edit that turns one track list into another. */
+internal data class PlaylistEdit(val indexesToRemove: List<Int>, val idsToAdd: List<String>) {
+    val isEmpty: Boolean get() = indexesToRemove.isEmpty() && idsToAdd.isEmpty()
+
+    companion object {
+        /** Keeps the longest common prefix, removes everything after it, and appends the rest of [target]. */
+        fun between(current: List<String>, target: List<String>): PlaylistEdit {
+            var prefix = 0
+            while (prefix < current.size && prefix < target.size && current[prefix] == target[prefix]) prefix++
+            return PlaylistEdit(
+                indexesToRemove = (prefix until current.size).toList(),
+                idsToAdd = target.subList(prefix, target.size).toList(),
+            )
+        }
+    }
 }

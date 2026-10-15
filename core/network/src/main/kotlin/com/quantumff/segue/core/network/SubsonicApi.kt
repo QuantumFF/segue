@@ -150,6 +150,9 @@ internal interface SubsonicApi {
     @GET("rest/getLyricsBySongId.view")
     suspend fun getLyricsBySongId(@Query("id") id: String): SubsonicEnvelope
 
+    @GET("rest/getArtistInfo2.view")
+    suspend fun getArtistInfo2(@Query("id") id: String, @Query("count") count: Int): SubsonicEnvelope
+
     @GET("rest/getSimilarSongs2.view")
     suspend fun getSimilarSongs2(@Query("id") artistId: String, @Query("count") count: Int): SubsonicEnvelope
 

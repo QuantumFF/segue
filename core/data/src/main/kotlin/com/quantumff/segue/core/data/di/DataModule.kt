@@ -2,6 +2,8 @@ package com.quantumff.segue.core.data.di
 
 import android.content.Context
 import androidx.work.WorkManager
+import com.quantumff.segue.core.data.image.ActiveServerCoverArtUrlResolver
+import com.quantumff.segue.core.data.image.CoverArtUrlResolver
 import com.quantumff.segue.core.data.repository.AccountServerRepository
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
@@ -106,6 +108,9 @@ internal interface DataModule {
 
     @Binds
     fun scrobbleScheduler(impl: WorkManagerScrobbleScheduler): ScrobbleScheduler
+
+    @Binds
+    fun coverArtUrlResolver(impl: ActiveServerCoverArtUrlResolver): CoverArtUrlResolver
 
     @Binds
     fun clientProvider(impl: AccountClientProvider): SubsonicClientProvider

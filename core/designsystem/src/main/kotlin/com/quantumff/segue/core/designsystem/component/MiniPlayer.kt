@@ -35,11 +35,14 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 data class MiniPlayerState(val title: String, val artist: String, val coverArtId: String?, val isPlaying: Boolean)
 
 /**
- * Mini player (DESIGN.md §3, §5.5), visual only: 64 tall, `surfaceContainer`, a 2dp progress
- * line on its top edge. Gestures (drag to expand, swipe to skip) arrive with Now Playing.
+ * Mini player (DESIGN.md §3, §5.5): 64 tall, `surfaceContainer`, a 2dp progress line on its top
+ * edge. Tap opens Now Playing. Swiping the art and text pages to [previous] or [next] like a pager
+ * and skips there once released past 30% of the width (or flung); buttons stay put.
  *
- * @param progress playback progress in [0, 1]. Read in the draw phase, so the 1Hz ticker does not
- *   recompose the bar.
+ * @param trackKey identifies the current queue item; the swipe recentres when it changes. Pass a
+ *   queue position so a skip to an identical-looking track (a duplicate) still recentres.
+ * @param progress playback progress in [0, 1]. Read in the draw phase, so the position ticker does
+ *   not recompose the bar.
  */
 @Composable
 fun MiniPlayer(
@@ -50,6 +53,11 @@ fun MiniPlayer(
     onNextClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    trackKey: Any? = state,
+    previous: MiniPlayerState? = null,
+    next: MiniPlayerState? = null,
+    onSwipeToPrevious: () -> Unit = {},
+    onSwipeToNext: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -63,17 +71,18 @@ fun MiniPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.Center)
-                .padding(start = SegueSpacing.lg, end = SegueSpacing.xs),
+                .padding(end = SegueSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CoverArt(
-                coverArtId = state.coverArtId,
-                displaySize = SegueSizes.miniPlayerArt,
-                shape = SegueShapes.sm,
-                modifier = Modifier.size(SegueSizes.miniPlayerArt),
+            TrackSwipeBox(
+                current = state,
+                currentKey = trackKey,
+                previous = previous,
+                next = next,
+                onSwipeToPrevious = onSwipeToPrevious,
+                onSwipeToNext = onSwipeToNext,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(SegueSpacing.md))
-            TrackTitleAndArtist(state = state, modifier = Modifier.weight(1f))
             PlayPauseButton(isPlaying = state.isPlaying, onClick = onPlayPauseClick)
             SegueIconButton(
                 icon = SegueIcons.SkipNext,
@@ -81,6 +90,26 @@ fun MiniPlayer(
                 onClick = onNextClick,
             )
         }
+    }
+}
+
+/** One page of the mini player's swipe area: art and text, with the bar's start padding. */
+@Composable
+internal fun MiniPlayerTrack(state: MiniPlayerState, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = SegueSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CoverArt(
+            coverArtId = state.coverArtId,
+            displaySize = SegueSizes.miniPlayerArt,
+            shape = SegueShapes.sm,
+            modifier = Modifier.size(SegueSizes.miniPlayerArt),
+        )
+        Spacer(Modifier.width(SegueSpacing.md))
+        TrackTitleAndArtist(state = state, modifier = Modifier.weight(1f))
     }
 }
 

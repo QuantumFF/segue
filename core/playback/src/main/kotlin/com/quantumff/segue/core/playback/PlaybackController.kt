@@ -89,12 +89,13 @@ class PlaybackController @Inject constructor(
     private val queueCache = QueueCache()
 
     /**
-     * Player state. Observing it connects to the service. The position updates every
-     * [POSITION_TICK_MILLIS] only while someone observes and music plays; otherwise it changes
-     * only on player events. While disconnected it is empty; the next command reconnects.
+     * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
+     * For surfaces that show no position, so observing them never runs the position ticker.
+     * Observing it connects to the service. While disconnected it is empty; the next command
+     * reconnects.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<PlayerUiState> = flow {
+    val eventState: StateFlow<PlayerUiState> = flow {
         try {
             controller()
         } catch (e: CancellationException) {
@@ -109,9 +110,6 @@ class PlaybackController @Inject constructor(
                 } else {
                     controller.events()
                         .combine(sessionExtras) { _, extras -> snapshot(controller, extras) }
-                        .flatMapLatest { snapshot ->
-                            if (snapshot.isPlaying) ticking(controller, snapshot) else flowOf(snapshot)
-                        }
                 }
             },
         )
@@ -119,12 +117,33 @@ class PlaybackController @Inject constructor(
         .combine(queueSync.remoteOffer) { state, offer -> state.copy(remoteQueue = offer) }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
 
+    /**
+     * [eventState] plus a position that updates every [POSITION_TICK_MILLIS] while someone observes
+     * and music plays (the battery rule: the ticker runs only for a visible position).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: StateFlow<PlayerUiState> = eventState
+        .flatMapLatest { snapshot ->
+            val controller = connected.value
+            if (snapshot.isPlaying && controller != null) ticking(controller, snapshot) else flowOf(snapshot)
+        }
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
+
     // --- Queue -------------------------------------------------------------------------------------
 
-    /** Replaces the queue with [songs] and plays from [startIndex]. */
-    fun play(songs: List<Song>, startIndex: Int = 0) = command { controller ->
+    /**
+     * An explicit "Play" or "Shuffle" of [songs]: in order from [startIndex] with shuffle Off, or
+     * with [shuffle] in track-shuffle order from a random song.
+     */
+    fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean) = command { controller ->
         if (songs.isEmpty()) return@command
-        controller.setMediaItems(songs.map { it.toMediaItem() }, startIndex.coerceIn(songs.indices), 0)
+        val start = if (shuffle) random.nextInt(songs.size) else startIndex.coerceIn(songs.indices)
+        // Before the new items, so the fresh track shuffle starts with the start item.
+        controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.SET_SHUFFLE),
+            SegueSessionCommands.shuffleArgs(if (shuffle) ShuffleMode.Tracks else ShuffleMode.Off),
+        )
+        controller.setMediaItems(songs.map { it.toMediaItem() }, start, 0)
         controller.prepare()
         controller.play()
     }
@@ -264,8 +283,7 @@ class PlaybackController @Inject constructor(
         val picked = AlbumPicker.pick(albumIds, count, random)
         val queue = AlbumPicker.queueInAlbumOrder(albumShuffle.songs(source, picked), picked)
         if (queue.isEmpty()) return false
-        setShuffleMode(ShuffleMode.Off)
-        play(queue)
+        play(queue, startIndex = 0, shuffle = false)
         return true
     }
 
@@ -283,8 +301,7 @@ class PlaybackController @Inject constructor(
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
         if (mix.size <= (if (seed == null) 0 else 1)) return false
-        setShuffleMode(ShuffleMode.Off)
-        play(mix)
+        play(mix, startIndex = 0, shuffle = false)
         return true
     }
 
