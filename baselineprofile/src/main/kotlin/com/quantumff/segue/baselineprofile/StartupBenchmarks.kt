@@ -31,6 +31,8 @@ class StartupBenchmarks(private val startupMode: StartupMode, private val compil
         setupBlock = {
             signInIfNeeded()
             pressHome()
+            // Signing in started the app; a cold start needs it gone again.
+            if (startupMode == StartupMode.COLD) killProcess()
         },
     ) {
         startActivityAndWait()
