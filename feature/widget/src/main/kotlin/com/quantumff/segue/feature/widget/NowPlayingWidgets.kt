@@ -230,7 +230,7 @@ private fun Titles(
     state: NowPlayingSnapshot,
     colors: WidgetColors,
     titleSize: Int,
-    modifier: GlanceModifier = Modifier,
+    modifier: GlanceModifier = GlanceModifier,
 ) {
     val context = LocalContext.current
     val title = if (state.hasTrack) state.title.orEmpty() else context.getString(R.string.widget_tap_to_start)
