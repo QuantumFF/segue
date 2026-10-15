@@ -24,11 +24,12 @@ private const val UI_TIMEOUT_MS = 10_000L
 private const val PLAYBACK_TIMEOUT_MS = 20_000L
 private const val SCROLL_STEPS = 3
 
-/** The package under test, set by the baseline profile Gradle plugin for the target variant. */
+/**
+ * The package under test. The release-based variants the plugin builds (nonMinifiedRelease,
+ * benchmarkRelease) keep the release application ID; `targetAppId` overrides it.
+ */
 val targetPackage: String
-    get() = requireNotNull(InstrumentationRegistry.getArguments().getString("targetAppId")) {
-        "targetAppId not passed; run through the baselineprofile Gradle tasks"
-    }
+    get() = InstrumentationRegistry.getArguments().getString("targetAppId") ?: "com.quantumff.segue"
 
 private fun argument(name: String, default: String): String =
     InstrumentationRegistry.getArguments().getString(name) ?: default
@@ -51,7 +52,7 @@ fun MacrobenchmarkScope.signInIfNeeded() {
     fields[0].text = argument("segue.server", "https://demo.navidrome.org")
     fields[1].text = argument("segue.user", "demo")
     fields[2].text = argument("segue.password", "demo")
-    device.pressBack() // Hide the keyboard so the button is on screen.
+    // Setting text through accessibility shows no keyboard, so the button stays on screen.
     device.waitFor(connect).click()
     // Either straight to Home, or the first-sync screen with a Continue button.
     device.wait(Until.hasObject(By.text("Continue").enabled(true)), LOGIN_TIMEOUT_MS)
@@ -118,7 +119,7 @@ fun MacrobenchmarkScope.openNowPlayingAndQueue() {
     device.waitForIdle()
 }
 
-/** Stops playback so later iterations start from a quiet player. */
+/** Stops playback (and the app, saving its profile) so the next iteration starts quiet. */
 fun MacrobenchmarkScope.stopPlayback() {
-    device.executeShellCommand("am force-stop $packageName")
+    killProcess()
 }
