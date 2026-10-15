@@ -23,6 +23,7 @@ private const val SYNC_TIMEOUT_MS = 120_000L
 private const val UI_TIMEOUT_MS = 10_000L
 private const val PLAYBACK_TIMEOUT_MS = 20_000L
 private const val SCROLL_STEPS = 3
+private const val GESTURE_MARGIN_FRACTION = 5
 
 /**
  * The package under test. The release-based variants the plugin builds (nonMinifiedRelease,
@@ -78,17 +79,16 @@ fun MacrobenchmarkScope.albumGrid(): UiObject2 {
 
 /** Flings the album grid down and back up. */
 fun MacrobenchmarkScope.scrollAlbumGrid() {
-    val grid = albumGrid()
-    // Keep clear of the system gesture areas.
-    grid.setGestureMargin(device.displayWidth / 5)
-    repeat(SCROLL_STEPS) {
-        grid.fling(Direction.DOWN)
+    fun fling(direction: Direction) {
+        // Re-found each time: Compose replaces the grid's accessibility node as it scrolls.
+        val grid = albumGrid()
+        // Keep clear of the system gesture areas.
+        grid.setGestureMargin(device.displayWidth / GESTURE_MARGIN_FRACTION)
+        grid.fling(direction)
         device.waitForIdle()
     }
-    repeat(SCROLL_STEPS) {
-        grid.fling(Direction.UP)
-        device.waitForIdle()
-    }
+    repeat(SCROLL_STEPS) { fling(Direction.DOWN) }
+    repeat(SCROLL_STEPS) { fling(Direction.UP) }
 }
 
 /** Opens the first album in the grid and starts it. */

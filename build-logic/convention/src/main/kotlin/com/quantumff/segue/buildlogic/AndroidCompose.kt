@@ -5,7 +5,9 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 internal fun Project.configureAndroidCompose(extension: CommonExtension) {
     apply(plugin = "org.jetbrains.kotlin.plugin.compose")
@@ -24,10 +26,21 @@ internal fun Project.configureAndroidCompose(extension: CommonExtension) {
         stabilityConfigurationFiles.add(
             isolated.rootProject.projectDirectory.file("compose_compiler_config.conf"),
         )
-        // ./gradlew assembleRelease -Psegue.composeReports=true writes reports to build/compose-reports
-        if (providers.gradleProperty("segue.composeReports").orNull == "true") {
-            reportsDestination.set(layout.buildDirectory.dir("compose-reports"))
-            metricsDestination.set(layout.buildDirectory.dir("compose-reports"))
+    }
+
+    // Debug compilations only, opt-in: ./gradlew assembleDebug -Psegue.composeReports=true writes
+    // stability reports and metrics to <module>/build/compose-reports (docs/PERFORMANCE.md).
+    if (providers.gradleProperty("segue.composeReports").orNull == "true") {
+        val reports = layout.buildDirectory.dir("compose-reports").get().asFile.absolutePath
+        tasks.withType<KotlinJvmCompile>().matching { it.name == "compileDebugKotlin" }.configureEach {
+            compilerOptions.freeCompilerArgs.addAll(
+                "-P",
+                "plugin:$COMPOSE_PLUGIN_ID:reportsDestination=$reports",
+                "-P",
+                "plugin:$COMPOSE_PLUGIN_ID:metricsDestination=$reports",
+            )
         }
     }
 }
+
+private const val COMPOSE_PLUGIN_ID = "androidx.compose.compiler.plugins.kotlin"
