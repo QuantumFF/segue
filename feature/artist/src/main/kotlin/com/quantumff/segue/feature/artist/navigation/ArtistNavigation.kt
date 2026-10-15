@@ -4,22 +4,31 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import androidx.navigation.toRoute
-import com.quantumff.segue.feature.artist.ArtistScreen
+import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.feature.artist.ArtistDetailRoute
 import kotlinx.serialization.Serializable
 
+/** [artistId] is read by [com.quantumff.segue.feature.artist.ArtistViewModel] under the same key. */
 @Serializable
 data class ArtistRoute(val artistId: String)
 
 fun NavController.navigateToArtist(artistId: String, navOptions: NavOptions? = null) =
     navigate(ArtistRoute(artistId), navOptions)
 
-fun NavGraphBuilder.artistScreen(onBackClick: () -> Unit, onAlbumClick: (String) -> Unit) {
-    composable<ArtistRoute> { entry ->
-        ArtistScreen(
-            artistId = entry.toRoute<ArtistRoute>().artistId,
+fun NavGraphBuilder.artistScreen(
+    onBackClick: () -> Unit,
+    onAlbumClick: (String) -> Unit,
+    onArtistClick: (String) -> Unit,
+    playActions: PlayActions,
+    onAddToPlaylist: (List<String>) -> Unit,
+) {
+    composable<ArtistRoute> {
+        ArtistDetailRoute(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            playActions = playActions,
+            onAddToPlaylist = onAddToPlaylist,
         )
     }
 }
