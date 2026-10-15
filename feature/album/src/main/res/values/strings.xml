@@ -28,5 +28,5 @@
     <string name="feature_album_not_found_message">It may have been removed from the server</string>
     <string name="feature_album_favorite_failed">Couldn\'t update favorites</string>
     <string name="feature_album_rating_failed">Couldn\'t save the rating</string>
-    <string name="feature_album_download_unavailable">Downloads are coming soon</string>
+    <string name="feature_album_download_failed">Couldn\'t start the download</string>
 </resources>

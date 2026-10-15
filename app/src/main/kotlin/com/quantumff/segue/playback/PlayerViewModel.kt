@@ -4,7 +4,11 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.model.OfflinePlayback
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -30,7 +34,15 @@ enum class PlayerMessage {
  * network (instant mix) finish even if the user navigates away.
  */
 @HiltViewModel
-class PlayerViewModel @Inject constructor(private val playback: PlaybackController) : ViewModel() {
+class PlayerViewModel @Inject constructor(
+    private val playback: PlaybackController,
+    offlineMode: OfflineModeRepository,
+    downloads: DownloadRepository,
+) : ViewModel() {
+    private val isOffline: StateFlow<Boolean> = offlineMode.isOffline
+    private val downloaded: StateFlow<Set<String>> =
+        downloads.downloadedSongIds.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
     val player: StateFlow<ShellPlayerState> = playback.eventState
         .map { it.toShellPlayerState() }
         .distinctUntilChanged()
@@ -49,14 +61,22 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
     val messages: Flow<PlayerMessage> = messageChannel.receiveAsFlow()
 
     val playActions = PlayActions(
-        onPlaySongs = { songs, startIndex, shuffle -> playback.play(songs, startIndex, shuffle) },
+        // Offline, songs that are not downloaded are skipped (DESIGN.md §5.2: they cannot play).
+        onPlaySongs = { songs, startIndex, shuffle ->
+            val selection = OfflinePlayback.playable(songs, startIndex, isOffline.value, downloaded.value)
+            if (selection == null) {
+                messageChannel.trySend(PlayerMessage.NothingToPlay)
+            } else {
+                playback.play(selection.songs, selection.startIndex, shuffle)
+            }
+        },
         onShuffleAlbums = { source ->
             viewModelScope.launch {
                 if (!playback.shuffleAlbums(source)) messageChannel.send(PlayerMessage.NothingToPlay)
             }
         },
-        onPlayNext = playback::playNext,
-        onAddToQueue = playback::addToQueue,
+        onPlayNext = { songs -> queueable(songs)?.let(playback::playNext) },
+        onAddToQueue = { songs -> queueable(songs)?.let(playback::addToQueue) },
         onStartInstantMix = { seed ->
             viewModelScope.launch {
                 val started = try {
@@ -69,6 +89,12 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
             }
         },
     )
+
+    private fun queueable(songs: List<Song>): List<Song>? =
+        OfflinePlayback.queueable(songs, isOffline.value, downloaded.value).ifEmpty {
+            messageChannel.trySend(PlayerMessage.NothingToPlay)
+            null
+        }
 
     fun shellActions() = ShellPlayerActions(
         onPlayPause = playback::togglePlayPause,

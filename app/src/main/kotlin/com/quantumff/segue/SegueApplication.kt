@@ -9,6 +9,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.DownloadInitializer
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.playback.PlaybackInitializer
 import dagger.Lazy
@@ -32,6 +33,9 @@ class SegueApplication :
     lateinit var playbackInitializer: PlaybackInitializer
 
     @Inject
+    lateinit var downloadInitializer: DownloadInitializer
+
+    @Inject
     lateinit var imageLoader: Lazy<ImageLoader>
 
     @Inject
@@ -49,6 +53,7 @@ class SegueApplication :
     override fun onCreate() {
         super.onCreate()
         playbackInitializer.start()
+        downloadInitializer.start()
         // Off the main thread and not awaited: the first frame renders from Room.
         applicationScope.launch {
             try {

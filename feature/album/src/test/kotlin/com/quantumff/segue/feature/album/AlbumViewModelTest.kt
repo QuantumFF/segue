@@ -7,6 +7,10 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.DiscTitle
+import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
@@ -14,9 +18,12 @@ import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -30,6 +37,8 @@ class AlbumViewModelTest {
     private val albums = FakeAlbumRepository()
     private val artists = FakeArtistRepository()
     private val stars = FakeStarRatingRepository()
+    private val downloads = FakeDownloadRepository()
+    private val offlineMode = FakeOfflineModeRepository()
     private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
     private val shuffledAlbums = mutableListOf<AlbumShuffleSource>()
     private val instantMixes = mutableListOf<String>()
@@ -54,6 +63,8 @@ class AlbumViewModelTest {
         albumRepository = albums,
         artistRepository = artists,
         starRatingRepository = stars,
+        downloadRepository = downloads,
+        offlineModeRepository = offlineMode,
     )
 
     private fun seed() {
@@ -178,5 +189,32 @@ class AlbumViewModelTest {
         assertThat(shuffledAlbums).containsExactly(AlbumShuffleSource.Artist("artist-1"))
         assertThat(instantMixes).containsExactly("s2")
         assertThat(addedToPlaylist).containsExactly(listOf("s2"))
+    }
+
+    @Test
+    fun downloadPinsTheAlbumAndRemoveDownloadUnpinsIt() = runTest {
+        seed()
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
+
+            viewModel.download()
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Queued)
+            assertThat(downloads.pins.value.keys).containsExactly(PinKind.Album to "album-1")
+
+            viewModel.removeDownload()
+            assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
+        }
+    }
+
+    @Test
+    fun offlineModeDisablesSongsThatAreNotDownloaded() = runTest {
+        seed()
+        downloads.songDownloads.value = persistentMapOf("s1" to SongDownload("s1", DownloadState.Completed, 1f))
+        offlineMode.isOffline.value = true
+        viewModel().uiState.test {
+            val state = awaitItem() as AlbumUiState.Success
+            assertThat(songs.map(state::isAvailable)).containsExactly(true, false, false).inOrder()
+        }
     }
 }

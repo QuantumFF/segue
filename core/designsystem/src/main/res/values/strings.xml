@@ -22,6 +22,8 @@
     <string name="ds_download_queued">Download queued</string>
     <string name="ds_downloading">Downloading</string>
     <string name="ds_downloaded">Downloaded</string>
+    <string name="ds_download_paused">Download paused</string>
+    <string name="ds_download_failed">Download failed</string>
     <string name="ds_now_playing">Now playing</string>
     <string name="ds_shuffle_off">Off</string>
     <string name="ds_shuffle_tracks">Tracks</string>
@@ -44,6 +46,7 @@
     <string name="ds_action_go_to_album">Go to album</string>
     <string name="ds_action_go_to_artist">Go to artist</string>
     <string name="ds_action_download">Download</string>
+    <string name="ds_action_remove_download">Remove download</string>
     <string name="ds_action_rename">Rename</string>
     <string name="ds_action_remove_from_playlist">Remove from playlist</string>
     <string name="ds_action_delete">Delete</string>
