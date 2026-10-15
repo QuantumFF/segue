@@ -103,7 +103,7 @@ class SegueAppShellTest {
 
         compose.onNodeWithText(TEST_TRACK).performClick()
 
-        compose.onNodeWithText("PLAYING FROM ALBUM").assertExists()
+        compose.onNodeWithText("Now playing").assertExists()
         tab("Search").assertDoesNotExist()
         compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
     }

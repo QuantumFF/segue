@@ -32,10 +32,12 @@ import com.quantumff.segue.core.data.repository.ScrobbleRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.ServerCapabilitiesRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
+import com.quantumff.segue.core.data.repository.SongFileInfoRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.SubsonicLyricsRepository
 import com.quantumff.segue.core.data.repository.SubsonicMediaUrlRepository
 import com.quantumff.segue.core.data.repository.SubsonicPlayQueueRemoteRepository
+import com.quantumff.segue.core.data.repository.SubsonicSongFileInfoRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.data.repository.WorkManagerLibrarySyncRepository
 import com.quantumff.segue.core.data.session.AccountClientProvider
@@ -87,6 +89,9 @@ internal interface DataModule {
 
     @Binds
     fun lyricsRepository(impl: SubsonicLyricsRepository): LyricsRepository
+
+    @Binds
+    fun songFileInfoRepository(impl: SubsonicSongFileInfoRepository): SongFileInfoRepository
 
     @Binds
     fun playQueueRemoteRepository(impl: SubsonicPlayQueueRemoteRepository): PlayQueueRemoteRepository

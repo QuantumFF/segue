@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,12 +63,7 @@ internal fun settleTrackSwipe(
     }
 }
 
-/**
- * Pages between the current track and its neighbors like a pager (Symfonium's mini player). The
- * neighbors sit one width to each side and slide in with the drag; a committed swipe calls
- * [onSwipeToNext] or [onSwipeToPrevious] and stays on the neighbor until [currentKey] changes.
- * Offsets are read in the draw phase only, so dragging does not recompose.
- */
+/** The mini player's swipe area: a [TrackSwipePager] over art-and-text pages. */
 @Composable
 internal fun TrackSwipeBox(
     current: MiniPlayerState,
@@ -77,6 +73,36 @@ internal fun TrackSwipeBox(
     onSwipeToPrevious: () -> Unit,
     onSwipeToNext: () -> Unit,
     modifier: Modifier = Modifier,
+) {
+    TrackSwipePager(
+        current = current,
+        currentKey = currentKey,
+        previous = previous,
+        next = next,
+        onSwipeToPrevious = onSwipeToPrevious,
+        onSwipeToNext = onSwipeToNext,
+        modifier = modifier,
+    ) { track, pageModifier -> MiniPlayerTrack(track, pageModifier) }
+}
+
+/**
+ * Pages between the current track and its neighbors like a pager (Symfonium's mini player, and
+ * the Now Playing art). The neighbors sit one width to each side and slide in with the drag; a
+ * committed swipe calls [onSwipeToNext] or [onSwipeToPrevious] and stays on the neighbor until
+ * [currentKey] changes. Offsets are read in the draw phase only, so dragging does not recompose.
+ *
+ * @param page draws one track. Apply the given modifier to the page's root: it carries the offset.
+ */
+@Composable
+fun <T> TrackSwipePager(
+    current: T,
+    currentKey: Any?,
+    previous: T?,
+    next: T?,
+    onSwipeToPrevious: () -> Unit,
+    onSwipeToNext: () -> Unit,
+    modifier: Modifier = Modifier,
+    page: @Composable (track: T, modifier: Modifier) -> Unit,
 ) {
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -141,12 +167,12 @@ internal fun TrackSwipeBox(
                 },
             ),
     ) {
-        previous?.let { track ->
-            MiniPlayerTrack(track, Modifier.graphicsLayer { translationX = offset.value - size.width })
-        }
-        MiniPlayerTrack(current, Modifier.graphicsLayer { translationX = offset.value })
-        next?.let { track ->
-            MiniPlayerTrack(track, Modifier.graphicsLayer { translationX = offset.value + size.width })
+        // Slot -1, 0, +1: one width to the left, in place, one width to the right. Keyed by slot so
+        // each position keeps its own page state.
+        listOfNotNull(previous?.let { -1 to it }, 0 to current, next?.let { 1 to it }).forEach { (slot, track) ->
+            key(slot) {
+                page(track, Modifier.graphicsLayer { translationX = offset.value + slot * size.width })
+            }
         }
     }
 }

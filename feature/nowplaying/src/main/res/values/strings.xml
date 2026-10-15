@@ -1,6 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_nowplaying_source_label">Playing from album</string>
-    <string name="feature_nowplaying_placeholder_source">Nothing playing</string>
-    <string name="feature_nowplaying_open_queue">Up next</string>
+    <string name="feature_nowplaying_source_queue">Playing from queue</string>
+    <string name="feature_nowplaying_nothing_playing">Nothing playing</string>
+
+    <string name="feature_nowplaying_favorite">Favorite</string>
+    <string name="feature_nowplaying_unfavorite">Remove from favorites</string>
+    <string name="feature_nowplaying_previous">Previous</string>
+    <string name="feature_nowplaying_next">Next</string>
+    <string name="feature_nowplaying_play">Play</string>
+    <string name="feature_nowplaying_pause">Pause</string>
+    <string name="feature_nowplaying_seek">Seek</string>
+    <string name="feature_nowplaying_show_remaining">Show remaining time</string>
+    <string name="feature_nowplaying_show_total">Show total time</string>
+    <string name="feature_nowplaying_shuffle_off">Shuffle off</string>
+    <string name="feature_nowplaying_shuffle_tracks">Shuffle tracks</string>
+    <string name="feature_nowplaying_shuffle_albums">Shuffle albums</string>
+    <string name="feature_nowplaying_repeat_off">Repeat off</string>
+    <string name="feature_nowplaying_repeat_all">Repeat all</string>
+    <string name="feature_nowplaying_repeat_one">Repeat one</string>
+    <string name="feature_nowplaying_more">More</string>
+
+    <string name="feature_nowplaying_panel_lyrics">Lyrics</string>
+    <string name="feature_nowplaying_panel_up_next">Up next</string>
+    <string name="feature_nowplaying_panel_related">Related</string>
+    <string name="feature_nowplaying_back_to_art">Back to cover art</string>
+
+    <string name="feature_nowplaying_lyrics_empty_title">No lyrics</string>
+    <string name="feature_nowplaying_lyrics_empty_message">The server has no lyrics for this track</string>
+    <string name="feature_nowplaying_lyrics_error">Couldn\'t load lyrics</string>
+    <string name="feature_nowplaying_lyrics_sync">Sync</string>
+
+    <string name="feature_nowplaying_related_play_all">Play all</string>
+    <string name="feature_nowplaying_related_add_to_queue">Add to queue</string>
+    <string name="feature_nowplaying_related_empty_title">Nothing related</string>
+    <string name="feature_nowplaying_related_empty_message">The server found no similar songs</string>
+    <string name="feature_nowplaying_related_unavailable">This track has no artist to find similar songs for</string>
+    <string name="feature_nowplaying_related_error">Couldn\'t load related songs</string>
+
+    <string name="feature_nowplaying_queue_placeholder_title">Up next</string>
+    <string name="feature_nowplaying_queue_placeholder_message">The queue opens in its own screen for now</string>
+    <string name="feature_nowplaying_queue_placeholder_action">Open queue</string>
+
+    <string name="feature_nowplaying_menu_sleep_timer">Sleep timer</string>
+    <string name="feature_nowplaying_menu_details">Details</string>
+    <string name="feature_nowplaying_instant_mix_failed">Couldn\'t start an instant mix</string>
+
+    <string name="feature_nowplaying_sleep_title">Sleep timer</string>
+    <string name="feature_nowplaying_sleep_minutes">%1$d min</string>
+    <string name="feature_nowplaying_sleep_hours">%1$d h</string>
+    <string name="feature_nowplaying_sleep_end_of_track">End of track</string>
+    <string name="feature_nowplaying_sleep_end_of_album">End of album</string>
+    <string name="feature_nowplaying_sleep_custom">Custom</string>
+    <string name="feature_nowplaying_sleep_start">Start</string>
+    <string name="feature_nowplaying_sleep_cancel">Cancel timer</string>
+    <string name="feature_nowplaying_sleep_active_at">Pauses at %1$s</string>
+    <string name="feature_nowplaying_sleep_active_remaining">%1$s left</string>
+    <string name="feature_nowplaying_sleep_active_end_of_track">Pauses when this track ends</string>
+    <string name="feature_nowplaying_sleep_active_end_of_album">Pauses when this album ends</string>
+
+    <string name="feature_nowplaying_details_title">Details</string>
+    <string name="feature_nowplaying_details_format">Format</string>
+    <string name="feature_nowplaying_details_bitrate">Bit rate</string>
+    <string name="feature_nowplaying_details_bitrate_value">%1$d kbps</string>
+    <string name="feature_nowplaying_details_sample_rate">Sample rate</string>
+    <string name="feature_nowplaying_details_sample_rate_value">%1$s kHz</string>
+    <string name="feature_nowplaying_details_bit_depth">Bit depth</string>
+    <string name="feature_nowplaying_details_channels">Channels</string>
+    <string name="feature_nowplaying_details_size">Size</string>
+    <string name="feature_nowplaying_details_track_gain">Track gain</string>
+    <string name="feature_nowplaying_details_album_gain">Album gain</string>
+    <string name="feature_nowplaying_details_track_peak">Track peak</string>
+    <string name="feature_nowplaying_details_album_peak">Album peak</string>
+    <string name="feature_nowplaying_details_path">Path</string>
+    <string name="feature_nowplaying_details_none">No details for this track</string>
 </resources>
