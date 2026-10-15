@@ -14,7 +14,10 @@ import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /** The last now-playing snapshot, kept on disk so widgets render it after the service or process is gone. */
 @Singleton
@@ -22,7 +25,9 @@ class WidgetStateStore @Inject constructor(@ApplicationContext context: Context)
     private val store: DataStore<Preferences> =
         PreferenceDataStoreFactory.create { context.preferencesDataStoreFile(FILE_NAME) }
 
-    suspend fun read(): NowPlayingSnapshot = WidgetState.read(store.data.first())
+    val snapshots: Flow<NowPlayingSnapshot> = store.data.map(WidgetState::read).distinctUntilChanged()
+
+    suspend fun read(): NowPlayingSnapshot = snapshots.first()
 
     suspend fun write(snapshot: NowPlayingSnapshot) {
         store.edit { WidgetState.write(it, snapshot) }

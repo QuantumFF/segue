@@ -5,6 +5,12 @@ import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,13 +60,8 @@ import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 class NowPlayingStripWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Single
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val state = context.widgetEntryPoint().stateStore().read()
-        val art = loadWidgetArt(context, state.coverArtId, STRIP_ART_PX)
-        val colors = WidgetColors(context)
-        provideContent {
-            GlanceTheme(colors = colors.glance) { Strip(state, art, colors) }
-        }
+    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, STRIP_ART_PX) { state, art, colors ->
+        Strip(state, art, colors)
     }
 }
 
@@ -68,13 +69,8 @@ class NowPlayingStripWidget : GlanceAppWidget() {
 class NowPlayingCardWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val state = context.widgetEntryPoint().stateStore().read()
-        val art = loadWidgetArt(context, state.coverArtId, CARD_ART_PX)
-        val colors = WidgetColors(context)
-        provideContent {
-            GlanceTheme(colors = colors.glance) { Card(state, art, colors) }
-        }
+    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, CARD_ART_PX) { state, art, colors ->
+        Card(state, art, colors)
     }
 }
 
@@ -85,6 +81,35 @@ class NowPlayingStripWidgetReceiver : GlanceAppWidgetReceiver() {
 class NowPlayingCardWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NowPlayingCardWidget()
 }
+
+/**
+ * Renders [content] from the stored snapshot. A running Glance session keeps following the store,
+ * so an `update` while the session is open redraws with the new track too; art is (re)loaded only
+ * when the cover changes.
+ */
+private suspend fun GlanceAppWidget.provideNowPlaying(
+    context: Context,
+    artPx: Int,
+    content: @Composable (NowPlayingSnapshot, Bitmap?, WidgetColors) -> Unit,
+): Nothing {
+    val store = context.widgetEntryPoint().stateStore()
+    val initial = store.read()
+    val initialArt = WidgetArt(initial.coverArtId, loadWidgetArt(context, initial.coverArtId, artPx))
+    val colors = WidgetColors(context)
+    provideContent {
+        val state by store.snapshots.collectAsState(initial)
+        var art by remember { mutableStateOf(initialArt) }
+        LaunchedEffect(state.coverArtId) {
+            if (art.coverArtId != state.coverArtId) {
+                art = WidgetArt(state.coverArtId, loadWidgetArt(context, state.coverArtId, artPx))
+            }
+        }
+        val bitmap = art.bitmap.takeIf { art.coverArtId == state.coverArtId }
+        GlanceTheme(colors = colors.glance) { content(state, bitmap, colors) }
+    }
+}
+
+private class WidgetArt(val coverArtId: String?, val bitmap: Bitmap?)
 
 // --- Layouts ---------------------------------------------------------------------------------------
 

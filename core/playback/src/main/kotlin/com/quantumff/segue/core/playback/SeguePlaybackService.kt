@@ -266,7 +266,9 @@ class SeguePlaybackService : MediaLibraryService() {
         )
             .setDisplayName(getString(if (starred) R.string.playback_unfavorite else R.string.playback_favorite))
             .setSessionCommand(SegueSessionCommands.command(SegueSessionCommands.TOGGLE_FAVORITE))
-            .setSlots(CommandButton.SLOT_BACK_SECONDARY)
+            // Overflow too: the platform session (System UI, Android Auto) only takes back,
+            // forward and overflow buttons as custom actions, and drops secondary-only ones.
+            .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build()
         val (icon, label) = when (player.shuffleMode) {
             ShuffleMode.Off -> CommandButton.ICON_SHUFFLE_OFF to R.string.playback_shuffle_off
@@ -276,7 +278,7 @@ class SeguePlaybackService : MediaLibraryService() {
         val shuffle = CommandButton.Builder(icon)
             .setDisplayName(getString(label))
             .setSessionCommand(SegueSessionCommands.command(SegueSessionCommands.CYCLE_SHUFFLE))
-            .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
+            .setSlots(CommandButton.SLOT_FORWARD_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build()
         return listOf(favorite, shuffle)
     }

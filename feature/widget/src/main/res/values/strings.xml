@@ -10,6 +10,8 @@
     <string name="widget_shuffle_off">Shuffle off</string>
     <string name="widget_shuffle_tracks">Shuffle tracks</string>
     <string name="widget_shuffle_albums">Shuffle albums</string>
+    <string name="widget_strip_label">Now playing strip</string>
+    <string name="widget_card_label">Now playing card</string>
     <string name="widget_strip_description">Now playing: art, title, play and next</string>
     <string name="widget_card_description">Now playing with larger art and shuffle mode</string>
 </resources>
