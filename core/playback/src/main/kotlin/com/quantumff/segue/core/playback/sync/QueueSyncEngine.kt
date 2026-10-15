@@ -75,6 +75,15 @@ class QueueSyncEngine @Inject constructor(
         uploader.flush(state)
     }
 
+    /**
+     * The network came back (or offline mode was turned off): upload the queue now if a save
+     * failed while offline. [state] is the current queue, or null for the latest event's.
+     */
+    fun onNetworkRestored(state: QueueState?) {
+        if (state != null && state.songIds.isEmpty()) return
+        uploader.flush(state)
+    }
+
     /** Fetches the server's queue and decides whether to offer or adopt it. Offline does nothing. */
     suspend fun checkRemote(isPlayingLocally: Boolean) {
         val prefs = preferences.preferences.first()

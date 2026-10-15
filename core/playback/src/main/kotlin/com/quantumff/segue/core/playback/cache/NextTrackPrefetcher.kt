@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.playback.cache
 
+import android.content.ContentResolver
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
@@ -44,6 +45,8 @@ class NextTrackPrefetcher(
     private suspend fun prefetch(songId: String) = withContext(ioDispatcher) {
         try {
             val dataSpec = resolver.resolveDataSpec(DataSpec(SegueUris.song(songId)))
+            // Downloaded: already on the device, nothing to fetch.
+            if (dataSpec.uri.scheme == ContentResolver.SCHEME_FILE) return@withContext
             val writer = CacheWriter(cacheDataSourceFactory.createDataSourceForDownloading(), dataSpec, null, null)
             val handle = coroutineContext.job.invokeOnCompletion { writer.cancel() }
             try {
