@@ -21,6 +21,7 @@ class SettingsViewModelTest {
 
     private val servers = FakeServerRepository()
     private val preferences = FakeUserPreferencesRepository()
+
     // Lazy: viewModelScope must be created after MainDispatcherRule has installed the test dispatcher.
     private val viewModel by lazy { SettingsViewModel(servers, preferences) }
 
