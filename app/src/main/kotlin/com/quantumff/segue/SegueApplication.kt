@@ -51,6 +51,7 @@ class SegueApplication :
     override fun newImageLoader(context: PlatformContext): ImageLoader = imageLoader.get()
 
     override fun onCreate() {
+        DebugStrictMode.enableIfDebuggable(this)
         super.onCreate()
         playbackInitializer.start()
         downloadInitializer.start()
