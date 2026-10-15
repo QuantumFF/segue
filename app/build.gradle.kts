@@ -76,6 +76,7 @@ dependencies {
     implementation(projects.feature.queue)
     implementation(projects.feature.search)
     implementation(projects.feature.settings)
+    implementation(projects.feature.widget)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
