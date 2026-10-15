@@ -17,8 +17,10 @@ import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import java.io.File
 import javax.inject.Inject
@@ -62,6 +64,9 @@ interface DownloadRepository {
     /** IDs of the active server's songs that are fully downloaded. */
     val downloadedSongIds: Flow<ImmutableSet<String>>
 
+    /** The active server's downloaded songs, with the albums and artists they make available offline. */
+    val downloadedLibrary: Flow<DownloadedLibrary>
+
     /** The pin's status, or null when it is not pinned. */
     fun pinStatus(kind: PinKind, id: String): Flow<DownloadStatus?>
 
@@ -78,6 +83,15 @@ interface DownloadRepository {
     /** Unpins everything on the active server and deletes its files. */
     suspend fun removeAll()
 
+    /** Holds every unfinished download on the active server (the notification's "Pause all"). */
+    suspend fun pauseAll()
+
+    /**
+     * Cancels every unfinished download on the active server (the notification's "Cancel"): unpins
+     * each pin that is not fully downloaded, like the Downloads screen's cancel. Finished pins stay.
+     */
+    suspend fun cancelAll()
+
     /** The downloaded file for [songId] on the active server, or null. For the player. */
     suspend fun localFile(songId: String): File?
 
@@ -88,6 +102,9 @@ interface DownloadRepository {
     suspend fun setChargingOnly(enabled: Boolean)
 
     suspend fun setForceOffline(enabled: Boolean)
+
+    /** Raising or removing the limit lets waiting downloads start. */
+    suspend fun setStorageLimit(limit: StorageLimit)
 }
 
 @Singleton
@@ -113,18 +130,25 @@ internal class OfflineDownloadRepository @Inject constructor(
         // Free space is read when the rows change (a song finished or was removed), not on every
         // progress tick.
         val rowsWithFreeSpace = dao.observeAll(serverId).map { rows -> rows to files.freeBytes() }
-        combine(
+        val pinsAndLimit = combine(
             dao.observePins(serverId),
+            preferenceSource.preferences.map { it.storageLimit }.distinctUntilChanged(),
+            dao.observeTotalBytes(),
+        ) { pins, limit, deviceBytes -> Triple(pins, limit, limit.isReachedBy(deviceBytes)) }
+        combine(
+            pinsAndLimit,
             dao.observePinMembership(serverId),
             rowsWithFreeSpace,
             progress.progress,
-        ) { pins, membership, (rows, freeBytes), live ->
+        ) { (pins, limit, limitReached), membership, (rows, freeBytes), live ->
             val liveForServer = live.forServer(serverId)
             val statuses = DownloadPlanner.pinStatuses(pins, membership, rows.associateBy { it.songId }, liveForServer)
             DownloadOverview(
                 pins = statuses.toImmutableList(),
                 usedBytes = rows.sumOf { row -> liveForServer[row.songId]?.bytes ?: row.bytesDownloaded },
                 freeBytes = freeBytes,
+                storageLimit = limit,
+                limitReached = limitReached,
             )
         }.conflate().flowOn(ioDispatcher)
     }
@@ -144,6 +168,16 @@ internal class OfflineDownloadRepository @Inject constructor(
     override val downloadedSongIds: Flow<ImmutableSet<String>> =
         clients.forActiveServer(persistentSetOf()) { serverId ->
             dao.observeCompletedSongIds(serverId).map { it.toImmutableSet() }.distinctUntilChanged()
+        }
+
+    override val downloadedLibrary: Flow<DownloadedLibrary> =
+        clients.forActiveServer(DownloadedLibrary()) { serverId ->
+            combine(
+                dao.observeCompletedSongIds(serverId),
+                dao.observeDownloadedAlbumIds(serverId),
+                dao.observeDownloadedArtistIds(serverId),
+            ) { songs, albums, artists -> DownloadedLibrary(songs.toSet(), albums.toSet(), artists.toSet()) }
+                .distinctUntilChanged()
         }
 
     override fun pinStatus(kind: PinKind, id: String): Flow<DownloadStatus?> =
@@ -191,6 +225,20 @@ internal class OfflineDownloadRepository @Inject constructor(
         reconcile(serverId)
     }
 
+    override suspend fun pauseAll() = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext
+        dao.pauseUnfinished(serverId, clock.nowMillis())
+    }
+
+    override suspend fun cancelAll() = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext
+        val rows = dao.getAll(serverId).associateBy { it.songId }
+        DownloadPlanner.pinStatuses(dao.observePins(serverId).first(), dao.pinMembership(serverId), rows, emptyMap())
+            .filterNot { it.isComplete }
+            .forEach { dao.deletePin(serverId, it.kind, it.id) }
+        reconcile(serverId)
+    }
+
     override suspend fun localFile(songId: String): File? = withContext(ioDispatcher) {
         val serverId = clients.activeServerId.first() ?: return@withContext null
         val row = dao.get(serverId, songId)?.takeIf { it.state == DownloadState.Completed } ?: return@withContext null
@@ -211,6 +259,12 @@ internal class OfflineDownloadRepository @Inject constructor(
 
     override suspend fun setForceOffline(enabled: Boolean) = preferenceSource.setForceOffline(enabled)
 
+    override suspend fun setStorageLimit(limit: StorageLimit) = withContext(ioDispatcher) {
+        preferenceSource.setStorageLimit(limit)
+        // Waiting songs may start now; running ones carry on (no restart).
+        if (dao.queuedCount() > 0) scheduler.schedule(preferenceSource.preferences.first(), restart = false)
+    }
+
     /**
      * Makes the server's download rows match its pins: queues songs a pin covers that have no row,
      * and deletes rows and files of songs no pin covers any more.
@@ -226,6 +280,10 @@ internal class OfflineDownloadRepository @Inject constructor(
                 plan.toRemove.forEach { songId ->
                     files.delete(existing[songId]?.filePath)
                     files.deleteSong(serverId, songId)
+                }
+                // Freed space may let downloads waiting on the storage limit start.
+                if (plan.toQueue.isEmpty() && dao.queuedCount() > 0) {
+                    scheduler.schedule(preferenceSource.preferences.first(), restart = false)
                 }
             }
             if (plan.toQueue.isNotEmpty()) {

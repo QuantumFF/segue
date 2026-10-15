@@ -7,6 +7,7 @@ import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinnedDownload
+import com.quantumff.segue.core.model.StorageLimit
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -30,6 +31,9 @@ data class DownloadsUiState(
     val downloaded: ImmutableList<PinnedDownload> = persistentListOf(),
     val usedBytes: Long = 0,
     val freeBytes: Long = 0,
+    val storageLimit: StorageLimit = StorageLimit.None,
+    /** The storage limit is full: queued downloads wait until space is freed or the limit raised. */
+    val limitReached: Boolean = false,
     /** The manual "Offline mode" switch. */
     val forceOffline: Boolean = false,
     /** Offline right now: the switch, or no network. */
@@ -37,9 +41,15 @@ data class DownloadsUiState(
 ) {
     val isEmpty: Boolean get() = active.isEmpty() && failed.isEmpty() && downloaded.isEmpty()
 
-    /** Share of the space downloads could grow into that they already use, for the storage bar. */
+    /**
+     * Share of the space downloads could grow into that they already use, for the storage bar:
+     * the storage limit when one is set, else the free space on the volume.
+     */
     val storageFraction: Float
-        get() = if (usedBytes + freeBytes <= 0) 0f else usedBytes.toFloat() / (usedBytes + freeBytes)
+        get() {
+            val capacity = storageLimit.bytes?.coerceAtMost(usedBytes + freeBytes) ?: (usedBytes + freeBytes)
+            return if (capacity <= 0) 0f else (usedBytes.toFloat() / capacity).coerceIn(0f, 1f)
+        }
 
     companion object {
         /** Sorts pins into the three sections. */
@@ -58,6 +68,8 @@ data class DownloadsUiState(
                 downloaded = byStatus[Section.Downloaded].orEmpty().sortedBy { it.name.lowercase() }.toImmutableList(),
                 usedBytes = overview.usedBytes,
                 freeBytes = overview.freeBytes,
+                storageLimit = overview.storageLimit,
+                limitReached = overview.limitReached,
                 forceOffline = forceOffline,
                 isOffline = isOffline,
             )

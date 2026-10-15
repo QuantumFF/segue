@@ -3,4 +3,6 @@
     <string name="core_data_downloads_channel">Downloads</string>
     <string name="core_data_downloading_title">Downloading for offline</string>
     <string name="core_data_downloading_progress">%1$d of %2$d songs</string>
+    <string name="core_data_download_pause_all">Pause all</string>
+    <string name="core_data_download_cancel">Cancel</string>
 </resources>

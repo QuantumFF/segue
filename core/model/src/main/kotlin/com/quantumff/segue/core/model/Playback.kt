@@ -50,6 +50,12 @@ data class RemoteQueueOffer(
     val changedAt: Long? = null,
 )
 
+/**
+ * Another device's queue was adopted without asking (the auto-continue setting): the
+ * "Continued from <device>" snackbar, with Undo when [canUndo] (a local queue was replaced).
+ */
+data class AutoAdoption(val deviceName: String, val canUndo: Boolean)
+
 /** When playback pauses by itself. */
 sealed interface SleepTimer {
     /** Pause at the wall-clock time [endsAtMillis] (epoch milliseconds). */

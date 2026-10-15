@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.Server
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -85,6 +86,8 @@ class SettingsViewModel @Inject constructor(
     fun setDownloadChargingOnly(enabled: Boolean) = launch { downloadRepository.setChargingOnly(enabled) }
 
     fun setOfflineMode(enabled: Boolean) = launch { downloadRepository.setForceOffline(enabled) }
+
+    fun setStorageLimit(limit: StorageLimit) = launch { downloadRepository.setStorageLimit(limit) }
 
     fun setQueueSyncEnabled(enabled: Boolean) = launch { preferencesRepository.setQueueSyncEnabled(enabled) }
 

@@ -1,18 +1,24 @@
 package com.quantumff.segue.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -25,8 +31,11 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import com.quantumff.segue.R
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -35,6 +44,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.navigationIndicator
 import com.quantumff.segue.navigation.TopLevelDestination
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * Phone navigation bar (DESIGN.md §3): 64 tall plus the system navigation inset,
@@ -110,13 +121,15 @@ fun SegueNavigationRail(
 
 /**
  * Expanded-width permanent sidebar, 240 wide, Feishin style: the destinations, then a "Playlists"
- * list (empty until the data layer lands).
+ * list that opens each playlist.
  */
 @Composable
 fun SegueSidebar(
     currentTab: TopLevelDestination,
     onTabClick: (TopLevelDestination) -> Unit,
     modifier: Modifier = Modifier,
+    playlists: ImmutableList<SidebarPlaylist> = persistentListOf(),
+    onPlaylistClick: (String) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -152,12 +165,33 @@ fun SegueSidebar(
             modifier = Modifier.padding(horizontal = SegueSpacing.lg),
         )
         Spacer(Modifier.height(SegueSpacing.sm))
-        Text(
-            text = stringResource(R.string.sidebar_no_playlists),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = SegueSpacing.lg),
-        )
+        if (playlists.isEmpty()) {
+            Text(
+                text = stringResource(R.string.sidebar_no_playlists),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = SegueSpacing.lg),
+            )
+        } else {
+            LazyColumn(Modifier.weight(1f)) {
+                items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = SegueSizes.touchTarget)
+                            .clip(SegueShapes.full)
+                            .clickable { onPlaylistClick(playlist.id) }
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .padding(horizontal = SegueSpacing.lg),
+                    )
+                }
+            }
+        }
     }
 }
 

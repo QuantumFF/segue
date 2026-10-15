@@ -6,7 +6,11 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.DownloadOverview
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SyncPhase
@@ -14,12 +18,15 @@ import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeLibrarySyncRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import java.io.IOException
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -34,8 +41,10 @@ class HomeViewModelTest {
     private val servers = FakeServerRepository()
     private val sync = FakeLibrarySyncRepository()
     private val stars = FakeStarRatingRepository()
+    private val downloads = FakeDownloadRepository()
+    private val offline = FakeOfflineModeRepository()
 
-    private fun viewModel() = HomeViewModel(albums, playlists, library, servers, sync, stars)
+    private fun viewModel() = HomeViewModel(albums, playlists, library, servers, sync, stars, downloads, offline)
 
     @Test
     fun refreshesEveryServerListOnEntry() = runTest {
@@ -111,6 +120,50 @@ class HomeViewModelTest {
             assertThat(state.isSyncing).isTrue()
             assertThat(state.isLoading).isFalse()
         }
+    }
+
+    @Test
+    fun offlineCarouselsShowDownloadedAlbumsAndPinnedPlaylistsOnly() = runTest {
+        offline.isOffline.value = true
+        downloads.downloadedLibrary.value = DownloadedLibrary(albumIds = setOf("r2", "recent"))
+        downloads.overview.value = DownloadOverview(
+            pins = persistentListOf(PinnedDownload(PinKind.Playlist, "p2", "p2", null, 1, 1, 0, 0, 1f, 1)),
+        )
+        albums.lists.value = mapOf(
+            AlbumListType.Random to (1..3).map { TestData.album("r$it") },
+            AlbumListType.Recent to listOf(TestData.album("recent"), TestData.album("other")),
+        )
+        playlists.playlistsState.value = listOf(TestData.playlist("p1"), TestData.playlist("p2"))
+
+        viewModel().uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.featured.map { it.id }).containsExactly("r2")
+            assertThat(state.recentlyPlayed.map { it.id }).containsExactly("recent")
+            assertThat(state.playlists.map { it.id }).containsExactly("p2")
+            assertThat(state.showsDownloadedOnly).isTrue()
+        }
+    }
+
+    @Test
+    fun goingBackOnlineShowsTheWholeLibraryAgain() = runTest {
+        offline.isOffline.value = true
+        albums.lists.value = mapOf(AlbumListType.Random to listOf(TestData.album("r1")))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().featured).isEmpty()
+            offline.isOffline.value = false
+            assertThat(expectMostRecentItem().featured.map { it.id }).containsExactly("r1")
+        }
+    }
+
+    @Test
+    fun offlineSkipsTheServerRefresh() = runTest {
+        offline.isOffline.value = true
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().isRefreshing).isFalse()
+        }
+        assertThat(albums.refreshedLists).isEmpty()
     }
 
     @Test

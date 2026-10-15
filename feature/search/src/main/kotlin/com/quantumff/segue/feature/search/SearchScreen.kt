@@ -316,6 +316,13 @@ private fun ResultsContent(
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
     Column(Modifier.fillMaxSize()) {
         FilterRow(filter = filter, results = results, onFilterChange = callbacks.onFilterChange)
+        // Its own line under the chips (DESIGN.md §5.8), so it never covers a filter chip.
+        if (results.offline && !result.isEmpty()) {
+            StatusChip(
+                label = stringResource(R.string.feature_search_offline_results),
+                modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs),
+            )
+        }
         if (result.isEmpty()) {
             EmptyState(
                 icon = SegueIcons.Search,
@@ -360,16 +367,9 @@ private fun FilterRow(filter: SearchFilter, results: SearchResults.Ready, onFilt
                 )
             }
         }
-        when {
-            results.serverPending -> {
-                Spacer(Modifier.width(SegueSpacing.sm))
-                InlineSpinner()
-            }
-
-            results.offline && !results.result.isEmpty() -> {
-                Spacer(Modifier.width(SegueSpacing.sm))
-                StatusChip(label = stringResource(R.string.feature_search_offline_results))
-            }
+        if (results.serverPending) {
+            Spacer(Modifier.width(SegueSpacing.sm))
+            InlineSpinner()
         }
     }
 }

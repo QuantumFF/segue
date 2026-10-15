@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.designsystem.component.MiniPlayerState
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
+import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ShuffleMode
 
@@ -24,6 +25,8 @@ data class ShellPlayerState(
     val durationMillis: Long = 0,
     val shuffleMode: ShuffleMode = ShuffleMode.Off,
     val repeatMode: RepeatMode = RepeatMode.Off,
+    /** A newer queue from another device: the "Continue from <device>" bar. Independent of [current]. */
+    val remoteOffer: RemoteQueueOffer? = null,
 )
 
 /** A neighbor of the current track in play order, and the timeline index to skip to it. */
@@ -40,15 +43,18 @@ class ShellPlayerActions(
     val onSkipTo: (Int) -> Unit,
     val onCycleShuffle: () -> Unit,
     val onCycleRepeat: () -> Unit,
+    /** "Continue" on the remote queue bar: adopt the other device's queue. */
+    val onContinueRemote: () -> Unit,
+    val onDismissRemote: () -> Unit,
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */
-        val None = ShellPlayerActions({}, {}, {}, {}, {}, {})
+        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 
 internal fun PlayerUiState.toShellPlayerState(): ShellPlayerState {
-    val item = currentItem ?: return ShellPlayerState()
+    val item = currentItem ?: return ShellPlayerState(remoteOffer = remoteQueue)
     return ShellPlayerState(
         current = item.toMiniPlayer(isPlaying),
         currentTimelineIndex = item.timelineIndex,
@@ -57,6 +63,7 @@ internal fun PlayerUiState.toShellPlayerState(): ShellPlayerState {
         durationMillis = durationMillis,
         shuffleMode = shuffleMode,
         repeatMode = repeatMode,
+        remoteOffer = remoteQueue,
     )
 }
 

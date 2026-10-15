@@ -52,7 +52,7 @@ class PlaybackInitializer @Inject constructor(
                 }
             },
         )
-        appScope.launch { queueSync.adoptions.collect { controller.adopt(it) } }
+        appScope.launch { queueSync.adoptions.collect { controller.adoptAutomatically(it) } }
         appScope.launch {
             var wasOffline = offlineMode.isOffline.value
             offlineMode.isOffline.collect { isOffline ->

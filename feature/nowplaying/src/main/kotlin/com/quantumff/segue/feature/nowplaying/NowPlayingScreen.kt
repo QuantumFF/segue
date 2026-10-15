@@ -103,6 +103,7 @@ fun NowPlayingScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOpenQueue: () -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NowPlayingViewModel = hiltViewModel(),
@@ -121,7 +122,7 @@ fun NowPlayingScreen(
             }
         }
     }
-    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist) {
+    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist, onOpenQueue) {
         NowPlayingActions(
             onCollapse = onCollapse,
             onPlayPause = viewModel::togglePlayPause,
@@ -144,6 +145,7 @@ fun NowPlayingScreen(
             onPlayRelated = viewModel::playRelated,
             onPlayNext = viewModel::playNext,
             onAddToQueue = viewModel::addToQueue,
+            onOpenQueue = onOpenQueue,
         )
     }
     NowPlayingScreen(
@@ -251,6 +253,8 @@ internal fun NowPlayingScreen(
                         NowPlayingMenuAction.InstantMix -> actions.onInstantMix()
 
                         NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
+
+                        NowPlayingMenuAction.OpenQueue -> actions.onOpenQueue()
 
                         NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
 
@@ -435,27 +439,38 @@ private fun TwoPaneLayout(
     ) {
         Column(Modifier.weight(ART_PANE_WEIGHT)) {
             TopBar(track, actions.onCollapse, onMenuClick)
-            ArtPager(
-                track = track,
-                previous = state.previous,
-                next = state.next,
-                onSkipTo = actions.onSkipTo,
-                onClick = {
-                    scope.launch { pagerState.animateScrollToPage(tabs.indexOf(NowPlayingPanel.Lyrics)) }
-                },
-                onLongClick = onMenuClick,
-                modifier = Modifier
+            // Art, metadata and controls stay together, centered, instead of the art floating in a
+            // tall pane far from its title and controls.
+            BoxWithConstraints(
+                Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-            )
-            TrackMetadata(
-                track = track,
-                onArtistClick = actions.onArtistClick,
-                onAlbumClick = actions.onAlbumClick,
-                onFavoriteClick = actions.onToggleFavorite,
-                modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
-            )
-            Controls(state, positionMillis, actions)
+            ) {
+                val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE - CONTROLS_ALLOWANCE)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                    ArtPager(
+                        track = track,
+                        previous = state.previous,
+                        next = state.next,
+                        onSkipTo = actions.onSkipTo,
+                        onClick = {
+                            scope.launch { pagerState.animateScrollToPage(tabs.indexOf(NowPlayingPanel.Lyrics)) }
+                        },
+                        onLongClick = onMenuClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(artHeight),
+                    )
+                    TrackMetadata(
+                        track = track,
+                        onArtistClick = actions.onArtistClick,
+                        onAlbumClick = actions.onAlbumClick,
+                        onFavoriteClick = actions.onToggleFavorite,
+                        modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
+                    )
+                    Controls(state, positionMillis, actions)
+                }
+            }
             Spacer(Modifier.height(SegueSpacing.lg))
         }
         Column(
@@ -640,6 +655,9 @@ private val BACK_SHIFT = 48.dp
 
 /** Room under the art for the title, artists and heart. */
 private val METADATA_ALLOWANCE = 72.dp
+
+/** Room for the seekbar and transport row under the art in the two-pane layout. */
+private val CONTROLS_ALLOWANCE = 180.dp
 private const val ART_PANE_WEIGHT = 0.45f
 private const val PANEL_SLIDE_FRACTION = 4
 private const val DISMISS_FRACTION = 0.25f

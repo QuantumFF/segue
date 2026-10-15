@@ -6,8 +6,10 @@ import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import java.io.File
 import kotlinx.collections.immutable.ImmutableMap
@@ -24,6 +26,7 @@ class FakeDownloadRepository : DownloadRepository {
     override val overview = MutableStateFlow(DownloadOverview())
     override val songDownloads = MutableStateFlow<ImmutableMap<String, SongDownload>>(persistentMapOf())
     override val downloadedSongIds = MutableStateFlow<ImmutableSet<String>>(persistentSetOf())
+    override val downloadedLibrary = MutableStateFlow(DownloadedLibrary())
 
     /** Pins by kind and ID, with the status [pinStatus] reports. */
     val pins = MutableStateFlow<Map<Pair<PinKind, String>, DownloadStatus>>(emptyMap())
@@ -31,6 +34,8 @@ class FakeDownloadRepository : DownloadRepository {
     val paused = mutableListOf<Pair<PinKind, String>>()
     val resumed = mutableListOf<Pair<PinKind, String>>()
     var removedAll = false
+    var pausedAll = false
+    var cancelledAll = false
 
     override fun pinStatus(kind: PinKind, id: String): Flow<DownloadStatus?> = pins.map { it[kind to id] }
 
@@ -53,6 +58,16 @@ class FakeDownloadRepository : DownloadRepository {
         removedAll = true
         pins.value = emptyMap()
     }
+
+    override suspend fun pauseAll() {
+        pausedAll = true
+    }
+
+    override suspend fun cancelAll() {
+        cancelledAll = true
+    }
+
+    override suspend fun setStorageLimit(limit: StorageLimit) = preferences.update { it.copy(storageLimit = limit) }
 
     override suspend fun localFile(songId: String): File? = files[songId]
 

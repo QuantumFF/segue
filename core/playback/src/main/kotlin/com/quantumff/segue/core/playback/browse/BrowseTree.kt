@@ -10,7 +10,9 @@ import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
@@ -48,7 +50,7 @@ data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0, val shuff
  * The media browse tree for Android Auto and other media browsers, read from Room.
  *
  * ```
- * /                    Home · Library · Downloads (tabs)
+ * /                    Home · Library · Downloads (tabs) · Shuffle albums (playable)
  * /home                Shuffle albums (playable) · Recently played · Recently added · Starred
  * /library             Albums · Artists · Playlists · Genres
  * artists → albums, genres → albums, albums and playlists → tracks
@@ -56,7 +58,8 @@ data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0, val shuff
  *
  * Lists the database can page are read one page at a time; short lists (an artist's albums, an
  * album's tracks, playlists, genres) are read whole and sliced. Albums show as a grid, tracks and
- * everything else as a list.
+ * everything else as a list. While offline ([downloadedWhileOffline] returns what is downloaded),
+ * Shuffle albums picks downloaded albums only.
  */
 class BrowseTree(
     private val repository: MediaBrowseRepository,
@@ -64,6 +67,7 @@ class BrowseTree(
     private val labels: BrowseLabels,
     private val artwork: BrowseArtwork,
     private val random: Random = Random.Default,
+    private val downloadedWhileOffline: suspend () -> DownloadedLibrary? = { null },
 ) {
     fun root(): MediaItem = folder(BrowseId.Root, "Segue", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
 
@@ -78,6 +82,7 @@ class BrowseTree(
                 node(BrowseId.Home),
                 node(BrowseId.Library),
                 node(BrowseId.Downloads),
+                node(BrowseId.ShuffleAlbums),
             ).slice(offset, pageSize)
 
             BrowseId.Home -> listOf(
@@ -177,12 +182,16 @@ class BrowseTree(
 
     /** Same as the app's "Shuffle albums" for the library: random whole albums in plain order. */
     private suspend fun shuffleAlbums(): PlayRequest {
+        val offline = downloadedWhileOffline()
         val picked = AlbumPicker.pick(
-            albumShuffle.albumIds(AlbumShuffleSource.Library),
+            OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(AlbumShuffleSource.Library), offline),
             AlbumPicker.DEFAULT_ALBUM_COUNT,
             random,
         )
-        val songs = AlbumPicker.queueInAlbumOrder(albumShuffle.songs(AlbumShuffleSource.Library, picked), picked)
+        val songs = AlbumPicker.queueInAlbumOrder(
+            OfflineLibrary.shuffleSongs(albumShuffle.songs(AlbumShuffleSource.Library, picked), offline),
+            picked,
+        )
         return PlayRequest(songs, startIndex = 0, shuffleMode = ShuffleMode.Off)
     }
 

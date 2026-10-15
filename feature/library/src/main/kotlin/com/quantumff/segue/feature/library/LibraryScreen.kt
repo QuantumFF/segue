@@ -387,7 +387,8 @@ private fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, on
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                modifier = Modifier.padding(end = SegueSpacing.lg),
+                // A gap, so chips scrolled under the count's edge never run into it.
+                modifier = Modifier.padding(start = SegueSpacing.sm, end = SegueSpacing.lg),
             )
         }
     }

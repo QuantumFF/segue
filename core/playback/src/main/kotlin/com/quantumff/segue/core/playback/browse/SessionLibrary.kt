@@ -19,6 +19,7 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.playback.R
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -35,9 +36,16 @@ class SessionLibrary(
     private val repository: MediaBrowseRepository,
     albumShuffle: AlbumShuffleRepository,
     search: SearchRepository,
+    downloadedWhileOffline: suspend () -> DownloadedLibrary? = { null },
     private val callers: BrowseCallers = BrowseCallers(context),
 ) {
-    val tree = BrowseTree(repository, albumShuffle, labels(context), artwork(context))
+    val tree = BrowseTree(
+        repository,
+        albumShuffle,
+        labels(context),
+        artwork(context),
+        downloadedWhileOffline = downloadedWhileOffline,
+    )
     private val search = LibrarySearch(search, repository, tree, searchLabels(context))
     private val searchResults = LruCache<String, List<MediaItem>>(SEARCH_CACHE_SIZE)
     private var lastHomeRefresh = 0L

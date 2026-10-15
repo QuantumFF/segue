@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
@@ -45,6 +46,26 @@ class DownloadsViewModelTest {
             assertThat(state.downloaded.map { it.id }).containsExactly("alpha", "zeta").inOrder()
             assertThat(state.storageFraction).isEqualTo(0.25f)
             assertThat(state.isEmpty).isFalse()
+        }
+    }
+
+    @Test
+    fun aReachedStorageLimitIsReported() = runTest {
+        downloads.overview.value = DownloadOverview(
+            pins = persistentListOf(pin("busy", songs = 4, completed = 1)),
+            usedBytes = 2_100_000_000L,
+            freeBytes = 1_000,
+            storageLimit = StorageLimit.Gb2,
+            limitReached = true,
+        )
+        val viewModel = DownloadsViewModel(downloads, offline)
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.storageLimit).isEqualTo(StorageLimit.Gb2)
+            assertThat(state.limitReached).isTrue()
+            // The bar fills against the limit, not the free space.
+            assertThat(state.storageFraction).isEqualTo(1f)
         }
     }
 

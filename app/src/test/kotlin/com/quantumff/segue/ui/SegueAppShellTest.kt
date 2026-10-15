@@ -2,15 +2,22 @@ package com.quantumff.segue.ui
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.remember
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.RemoteQueueOffer
+import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -117,10 +124,63 @@ class SegueAppShellTest {
     }
 
     @Test
+    fun `the expanded sidebar lists playlists and opens them`() {
+        var opened: String? = null
+        compose.setContent {
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = ShellLayout.Expanded)
+                SegueApp(
+                    appState = appState,
+                    player = testPlayer,
+                    positionMillis = remember { MutableStateFlow(0L) },
+                    playerActions = ShellPlayerActions.None,
+                    sidebarPlaylists = persistentListOf(SidebarPlaylist("p1", "Road trip")),
+                    onSidebarPlaylistClick = { opened = it },
+                ) { TestNavHost(appState, it) }
+            }
+        }
+
+        compose.onNodeWithText("Road trip").performClick()
+
+        assertThat(opened).isEqualTo("p1")
+    }
+
+    @Test
     fun `an empty queue hides the expanded player bar`() {
         setShell(ShellLayout.Expanded, player = ShellPlayerState())
 
         compose.onNodeWithText("PLAYLISTS").assertExists()
         compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    private val offer = RemoteQueueOffer("Feishin", trackCount = 12, currentTitle = "Nude")
+
+    @Test
+    fun `a remote queue offer docks a continue bar above the mini player on any screen`() {
+        setShell(ShellLayout.Compact, player = testPlayer.copy(remoteOffer = offer))
+
+        assertShown("Continue from Feishin")
+        compose.onNodeWithText(TEST_TRACK).assertExists()
+        compose.onNodeWithText("Open a sample album").performClick()
+        assertShown("Continue from Feishin")
+    }
+
+    @Test
+    fun `with an empty queue the continue bar replaces the mini player`() {
+        setShell(ShellLayout.Medium, player = ShellPlayerState(remoteOffer = offer))
+
+        assertShown("Continue from Feishin")
+        compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the continue bar shows above the expanded player bar and hides on full-screen routes`() {
+        setShell(ShellLayout.Expanded, player = testPlayer.copy(remoteOffer = offer))
+        assertShown("Continue from Feishin")
+
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        compose.onNodeWithText("Now playing").assertExists()
+        compose.onAllNodes(hasText("Continue from Feishin")).assertCountEquals(0)
     }
 }

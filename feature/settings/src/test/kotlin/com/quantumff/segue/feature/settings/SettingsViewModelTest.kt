@@ -6,6 +6,7 @@ import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -114,10 +115,17 @@ class SettingsViewModelTest {
         viewModel.setDownloadWifiOnly(false)
         viewModel.setDownloadChargingOnly(true)
         viewModel.setOfflineMode(true)
+        viewModel.setStorageLimit(StorageLimit.Gb10)
 
         viewModel.uiState.test {
             assertThat(expectMostRecentItem().downloads).isEqualTo(
-                DownloadPreferences(quality = mp3, wifiOnly = false, chargingOnly = true, forceOffline = true),
+                DownloadPreferences(
+                    quality = mp3,
+                    wifiOnly = false,
+                    chargingOnly = true,
+                    forceOffline = true,
+                    storageLimit = StorageLimit.Gb10,
+                ),
             )
         }
     }

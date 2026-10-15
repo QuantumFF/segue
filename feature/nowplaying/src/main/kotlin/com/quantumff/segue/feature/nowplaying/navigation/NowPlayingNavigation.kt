@@ -33,6 +33,7 @@ fun NavGraphBuilder.nowPlayingScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOpenQueue: () -> Unit,
     queueContent: @Composable () -> Unit,
 ) {
     composable<NowPlayingRoute>(
@@ -48,6 +49,7 @@ fun NavGraphBuilder.nowPlayingScreen(
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
+            onOpenQueue = onOpenQueue,
             queueContent = queueContent,
         )
     }

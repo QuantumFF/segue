@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
@@ -98,6 +99,59 @@ class DownloadRepositoryTest {
         assertThat(dao.getAll(SERVER_ID).map { it.songId }).containsExactly("shared", "only-album")
         assertThat(dao.getAll(SERVER_ID).map { it.state }.distinct()).containsExactly(DownloadState.Queued)
         assertThat(schedules).containsExactly(false)
+    }
+
+    @Test
+    fun `the storage limit is saved, reschedules the worker and shows in the overview once reached`() = runTest {
+        library()
+        val files = DownloadFiles(tmp.newFolder("downloads"))
+        val repository = repository(files)
+        repository.pin(PinTarget(PinKind.Album, "al", "Album", null))
+        schedules.clear()
+
+        repository.setStorageLimit(StorageLimit.Gb2)
+
+        assertThat(repository.preferences.first().storageLimit).isEqualTo(StorageLimit.Gb2)
+        assertThat(schedules).containsExactly(false)
+        assertThat(repository.overview.first().limitReached).isFalse()
+
+        dao.upsert(
+            DownloadEntity(SERVER_ID, "shared", DownloadState.Completed, 2_000_000_000L, null, "x", updatedAt = 1),
+        )
+
+        val overview = repository.overview.first()
+        assertThat(overview.storageLimit).isEqualTo(StorageLimit.Gb2)
+        assertThat(overview.limitReached).isTrue()
+    }
+
+    @Test
+    fun `pause all holds every unfinished download`() = runTest {
+        library()
+        val files = DownloadFiles(tmp.newFolder("downloads"))
+        val repository = repository(files)
+        repository.pin(PinTarget(PinKind.Playlist, "p", "Mix", null))
+        completeWithFile(files, "shared")
+
+        repository.pauseAll()
+
+        assertThat(dao.get(SERVER_ID, "shared")?.state).isEqualTo(DownloadState.Completed)
+        assertThat(dao.get(SERVER_ID, "only-playlist")?.state).isEqualTo(DownloadState.Paused)
+    }
+
+    @Test
+    fun `cancel all unpins unfinished pins and keeps finished ones`() = runTest {
+        library()
+        val files = DownloadFiles(tmp.newFolder("downloads"))
+        val repository = repository(files)
+        repository.pin(PinTarget(PinKind.Album, "al", "Album", null))
+        repository.pin(PinTarget(PinKind.Song, "shared", "shared", null))
+        completeWithFile(files, "shared")
+
+        repository.cancelAll()
+
+        val pins = repository.overview.first().pins
+        assertThat(pins.map { it.id }).containsExactly("shared")
+        assertThat(dao.getAll(SERVER_ID).map { it.songId }).containsExactly("shared")
     }
 
     @Test

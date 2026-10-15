@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.downloadedWhileOffline
 import com.quantumff.segue.core.model.OfflinePlayback
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
@@ -19,14 +20,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Why a play intent did nothing, shown as a snackbar. */
-enum class PlayerMessage {
-    NothingToPlay,
-    InstantMixFailed,
+/** Shell snackbars: why a play intent did nothing, or that another device's queue was taken over. */
+sealed interface PlayerMessage {
+    data object NothingToPlay : PlayerMessage
+
+    data object InstantMixFailed : PlayerMessage
+
+    /** "Continued from <device>", with Undo when [canUndo]. */
+    data class ContinuedFrom(val deviceName: String, val canUndo: Boolean) : PlayerMessage
 }
 
 /**
@@ -37,7 +43,7 @@ enum class PlayerMessage {
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playback: PlaybackController,
-    offlineMode: OfflineModeRepository,
+    private val offlineMode: OfflineModeRepository,
     private val downloads: DownloadRepository,
 ) : ViewModel() {
     private val isOffline: StateFlow<Boolean> = offlineMode.isOffline
@@ -57,7 +63,10 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
 
     private val messageChannel = Channel<PlayerMessage>(Channel.BUFFERED)
-    val messages: Flow<PlayerMessage> = messageChannel.receiveAsFlow()
+    val messages: Flow<PlayerMessage> = merge(
+        messageChannel.receiveAsFlow(),
+        playback.autoAdoptions.map { PlayerMessage.ContinuedFrom(it.deviceName, it.canUndo) },
+    )
 
     val playActions = PlayActions(
         // Offline, songs that are not downloaded are skipped (DESIGN.md §5.2: they cannot play).
@@ -77,7 +86,9 @@ class PlayerViewModel @Inject constructor(
         },
         onShuffleAlbums = { source ->
             viewModelScope.launch {
-                if (!playback.shuffleAlbums(source)) messageChannel.send(PlayerMessage.NothingToPlay)
+                // Offline: downloaded albums only (DESIGN.md §1, offline is first-class).
+                val offline = offlineMode.downloadedWhileOffline(downloads).first()
+                if (!playback.shuffleAlbums(source, offline)) messageChannel.send(PlayerMessage.NothingToPlay)
             }
         },
         onPlayNext = { songs -> withQueueable(songs, playback::playNext) },
@@ -118,7 +129,12 @@ class PlayerViewModel @Inject constructor(
         onSkipTo = playback::skipTo,
         onCycleShuffle = ::cycleShuffleMode,
         onCycleRepeat = ::cycleRepeatMode,
+        onContinueRemote = playback::adoptRemoteQueue,
+        onDismissRemote = playback::dismissRemoteQueue,
     )
+
+    /** The "Continued from" snackbar's Undo: the local queue comes back. */
+    fun undoAutoAdoption() = playback.undoAutoAdoption()
 
     /** Off → Tracks → Albums → Off (DESIGN.md §4.7). */
     fun cycleShuffleMode() = playback.setShuffleMode(player.value.shuffleMode.cycled())

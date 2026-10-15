@@ -38,12 +38,10 @@
     <string name="feature_nowplaying_related_unavailable">This track has no artist to find similar songs for</string>
     <string name="feature_nowplaying_related_error">Couldn\'t load related songs</string>
 
-    <string name="feature_nowplaying_queue_placeholder_title">Up next</string>
-    <string name="feature_nowplaying_queue_placeholder_message">The queue opens in its own screen for now</string>
-    <string name="feature_nowplaying_queue_placeholder_action">Open queue</string>
 
     <string name="feature_nowplaying_menu_sleep_timer">Sleep timer</string>
     <string name="feature_nowplaying_menu_details">Details</string>
+    <string name="feature_nowplaying_menu_open_queue">Open queue</string>
     <string name="feature_nowplaying_instant_mix_failed">Couldn\'t start an instant mix</string>
 
     <string name="feature_nowplaying_sleep_title">Sleep timer</string>

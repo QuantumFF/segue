@@ -52,6 +52,9 @@
 
     <string name="feature_settings_storage">Downloads &amp; storage</string>
     <string name="feature_settings_cache_size">Streaming cache</string>
+    <string name="feature_settings_storage_limit">Download storage limit</string>
+    <string name="feature_settings_storage_limit_none">No limit</string>
+    <string name="feature_settings_storage_limit_gb">%1$d GB</string>
     <string name="feature_settings_size_mb">%1$d MB</string>
     <string name="feature_settings_size_gb">%1$d GB</string>
     <string name="feature_settings_downloads">Downloads</string>

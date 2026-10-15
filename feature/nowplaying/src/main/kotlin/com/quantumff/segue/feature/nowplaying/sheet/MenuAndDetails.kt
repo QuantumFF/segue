@@ -46,6 +46,7 @@ internal enum class NowPlayingMenuAction {
     SleepTimer,
     InstantMix,
     AddToPlaylist,
+    OpenQueue,
     GoToAlbum,
     GoToArtist,
     Details,
@@ -92,6 +93,7 @@ private val NowPlayingMenuAction.label: Int
         NowPlayingMenuAction.SleepTimer -> R.string.feature_nowplaying_menu_sleep_timer
         NowPlayingMenuAction.InstantMix -> com.quantumff.segue.core.designsystem.R.string.ds_action_instant_mix
         NowPlayingMenuAction.AddToPlaylist -> com.quantumff.segue.core.designsystem.R.string.ds_action_add_to_playlist
+        NowPlayingMenuAction.OpenQueue -> R.string.feature_nowplaying_menu_open_queue
         NowPlayingMenuAction.GoToAlbum -> com.quantumff.segue.core.designsystem.R.string.ds_action_go_to_album
         NowPlayingMenuAction.GoToArtist -> com.quantumff.segue.core.designsystem.R.string.ds_action_go_to_artist
         NowPlayingMenuAction.Details -> R.string.feature_nowplaying_menu_details
@@ -102,6 +104,7 @@ private val NowPlayingMenuAction.icon
         NowPlayingMenuAction.SleepTimer -> SegueIcons.Timer
         NowPlayingMenuAction.InstantMix -> SegueIcons.Related
         NowPlayingMenuAction.AddToPlaylist -> SegueIcons.AddToPlaylist
+        NowPlayingMenuAction.OpenQueue -> SegueIcons.UpNext
         NowPlayingMenuAction.GoToAlbum -> SegueIcons.Disc3
         NowPlayingMenuAction.GoToArtist -> SegueIcons.Artist
         NowPlayingMenuAction.Details -> SegueIcons.Info

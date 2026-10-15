@@ -3,11 +3,14 @@ package com.quantumff.segue.feature.search
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.SearchRepository
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
 import kotlinx.collections.immutable.persistentListOf
@@ -35,6 +38,8 @@ class SearchViewModelTest {
     private val preferences = FakeUserPreferencesRepository()
     private val starRating = FakeStarRatingRepository()
     private val library = FakeLibraryRepository()
+    private val downloads = FakeDownloadRepository()
+    private val offline = FakeOfflineModeRepository()
 
     private val song = TestData.song("s1")
     private val local = SearchResult(
@@ -49,9 +54,29 @@ class SearchViewModelTest {
     )
 
     private fun TestScope.viewModel(): SearchViewModel {
-        val viewModel = SearchViewModel(search, preferences, starRating, library)
+        val viewModel = SearchViewModel(search, preferences, starRating, library, downloads, offline)
         backgroundScope.launch { viewModel.uiState.collect {} }
         return viewModel
+    }
+
+    @Test
+    fun offlineShowsDownloadedLocalResultsAndSkipsTheServer() = runTest(mainDispatcherRule.testDispatcher) {
+        offline.isOffline.value = true
+        downloads.downloadedLibrary.value = DownloadedLibrary(songIds = setOf("s2"), artistIds = setOf("a1"))
+        search.script["rad"] = listOf(
+            local.copy(songs = persistentListOf(song, TestData.song("s2"))),
+            server,
+        )
+        val viewModel = viewModel()
+        viewModel.onQueryChange("rad")
+        advanceUntilIdle()
+
+        val results = viewModel.uiState.value.results as SearchResults.Ready
+        assertThat(search.queries).isEmpty()
+        assertThat(results.offline).isTrue()
+        assertThat(results.serverPending).isFalse()
+        assertThat(results.result.songs.map { it.id }).containsExactly("s2")
+        assertThat(results.result.artists.map { it.id }).containsExactly("a1")
     }
 
     @Test

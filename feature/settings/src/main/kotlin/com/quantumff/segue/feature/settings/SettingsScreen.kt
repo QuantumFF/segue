@@ -62,6 +62,7 @@ import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.Server
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -103,6 +104,7 @@ fun SettingsScreen(
             onDownloadWifiOnly = viewModel::setDownloadWifiOnly,
             onDownloadChargingOnly = viewModel::setDownloadChargingOnly,
             onOfflineMode = viewModel::setOfflineMode,
+            onStorageLimit = viewModel::setStorageLimit,
         )
     }
     SettingsContent(
@@ -136,6 +138,7 @@ class SettingsActions(
     val onDownloadWifiOnly: (Boolean) -> Unit = {},
     val onDownloadChargingOnly: (Boolean) -> Unit = {},
     val onOfflineMode: (Boolean) -> Unit = {},
+    val onStorageLimit: (StorageLimit) -> Unit = {},
 ) {
     companion object {
         val None = SettingsActions(
@@ -154,6 +157,7 @@ private enum class SettingsPicker {
     CacheSize,
     StopWhenPaused,
     DownloadQuality,
+    StorageLimit,
 }
 
 /** The stateless settings screen. */
@@ -273,6 +277,13 @@ fun SettingsContent(
                     title = stringResource(R.string.feature_settings_download_quality),
                     summary = qualityLabel(uiState.downloads.quality),
                     modifier = Modifier.clickable { picker = SettingsPicker.DownloadQuality },
+                )
+            }
+            item(key = "storageLimit", contentType = "row") {
+                SettingsRow(
+                    title = stringResource(R.string.feature_settings_storage_limit),
+                    summary = storageLimitLabel(uiState.downloads.storageLimit),
+                    modifier = Modifier.clickable { picker = SettingsPicker.StorageLimit },
                 )
             }
             item(key = "downloadWifiOnly", contentType = "switch") {
@@ -449,6 +460,15 @@ private fun SettingsPickerSheet(
             onDismissRequest = onDismissRequest,
         )
 
+        SettingsPicker.StorageLimit -> PickerSheet(
+            title = stringResource(R.string.feature_settings_storage_limit),
+            options = StorageLimit.entries.toImmutableList(),
+            selected = downloads.storageLimit,
+            label = { storageLimitLabel(it) },
+            onSelect = actions.onStorageLimit,
+            onDismissRequest = onDismissRequest,
+        )
+
         SettingsPicker.CacheSize -> PickerSheet(
             title = stringResource(R.string.feature_settings_cache_size),
             options = UserPreferences.STREAM_CACHE_SIZES_MB.toImmutableList(),
@@ -468,6 +488,12 @@ private fun SettingsPickerSheet(
         )
     }
 }
+
+/** "No limit" or "10 GB". */
+@Composable
+private fun storageLimitLabel(limit: StorageLimit): String = limit.gigabytes
+    ?.let { stringResource(R.string.feature_settings_storage_limit_gb, it) }
+    ?: stringResource(R.string.feature_settings_storage_limit_none)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

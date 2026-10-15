@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.quantumff.segue.core.model.DownloadPreferences
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,9 @@ class DownloadPreferencesDataSource @Inject constructor(private val dataStore: D
             wifiOnly = prefs[Keys.WifiOnly] ?: defaults.wifiOnly,
             chargingOnly = prefs[Keys.ChargingOnly] ?: defaults.chargingOnly,
             forceOffline = prefs[Keys.ForceOffline] ?: defaults.forceOffline,
+            storageLimit = prefs[Keys.StorageLimit]
+                ?.let { name -> StorageLimit.entries.firstOrNull { it.name == name } }
+                ?: defaults.storageLimit,
         )
     }.distinctUntilChanged()
 
@@ -48,11 +52,16 @@ class DownloadPreferencesDataSource @Inject constructor(private val dataStore: D
         dataStore.edit { it[Keys.ForceOffline] = enabled }
     }
 
+    suspend fun setStorageLimit(limit: StorageLimit) {
+        dataStore.edit { it[Keys.StorageLimit] = limit.name }
+    }
+
     private object Keys {
         val MaxBitRate = intPreferencesKey("download_max_bit_rate_kbps")
         val Format = stringPreferencesKey("download_format")
         val WifiOnly = booleanPreferencesKey("download_wifi_only")
         val ChargingOnly = booleanPreferencesKey("download_charging_only")
         val ForceOffline = booleanPreferencesKey("force_offline")
+        val StorageLimit = stringPreferencesKey("download_storage_limit")
     }
 }

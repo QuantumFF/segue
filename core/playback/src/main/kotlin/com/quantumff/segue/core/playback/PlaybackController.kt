@@ -18,6 +18,9 @@ import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AutoAdoption
+import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemotePlayQueue
@@ -32,6 +35,8 @@ import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
+import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
+import com.quantumff.segue.core.playback.sync.RemoteAdoption
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ExecutionException
 import javax.inject.Inject
@@ -47,6 +52,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +66,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -93,6 +100,11 @@ class PlaybackController @Inject constructor(
     private class Removal(val item: MediaItem, val timelineIndex: Int, val playPosition: Int)
 
     private var lastRemoval: Removal? = null
+
+    private val autoAdoptionEvents = Channel<AutoAdoption>(Channel.BUFFERED)
+
+    /** Each automatic adoption of another device's queue, for the "Continued from" snackbar. */
+    val autoAdoptions: Flow<AutoAdoption> = autoAdoptionEvents.receiveAsFlow()
 
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
@@ -278,7 +290,23 @@ class PlaybackController @Inject constructor(
 
     fun dismissRemoteQueue() = queueSync.dismissOffer()
 
-    internal suspend fun adopt(queue: RemotePlayQueue): Unit = withContext(mainDispatcher) {
+    /** Adopts a queue the auto-continue setting took over, then reports it for the snackbar. */
+    internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
+        if (!adopt(adoption.queue)) {
+            // Nothing was replaced: there is nothing to undo.
+            queueSync.takeAdoptionUndo()
+            return
+        }
+        autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
+    }
+
+    /** The snackbar's Undo: puts back the local queue the last automatic adoption replaced. */
+    fun undoAutoAdoption() = command { controller ->
+        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
+    }
+
+    /** Replaces the local queue with [queue], paused. False if the player could not take it. */
+    internal suspend fun adopt(queue: RemotePlayQueue): Boolean = withContext(mainDispatcher) {
         try {
             val controller = controller()
             controller.pause()
@@ -290,10 +318,12 @@ class PlaybackController @Inject constructor(
             val index = queue.currentIndex.coerceIn(queue.songs.indices)
             controller.setMediaItems(queue.songs.map { it.toMediaItem() }, index, queue.positionMillis)
             queueSync.markAdopted(QueueState(queue.songs.map { it.id }, index, queue.positionMillis))
+            true
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             Log.w(TAG, "Could not adopt the remote queue", e)
+            false
         }
     }
 
@@ -302,17 +332,19 @@ class PlaybackController @Inject constructor(
     /**
      * "Shuffle albums": random albums from [source], each queued whole in disc and track order, in
      * plain (unshuffled) play order. A library or genre picks [AlbumPicker.DEFAULT_ALBUM_COUNT]
-     * albums; an artist or playlist uses all of its albums. Reads Room only. False if there is
-     * nothing to play.
+     * albums; an artist or playlist uses all of its albums. Reads Room only. With [offline] (what is
+     * downloaded, passed while offline) only downloaded albums are picked and only their
+     * downloaded songs queued. False if there is nothing to play.
      */
-    suspend fun shuffleAlbums(source: AlbumShuffleSource): Boolean {
-        val albumIds = albumShuffle.albumIds(source)
+    suspend fun shuffleAlbums(source: AlbumShuffleSource, offline: DownloadedLibrary? = null): Boolean {
+        val albumIds = OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(source), offline)
         val count = when (source) {
             AlbumShuffleSource.Library, is AlbumShuffleSource.Genre -> AlbumPicker.DEFAULT_ALBUM_COUNT
             is AlbumShuffleSource.Artist, is AlbumShuffleSource.Playlist -> albumIds.size
         }
         val picked = AlbumPicker.pick(albumIds, count, random)
-        val queue = AlbumPicker.queueInAlbumOrder(albumShuffle.songs(source, picked), picked)
+        val songs = OfflineLibrary.shuffleSongs(albumShuffle.songs(source, picked), offline)
+        val queue = AlbumPicker.queueInAlbumOrder(songs, picked)
         if (queue.isEmpty()) return false
         play(queue, startIndex = 0, shuffle = false)
         return true

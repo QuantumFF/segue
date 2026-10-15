@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -75,6 +76,22 @@ fun TopLevelTopBar(title: String, modifier: Modifier = Modifier, actions: @Compo
         actions()
     }
 }
+
+/**
+ * Keeps the status bar readable over content that scrolls under it (a [TopLevelTopBar] that has
+ * scrolled away): a `background` band the height of the status bar. Align it to the top.
+ */
+@Composable
+fun StatusBarScrim(modifier: Modifier = Modifier) {
+    Spacer(
+        modifier
+            .fillMaxWidth()
+            .windowInsetsTopHeight(WindowInsets.statusBars)
+            .background(MaterialTheme.colorScheme.background.copy(alpha = STATUS_BAR_SCRIM_ALPHA)),
+    )
+}
+
+private const val STATUS_BAR_SCRIM_ALPHA = 0.92f
 
 /** The account action on Home and Library: opens Settings. [serverName] is announced and labelled. */
 @Composable

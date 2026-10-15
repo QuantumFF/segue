@@ -115,6 +115,22 @@ class DownloadDaoTest {
         assertThat(db.albumDao().observeDownloadedCount("s1", false, null, null).first()).isEqualTo(1)
     }
 
+    @Test
+    fun `downloaded albums and artists come from completed songs only`() = runTest {
+        db.albumDao().upsertAll(listOf(album("al1", artistId = "ar1"), album("al2", artistId = "ar2")))
+        db.songDao().upsertAll(
+            listOf(
+                song("a", albumId = "al1").copy(artistId = "ar3"),
+                song("b", albumId = "al2").copy(artistId = "ar2"),
+            ),
+        )
+        dao.insertAll(listOf(download("a", DownloadState.Completed), download("b", DownloadState.Downloading)))
+
+        assertThat(dao.observeDownloadedAlbumIds("s1").first()).containsExactly("al1")
+        assertThat(dao.observeDownloadedArtistIds("s1").first()).containsExactly("ar1", "ar3")
+        assertThat(dao.observeDownloadedAlbumIds("s2").first()).isEmpty()
+    }
+
     private suspend fun <T : Any> PagingSource<Int, T>.loadAll(): List<T> {
         val result = load(PagingSource.LoadParams.Refresh(key = null, loadSize = 100, placeholdersEnabled = false))
         return (result as PagingSource.LoadResult.Page).data

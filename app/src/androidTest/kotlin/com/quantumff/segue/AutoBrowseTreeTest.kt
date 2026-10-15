@@ -58,8 +58,12 @@ class AutoBrowseTreeTest {
         assertThat(root.mediaId).isEqualTo("/")
         log("root ${root.mediaId} extras=${rootResult.params?.extras}")
 
-        val tabs = children("/")
-        assertThat(tabs.map { it.mediaId }).containsExactly("/home", "/library", "/downloads").inOrder()
+        val tabs = children("/") // Three tabs, then the playable Shuffle albums.
+        assertThat(
+            tabs.map {
+                it.mediaId
+            },
+        ).containsExactly("/home", "/library", "/downloads", "/shuffle-albums").inOrder()
         assertThat(children("/home").map { it.mediaId })
             .containsExactly("/shuffle-albums", "/home/recent", "/home/added", "/home/starred").inOrder()
         assertThat(children("/library").map { it.mediaId })
