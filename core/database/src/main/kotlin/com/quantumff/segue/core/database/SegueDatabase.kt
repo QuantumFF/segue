@@ -29,6 +29,7 @@ import com.quantumff.segue.core.database.model.PlaylistEntity
 import com.quantumff.segue.core.database.model.PlaylistSongEntity
 import com.quantumff.segue.core.database.model.QueueItemEntity
 import com.quantumff.segue.core.database.model.QueueStateEntity
+import com.quantumff.segue.core.database.model.QueueSyncStateEntity
 import com.quantumff.segue.core.database.model.ServerCapabilitiesEntity
 import com.quantumff.segue.core.database.model.SongEntity
 import com.quantumff.segue.core.database.model.SongFtsEntity
@@ -39,7 +40,7 @@ import com.quantumff.segue.core.database.util.Converters
  * The library cache and local playback state. Room is the single source of truth: the UI reads
  * from here and network refreshes write here.
  *
- * Still at version 1 because no build has shipped. Add migrations from the first release on.
+ * Every version bump adds a migration in [SegueMigrations], with a test.
  */
 @Database(
     entities = [
@@ -56,12 +57,13 @@ import com.quantumff.segue.core.database.util.Converters
         AlbumListEntryEntity::class,
         QueueStateEntity::class,
         QueueItemEntity::class,
+        QueueSyncStateEntity::class,
         PendingScrobbleEntity::class,
         DownloadEntity::class,
         SyncMetadataEntity::class,
         ServerCapabilitiesEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

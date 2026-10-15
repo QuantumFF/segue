@@ -11,6 +11,7 @@ import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
 import com.quantumff.segue.core.database.model.QueueItemEntity
 import com.quantumff.segue.core.database.model.QueueStateEntity
+import com.quantumff.segue.core.database.model.QueueSyncStateEntity
 import com.quantumff.segue.core.database.model.ServerCapabilitiesEntity
 import com.quantumff.segue.core.database.model.SongEntity
 import com.quantumff.segue.core.database.model.SyncMetadataEntity
@@ -44,6 +45,19 @@ abstract class QueueDao {
 
     @Upsert
     protected abstract suspend fun upsertState(state: QueueStateEntity)
+
+    @Query("SELECT seenRemoteChangedAt FROM queue_sync_state WHERE serverId = :serverId")
+    abstract suspend fun seenRemoteChangedAt(serverId: String): Long?
+
+    /** Records [changedAt] as seen, unless a later server change was already seen. */
+    @Transaction
+    open suspend fun markRemoteChangeSeen(serverId: String, changedAt: Long) {
+        val seen = seenRemoteChangedAt(serverId)
+        if (seen == null || changedAt > seen) upsertSyncState(QueueSyncStateEntity(serverId, changedAt))
+    }
+
+    @Upsert
+    protected abstract suspend fun upsertSyncState(state: QueueSyncStateEntity)
 }
 
 @Dao

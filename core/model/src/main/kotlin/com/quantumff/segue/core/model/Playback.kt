@@ -40,7 +40,15 @@ data class QueueItem(
 )
 
 /** Another device's saved queue, newer than this device's. */
-data class RemoteQueueOffer(val deviceName: String, val trackCount: Int, val currentTitle: String?)
+data class RemoteQueueOffer(
+    val deviceName: String,
+    val trackCount: Int,
+    val currentTitle: String?,
+    /** Where the other device was in [currentTitle]. */
+    val positionMillis: Long = 0,
+    /** When the server saved it (server clock, epoch milliseconds); null if the server did not say. */
+    val changedAt: Long? = null,
+)
 
 /** When playback pauses by itself. */
 sealed interface SleepTimer {
