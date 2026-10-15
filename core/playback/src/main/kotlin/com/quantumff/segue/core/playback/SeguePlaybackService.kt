@@ -33,6 +33,7 @@ import com.quantumff.segue.core.playback.media.withStarred
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 import com.quantumff.segue.core.playback.replaygain.ReplayGainVolume
 import com.quantumff.segue.core.playback.scrobble.Scrobbler
+import com.quantumff.segue.core.playback.service.LoadingWifiLock
 import com.quantumff.segue.core.playback.service.PlaybackComponents
 import com.quantumff.segue.core.playback.service.ScreenOffOffload
 import com.quantumff.segue.core.playback.service.SeguePlayer
@@ -98,6 +99,7 @@ class SeguePlaybackService : MediaLibraryService() {
             .build()
 
         exoPlayer.addListener(PlayerEvents())
+        exoPlayer.addListener(LoadingWifiLock(exoPlayer))
         exoPlayer.addListener(queueSyncListener)
         exoPlayer.addListener(sleepTimer)
         exoPlayer.addListener(Scrobbler(player, components.scrobbles, scope, components.appScope))
