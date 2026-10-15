@@ -84,7 +84,7 @@ internal fun RelatedPanel(state: RelatedUiState, actions: RelatedActions, modifi
 }
 
 @Composable
-private fun RelatedSongs(songs: List<Song>, actions: RelatedActions, modifier: Modifier) {
+private fun RelatedSongs(songs: List<Song>, actions: RelatedActions, modifier: Modifier = Modifier) {
     var menuFor by remember { mutableStateOf<Song?>(null) }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = SegueSpacing.lg)) {
         item(key = "actions", contentType = "actions") {
@@ -99,12 +99,18 @@ private fun RelatedSongs(songs: List<Song>, actions: RelatedActions, modifier: M
                     Text(stringResource(R.string.feature_nowplaying_related_play_all))
                 }
                 OutlinedButton(onClick = { actions.onAddToQueue(songs) }) {
-                    Icon(SegueIcons.AddToQueue, contentDescription = null, modifier = Modifier.padding(end = SegueSpacing.sm))
+                    Icon(
+                        SegueIcons.AddToQueue,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = SegueSpacing.sm),
+                    )
                     Text(stringResource(R.string.feature_nowplaying_related_add_to_queue))
                 }
             }
         }
-        itemsIndexed(songs, key = { index, song -> "$index:${song.id}" }, contentType = { _, _ -> "song" }) { index, song ->
+        itemsIndexed(songs, key = { index, song ->
+            "$index:${song.id}"
+        }, contentType = { _, _ -> "song" }) { index, song ->
             TrackRow(
                 state = song.toTrackRow(),
                 onClick = { actions.onPlay(index) },

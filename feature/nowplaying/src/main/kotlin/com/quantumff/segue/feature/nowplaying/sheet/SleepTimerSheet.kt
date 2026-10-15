@@ -71,8 +71,14 @@ internal fun SleepTimerSheet(
     ) {
         SleepTimerContent(
             active = active,
-            onStart = { onStart(it); onDismissRequest() },
-            onCancel = { onCancel(); onDismissRequest() },
+            onStart = {
+                onStart(it)
+                onDismissRequest()
+            },
+            onCancel = {
+                onCancel()
+                onDismissRequest()
+            },
             modifier = Modifier.navigationBarsPadding(),
         )
     }
@@ -184,34 +190,37 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
 private fun CustomTimer(onStart: (Int) -> Unit) {
     var minutes by rememberSaveable { mutableFloatStateOf(DEFAULT_CUSTOM_MINUTES.toFloat()) }
     var expanded by rememberSaveable { mutableStateOf(false) }
-    SheetRow(
-        icon = SegueIcons.Edit,
-        label = stringResource(R.string.feature_nowplaying_sleep_custom),
-        onClick = { expanded = !expanded },
-    )
-    if (!expanded) return
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SegueSpacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Slider(
-            value = minutes,
-            onValueChange = { minutes = it },
-            valueRange = CUSTOM_MIN.toFloat()..CUSTOM_MAX.toFloat(),
-            steps = (CUSTOM_MAX - CUSTOM_MIN) / CUSTOM_STEP - 1,
-            modifier = Modifier.weight(1f),
+    Column {
+        SheetRow(
+            icon = SegueIcons.Edit,
+            label = stringResource(R.string.feature_nowplaying_sleep_custom),
+            onClick = { expanded = !expanded },
         )
-        Spacer(Modifier.width(SegueSpacing.md))
-        Text(
-            text = durationLabel(minutes.roundToInt()),
-            style = MaterialTheme.typography.labelLarge.tabularNumbers(),
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.width(CUSTOM_LABEL_WIDTH),
-        )
-        FilledTonalButton(onClick = { onStart(minutes.roundToInt()) }) {
-            Text(stringResource(R.string.feature_nowplaying_sleep_start))
+        if (expanded) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SegueSpacing.lg),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Slider(
+                    value = minutes,
+                    onValueChange = { minutes = it },
+                    valueRange = CUSTOM_MIN.toFloat()..CUSTOM_MAX.toFloat(),
+                    steps = (CUSTOM_MAX - CUSTOM_MIN) / CUSTOM_STEP - 1,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(SegueSpacing.md))
+                Text(
+                    text = durationLabel(minutes.roundToInt()),
+                    style = MaterialTheme.typography.labelLarge.tabularNumbers(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.width(CUSTOM_LABEL_WIDTH),
+                )
+                FilledTonalButton(onClick = { onStart(minutes.roundToInt()) }) {
+                    Text(stringResource(R.string.feature_nowplaying_sleep_start))
+                }
+            }
         }
     }
 }
@@ -257,7 +266,9 @@ private fun durationLabel(minutes: Int): String {
     val rest = minutes % MINUTES_PER_HOUR
     return when {
         hours == 0 -> stringResource(R.string.feature_nowplaying_sleep_minutes, rest)
+
         rest == 0 -> stringResource(R.string.feature_nowplaying_sleep_hours, hours)
+
         else -> stringResource(R.string.feature_nowplaying_sleep_hours, hours) + " " +
             stringResource(R.string.feature_nowplaying_sleep_minutes, rest)
     }

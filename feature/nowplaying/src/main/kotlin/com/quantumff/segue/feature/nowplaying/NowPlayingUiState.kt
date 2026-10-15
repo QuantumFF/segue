@@ -4,8 +4,8 @@ import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
-import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.RepeatMode
+import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song

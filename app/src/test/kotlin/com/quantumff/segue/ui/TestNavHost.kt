@@ -15,7 +15,7 @@ import com.quantumff.segue.feature.artist.navigation.ArtistRoute
 import com.quantumff.segue.feature.artist.navigation.navigateToArtist
 import com.quantumff.segue.feature.home.navigation.HomeRoute
 import com.quantumff.segue.feature.library.navigation.LibraryRoute
-import com.quantumff.segue.feature.nowplaying.navigation.nowPlayingScreen
+import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.playlist.navigation.PlaylistsRoute
 import com.quantumff.segue.feature.search.navigation.SearchRoute
 import com.quantumff.segue.navigation.HomeGraph
@@ -50,7 +50,7 @@ fun TestNavHost(appState: SegueAppState, modifier: Modifier = Modifier) {
         }
         composable<AlbumRoute> { Text("Album ${it.toRoute<AlbumRoute>().albumId}") }
         composable<ArtistRoute> { Text("Artist ${it.toRoute<ArtistRoute>().artistId}") }
-        nowPlayingScreen(onCollapseClick = appState::navigateBack, onQueueClick = {})
+        composable<NowPlayingRoute> { Text("Now playing") }
     }
 }
 

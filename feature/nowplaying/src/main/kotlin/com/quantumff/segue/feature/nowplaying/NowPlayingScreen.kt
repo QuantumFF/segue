@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -194,7 +195,8 @@ internal fun NowPlayingScreen(
             .fillMaxSize()
             .then(gestures.modifier),
     ) {
-        val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH || (maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH)
+        val landscape = maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH
+        val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH || landscape
         NowPlayingBackground(coverArtId = state.track?.coverArtId, modifier = Modifier.fillMaxSize())
         val track = state.track
         val panels = remember(actions, lyrics, activeLyricLine, related, queueContent) {
@@ -245,10 +247,16 @@ internal fun NowPlayingScreen(
                 onAction = { action ->
                     when (action) {
                         NowPlayingMenuAction.SleepTimer -> sheet = NowPlayingSheet.SleepTimer
+
                         NowPlayingMenuAction.InstantMix -> actions.onInstantMix()
+
                         NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
+
                         NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
-                        NowPlayingMenuAction.GoToArtist -> current.artists.firstOrNull()?.let { actions.onArtistClick(it.id) }
+
+                        NowPlayingMenuAction.GoToArtist ->
+                            current.artists.firstOrNull()?.let { actions.onArtistClick(it.id) }
+
                         NowPlayingMenuAction.Details -> sheet = NowPlayingSheet.Details
                     }
                 },
@@ -347,8 +355,9 @@ private fun PhoneLayout(
         AnimatedContent(
             targetState = openPanel != null,
             transitionSpec = {
-                (slideInVertically(SegueMotion.longEnter()) { it / PANEL_SLIDE_FRACTION } + fadeIn(SegueMotion.longEnter()))
-                    .togetherWith(fadeOut(SegueMotion.medium()))
+                val enter = slideInVertically(SegueMotion.longEnter()) { it / PANEL_SLIDE_FRACTION } +
+                    fadeIn(SegueMotion.longEnter())
+                enter.togetherWith(fadeOut(SegueMotion.medium()))
             },
             label = "panel",
             modifier = Modifier
@@ -489,25 +498,27 @@ private fun TwoPaneLayout(
 /** Seekbar and transport, pinned under the art or panels. */
 @Composable
 private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actions: NowPlayingActions) {
-    NowPlayingSeekbar(
-        positionMillis = positionMillis,
-        durationMillis = state.durationMillis,
-        isPlaying = state.isPlaying,
-        quality = state.quality,
-        onSeek = actions.onSeek,
-        modifier = Modifier.padding(horizontal = SegueSpacing.xl, vertical = SegueSpacing.xs),
-    )
-    TransportRow(
-        isPlaying = state.isPlaying,
-        shuffleMode = state.shuffleMode,
-        repeatMode = state.repeatMode,
-        onShuffleClick = actions.onCycleShuffle,
-        onPreviousClick = actions.onPrevious,
-        onPlayPauseClick = actions.onPlayPause,
-        onNextClick = actions.onNext,
-        onRepeatClick = actions.onCycleRepeat,
-        modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm),
-    )
+    Column(Modifier.fillMaxWidth()) {
+        NowPlayingSeekbar(
+            positionMillis = positionMillis,
+            durationMillis = state.durationMillis,
+            isPlaying = state.isPlaying,
+            quality = state.quality,
+            onSeek = actions.onSeek,
+            modifier = Modifier.padding(horizontal = SegueSpacing.xl, vertical = SegueSpacing.xs),
+        )
+        TransportRow(
+            isPlaying = state.isPlaying,
+            shuffleMode = state.shuffleMode,
+            repeatMode = state.repeatMode,
+            onShuffleClick = actions.onCycleShuffle,
+            onPreviousClick = actions.onPrevious,
+            onPlayPauseClick = actions.onPlayPause,
+            onNextClick = actions.onNext,
+            onRepeatClick = actions.onCycleRepeat,
+            modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm),
+        )
+    }
 }
 
 @Composable
@@ -545,22 +556,20 @@ private fun SyncPager(
     pagerState: PagerState,
     order: List<NowPlayingPanel>,
     openPanel: NowPlayingPanel?,
-    onSettled: (NowPlayingPanel) -> Unit,
+    onSettle: (NowPlayingPanel) -> Unit,
 ) {
     LaunchedEffect(openPanel) {
         val page = openPanel?.let(order::indexOf) ?: return@LaunchedEffect
         if (pagerState.currentPage != page) pagerState.animateScrollToPage(page)
     }
+    val latestOnSettle by rememberUpdatedState(onSettle)
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { onSettled(order[it]) }
+        snapshotFlow { pagerState.settledPage }.collect { latestOnSettle(order[it]) }
     }
 }
 
 /** Drag-down and predictive-back collapse, and drag-up to open Up next. */
-private class DismissGestures(
-    val modifier: Modifier,
-    val predictiveBack: @Composable () -> Unit,
-)
+private class DismissGestures(val modifier: Modifier, val predictiveBack: @Composable () -> Unit)
 
 @Composable
 private fun rememberDismissGestures(onDismiss: () -> Unit, onSwipeUp: () -> Unit): DismissGestures {

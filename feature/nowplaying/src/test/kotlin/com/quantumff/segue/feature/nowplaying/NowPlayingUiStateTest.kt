@@ -55,7 +55,16 @@ class NowPlayingUiStateTest {
     @Test
     fun libraryDetailsApplyOnlyToTheirOwnSong() {
         val player = player(currentQueueIndex = 0)
-        val stale = Song(id = "other", title = "x", albumId = null, album = null, artist = null, artistId = null, suffix = "mp3")
+        val stale =
+            Song(
+                id = "other",
+                title = "x",
+                albumId = null,
+                album = null,
+                artist = null,
+                artistId = null,
+                suffix = "mp3",
+            )
         assertThat(player.toNowPlayingUiState(stale, null).quality).isNull()
 
         val song = Song(

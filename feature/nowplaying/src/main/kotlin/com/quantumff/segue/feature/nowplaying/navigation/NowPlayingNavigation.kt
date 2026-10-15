@@ -36,7 +36,9 @@ fun NavGraphBuilder.nowPlayingScreen(
     queueContent: @Composable () -> Unit,
 ) {
     composable<NowPlayingRoute>(
-        enterTransition = { slideInVertically(spring(PLAYER_DAMPING, PLAYER_STIFFNESS, IntOffset.VisibilityThreshold)) { it } },
+        enterTransition = {
+            slideInVertically(spring(PLAYER_DAMPING, PLAYER_STIFFNESS, IntOffset.VisibilityThreshold)) { it }
+        },
         exitTransition = { fadeOut(SegueMotion.medium()) },
         popEnterTransition = { fadeIn(SegueMotion.medium()) },
         popExitTransition = { slideOutVertically(SegueMotion.longExit()) { it } + fadeOut(SegueMotion.longExit()) },

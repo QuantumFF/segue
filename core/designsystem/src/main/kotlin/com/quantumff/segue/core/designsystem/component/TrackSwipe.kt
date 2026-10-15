@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -166,12 +167,12 @@ fun <T> TrackSwipePager(
                 },
             ),
     ) {
-        previous?.let { track ->
-            page(track, Modifier.graphicsLayer { translationX = offset.value - size.width })
-        }
-        page(current, Modifier.graphicsLayer { translationX = offset.value })
-        next?.let { track ->
-            page(track, Modifier.graphicsLayer { translationX = offset.value + size.width })
+        // Slot -1, 0, +1: one width to the left, in place, one width to the right. Keyed by slot so
+        // each position keeps its own page state.
+        listOfNotNull(previous?.let { -1 to it }, 0 to current, next?.let { 1 to it }).forEach { (slot, track) ->
+            key(slot) {
+                page(track, Modifier.graphicsLayer { translationX = offset.value + slot * size.width })
+            }
         }
     }
 }

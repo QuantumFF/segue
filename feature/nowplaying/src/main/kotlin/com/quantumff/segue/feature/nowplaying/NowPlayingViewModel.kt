@@ -158,7 +158,8 @@ class NowPlayingViewModel @Inject constructor(
 
     fun toggleFavorite() = playback.toggleFavorite()
 
-    fun setSleepTimer(choice: SleepTimerChoice) = playback.setSleepTimer(choice.toSleepTimer(System.currentTimeMillis()))
+    fun setSleepTimer(choice: SleepTimerChoice) =
+        playback.setSleepTimer(choice.toSleepTimer(System.currentTimeMillis()))
 
     fun cancelSleepTimer() = playback.setSleepTimer(null)
 
@@ -190,7 +191,15 @@ class NowPlayingViewModel @Inject constructor(
     private fun loadLyrics(songId: String): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)
         val lyrics = loadOrNull("lyrics") { lyricsRepository.lyrics(songId) }
-        emit(if (lyrics == null) LyricsUiState.Error else LyricsUiState.Loaded(LyricsContent.from(lyrics.firstOrNull())))
+        emit(
+            if (lyrics ==
+                null
+            ) {
+                LyricsUiState.Error
+            } else {
+                LyricsUiState.Loaded(LyricsContent.from(lyrics.firstOrNull()))
+            },
+        )
     }
 
     private fun loadRelated(artistId: String): Flow<RelatedUiState> = flow {

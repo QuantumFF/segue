@@ -114,7 +114,12 @@ internal fun ArtPager(
                     crossfade = false,
                     modifier = Modifier
                         .size(side)
-                        .shadow(SegueShadows.nowPlayingArt, SegueShapes.lg, ambientColor = shadowColor, spotColor = shadowColor)
+                        .shadow(
+                            elevation = SegueShadows.nowPlayingArt,
+                            shape = SegueShapes.lg,
+                            ambientColor = shadowColor,
+                            spotColor = shadowColor,
+                        )
                         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
                 )
             }
@@ -158,7 +163,11 @@ internal fun TrackMetadata(
             Icon(
                 imageVector = if (track.isStarred) SegueIcons.HeartFilled else SegueIcons.Heart,
                 contentDescription = stringResource(
-                    if (track.isStarred) R.string.feature_nowplaying_unfavorite else R.string.feature_nowplaying_favorite,
+                    if (track.isStarred) {
+                        R.string.feature_nowplaying_unfavorite
+                    } else {
+                        R.string.feature_nowplaying_favorite
+                    },
                 ),
                 tint = onArt,
             )

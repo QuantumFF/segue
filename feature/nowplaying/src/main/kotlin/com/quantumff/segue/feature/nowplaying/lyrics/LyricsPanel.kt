@@ -87,7 +87,12 @@ internal fun LyricsPanel(
 }
 
 @Composable
-private fun SyncedLyrics(content: LyricsContent.Synced, activeLine: Int, onSeek: (Long) -> Unit, modifier: Modifier) {
+private fun SyncedLyrics(
+    content: LyricsContent.Synced,
+    activeLine: Int,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val listState = rememberLazyListState()
     var following by remember(content) { mutableStateOf(true) }
     // Bumped when a manual scroll ends, restarting the 5s until the follow resumes.
@@ -178,7 +183,7 @@ private fun SyncedLyrics(content: LyricsContent.Synced, activeLine: Int, onSeek:
 }
 
 @Composable
-private fun UnsyncedLyrics(content: LyricsContent.Unsynced, modifier: Modifier) {
+private fun UnsyncedLyrics(content: LyricsContent.Unsynced, modifier: Modifier = Modifier) {
     LazyColumn(
         contentPadding = PaddingValues(vertical = SegueSpacing.xl),
         modifier = modifier.fillMaxSize(),
