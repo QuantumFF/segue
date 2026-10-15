@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.designsystem.theme
 
+import android.content.Context
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -89,6 +90,20 @@ object SegueTheme {
 }
 
 private val LocalDarkTheme = staticCompositionLocalOf { true }
+
+/**
+ * Segue's color scheme for surfaces drawn outside the app's Compose tree, such as home-screen
+ * widgets: the neutral palette with Material You accents on API 31+, else [AccentPreset.Blue].
+ */
+fun segueColorScheme(context: Context, dark: Boolean): ColorScheme {
+    val palette = if (dark) SeguePalettes.Dark else SeguePalettes.Light
+    val accent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        (if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).accentColors()
+    } else {
+        AccentPreset.Blue.accentColors(dark)
+    }
+    return palette.colorScheme(accent)
+}
 
 private fun AccentPreset.accentColors(isDark: Boolean) = AccentColors(primary = if (isDark) dark else light)
 

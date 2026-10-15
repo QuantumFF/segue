@@ -77,6 +77,7 @@ import kotlinx.coroutines.flow.StateFlow
 fun SegueApp(
     hasServer: Boolean,
     modifier: Modifier = Modifier,
+    openNowPlayingRequest: Int = 0,
     windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
 ) {
@@ -103,6 +104,13 @@ fun SegueApp(
     val destination = appState.currentDestination
     LaunchedEffect(hasServer, destination) {
         if (!hasServer && destination != null && !destination.hasRoute(LoginRoute::class)) appState.navigateToLogin()
+    }
+    // A widget tap: open Now Playing once per request, unless it is already showing.
+    LaunchedEffect(openNowPlayingRequest) {
+        val current = appState.navController.currentDestination
+        if (openNowPlayingRequest > 0 && hasServer && current?.hasRoute(NowPlayingRoute::class) != true) {
+            appState.navigate { navigateToNowPlaying() }
+        }
     }
 
     SegueApp(

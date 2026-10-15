@@ -76,6 +76,7 @@ dependencies {
     implementation(projects.feature.queue)
     implementation(projects.feature.search)
     implementation(projects.feature.settings)
+    implementation(projects.feature.widget)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -102,4 +103,11 @@ dependencies {
     testImplementation(libs.roborazzi)
     testImplementation(libs.roborazzi.compose)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // On-device check of the Android Auto browse tree (AutoBrowseTreeTest).
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.kotlinx.coroutines.android)
 }

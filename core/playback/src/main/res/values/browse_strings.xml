@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android Auto browse tree -->
+    <string name="browse_home">Home</string>
+    <string name="browse_library">Library</string>
+    <string name="browse_downloads">Downloads</string>
+    <string name="browse_shuffle_albums">Shuffle albums</string>
+    <string name="browse_recently_played">Recently played</string>
+    <string name="browse_recently_added">Recently added</string>
+    <string name="browse_starred">Starred</string>
+    <string name="browse_albums">Albums</string>
+    <string name="browse_artists">Artists</string>
+    <string name="browse_playlists">Playlists</string>
+    <string name="browse_genres">Genres</string>
+    <string name="browse_search_artists">Artists</string>
+    <string name="browse_search_albums">Albums</string>
+    <string name="browse_search_songs">Songs</string>
+</resources>

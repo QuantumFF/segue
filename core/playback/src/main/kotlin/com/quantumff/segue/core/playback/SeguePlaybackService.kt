@@ -7,24 +7,30 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
+import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
+import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.UserPreferences
+import com.quantumff.segue.core.playback.browse.SessionLibrary
+import com.quantumff.segue.core.playback.browse.launchFuture
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.megabytes
+import com.quantumff.segue.core.playback.media.coverArtId
 import com.quantumff.segue.core.playback.media.isStarred
 import com.quantumff.segue.core.playback.media.replayGain
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.media.withPlayableUri
 import com.quantumff.segue.core.playback.media.withStarred
+import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 import com.quantumff.segue.core.playback.replaygain.ReplayGainVolume
 import com.quantumff.segue.core.playback.scrobble.Scrobbler
 import com.quantumff.segue.core.playback.service.PlaybackComponents
@@ -67,6 +73,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var offload: ScreenOffOffload
     private lateinit var sleepTimer: SleepTimerController
     private lateinit var prefetcher: NextTrackPrefetcher
+    private lateinit var library: SessionLibrary
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
     private var idleStop: Job? = null
@@ -83,6 +90,7 @@ class SeguePlaybackService : MediaLibraryService() {
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
+        library = SessionLibrary(this, scope, components.mediaBrowse, components.albumShuffle, components.search)
 
         session = MediaLibrarySession.Builder(this, player, SessionCallback())
             .setBitmapLoader(components.createBitmapLoader(this))
@@ -113,6 +121,8 @@ class SeguePlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         if (components.bridge.player === player) components.bridge.player = null
         if (player.mediaItemCount > 0) components.queueSync.onAppBackground(player.queueState())
+        // Widgets keep showing the track, paused: the next tap restarts the service.
+        components.nowPlaying.publish(nowPlaying().copy(isPlaying = false))
         offload.stop()
         prefetcher.stop()
         scope.cancel()
@@ -145,9 +155,13 @@ class SeguePlaybackService : MediaLibraryService() {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) updatePrefetch()
             updateIdleStop()
+            publishNowPlaying()
         }
 
-        override fun onPlaybackStateChanged(playbackState: Int) = updateIdleStop()
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            updateIdleStop()
+            publishNowPlaying()
+        }
     }
 
     private fun applyReplayGain() {
@@ -205,6 +219,22 @@ class SeguePlaybackService : MediaLibraryService() {
         val session = session ?: return
         session.sessionExtras = SegueSessionCommands.extras(player.shuffleMode, sleepTimer.timer)
         session.setMediaButtonPreferences(mediaButtons())
+        publishNowPlaying()
+    }
+
+    /** Widgets follow player events: track, play/pause, shuffle mode. Unchanged snapshots are dropped. */
+    private fun publishNowPlaying() = components.nowPlaying.publish(nowPlaying())
+
+    private fun nowPlaying(): NowPlayingSnapshot {
+        val item = exoPlayer.currentMediaItem ?: return NowPlayingSnapshot.Empty
+        return NowPlayingSnapshot(
+            songId = item.mediaId,
+            title = item.mediaMetadata.title?.toString(),
+            artist = item.mediaMetadata.artist?.toString(),
+            coverArtId = item.coverArtId,
+            isPlaying = exoPlayer.playWhenReady && exoPlayer.playbackState != Player.STATE_ENDED,
+            shuffleMode = player.shuffleMode,
+        )
     }
 
     private fun mediaButtons(): List<CommandButton> {
@@ -214,7 +244,9 @@ class SeguePlaybackService : MediaLibraryService() {
         )
             .setDisplayName(getString(if (starred) R.string.playback_unfavorite else R.string.playback_favorite))
             .setSessionCommand(SegueSessionCommands.command(SegueSessionCommands.TOGGLE_FAVORITE))
-            .setSlots(CommandButton.SLOT_BACK_SECONDARY)
+            // Overflow too: the platform session (System UI, Android Auto) only takes back,
+            // forward and overflow buttons as custom actions, and drops secondary-only ones.
+            .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build()
         val (icon, label) = when (player.shuffleMode) {
             ShuffleMode.Off -> CommandButton.ICON_SHUFFLE_OFF to R.string.playback_shuffle_off
@@ -224,7 +256,7 @@ class SeguePlaybackService : MediaLibraryService() {
         val shuffle = CommandButton.Builder(icon)
             .setDisplayName(getString(label))
             .setSessionCommand(SegueSessionCommands.command(SegueSessionCommands.CYCLE_SHUFFLE))
-            .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
+            .setSlots(CommandButton.SLOT_FORWARD_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build()
         return listOf(favorite, shuffle)
     }
@@ -241,6 +273,15 @@ class SeguePlaybackService : MediaLibraryService() {
         }
     }
 
+    private fun notAllowed(controller: MediaSession.ControllerInfo) =
+        SecurityException("${controller.packageName} may not play from the library")
+
+    private fun currentQueue() = MediaSession.MediaItemsWithStartPosition(
+        List(player.mediaItemCount) { player.getMediaItemAt(it) },
+        player.currentMediaItemIndex,
+        player.currentPosition,
+    )
+
     private fun launchIntent(): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {
         PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
@@ -250,7 +291,13 @@ class SeguePlaybackService : MediaLibraryService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
-            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+            // Playback controls for everyone; the library only for allowed browsers (Auto, System UI, us).
+            val base = if (library.mayBrowse(controller)) {
+                MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+            } else {
+                MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
+            }
+            val commands = base.buildUpon()
                 .apply { SegueSessionCommands.all.forEach(::add) }
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
@@ -295,7 +342,82 @@ class SeguePlaybackService : MediaLibraryService() {
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
-        ): ListenableFuture<List<MediaItem>> = Futures.immediateFuture(mediaItems.map { it.withPlayableUri() })
+        ): ListenableFuture<List<MediaItem>> {
+            if (!library.hasBrowseNodes(mediaItems)) {
+                return Futures.immediateFuture(mediaItems.map { it.withPlayableUri() })
+            }
+            // Browse nodes (Android Auto) stand for songs from Room; only allowed browsers may use them.
+            if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
+            return scope.launchFuture {
+                mediaItems.flatMap { item ->
+                    library.songsFor(item)?.map { it.toMediaItem() } ?: listOf(item.withPlayableUri())
+                }
+            }
+        }
+
+        /** A browse node or a voice "play <query>": the whole list, from the chosen track. */
+        override fun onSetMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            if (!library.resolves(mediaItems)) {
+                return super.onSetMediaItems(mediaSession, controller, mediaItems, startIndex, startPositionMs)
+            }
+            if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
+            val item = mediaItems.single()
+            return scope.launchFuture {
+                if (item.requestMetadata.searchQuery?.isBlank() == true && player.mediaItemCount > 0) {
+                    // "Play music on Segue" with a queue: carry on with it.
+                    return@launchFuture currentQueue()
+                }
+                val request = library.playRequest(item)
+                    ?: throw UnsupportedOperationException("Nothing to play for ${item.mediaId}")
+                request.shuffleMode?.let(player::setShuffleMode)
+                MediaSession.MediaItemsWithStartPosition(request.songs.map { it.toMediaItem() }, request.startIndex, 0)
+            }
+        }
+
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> = library.root(session, browser)
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
+            library.children(parentId, page, pageSize, params)
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String,
+        ): ListenableFuture<LibraryResult<MediaItem>> = library.item(mediaId)
+
+        override fun onSearch(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<Void>> = library.search(session, browser, query, params)
+
+        override fun onGetSearchResult(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
+            library.searchResult(query, page, pageSize, params)
 
         /** System "resume playback" (e.g. a Bluetooth play button with nothing queued): the local snapshot. */
         override fun onPlaybackResumption(

@@ -17,9 +17,12 @@ import androidx.media3.session.CacheBitmapLoader
 import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
+import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
+import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.data.repository.ScrobbleRepository
+import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.playback.cache.AdjustableLruCacheEvictor
@@ -27,6 +30,7 @@ import com.quantumff.segue.core.playback.cache.NetworkMonitor
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.SegueUriResolver
 import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
+import com.quantumff.segue.core.playback.nowplaying.NowPlayingPublisher
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,6 +48,12 @@ class PlaybackComponents @Inject constructor(
     val snapshots: QueueSnapshotRepository,
     val preferences: UserPreferencesRepository,
     val cacheEvictor: AdjustableLruCacheEvictor,
+    /** Android Auto browsing and search. */
+    val mediaBrowse: MediaBrowseRepository,
+    val albumShuffle: AlbumShuffleRepository,
+    val search: SearchRepository,
+    /** Widgets. */
+    val nowPlaying: NowPlayingPublisher,
     private val cacheDataSourceFactory: CacheDataSource.Factory,
     private val resolver: SegueUriResolver,
     private val network: NetworkMonitor,

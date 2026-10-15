@@ -94,6 +94,8 @@ fun MediaItem.withPlayableUri(): MediaItem =
 /** Album identity for album shuffle; null for a track without an album. */
 val MediaItem.albumKey: String? get() = mediaMetadata.extras?.getString(Extras.ALBUM_ID)
 
+val MediaItem.coverArtId: String? get() = mediaMetadata.extras?.getString(Extras.COVER_ART_ID)
+
 val MediaItem.isStarred: Boolean get() = mediaMetadata.extras?.getBoolean(Extras.STARRED) ?: false
 
 /** The same item with its starred state changed, for the favorite button. */
