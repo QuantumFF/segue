@@ -12,6 +12,8 @@ import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
@@ -48,7 +50,12 @@ class ArtistViewModelTest {
         artistRepository = artists,
         albumRepository = albums,
         starRatingRepository = stars,
+        downloadRepository = downloads,
+        offlineModeRepository = offlineMode,
     )
+
+    private val downloads = FakeDownloadRepository()
+    private val offlineMode = FakeOfflineModeRepository()
 
     private fun seed() {
         artists.artistsState.value = listOf(TestData.artist("artist-1", albumCount = 1))

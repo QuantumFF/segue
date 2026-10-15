@@ -4,6 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
@@ -11,13 +14,19 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongDownload
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +46,8 @@ class ArtistViewModel @Inject constructor(
     private val artistRepository: ArtistRepository,
     private val albumRepository: AlbumRepository,
     private val starRatingRepository: StarRatingRepository,
+    private val downloadRepository: DownloadRepository,
+    offlineModeRepository: OfflineModeRepository,
 ) : ViewModel() {
     private val artistId: String = checkNotNull(savedStateHandle[ARTIST_ID_KEY]) { "Missing $ARTIST_ID_KEY" }
 
@@ -48,10 +59,15 @@ class ArtistViewModel @Inject constructor(
     val uiState: StateFlow<ArtistUiState> = combine(
         artistRepository.artist(artistId),
         artistRepository.artistAlbums(artistId),
-        remote,
-        refresh,
+        combine(remote, refresh, ::Pair),
         combine(message, busy, ::Pair),
-    ) { artist, albums, remote, refresh, (message, busy) ->
+        combine(
+            downloadRepository.pinStatus(PinKind.Artist, artistId),
+            downloadRepository.songDownloads,
+            offlineModeRepository.isOffline,
+            ::Triple,
+        ),
+    ) { artist, albums, (remote, refresh), (message, busy), (download, songDownloads, offline) ->
         when {
             artist != null -> {
                 val (own, appearsOn) = albums.partition { it.artistId == artistId }
@@ -66,6 +82,9 @@ class ArtistViewModel @Inject constructor(
                     isOffline = refresh == RefreshState.Failed,
                     isPreparingPlayback = busy,
                     message = message,
+                    download = download,
+                    songDownloads = songDownloads,
+                    isOfflineMode = offline,
                 )
             }
 
@@ -132,6 +151,27 @@ class ArtistViewModel @Inject constructor(
     fun toggleArtistStar() {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
         setStarred(MediaKind.Artist, artist.id, !artist.isStarred)
+    }
+
+    /** Pins the artist: all of their albums, including ones added later. */
+    fun download() {
+        val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
+        viewModelScope.launch {
+            runCatchingRemote {
+                downloadRepository.pin(PinTarget(PinKind.Artist, artist.id, artist.name, artist.coverArtId))
+            } ?: run { message.value = ArtistMessage.DownloadFailed }
+        }
+    }
+
+    fun removeDownload() {
+        viewModelScope.launch { downloadRepository.unpin(PinKind.Artist, artistId) }
+    }
+
+    fun downloadSong(song: Song) {
+        viewModelScope.launch {
+            runCatchingRemote { downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId)) }
+                ?: run { message.value = ArtistMessage.DownloadFailed }
+        }
     }
 
     fun toggleSongStar(song: Song) = setStarred(MediaKind.Song, song.id, !song.isStarred)
@@ -207,9 +247,17 @@ sealed interface ArtistUiState {
         /** Songs are being fetched for Play, Shuffle or Instant mix. */
         val isPreparingPlayback: Boolean = false,
         val message: ArtistMessage? = null,
+        /** The artist's pin status; null when it is not pinned for offline. */
+        val download: DownloadStatus? = null,
+        val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
+        /** Offline mode: top songs that are not downloaded are dimmed and do not play. */
+        val isOfflineMode: Boolean = false,
     ) : ArtistUiState {
+        fun isAvailable(song: Song): Boolean =
+            !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
+
         val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
     }
 }
 
-enum class ArtistMessage { FavoriteFailed, LoadFailed, NoSimilarSongs }
+enum class ArtistMessage { FavoriteFailed, LoadFailed, NoSimilarSongs, DownloadFailed }
