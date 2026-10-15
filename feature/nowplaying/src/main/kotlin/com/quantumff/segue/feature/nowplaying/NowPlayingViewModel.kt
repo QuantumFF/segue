@@ -87,20 +87,23 @@ class NowPlayingViewModel @Inject constructor(
     private val retryLyrics = MutableStateFlow(0)
     private val retryRelated = MutableStateFlow(0)
 
+    private fun visibility(panel: NowPlayingPanel): Flow<Boolean> =
+        visiblePanels.map { panel in it }.distinctUntilChanged()
+
     val lyrics: StateFlow<LyricsUiState> = combine(
         currentSongId,
-        visiblePanels.map { NowPlayingPanel.Lyrics in it }.distinctUntilChanged(),
+        visibility(NowPlayingPanel.Lyrics),
         retryLyrics,
     ) { id, visible, _ -> id.takeIf { visible } }
         .flatMapLatest { id -> if (id == null) flowOf(null) else loadLyrics(id) }
         // Keep showing the last lyrics while the panel is hidden, so reopening does not flash.
-        .scanNotNull(LyricsUiState.Loading)
+        .holdLastNonNull(LyricsUiState.Loading)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), LyricsUiState.Loading)
 
     /** Index of the synced lyric line playing now, or -1. Runs only while synced lyrics are visible. */
     val activeLyricLine: StateFlow<Int> = combine(
         lyrics,
-        visiblePanels.map { NowPlayingPanel.Lyrics in it }.distinctUntilChanged(),
+        visibility(NowPlayingPanel.Lyrics),
     ) { state, visible -> ((state as? LyricsUiState.Loaded)?.content as? LyricsContent.Synced).takeIf { visible } }
         .distinctUntilChanged()
         .flatMapLatest { synced ->
@@ -115,7 +118,7 @@ class NowPlayingViewModel @Inject constructor(
 
     val related: StateFlow<RelatedUiState> = combine(
         currentSong.map { it?.artistId to (it != null) }.distinctUntilChanged(),
-        visiblePanels.map { NowPlayingPanel.Related in it }.distinctUntilChanged(),
+        visibility(NowPlayingPanel.Related),
         retryRelated,
     ) { (artistId, known), visible, _ -> Triple(artistId, known, visible) }
         .flatMapLatest { (artistId, known, visible) ->
@@ -125,7 +128,7 @@ class NowPlayingViewModel @Inject constructor(
                 else -> loadRelated(artistId)
             }
         }
-        .scanNotNull(RelatedUiState.Loading)
+        .holdLastNonNull(RelatedUiState.Loading)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
     private val messageChannel = Channel<NowPlayingMessage>(Channel.BUFFERED)
@@ -227,7 +230,7 @@ class NowPlayingViewModel @Inject constructor(
 }
 
 /** Emits [initial], then every non-null upstream value: null means "keep the last value". */
-private fun <T : Any> Flow<T?>.scanNotNull(initial: T): Flow<T> = flow {
+private fun <T : Any> Flow<T?>.holdLastNonNull(initial: T): Flow<T> = flow {
     emit(initial)
     collect { if (it != null) emit(it) }
 }.distinctUntilChanged()

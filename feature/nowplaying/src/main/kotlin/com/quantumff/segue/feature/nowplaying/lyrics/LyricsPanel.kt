@@ -23,10 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
@@ -45,6 +45,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.feature.nowplaying.LyricsUiState
 import com.quantumff.segue.feature.nowplaying.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Lyrics panel (DESIGN.md §4.7). Synced lyrics hold the active line at 35% of the panel height,
@@ -95,20 +96,21 @@ private fun SyncedLyrics(
 ) {
     val listState = rememberLazyListState()
     var following by remember(content) { mutableStateOf(true) }
-    // Bumped when a manual scroll ends, restarting the 5s until the follow resumes.
-    var manualScrollEnded by remember { mutableIntStateOf(0) }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is DragInteraction.Start -> following = false
-                is DragInteraction.Stop, is DragInteraction.Cancel -> manualScrollEnded++
-            }
+            if (interaction is DragInteraction.Start) following = false
         }
     }
-    LaunchedEffect(manualScrollEnded) {
-        if (manualScrollEnded == 0) return@LaunchedEffect
-        delay(RESUME_FOLLOW_MILLIS)
-        following = true
+    // Resume following 5s after the list comes to rest (drag and fling both done). A new scroll
+    // restarts the wait.
+    LaunchedEffect(listState, following) {
+        if (following) return@LaunchedEffect
+        snapshotFlow { listState.isScrollInProgress }.collectLatest { scrolling ->
+            if (!scrolling) {
+                delay(RESUME_FOLLOW_MILLIS)
+                following = true
+            }
+        }
     }
     LaunchedEffect(activeLine, following) {
         if (!following) return@LaunchedEffect
