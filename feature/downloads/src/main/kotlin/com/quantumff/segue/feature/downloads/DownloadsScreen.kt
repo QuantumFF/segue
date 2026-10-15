@@ -1,5 +1,8 @@
 package com.quantumff.segue.feature.downloads
 
+import com.quantumff.segue.core.model.StorageLimit
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.background
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -161,7 +164,10 @@ fun DownloadsContent(
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
         item(key = "storage", contentType = "storage") {
-            StorageBar(state.usedBytes, state.freeBytes, state.storageFraction)
+            StorageBar(state.usedBytes, state.freeBytes, state.storageLimit, state.storageFraction)
+        }
+        if (state.limitReached) {
+            item(key = "limit", contentType = "limit") { StorageLimitBanner(state.storageLimit) }
         }
         item(key = "offline", contentType = "switch") {
             OfflineModeRow(state.forceOffline, state.isOffline, actions.onForceOfflineChange)
@@ -245,9 +251,9 @@ private fun LazyListScope.pinSection(
     items(pins, key = { "$key-${it.kind}-${it.id}" }, contentType = { "$key-row" }) { row(it) }
 }
 
-/** "3.2 GB used · 20 GB free" over an 8-tall bar. */
+/** "3.2 GB used · limit 10 GB" (or "· 20 GB free" without a limit) over an 8-tall bar. */
 @Composable
-private fun StorageBar(usedBytes: Long, freeBytes: Long, fraction: Float) {
+private fun StorageBar(usedBytes: Long, freeBytes: Long, limit: StorageLimit, fraction: Float) {
     val context = LocalContext.current
     Column(
         modifier = Modifier
@@ -255,12 +261,14 @@ private fun StorageBar(usedBytes: Long, freeBytes: Long, fraction: Float) {
             .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.md),
         verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
     ) {
+        val used = Formatter.formatShortFileSize(context, usedBytes)
+        val limitBytes = limit.bytes
         Text(
-            text = stringResource(
-                R.string.feature_downloads_storage,
-                Formatter.formatShortFileSize(context, usedBytes),
-                Formatter.formatShortFileSize(context, freeBytes),
-            ),
+            text = if (limitBytes == null) {
+                stringResource(R.string.feature_downloads_storage, used, Formatter.formatShortFileSize(context, freeBytes))
+            } else {
+                stringResource(R.string.feature_downloads_storage_limit, used, Formatter.formatShortFileSize(context, limitBytes))
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -274,6 +282,43 @@ private fun StorageBar(usedBytes: Long, freeBytes: Long, fraction: Float) {
             gapSize = SegueSpacing.none,
             drawStopIndicator = {},
         )
+    }
+}
+
+/** The storage limit is full: say why downloads stopped and how to continue (DESIGN.md §5.8 banner style). */
+@Composable
+private fun StorageLimitBanner(limit: StorageLimit) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, SegueShapes.lg)
+            .padding(SegueSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = SegueIcons.Error,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(SegueSizes.icon),
+        )
+        Spacer(Modifier.width(SegueSpacing.md))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(
+                    R.string.feature_downloads_limit_reached_title,
+                    limit.bytes?.let { Formatter.formatShortFileSize(context, it) }.orEmpty(),
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.feature_downloads_limit_reached_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

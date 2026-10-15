@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.settings
 
+import com.quantumff.segue.core.model.StorageLimit
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
@@ -114,10 +115,17 @@ class SettingsViewModelTest {
         viewModel.setDownloadWifiOnly(false)
         viewModel.setDownloadChargingOnly(true)
         viewModel.setOfflineMode(true)
+        viewModel.setStorageLimit(StorageLimit.Gb10)
 
         viewModel.uiState.test {
             assertThat(expectMostRecentItem().downloads).isEqualTo(
-                DownloadPreferences(quality = mp3, wifiOnly = false, chargingOnly = true, forceOffline = true),
+                DownloadPreferences(
+                    quality = mp3,
+                    wifiOnly = false,
+                    chargingOnly = true,
+                    forceOffline = true,
+                    storageLimit = StorageLimit.Gb10,
+                ),
             )
         }
     }

@@ -11,6 +11,29 @@ enum class PinKind {
     Song,
 }
 
+/**
+ * How much space downloads may use (DESIGN.md §4.10, "storage limit"). Once reached, queued
+ * songs wait: no new download starts until space is freed or the limit is raised. Decimal
+ * gigabytes, as Android shows file sizes.
+ */
+enum class StorageLimit(val gigabytes: Int?) {
+    None(null),
+    Gb2(2),
+    Gb5(5),
+    Gb10(10),
+    Gb20(20),
+    ;
+
+    val bytes: Long? get() = gigabytes?.let { it * BYTES_PER_GB }
+
+    /** Whether downloads using [usedBytes] may not grow further. */
+    fun isReachedBy(usedBytes: Long): Boolean = bytes?.let { usedBytes >= it } ?: false
+
+    private companion object {
+        const val BYTES_PER_GB = 1_000_000_000L
+    }
+}
+
 /** Download settings (DESIGN.md §4.10, "Downloads & storage"). */
 data class DownloadPreferences(
     /** Original file, or a transcode. Applies to downloads queued after the change. */
@@ -21,6 +44,7 @@ data class DownloadPreferences(
     val chargingOnly: Boolean = false,
     /** Manual offline mode: behave as offline even with a network. */
     val forceOffline: Boolean = false,
+    val storageLimit: StorageLimit = StorageLimit.None,
 )
 
 /** How far the download of one song, or of everything a pin covers, has got. */
@@ -85,4 +109,7 @@ data class DownloadOverview(
     val usedBytes: Long = 0,
     /** Free bytes on the volume downloads are stored on. */
     val freeBytes: Long = 0,
+    val storageLimit: StorageLimit = StorageLimit.None,
+    /** Downloads on this device (all servers) fill [storageLimit]: queued songs wait. */
+    val limitReached: Boolean = false,
 )

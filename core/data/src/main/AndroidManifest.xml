@@ -14,5 +14,10 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
+
+        <!-- The download notification's Pause all and Cancel buttons. -->
+        <receiver
+            android:name="com.quantumff.segue.core.data.download.DownloadActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

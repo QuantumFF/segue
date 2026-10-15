@@ -215,6 +215,22 @@ abstract class DownloadDao {
     @Query("SELECT COUNT(*) FROM downloads WHERE state = 'Downloading'")
     abstract suspend fun downloadingCount(): Int
 
+    /** Bytes on disk for every server's downloads, partial ones included: what the storage limit counts. */
+    @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloads")
+    abstract suspend fun totalBytes(): Long
+
+    @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloads")
+    abstract fun observeTotalBytes(): Flow<Long>
+
+    /** Holds every queued or running download of the server (the notification's "Pause all"). */
+    @Query(
+        """
+        UPDATE downloads SET state = 'Paused', updatedAt = :now
+        WHERE serverId = :serverId AND state IN ('Queued', 'Downloading')
+        """,
+    )
+    abstract suspend fun pauseUnfinished(serverId: String, now: Long)
+
     /**
      * Marks a running download finished. Returns false when the row is no longer Downloading
      * (paused, removed): the caller then discards the file.

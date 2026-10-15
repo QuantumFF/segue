@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.settings
 
+import com.quantumff.segue.core.model.StorageLimit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
@@ -85,6 +86,8 @@ class SettingsViewModel @Inject constructor(
     fun setDownloadChargingOnly(enabled: Boolean) = launch { downloadRepository.setChargingOnly(enabled) }
 
     fun setOfflineMode(enabled: Boolean) = launch { downloadRepository.setForceOffline(enabled) }
+
+    fun setStorageLimit(limit: StorageLimit) = launch { downloadRepository.setStorageLimit(limit) }
 
     fun setQueueSyncEnabled(enabled: Boolean) = launch { preferencesRepository.setQueueSyncEnabled(enabled) }
 

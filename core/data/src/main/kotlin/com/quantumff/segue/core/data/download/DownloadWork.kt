@@ -94,8 +94,10 @@ internal class WorkManagerDownloadScheduler @Inject constructor(private val work
 
 /**
  * Downloads queued songs, [CONCURRENCY] at a time, in a foreground service with a progress
- * notification. Each song resumes from its partial file. Network trouble puts the song back in
- * the queue and retries the worker later (with backoff, once the constraints hold again).
+ * notification (with Pause all and Cancel). Each song resumes from its partial file. Network
+ * trouble puts the song back in the queue and retries the worker later (with backoff, once the
+ * constraints hold again). Once the storage limit is full no new song starts: the rest stay
+ * queued until space is freed or the limit is raised, which schedules the worker again.
  */
 @HiltWorker
 internal class DownloadWorker @AssistedInject constructor(
@@ -113,7 +115,7 @@ internal class DownloadWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         dao.requeueInterrupted()
-        if (dao.queuedCount() == 0) return Result.success()
+        if (dao.queuedCount() == 0 || storageLimitReached()) return Result.success()
         try {
             setForeground(foregroundInfo())
         } catch (e: IllegalStateException) {
@@ -125,7 +127,7 @@ internal class DownloadWorker @AssistedInject constructor(
         coroutineScope {
             repeat(CONCURRENCY) {
                 launch {
-                    while (!retry.get()) {
+                    while (!retry.get() && !storageLimitReached()) {
                         val row = dao.claimNext(clock.nowMillis()) ?: break
                         if (!downloadOne(row, quality)) retry.set(true)
                         finished.incrementAndGet()
@@ -136,6 +138,10 @@ internal class DownloadWorker @AssistedInject constructor(
         }
         return if (retry.get()) Result.retry() else Result.success()
     }
+
+    /** Device-wide, so a second server's downloads count too. Songs already running finish. */
+    private suspend fun storageLimitReached(): Boolean =
+        preferences.preferences.first().storageLimit.isReachedBy(dao.totalBytes())
 
     /** False when the network failed and the worker should retry later. */
     private suspend fun downloadOne(row: DownloadEntity, quality: StreamingQuality): Boolean {
@@ -250,6 +256,16 @@ internal class DownloadNotifications(private val context: Context) {
         .setContentTitle(context.getString(R.string.core_data_downloading_title))
         .setContentText(context.getString(R.string.core_data_downloading_progress, done, total))
         .setProgress(total, done, total == 0)
+        .addAction(
+            android.R.drawable.ic_media_pause,
+            context.getString(R.string.core_data_download_pause_all),
+            DownloadActionReceiver.pauseAll(context),
+        )
+        .addAction(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            context.getString(R.string.core_data_download_cancel),
+            DownloadActionReceiver.cancelAll(context),
+        )
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setSilent(true)
