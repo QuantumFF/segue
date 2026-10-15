@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import com.quantumff.segue.core.database.dao.AlbumDao
 import com.quantumff.segue.core.database.dao.AlbumListDao
 import com.quantumff.segue.core.database.dao.ArtistDao
+import com.quantumff.segue.core.database.dao.BrowseDao
 import com.quantumff.segue.core.database.dao.DownloadDao
 import com.quantumff.segue.core.database.dao.GenreDao
 import com.quantumff.segue.core.database.dao.PlaylistDao
@@ -91,4 +92,6 @@ abstract class SegueDatabase : RoomDatabase() {
     abstract fun searchDao(): SearchDao
 
     abstract fun serverDataDao(): ServerDataDao
+
+    abstract fun browseDao(): BrowseDao
 }
