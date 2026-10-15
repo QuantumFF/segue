@@ -31,6 +31,8 @@ interface LibraryRepository {
 
     fun songs(): Flow<PagingData<Song>>
 
+    val songCount: Flow<Int>
+
     fun songsByGenre(genre: String): Flow<PagingData<Song>>
 
     fun song(id: String): Flow<Song?>
@@ -60,6 +62,8 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
 
     override fun songs(): Flow<PagingData<Song>> =
         clients.pagedForActiveServer(songDao::pagingSource, SongEntity::asExternalModel)
+
+    override val songCount: Flow<Int> = clients.forActiveServer(0, songDao::observeCount)
 
     override fun songsByGenre(genre: String): Flow<PagingData<Song>> = clients.pagedForActiveServer({ serverId ->
         songDao.pagingSourceByGenre(serverId, genre)

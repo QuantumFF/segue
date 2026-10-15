@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.navigation
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
+import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.album.navigation.albumScreen
 import com.quantumff.segue.feature.album.navigation.navigateToAlbum
 import com.quantumff.segue.feature.artist.navigation.artistScreen
@@ -24,10 +25,15 @@ import com.quantumff.segue.feature.artist.navigation.navigateToArtist
 import com.quantumff.segue.feature.downloads.navigation.downloadsScreen
 import com.quantumff.segue.feature.downloads.navigation.navigateToDownloads
 import com.quantumff.segue.feature.home.navigation.HomeRoute
+import com.quantumff.segue.feature.home.navigation.albumListScreen
 import com.quantumff.segue.feature.home.navigation.homeScreen
+import com.quantumff.segue.feature.home.navigation.navigateToAlbumList
 import com.quantumff.segue.feature.library.navigation.LibraryRoute
+import com.quantumff.segue.feature.library.navigation.genreScreen
 import com.quantumff.segue.feature.library.navigation.libraryScreen
+import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.loginScreen
+import com.quantumff.segue.feature.login.navigation.navigateToLogin
 import com.quantumff.segue.feature.nowplaying.navigation.nowPlayingScreen
 import com.quantumff.segue.feature.playlist.navigation.PlaylistsRoute
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
@@ -37,26 +43,40 @@ import com.quantumff.segue.feature.queue.navigation.navigateToQueue
 import com.quantumff.segue.feature.queue.navigation.queueScreen
 import com.quantumff.segue.feature.search.navigation.SearchRoute
 import com.quantumff.segue.feature.search.navigation.searchScreen
+import com.quantumff.segue.feature.settings.navigation.licensesScreen
+import com.quantumff.segue.feature.settings.navigation.navigateToLicenses
 import com.quantumff.segue.feature.settings.navigation.navigateToSettings
 import com.quantumff.segue.feature.settings.navigation.settingsScreen
 import com.quantumff.segue.ui.SegueAppState
 
 /**
  * The only place feature graphs meet. Each tab is a nested graph; detail and secondary screens
- * live at the root so any tab can push them onto its own stack. Features navigate through
- * callbacks wired here.
+ * live at the root so any tab can push them onto its own stack. Features navigate and raise play
+ * intents through callbacks wired here.
+ *
+ * @param startDestination [HomeGraph], or a login route when no server is configured.
+ * @param onAddToPlaylist shows the add-to-playlist sheet for the song IDs.
  */
 @Composable
-fun SegueNavHost(appState: SegueAppState, modifier: Modifier = Modifier) {
+fun SegueNavHost(
+    appState: SegueAppState,
+    startDestination: Any,
+    playActions: PlayActions,
+    onAddToPlaylist: (List<String>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val transitions = rememberSegueTransitions(appState)
     val onAccountClick = { appState.navigate { navigateToSettings() } }
     val onAlbumClick = { id: String -> appState.navigate { navigateToAlbum(id) } }
     val onArtistClick = { id: String -> appState.navigate { navigateToArtist(id) } }
+    val onPlaylistClick = { id: String -> appState.navigate { navigateToPlaylist(id) } }
+    val onGenreClick = { genre: String -> appState.navigate { navigateToGenre(genre) } }
+    val onDownloadsClick = { appState.navigate { navigateToDownloads() } }
     val onBackClick = appState::navigateBack
 
     NavHost(
         navController = appState.navController,
-        startDestination = HomeGraph,
+        startDestination = startDestination,
         modifier = modifier,
         enterTransition = transitions.enter,
         exitTransition = transitions.exit,
@@ -64,39 +84,90 @@ fun SegueNavHost(appState: SegueAppState, modifier: Modifier = Modifier) {
         popExitTransition = transitions.popExit,
     ) {
         navigation<HomeGraph>(startDestination = HomeRoute) {
-            homeScreen(onAccountClick = onAccountClick, onAlbumClick = onAlbumClick)
+            homeScreen(
+                onAccountClick = onAccountClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onPlaylistClick = onPlaylistClick,
+                onGenreClick = onGenreClick,
+                onSeeAllClick = { type -> appState.navigate { navigateToAlbumList(type) } },
+                playActions = playActions,
+                onAddToPlaylist = onAddToPlaylist,
+            )
         }
         navigation<LibraryGraph>(startDestination = LibraryRoute) {
             libraryScreen(
                 onAccountClick = onAccountClick,
+                onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
-                onDownloadsClick = { appState.navigate { navigateToDownloads() } },
+                onPlaylistClick = onPlaylistClick,
+                onGenreClick = onGenreClick,
+                onDownloadsClick = onDownloadsClick,
+                playActions = playActions,
+                onAddToPlaylist = onAddToPlaylist,
             )
         }
         navigation<PlaylistsGraph>(startDestination = PlaylistsRoute) {
             playlistsScreen(
                 onAccountClick = onAccountClick,
-                onPlaylistClick = { id -> appState.navigate { navigateToPlaylist(id) } },
+                onPlaylistClick = onPlaylistClick,
+                playActions = playActions,
             )
         }
         navigation<SearchGraph>(startDestination = SearchRoute) {
-            searchScreen()
+            searchScreen(
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onGenreClick = onGenreClick,
+                playActions = playActions,
+                onAddToPlaylist = onAddToPlaylist,
+            )
         }
 
-        albumScreen(onBackClick = onBackClick, onArtistClick = onArtistClick)
-        artistScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick)
-        playlistScreen(onBackClick = onBackClick)
+        albumScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            onGenreClick = onGenreClick,
+            playActions = playActions,
+            onAddToPlaylist = onAddToPlaylist,
+        )
+        artistScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            playActions = playActions,
+            onAddToPlaylist = onAddToPlaylist,
+        )
+        playlistScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            playActions = playActions,
+            onAddToPlaylist = onAddToPlaylist,
+        )
+        genreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick, playActions = playActions)
+        albumListScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            playActions = playActions,
+            onAddToPlaylist = onAddToPlaylist,
+        )
         settingsScreen(
             onBackClick = onBackClick,
-            onDownloadsClick = { appState.navigate { navigateToDownloads() } },
+            onDownloadsClick = onDownloadsClick,
+            onAddServerClick = { appState.navigate { navigateToLogin(canGoBack = true) } },
+            onLicensesClick = { appState.navigate { navigateToLicenses() } },
         )
+        licensesScreen(onBackClick = onBackClick)
         downloadsScreen(onBackClick = onBackClick)
         nowPlayingScreen(
             onCollapseClick = onBackClick,
             onQueueClick = { appState.navigate { navigateToQueue() } },
         )
         queueScreen(onBackClick = onBackClick)
-        loginScreen()
+        loginScreen(onBackClick = onBackClick, onSignedIn = appState::onSignedIn)
     }
 }
 

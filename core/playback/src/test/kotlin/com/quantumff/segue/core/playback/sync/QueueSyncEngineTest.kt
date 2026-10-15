@@ -8,9 +8,10 @@ import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.testing.FakePlayQueueRemoteRepository
 import com.quantumff.segue.core.playback.testing.FakeQueueSnapshotRepository
-import com.quantumff.segue.core.playback.testing.FakeUserPreferencesRepository
+import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
 import java.io.IOException
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -65,7 +66,7 @@ class QueueSyncEngineTest {
 
     @Test
     fun `with queue sync off the snapshot is still saved but nothing is uploaded`() = runTest {
-        preferences.update { it.copy(queueSyncEnabled = false) }
+        preferences.preferences.update { it.copy(queueSyncEnabled = false) }
         val engine = engine()
         engine.onQueueEvent(QueueEvent.QueueEdit, state)
         advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
@@ -153,7 +154,7 @@ class QueueSyncEngineTest {
 
     @Test
     fun `with auto adopt on the queue is handed over for adoption instead of offered`() = runTest {
-        preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
         remote.queue = remoteQueue()
         val engine = engine()
         engine.adoptions.test {
@@ -211,7 +212,7 @@ class QueueSyncEngineTest {
 
     @Test
     fun `with queue sync off the server is not asked`() = runTest {
-        preferences.update { it.copy(queueSyncEnabled = false) }
+        preferences.preferences.update { it.copy(queueSyncEnabled = false) }
         remote.queue = remoteQueue()
         val engine = engine()
         engine.checkRemote(isPlayingLocally = false)

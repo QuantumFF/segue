@@ -27,6 +27,9 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
             "implementation"(libs.library("androidx-navigation-compose"))
             "implementation"(libs.library("kotlinx-serialization-json"))
             "implementation"(libs.library("kotlinx-collections-immutable"))
+
+            // ViewModel tests run against the fake repositories in core:testing.
+            "testImplementation"(project(":core:testing"))
         }
     }
 }

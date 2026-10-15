@@ -45,6 +45,11 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         )
     }.distinctUntilChanged()
 
+    /** Recent search queries, newest first. */
+    val recentSearches: Flow<List<String>> = dataStore.data
+        .map { prefs -> prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR)?.filter { it.isNotEmpty() }.orEmpty() }
+        .distinctUntilChanged()
+
     suspend fun setThemeMode(mode: ThemeMode) = set(Keys.ThemeMode, mode.name)
 
     suspend fun setAccentSource(source: AccentSource) = set(Keys.AccentSource, source.name)
@@ -72,6 +77,26 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     suspend fun setStreamCacheSizeMb(sizeMb: Int) = set(Keys.StreamCacheSizeMb, sizeMb)
 
     suspend fun setStopWhenPausedMinutes(minutes: Int) = set(Keys.StopWhenPausedMinutes, minutes)
+
+    /** Moves [query] to the front of the recent searches, keeping at most [MAX_RECENT_SEARCHES]. */
+    suspend fun addRecentSearch(query: String) {
+        val clean = query.trim().replace(RECENT_SEPARATOR, " ")
+        if (clean.isEmpty()) return
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR).orEmpty()
+            val updated = (listOf(clean) + current.filterNot { it.equals(clean, ignoreCase = true) })
+                .filter { it.isNotEmpty() }
+                .take(MAX_RECENT_SEARCHES)
+            prefs[Keys.RecentSearches] = updated.joinToString(RECENT_SEPARATOR)
+        }
+    }
+
+    suspend fun removeRecentSearch(query: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR).orEmpty()
+            prefs[Keys.RecentSearches] = current.filterNot { it == query }.joinToString(RECENT_SEPARATOR)
+        }
+    }
 
     /**
      * A random ID for this install, created on first call and then stable. Queue sync uses it to
@@ -118,5 +143,11 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val ReplayGainPreamp = floatPreferencesKey("replay_gain_preamp_db")
         val StreamCacheSizeMb = intPreferencesKey("stream_cache_size_mb")
         val StopWhenPausedMinutes = intPreferencesKey("stop_when_paused_minutes")
+        val RecentSearches = stringPreferencesKey("recent_searches")
+    }
+
+    private companion object {
+        const val RECENT_SEPARATOR = "\n"
+        const val MAX_RECENT_SEARCHES = 10
     }
 }

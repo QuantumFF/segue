@@ -16,6 +16,7 @@ import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.network.model.NetworkChild
 import javax.inject.Inject
@@ -29,6 +30,8 @@ import kotlinx.coroutines.withContext
 
 interface ArtistRepository {
     fun artists(): Flow<PagingData<Artist>>
+
+    val artistCount: Flow<Int>
 
     fun artist(id: String): Flow<Artist?>
 
@@ -49,8 +52,12 @@ interface ArtistRepository {
     /** Songs similar to the artist (`getSimilarSongs2`), for an instant mix. Throws RemoteException. */
     suspend fun similarSongs(artistId: String, count: Int = DEFAULT_SONG_COUNT): ImmutableList<Song>
 
+    /** Biography and similar artists (`getArtistInfo2`). Not cached. Throws RemoteException. */
+    suspend fun artistInfo(artistId: String, similarCount: Int = DEFAULT_SIMILAR_COUNT): ArtistInfo
+
     companion object {
         const val DEFAULT_SONG_COUNT = 50
+        const val DEFAULT_SIMILAR_COUNT = 20
     }
 }
 
@@ -65,6 +72,8 @@ internal class OfflineFirstArtistRepository @Inject constructor(
 ) : ArtistRepository {
     override fun artists(): Flow<PagingData<Artist>> =
         clients.pagedForActiveServer(artistDao::pagingSource, ArtistEntity::asExternalModel)
+
+    override val artistCount: Flow<Int> = clients.forActiveServer(0, artistDao::observeCount)
 
     override fun artist(id: String): Flow<Artist?> =
         clients.forActiveServer(null) { serverId -> artistDao.observe(serverId, id).map { it?.asExternalModel() } }
@@ -97,6 +106,19 @@ internal class OfflineFirstArtistRepository @Inject constructor(
         storeAndMap(serverId, remote { clients.client(serverId).getSimilarSongs2(artistId, count) })
     }
 
+    override suspend fun artistInfo(artistId: String, similarCount: Int): ArtistInfo = withContext(ioDispatcher) {
+        val serverId = clients.requireActiveServerId()
+        val info = remote { clients.client(serverId).getArtistInfo2(artistId, similarCount) }
+        // Similar artists may be missing from the synced index, for example after a server-side rescan.
+        val known = artistDao.observeAll(serverId).first().associateBy { it.id }
+        ArtistInfo(
+            biography = info.biography?.let(::plainBiography)?.takeIf { it.isNotBlank() },
+            similarArtists = info.similarArtist
+                .map { known[it.id]?.asExternalModel() ?: it.asEntity(serverId).asExternalModel() }
+                .toImmutableList(),
+        )
+    }
+
     private suspend fun storeAndMap(serverId: String, songs: List<NetworkChild>): ImmutableList<Song> {
         writer.writeSongs(serverId, songs)
         return songs.filterNot { it.isDir }.map { it.asEntity(serverId).asExternalModel() }.toImmutableList()
@@ -104,3 +126,14 @@ internal class OfflineFirstArtistRepository @Inject constructor(
 
     private fun emptySongs(): ImmutableList<Song> = emptyList<Song>().toImmutableList()
 }
+
+/** Strips HTML tags, entities and the Last.fm "Read more on Last.fm" link from a biography. */
+internal fun plainBiography(html: String): String = html
+    .replace(Regex("<a [^>]*>.*?</a>\\.?", RegexOption.IGNORE_CASE), "")
+    .replace(Regex("<[^>]+>"), "")
+    .replace("&amp;", "&")
+    .replace("&quot;", "\"")
+    .replace("&#39;", "'")
+    .replace("&lt;", "<")
+    .replace("&gt;", ">")
+    .trim()
