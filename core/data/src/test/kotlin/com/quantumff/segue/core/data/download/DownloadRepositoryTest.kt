@@ -16,6 +16,7 @@ import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
+import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import java.io.File
 import kotlinx.coroutines.flow.first
@@ -53,6 +54,7 @@ class DownloadRepositoryTest {
                 PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "prefs.preferences_pb") },
             ),
             albums = FakeAlbumRepository(),
+            artists = FakeArtistRepository(),
             playlists = FakePlaylistRepository(),
             clock = FakeClock(),
             ioDispatcher = StandardTestDispatcher(testScheduler),

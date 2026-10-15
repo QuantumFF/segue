@@ -4,6 +4,7 @@ import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.AlbumRepository
+import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.forActiveServer
 import com.quantumff.segue.core.data.session.SubsonicClientProvider
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -98,6 +100,7 @@ internal class OfflineDownloadRepository @Inject constructor(
     private val scheduler: DownloadScheduler,
     private val preferenceSource: DownloadPreferencesDataSource,
     private val albums: AlbumRepository,
+    private val artists: ArtistRepository,
     private val playlists: PlaylistRepository,
     private val clock: Clock,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
@@ -107,20 +110,23 @@ internal class OfflineDownloadRepository @Inject constructor(
     override val preferences: Flow<DownloadPreferences> = preferenceSource.preferences
 
     override val overview: Flow<DownloadOverview> = clients.forActiveServer(DownloadOverview()) { serverId ->
+        // Free space is read when the rows change (a song finished or was removed), not on every
+        // progress tick.
+        val rowsWithFreeSpace = dao.observeAll(serverId).map { rows -> rows to files.freeBytes() }
         combine(
             dao.observePins(serverId),
             dao.observePinMembership(serverId),
-            dao.observeAll(serverId),
+            rowsWithFreeSpace,
             progress.progress,
-        ) { pins, membership, rows, live ->
+        ) { pins, membership, (rows, freeBytes), live ->
             val liveForServer = live.forServer(serverId)
             val statuses = DownloadPlanner.pinStatuses(pins, membership, rows.associateBy { it.songId }, liveForServer)
             DownloadOverview(
                 pins = statuses.toImmutableList(),
                 usedBytes = rows.sumOf { row -> liveForServer[row.songId]?.bytes ?: row.bytesDownloaded },
-                freeBytes = files.freeBytes(),
+                freeBytes = freeBytes,
             )
-        }.conflate()
+        }.conflate().flowOn(ioDispatcher)
     }
 
     override val songDownloads: Flow<ImmutableMap<String, SongDownload>> =
@@ -152,7 +158,8 @@ internal class OfflineDownloadRepository @Inject constructor(
             when (target.kind) {
                 PinKind.Album -> albums.songsForPlayback(target.id)
                 PinKind.Playlist -> playlists.refreshPlaylist(target.id)
-                PinKind.Artist, PinKind.Song -> Unit
+                PinKind.Artist -> artists.artistAlbums(target.id).first().forEach { albums.songsForPlayback(it.id) }
+                PinKind.Song -> Unit
             }
         } catch (_: RemoteException) {
             // Offline: the pin covers what is synced, and the sync reconciles it later.

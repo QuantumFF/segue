@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -37,11 +38,9 @@ enum class PlayerMessage {
 class PlayerViewModel @Inject constructor(
     private val playback: PlaybackController,
     offlineMode: OfflineModeRepository,
-    downloads: DownloadRepository,
+    private val downloads: DownloadRepository,
 ) : ViewModel() {
     private val isOffline: StateFlow<Boolean> = offlineMode.isOffline
-    private val downloaded: StateFlow<Set<String>> =
-        downloads.downloadedSongIds.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     val player: StateFlow<ShellPlayerState> = playback.eventState
         .map { it.toShellPlayerState() }
@@ -63,11 +62,17 @@ class PlayerViewModel @Inject constructor(
     val playActions = PlayActions(
         // Offline, songs that are not downloaded are skipped (DESIGN.md §5.2: they cannot play).
         onPlaySongs = { songs, startIndex, shuffle ->
-            val selection = OfflinePlayback.playable(songs, startIndex, isOffline.value, downloaded.value)
-            if (selection == null) {
-                messageChannel.trySend(PlayerMessage.NothingToPlay)
+            if (!isOffline.value) {
+                playback.play(songs, startIndex, shuffle)
             } else {
-                playback.play(selection.songs, selection.startIndex, shuffle)
+                viewModelScope.launch {
+                    val selection = OfflinePlayback.playable(songs, startIndex, isOffline = true, downloadedIds())
+                    if (selection == null) {
+                        messageChannel.send(PlayerMessage.NothingToPlay)
+                    } else {
+                        playback.play(selection.songs, selection.startIndex, shuffle)
+                    }
+                }
             }
         },
         onShuffleAlbums = { source ->
@@ -75,10 +80,15 @@ class PlayerViewModel @Inject constructor(
                 if (!playback.shuffleAlbums(source)) messageChannel.send(PlayerMessage.NothingToPlay)
             }
         },
-        onPlayNext = { songs -> queueable(songs)?.let(playback::playNext) },
-        onAddToQueue = { songs -> queueable(songs)?.let(playback::addToQueue) },
+        onPlayNext = { songs -> withQueueable(songs, playback::playNext) },
+        onAddToQueue = { songs -> withQueueable(songs, playback::addToQueue) },
         onStartInstantMix = { seed ->
             viewModelScope.launch {
+                // The mix comes from the server (getSimilarSongs2), so there is none offline.
+                if (isOffline.value) {
+                    messageChannel.send(PlayerMessage.InstantMixFailed)
+                    return@launch
+                }
                 val started = try {
                     playback.playInstantMix(seed)
                 } catch (e: RemoteException) {
@@ -90,11 +100,16 @@ class PlayerViewModel @Inject constructor(
         },
     )
 
-    private fun queueable(songs: List<Song>): List<Song>? =
-        OfflinePlayback.queueable(songs, isOffline.value, downloaded.value).ifEmpty {
-            messageChannel.trySend(PlayerMessage.NothingToPlay)
-            null
+    /** Songs to queue: all of them online; offline only the downloaded ones (read from Room, so never stale). */
+    private fun withQueueable(songs: List<Song>, queue: (List<Song>) -> Unit) {
+        if (!isOffline.value) return queue(songs)
+        viewModelScope.launch {
+            val kept = OfflinePlayback.queueable(songs, isOffline = true, downloadedIds())
+            if (kept.isEmpty()) messageChannel.send(PlayerMessage.NothingToPlay) else queue(kept)
         }
+    }
+
+    private suspend fun downloadedIds(): Set<String> = downloads.downloadedSongIds.first()
 
     fun shellActions() = ShellPlayerActions(
         onPlayPause = playback::togglePlayPause,

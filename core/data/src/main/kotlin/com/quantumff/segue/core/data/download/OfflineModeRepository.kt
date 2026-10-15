@@ -45,8 +45,10 @@ internal class ConnectivityManagerNetworkConnectivity @Inject constructor(@Appli
         )
     }
 
-    private fun hasInternet(capabilities: NetworkCapabilities?): Boolean =
-        capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    /** Internet that the system validated: a captive portal or a Wi-Fi without uplink counts as offline. */
+    private fun hasInternet(capabilities: NetworkCapabilities?): Boolean = capabilities != null &&
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 }
 
 /**

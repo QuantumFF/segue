@@ -24,6 +24,7 @@ import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.datastore.DownloadPreferencesDataSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.StreamingQuality
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
@@ -87,7 +88,6 @@ internal class WorkManagerDownloadScheduler @Inject constructor(private val work
         fun constraintsFor(preferences: DownloadPreferences): Constraints = Constraints.Builder()
             .setRequiredNetworkType(if (preferences.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
             .setRequiresCharging(preferences.chargingOnly)
-            .setRequiresStorageNotLow(true)
             .build()
     }
 }
@@ -138,10 +138,7 @@ internal class DownloadWorker @AssistedInject constructor(
     }
 
     /** False when the network failed and the worker should retry later. */
-    private suspend fun downloadOne(
-        row: DownloadEntity,
-        quality: com.quantumff.segue.core.model.StreamingQuality,
-    ): Boolean {
+    private suspend fun downloadOne(row: DownloadEntity, quality: StreamingQuality): Boolean {
         var bytes = row.bytesDownloaded
         var total = row.totalBytes
         try {

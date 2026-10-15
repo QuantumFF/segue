@@ -113,15 +113,8 @@ abstract class DownloadDao {
     @Query("SELECT * FROM downloads WHERE serverId = :serverId")
     abstract suspend fun getAll(serverId: String): List<DownloadEntity>
 
-    /** Every server's rows, for removing all downloads. */
-    @Query("SELECT * FROM downloads")
-    abstract suspend fun getEverything(): List<DownloadEntity>
-
     @Query("SELECT songId FROM downloads WHERE serverId = :serverId AND state = 'Completed'")
     abstract fun observeCompletedSongIds(serverId: String): Flow<List<String>>
-
-    @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloads")
-    abstract fun observeUsedBytes(): Flow<Long>
 
     @Upsert
     abstract suspend fun upsert(download: DownloadEntity)
@@ -145,17 +138,11 @@ abstract class DownloadDao {
     @Query("SELECT * FROM pins WHERE serverId = :serverId ORDER BY createdAt DESC")
     abstract fun observePins(serverId: String): Flow<List<PinEntity>>
 
-    @Query("SELECT * FROM pins")
-    abstract suspend fun allPins(): List<PinEntity>
-
     @Upsert
     abstract suspend fun upsertPin(pin: PinEntity)
 
     @Query("DELETE FROM pins WHERE serverId = :serverId AND kind = :kind AND itemId = :itemId")
     abstract suspend fun deletePin(serverId: String, kind: PinKind, itemId: String)
-
-    @Query("DELETE FROM pins")
-    abstract suspend fun deleteAllPins()
 
     @Query(PIN_MEMBERSHIP)
     abstract fun observePinMembership(serverId: String): Flow<List<PinSongRow>>
