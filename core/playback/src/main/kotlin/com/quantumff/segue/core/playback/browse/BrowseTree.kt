@@ -235,7 +235,7 @@ class BrowseTree(
         )
         .build()
 
-    private fun albumItem(album: Album): MediaItem = MediaItem.Builder()
+    internal fun albumItem(album: Album): MediaItem = MediaItem.Builder()
         .setMediaId(BrowseId.Album(album.id).encode())
         .setMediaMetadata(
             MediaMetadata.Builder()
@@ -253,7 +253,7 @@ class BrowseTree(
         )
         .build()
 
-    private fun artistItem(artist: Artist): MediaItem = MediaItem.Builder()
+    internal fun artistItem(artist: Artist): MediaItem = MediaItem.Builder()
         .setMediaId(BrowseId.Artist(artist.id).encode())
         .setMediaMetadata(
             MediaMetadata.Builder()
