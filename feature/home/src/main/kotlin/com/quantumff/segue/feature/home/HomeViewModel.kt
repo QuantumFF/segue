@@ -13,8 +13,8 @@ import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PinKind

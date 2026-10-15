@@ -5,8 +5,8 @@ import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
-import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.StorageLimit

@@ -1,9 +1,7 @@
 package com.quantumff.segue.feature.downloads
 
-import com.quantumff.segue.core.model.StorageLimit
-import androidx.compose.material3.Icon
-import androidx.compose.foundation.background
 import android.text.format.Formatter
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -64,6 +63,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
+import com.quantumff.segue.core.model.StorageLimit
 import kotlin.math.roundToInt
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -265,9 +265,17 @@ private fun StorageBar(usedBytes: Long, freeBytes: Long, limit: StorageLimit, fr
         val limitBytes = limit.bytes
         Text(
             text = if (limitBytes == null) {
-                stringResource(R.string.feature_downloads_storage, used, Formatter.formatShortFileSize(context, freeBytes))
+                stringResource(
+                    R.string.feature_downloads_storage,
+                    used,
+                    Formatter.formatShortFileSize(context, freeBytes),
+                )
             } else {
-                stringResource(R.string.feature_downloads_storage_limit, used, Formatter.formatShortFileSize(context, limitBytes))
+                stringResource(
+                    R.string.feature_downloads_storage_limit,
+                    used,
+                    Formatter.formatShortFileSize(context, limitBytes),
+                )
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

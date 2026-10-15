@@ -45,11 +45,12 @@ class DownloadActionReceiver : BroadcastReceiver() {
 
         internal fun cancelAll(context: Context): PendingIntent = broadcast(context, ACTION_CANCEL_ALL, requestCode = 2)
 
-        private fun broadcast(context: Context, action: String, requestCode: Int): PendingIntent = PendingIntent.getBroadcast(
-            context,
-            requestCode,
-            Intent(context, DownloadActionReceiver::class.java).setAction(action),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        private fun broadcast(context: Context, action: String, requestCode: Int): PendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                Intent(context, DownloadActionReceiver::class.java).setAction(action),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
     }
 }

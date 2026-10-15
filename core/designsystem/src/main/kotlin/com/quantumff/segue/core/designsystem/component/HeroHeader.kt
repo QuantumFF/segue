@@ -1,14 +1,5 @@
 package com.quantumff.segue.core.designsystem.component
 
-import kotlin.math.roundToInt
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,13 +22,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +54,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
+import kotlin.math.roundToInt
 
 /** The "Hero style" setting (DESIGN.md §5.4). */
 enum class HeroStyle {
@@ -99,9 +99,10 @@ fun HeroHeader(
     var heroCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val latestOnTitleBottomChange by rememberUpdatedState(onTitleBottomChange)
     // The title's bottom edge in the hero, in px: where a detail top bar should start to collapse.
-    val titleModifier = Modifier.onPlaced { title ->
-        val hero = heroCoordinates ?: return@onPlaced
-        latestOnTitleBottomChange((hero.localPositionOf(title, Offset.Zero).y + title.size.height).roundToInt())
+    val onTitlePlace: (LayoutCoordinates) -> Unit = { title ->
+        heroCoordinates?.let { hero ->
+            latestOnTitleBottomChange((hero.localPositionOf(title, Offset.Zero).y + title.size.height).roundToInt())
+        }
     }
     Box(
         modifier
@@ -148,9 +149,9 @@ fun HeroHeader(
                 .padding(top = SegueSizes.topBar, bottom = SegueSpacing.lg),
         ) {
             if (maxWidth >= WIDE_BREAKPOINT) {
-                WideHero(state, onSubtitleClick, titleModifier, actions)
+                WideHero(state, onSubtitleClick, onTitlePlace, actions)
             } else {
-                CompactHero(state, onSubtitleClick, titleModifier, actions)
+                CompactHero(state, onSubtitleClick, onTitlePlace, actions)
             }
         }
     }
@@ -160,7 +161,7 @@ fun HeroHeader(
 private fun CompactHero(
     state: HeroHeaderState,
     onSubtitleClick: (() -> Unit)?,
-    titleModifier: Modifier,
+    onTitlePlace: (LayoutCoordinates) -> Unit,
     actions: @Composable RowScope.() -> Unit,
 ) {
     Column(
@@ -171,7 +172,7 @@ private fun CompactHero(
     ) {
         HeroArt(state, if (state.circularArt) SegueSizes.heroArtArtist else SegueSizes.heroArtCompact)
         Spacer(Modifier.height(SegueSpacing.lg))
-        HeroText(state, MaterialTheme.typography.headlineMedium, TextAlign.Center, onSubtitleClick, titleModifier)
+        HeroText(state, MaterialTheme.typography.headlineMedium, TextAlign.Center, onSubtitleClick, onTitlePlace)
         Spacer(Modifier.height(SegueSpacing.lg))
         Row(
             horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg, Alignment.CenterHorizontally),
@@ -186,7 +187,7 @@ private fun CompactHero(
 private fun WideHero(
     state: HeroHeaderState,
     onSubtitleClick: (() -> Unit)?,
-    titleModifier: Modifier,
+    onTitlePlace: (LayoutCoordinates) -> Unit,
     actions: @Composable RowScope.() -> Unit,
 ) {
     Row(
@@ -199,7 +200,7 @@ private fun WideHero(
         HeroArt(state, if (state.circularArt) SegueSizes.heroArtArtist else SegueSizes.heroArtWide)
         Spacer(Modifier.width(SegueSpacing.xl))
         Column(Modifier.weight(1f)) {
-            HeroText(state, MaterialTheme.typography.displaySmall, TextAlign.Start, onSubtitleClick, titleModifier)
+            HeroText(state, MaterialTheme.typography.displaySmall, TextAlign.Start, onSubtitleClick, onTitlePlace)
             Spacer(Modifier.height(SegueSpacing.lg))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
@@ -232,7 +233,7 @@ private fun ColumnScope.HeroText(
     titleStyle: TextStyle,
     textAlign: TextAlign,
     onSubtitleClick: (() -> Unit)?,
-    titleModifier: Modifier = Modifier,
+    onTitlePlace: (LayoutCoordinates) -> Unit = {},
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Text(
@@ -250,7 +251,9 @@ private fun ColumnScope.HeroText(
         maxLines = TITLE_MAX_LINES,
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
-        modifier = titleModifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .onPlaced(onTitlePlace),
     )
     state.subtitle?.let { subtitle ->
         Spacer(Modifier.height(SegueSpacing.xs))

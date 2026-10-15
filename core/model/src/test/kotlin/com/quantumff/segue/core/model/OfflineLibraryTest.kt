@@ -30,7 +30,8 @@ class OfflineLibraryTest {
 
     private fun artist(id: String) = Artist(id, id, 1, null, null, null, null)
 
-    private fun song(id: String) = Song(id = id, title = id, albumId = null, album = null, artist = null, artistId = null)
+    private fun song(id: String) =
+        Song(id = id, title = id, albumId = null, album = null, artist = null, artistId = null)
 
     private val downloaded = DownloadedLibrary(
         songIds = setOf("s2"),

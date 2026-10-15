@@ -1,8 +1,5 @@
 package com.quantumff.segue.ui
 
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.ImmutableList
-import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -66,6 +63,7 @@ import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.navigateToNowPlaying
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
+import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import com.quantumff.segue.feature.queue.navigation.navigateToQueue
 import com.quantumff.segue.navigation.HomeGraph
 import com.quantumff.segue.navigation.SegueNavHost
@@ -75,6 +73,8 @@ import com.quantumff.segue.playback.PlayerViewModel
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
 import com.quantumff.segue.playback.progressOf
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.StateFlow
 
@@ -224,7 +224,9 @@ fun SegueApp(
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
             when (appState.shellLayout) {
                 ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, navHost)
+
                 ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, navHost)
+
                 ShellLayout.Expanded -> ExpandedShell(
                     appState,
                     chrome,

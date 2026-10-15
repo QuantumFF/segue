@@ -1,6 +1,5 @@
 package com.quantumff.segue.feature.settings
 
-import com.quantumff.segue.core.model.StorageLimit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
@@ -11,6 +10,7 @@ import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.Server
+import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences

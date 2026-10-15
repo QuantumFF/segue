@@ -12,6 +12,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -32,7 +33,8 @@ fun ShuffleModeControl(selected: ShuffleMode, onSelect: (ShuffleMode) -> Unit, m
         activeContainerColor = MaterialTheme.colorScheme.navigationIndicator,
         activeContentColor = MaterialTheme.colorScheme.onSurface,
         activeBorderColor = MaterialTheme.colorScheme.outline,
-        inactiveContainerColor = MaterialTheme.colorScheme.surface,
+        // Transparent, so it also sits on Now Playing's art backdrop (the Up next panel).
+        inactiveContainerColor = Color.Transparent,
         inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         inactiveBorderColor = MaterialTheme.colorScheme.outline,
     )

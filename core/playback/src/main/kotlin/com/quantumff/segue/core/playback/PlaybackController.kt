@@ -292,7 +292,7 @@ class PlaybackController @Inject constructor(
 
     /** Adopts a queue the auto-continue setting took over, then reports it for the snackbar. */
     internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
-        adopt(adoption.queue)
+        if (!adopt(adoption.queue)) return
         autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
     }
 
@@ -301,7 +301,8 @@ class PlaybackController @Inject constructor(
         controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
     }
 
-    internal suspend fun adopt(queue: RemotePlayQueue): Unit = withContext(mainDispatcher) {
+    /** Replaces the local queue with [queue], paused. False if the player could not take it. */
+    internal suspend fun adopt(queue: RemotePlayQueue): Boolean = withContext(mainDispatcher) {
         try {
             val controller = controller()
             controller.pause()
@@ -313,10 +314,12 @@ class PlaybackController @Inject constructor(
             val index = queue.currentIndex.coerceIn(queue.songs.indices)
             controller.setMediaItems(queue.songs.map { it.toMediaItem() }, index, queue.positionMillis)
             queueSync.markAdopted(QueueState(queue.songs.map { it.id }, index, queue.positionMillis))
+            true
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             Log.w(TAG, "Could not adopt the remote queue", e)
+            false
         }
     }
 
