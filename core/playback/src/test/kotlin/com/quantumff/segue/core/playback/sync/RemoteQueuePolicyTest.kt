@@ -3,11 +3,13 @@ package com.quantumff.segue.core.playback.sync
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.RemotePlayQueue
+import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.sync.RemoteQueueDecision.Adopt
 import com.quantumff.segue.core.playback.sync.RemoteQueueDecision.Ignore
 import com.quantumff.segue.core.playback.sync.RemoteQueueDecision.IgnoreReason
 import com.quantumff.segue.core.playback.sync.RemoteQueueDecision.Offer
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import org.junit.Test
 
@@ -38,8 +40,8 @@ class RemoteQueuePolicyTest {
         local: QueueSnapshot? = local(),
         autoAdopt: Boolean = false,
         playing: Boolean = false,
-        handled: Long? = null,
-    ) = RemoteQueuePolicy.decide(remote, local, own, autoAdopt, playing, handled)
+        seen: Long? = 1_000,
+    ) = RemoteQueuePolicy.decide(remote, local, own, autoAdopt, playing, seen)
 
     @Test
     fun `a newer queue from another client is offered`() {
@@ -59,6 +61,7 @@ class RemoteQueuePolicyTest {
     @Test
     fun `our own save coming back is ignored`() {
         assertThat(decide(remote(by = own))).isEqualTo(Ignore(IgnoreReason.OwnSave))
+        assertThat(decide(remote(by = own), seen = null)).isEqualTo(Ignore(IgnoreReason.OwnSave))
     }
 
     @Test
@@ -67,14 +70,42 @@ class RemoteQueuePolicyTest {
     }
 
     @Test
-    fun `a remote queue older than the local snapshot is ignored`() {
+    fun `a remote queue not newer than the last server change we accounted for is ignored`() {
         assertThat(decide(remote(changedAt = 500))).isEqualTo(Ignore(IgnoreReason.NotNewer))
         assertThat(decide(remote(changedAt = 1_000))).isEqualTo(Ignore(IgnoreReason.NotNewer))
+        assertThat(decide(remote(changedAt = 1_001))).isEqualTo(Offer)
+    }
+
+    @Test
+    fun `the device clock plays no part - a device clock far ahead does not hide a newer queue`() {
+        val localSavedWithClockAhead = local(updatedAt = 9_999_999_999)
+        assertThat(decide(remote(changedAt = 2_000), local = localSavedWithClockAhead, seen = 1_000)).isEqualTo(Offer)
+    }
+
+    @Test
+    fun `the device clock plays no part - a device clock far behind does not revive a handled queue`() {
+        val localSavedWithClockBehind = local(updatedAt = 0)
+        assertThat(decide(remote(changedAt = 2_000), local = localSavedWithClockBehind, seen = 2_000))
+            .isEqualTo(Ignore(IgnoreReason.NotNewer))
     }
 
     @Test
     fun `the same queue at the same track is not offered again`() {
         val decision = decide(remote(ids = listOf("9"), index = 0, changedAt = 5_000))
+        assertThat(decision).isEqualTo(Ignore(IgnoreReason.SameQueue))
+    }
+
+    @Test
+    fun `sameness is judged in play order for a shuffled local queue`() {
+        val shuffled = QueueSnapshot(
+            songIds = persistentListOf("a", "b", "c"),
+            currentIndex = 2,
+            positionMillis = 0,
+            updatedAt = 0,
+            shuffleMode = ShuffleMode.Tracks,
+            playOrder = persistentListOf(2, 0, 1),
+        )
+        val decision = decide(remote(ids = listOf("c", "a", "b"), index = 0, changedAt = 5_000), local = shuffled)
         assertThat(decision).isEqualTo(Ignore(IgnoreReason.SameQueue))
     }
 
@@ -85,18 +116,20 @@ class RemoteQueuePolicyTest {
     }
 
     @Test
-    fun `a queue the user already dismissed or adopted is not offered again`() {
-        assertThat(decide(remote(changedAt = 2_000), handled = 2_000)).isEqualTo(Ignore(IgnoreReason.AlreadyHandled))
-        assertThat(decide(remote(changedAt = 3_000), handled = 2_000)).isEqualTo(Offer)
+    fun `with nothing seen yet any other client's queue is offered`() {
+        assertThat(decide(remote(changedAt = null), local = null, seen = null)).isEqualTo(Offer)
+        assertThat(decide(remote(changedAt = 2_000), seen = null)).isEqualTo(Offer)
     }
 
     @Test
-    fun `with no local queue any remote queue is offered`() {
-        assertThat(decide(remote(changedAt = null), local = null)).isEqualTo(Offer)
+    fun `without a remote timestamp a queue is offered only if nothing was seen yet`() {
+        assertThat(decide(remote(changedAt = null), seen = 0)).isEqualTo(Ignore(IgnoreReason.NotNewer))
+        assertThat(decide(remote(changedAt = null), seen = null)).isEqualTo(Offer)
     }
 
     @Test
-    fun `without a remote timestamp an existing local queue wins`() {
-        assertThat(decide(remote(changedAt = null))).isEqualTo(Ignore(IgnoreReason.NotNewer))
+    fun `the key to remember for a queue is its server change time`() {
+        assertThat(RemoteQueuePolicy.seenKey(remote(changedAt = 7_000))).isEqualTo(7_000)
+        assertThat(RemoteQueuePolicy.seenKey(remote(changedAt = null))).isEqualTo(0)
     }
 }
