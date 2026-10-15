@@ -1,5 +1,16 @@
 package com.quantumff.segue.ui
 
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.ImmutableList
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -110,13 +121,15 @@ fun SegueNavigationRail(
 
 /**
  * Expanded-width permanent sidebar, 240 wide, Feishin style: the destinations, then a "Playlists"
- * list (empty until the data layer lands).
+ * list that opens each playlist.
  */
 @Composable
 fun SegueSidebar(
     currentTab: TopLevelDestination,
     onTabClick: (TopLevelDestination) -> Unit,
     modifier: Modifier = Modifier,
+    playlists: ImmutableList<SidebarPlaylist> = persistentListOf(),
+    onPlaylistClick: (String) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -152,12 +165,33 @@ fun SegueSidebar(
             modifier = Modifier.padding(horizontal = SegueSpacing.lg),
         )
         Spacer(Modifier.height(SegueSpacing.sm))
-        Text(
-            text = stringResource(R.string.sidebar_no_playlists),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = SegueSpacing.lg),
-        )
+        if (playlists.isEmpty()) {
+            Text(
+                text = stringResource(R.string.sidebar_no_playlists),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = SegueSpacing.lg),
+            )
+        } else {
+            LazyColumn(Modifier.weight(1f)) {
+                items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = SegueSizes.touchTarget)
+                            .clip(SegueShapes.full)
+                            .clickable { onPlaylistClick(playlist.id) }
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .padding(horizontal = SegueSpacing.lg),
+                    )
+                }
+            }
+        }
     }
 }
 

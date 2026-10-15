@@ -41,6 +41,7 @@ import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.StatusBarScrim
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
@@ -172,6 +173,7 @@ fun HomeScreen(
                 homeSections(uiState, sections, onPlayAlbum, onPlaylistClick, onGenreClick, onRefreshExplore)
             }
         }
+        StatusBarScrim(Modifier.align(Alignment.TopCenter))
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 

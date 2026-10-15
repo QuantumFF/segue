@@ -103,6 +103,7 @@ fun NowPlayingScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOpenQueue: () -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NowPlayingViewModel = hiltViewModel(),
@@ -121,7 +122,7 @@ fun NowPlayingScreen(
             }
         }
     }
-    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist) {
+    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist, onOpenQueue) {
         NowPlayingActions(
             onCollapse = onCollapse,
             onPlayPause = viewModel::togglePlayPause,
@@ -144,6 +145,7 @@ fun NowPlayingScreen(
             onPlayRelated = viewModel::playRelated,
             onPlayNext = viewModel::playNext,
             onAddToQueue = viewModel::addToQueue,
+            onOpenQueue = onOpenQueue,
         )
     }
     NowPlayingScreen(
@@ -251,6 +253,8 @@ internal fun NowPlayingScreen(
                         NowPlayingMenuAction.InstantMix -> actions.onInstantMix()
 
                         NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
+
+                        NowPlayingMenuAction.OpenQueue -> actions.onOpenQueue()
 
                         NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
 

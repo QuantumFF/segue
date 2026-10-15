@@ -1,5 +1,10 @@
 package com.quantumff.segue.ui
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.collections.immutable.persistentListOf
+import com.quantumff.segue.playback.ShellPlayerActions
+import com.google.common.truth.Truth.assertThat
+import androidx.compose.runtime.remember
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -116,6 +121,28 @@ class SegueAppShellTest {
 
         tab("Search").assertExists()
         compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the expanded sidebar lists playlists and opens them`() {
+        var opened: String? = null
+        compose.setContent {
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = ShellLayout.Expanded)
+                SegueApp(
+                    appState = appState,
+                    player = testPlayer,
+                    positionMillis = remember { MutableStateFlow(0L) },
+                    playerActions = ShellPlayerActions.None,
+                    sidebarPlaylists = persistentListOf(SidebarPlaylist("p1", "Road trip")),
+                    onSidebarPlaylistClick = { opened = it },
+                ) { TestNavHost(appState, it) }
+            }
+        }
+
+        compose.onNodeWithText("Road trip").performClick()
+
+        assertThat(opened).isEqualTo("p1")
     }
 
     @Test

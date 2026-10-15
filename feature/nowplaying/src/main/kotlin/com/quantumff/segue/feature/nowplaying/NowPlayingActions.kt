@@ -28,6 +28,8 @@ class NowPlayingActions(
     val onPlayRelated: (Int) -> Unit,
     val onPlayNext: (Song) -> Unit,
     val onAddToQueue: (List<Song>) -> Unit,
+    /** The full-screen queue, for Save as playlist and Clear queue. */
+    val onOpenQueue: () -> Unit = {},
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */

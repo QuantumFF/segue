@@ -107,7 +107,7 @@ fun ContinueFromDeviceBar(
             .fillMaxWidth()
             .height(SegueSizes.miniPlayer)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(start = SegueSpacing.lg, end = SegueSpacing.xs),
+            .padding(start = SegueSpacing.lg, end = SegueSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DeviceIcon()

@@ -1,5 +1,7 @@
 package com.quantumff.segue.feature.queue
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +58,7 @@ import kotlinx.coroutines.launch
 /**
  * A queue track: the shared track row on a `primaryContainer` background when current, with a
  * `grip-vertical` drag handle on the right. [handleModifier] attaches the reorder gesture to the handle.
+ * Other rows are transparent, so the queue also sits on Now Playing's art backdrop.
  */
 @Composable
 internal fun QueueTrackRow(
@@ -68,7 +71,7 @@ internal fun QueueTrackRow(
     val background = when {
         isDragging -> MaterialTheme.colorScheme.surfaceContainerHighest
         state.isCurrent -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.background
+        else -> Color.Transparent
     }
     Row(
         modifier = modifier
@@ -94,7 +97,7 @@ internal fun AlbumBlockHeader(
         modifier = modifier
             .fillMaxWidth()
             .height(AlbumHeaderHeight)
-            .background(if (isDragging) colors.surfaceContainerHighest else colors.background)
+            .background(if (isDragging) colors.surfaceContainerHighest else Color.Transparent)
             .padding(start = SegueSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -246,15 +249,23 @@ internal fun QueueSwipeBox(
             ),
     ) {
         SwipeBackground(offset = { offset.value }, modifier = Modifier.matchParentSize())
-        Box(Modifier.graphicsLayer { translationX = offset.value }) { content() }
+        // Rows are transparent at rest; while swiped the row is opaque over the revealed actions.
+        val rowFill = MaterialTheme.colorScheme.background
+        Box(
+            Modifier
+                .graphicsLayer { translationX = offset.value }
+                .drawBehind { if (offset.value != 0f) drawRect(rowFill) },
+        ) { content() }
     }
 }
 
 @Composable
 private fun SwipeBackground(offset: () -> Float, modifier: Modifier = Modifier) {
+    val fill = MaterialTheme.colorScheme.surfaceContainerHigh
     Row(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            // Drawn only while swiping: at rest the transparent rows would show it.
+            .drawBehind { if (offset() != 0f) drawRect(fill) }
             .padding(horizontal = SegueSpacing.xl),
         verticalAlignment = Alignment.CenterVertically,
     ) {

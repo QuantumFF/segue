@@ -1,5 +1,8 @@
 package com.quantumff.segue.ui
 
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.ImmutableList
+import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
@@ -85,8 +89,16 @@ fun SegueApp(
     openNowPlayingRequest: Int = 0,
     windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
+    sidebarViewModel: SidebarViewModel = hiltViewModel(),
 ) {
     val appState = rememberSegueAppState(shellLayout = windowAdaptiveInfo.windowSizeClass.toShellLayout())
+    // Only the expanded sidebar lists playlists: other layouts do not observe them.
+    val sidebarPlaylists = if (appState.shellLayout == ShellLayout.Expanded) {
+        sidebarViewModel.playlists.collectAsStateWithLifecycle().value
+    } else {
+        persistentListOf()
+    }
+    val onSidebarPlaylistClick = remember(appState) { { id: String -> appState.navigate { navigateToPlaylist(id) } } }
     val player by playerViewModel.player.collectAsStateWithLifecycle()
     val playActions = playerViewModel.playActions
     val playerActions = remember(playerViewModel) { playerViewModel.shellActions() }
@@ -134,6 +146,8 @@ fun SegueApp(
         positionMillis = playerViewModel.positionMillis,
         playerActions = playerActions,
         modifier = modifier,
+        sidebarPlaylists = sidebarPlaylists,
+        onSidebarPlaylistClick = onSidebarPlaylistClick,
     ) { navModifier ->
         Box(navModifier) {
             SegueNavHost(
@@ -169,6 +183,8 @@ fun SegueApp(
     positionMillis: StateFlow<Long>,
     playerActions: ShellPlayerActions,
     modifier: Modifier = Modifier,
+    sidebarPlaylists: ImmutableList<SidebarPlaylist> = persistentListOf(),
+    onSidebarPlaylistClick: (String) -> Unit = {},
     navHost: @Composable (Modifier) -> Unit,
 ) {
     val destination = appState.currentDestination
@@ -204,10 +220,21 @@ fun SegueApp(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        when (appState.shellLayout) {
-            ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, navHost)
-            ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, navHost)
-            ShellLayout.Expanded -> ExpandedShell(appState, chrome, shellPlayer, onTabClick, navHost)
+        // Text and icons without an explicit color follow the theme, as under a Surface.
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+            when (appState.shellLayout) {
+                ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, navHost)
+                ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, navHost)
+                ShellLayout.Expanded -> ExpandedShell(
+                    appState,
+                    chrome,
+                    shellPlayer,
+                    onTabClick,
+                    navHost,
+                    sidebarPlaylists,
+                    onSidebarPlaylistClick,
+                )
+            }
         }
     }
 }
@@ -307,16 +334,26 @@ private fun MediumShell(
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun ExpandedShell(
     appState: SegueAppState,
     chrome: ShellChrome,
     player: ShellPlayer,
     onTabClick: (TopLevelDestination) -> Unit,
     navHost: @Composable (Modifier) -> Unit,
+    playlists: ImmutableList<SidebarPlaylist>,
+    onPlaylistClick: (String) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.weight(1f)) {
-            if (chrome.navigation) SegueSidebar(currentTab = appState.currentTab, onTabClick = onTabClick)
+            if (chrome.navigation) {
+                SegueSidebar(
+                    currentTab = appState.currentTab,
+                    onTabClick = onTabClick,
+                    playlists = playlists,
+                    onPlaylistClick = onPlaylistClick,
+                )
+            }
             Box(Modifier.weight(1f)) { ShellContent(navHost, bottomChrome = SegueSpacing.none) }
         }
         if (chrome.continueBar) {

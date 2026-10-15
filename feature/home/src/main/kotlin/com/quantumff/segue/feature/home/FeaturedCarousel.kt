@@ -90,7 +90,8 @@ private fun FeaturedCard(album: Album, onClick: () -> Unit, onPlayClick: () -> U
             .fillMaxWidth()
             .height(CARD_HEIGHT)
             .clip(SegueShapes.md)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            // Black under the art in every theme: the card's text is always light (onArt).
+            .background(Color.Black)
             .clickable(onClick = onClick),
     ) {
         BlurredArt(coverArtId = album.coverArtId, alpha = BACKDROP_ALPHA, modifier = Modifier.matchParentSize())
@@ -98,7 +99,12 @@ private fun FeaturedCard(album: Album, onClick: () -> Unit, onPlayClick: () -> U
             Modifier
                 .matchParentSize()
                 .drawBehind {
-                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = SHADE_ALPHA))))
+                    // A light veil at the top too, so white text stays readable over pale art.
+                    drawRect(
+                        Brush.verticalGradient(
+                            listOf(Color.Black.copy(alpha = TOP_SHADE_ALPHA), Color.Black.copy(alpha = SHADE_ALPHA)),
+                        ),
+                    )
                 },
         )
         ArtNoise(Modifier.matchParentSize())
@@ -192,6 +198,7 @@ private val ART_SIZE = 120.dp
 private val DOT_SIZE = 6.dp
 private const val BACKDROP_ALPHA = 0.8f
 private const val SHADE_ALPHA = 0.6f
+private const val TOP_SHADE_ALPHA = 0.25f
 
 @PreviewSegueThemes
 @Composable

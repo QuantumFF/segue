@@ -370,6 +370,8 @@ private fun ActiveRow(pin: PinnedDownload, actions: DownloadsActions) {
             Text(
                 text = pin.name,
                 style = MaterialTheme.typography.titleSmall,
+                // Explicit: the Library tab has no Surface to provide a content color.
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
