@@ -17,6 +17,8 @@ import androidx.media3.session.CacheBitmapLoader
 import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
@@ -25,6 +27,7 @@ import com.quantumff.segue.core.data.repository.ScrobbleRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.playback.cache.AdjustableLruCacheEvictor
 import com.quantumff.segue.core.playback.cache.NetworkMonitor
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
@@ -35,6 +38,7 @@ import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 
 /** Everything the playback service needs, constructor-injected in one piece. */
@@ -52,6 +56,8 @@ class PlaybackComponents @Inject constructor(
     val mediaBrowse: MediaBrowseRepository,
     val albumShuffle: AlbumShuffleRepository,
     val search: SearchRepository,
+    private val offlineMode: OfflineModeRepository,
+    private val downloads: DownloadRepository,
     /** Widgets. */
     val nowPlaying: NowPlayingPublisher,
     private val cacheDataSourceFactory: CacheDataSource.Factory,
@@ -63,6 +69,10 @@ class PlaybackComponents @Inject constructor(
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) {
     val networkType get() = network.networkType
+
+    /** What is downloaded, while offline; null online. For browse lists that narrow offline. */
+    suspend fun downloadedWhileOffline(): DownloadedLibrary? =
+        if (offlineMode.isOffline.value) downloads.downloadedLibrary.first() else null
 
     /**
      * ExoPlayer for music: audio focus, pause on headphone unplug, a network wake lock, and media

@@ -3,12 +3,15 @@ package com.quantumff.segue.feature.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -53,7 +57,8 @@ sealed interface SearchResults {
 
     /**
      * [serverPending]: only local results so far, the server search is still running.
-     * [offline]: the server search failed, so these are local (Room FTS) results only.
+     * [offline]: the server search failed or was skipped (offline), so these are local (Room FTS)
+     * results only; while offline they are narrowed to downloaded music.
      */
     data class Ready(val result: SearchResult, val serverPending: Boolean, val offline: Boolean) : SearchResults
 }
@@ -82,6 +87,8 @@ class SearchViewModel @Inject constructor(
     private val preferences: UserPreferencesRepository,
     private val starRating: StarRatingRepository,
     libraryRepository: LibraryRepository,
+    private val downloadRepository: DownloadRepository,
+    private val offlineModeRepository: OfflineModeRepository,
 ) : ViewModel() {
     private val queryState = MutableStateFlow("")
 
@@ -94,11 +101,19 @@ class SearchViewModel @Inject constructor(
     /** Song ID to starred, for favorites toggled since the results arrived (results are a snapshot). */
     private val starOverrides = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
-    private val results: Flow<SearchResults> = queryState
-        .map { it.trim() }
-        .distinctUntilChanged()
+    private val results: Flow<SearchResults> = combine(
+        queryState.map { it.trim() }.distinctUntilChanged(),
+        offlineModeRepository.isOffline,
+        ::Pair,
+    )
         // Every keystroke searches Room at once; the server is asked after a 300ms pause (see search()).
-        .flatMapLatest { query -> if (query.isEmpty()) flowOf(SearchResults.Idle) else search(query) }
+        .flatMapLatest { (query, offline) ->
+            when {
+                query.isEmpty() -> flowOf(SearchResults.Idle)
+                offline -> searchOffline(query)
+                else -> search(query)
+            }
+        }
 
     val uiState: StateFlow<SearchUiState> = combine(
         filter,
@@ -178,6 +193,21 @@ class SearchViewModel @Inject constructor(
         val final = last ?: SearchResult.Empty
         // The flow finished without server results: the server search failed or we are offline.
         if (!final.includesServerResults) emit(SearchResults.Ready(final, serverPending = false, offline = true))
+    }
+
+    /** Offline: Room only, narrowed to downloaded music; the server is not asked. */
+    private fun searchOffline(query: String): Flow<SearchResults> = flow {
+        emit(SearchResults.Loading)
+        val local = searchRepository.searchLocal(query).firstOrNull() ?: SearchResult.Empty
+        emitAll(
+            downloadRepository.downloadedLibrary.map { downloaded ->
+                SearchResults.Ready(
+                    OfflineLibrary.search(local, isOffline = true, downloaded),
+                    serverPending = false,
+                    offline = true,
+                )
+            },
+        )
     }
 
     private fun applyOverrides(results: SearchResults, overrides: Map<String, Boolean>): SearchResults {

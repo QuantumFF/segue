@@ -18,6 +18,8 @@ import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemotePlayQueue
@@ -302,17 +304,19 @@ class PlaybackController @Inject constructor(
     /**
      * "Shuffle albums": random albums from [source], each queued whole in disc and track order, in
      * plain (unshuffled) play order. A library or genre picks [AlbumPicker.DEFAULT_ALBUM_COUNT]
-     * albums; an artist or playlist uses all of its albums. Reads Room only. False if there is
-     * nothing to play.
+     * albums; an artist or playlist uses all of its albums. Reads Room only. With [offline] (what is
+     * downloaded, passed while offline) only downloaded albums are picked and only their
+     * downloaded songs queued. False if there is nothing to play.
      */
-    suspend fun shuffleAlbums(source: AlbumShuffleSource): Boolean {
-        val albumIds = albumShuffle.albumIds(source)
+    suspend fun shuffleAlbums(source: AlbumShuffleSource, offline: DownloadedLibrary? = null): Boolean {
+        val albumIds = OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(source), offline)
         val count = when (source) {
             AlbumShuffleSource.Library, is AlbumShuffleSource.Genre -> AlbumPicker.DEFAULT_ALBUM_COUNT
             is AlbumShuffleSource.Artist, is AlbumShuffleSource.Playlist -> albumIds.size
         }
         val picked = AlbumPicker.pick(albumIds, count, random)
-        val queue = AlbumPicker.queueInAlbumOrder(albumShuffle.songs(source, picked), picked)
+        val songs = OfflineLibrary.shuffleSongs(albumShuffle.songs(source, picked), offline)
+        val queue = AlbumPicker.queueInAlbumOrder(songs, picked)
         if (queue.isEmpty()) return false
         play(queue, startIndex = 0, shuffle = false)
         return true

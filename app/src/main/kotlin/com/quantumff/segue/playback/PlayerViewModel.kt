@@ -77,7 +77,9 @@ class PlayerViewModel @Inject constructor(
         },
         onShuffleAlbums = { source ->
             viewModelScope.launch {
-                if (!playback.shuffleAlbums(source)) messageChannel.send(PlayerMessage.NothingToPlay)
+                // Offline: downloaded albums only (DESIGN.md §1, offline is first-class).
+                val offline = if (isOffline.value) downloads.downloadedLibrary.first() else null
+                if (!playback.shuffleAlbums(source, offline)) messageChannel.send(PlayerMessage.NothingToPlay)
             }
         },
         onPlayNext = { songs -> withQueueable(songs, playback::playNext) },

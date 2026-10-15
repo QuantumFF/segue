@@ -7,6 +7,7 @@ import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
@@ -26,6 +27,7 @@ class BrowseTreeTest {
         override suspend fun songs(source: AlbumShuffleSource, albumIds: List<String>): List<Song> =
             repo.songs.filter { it.albumId in albumIds }
     }
+    private var offlineLibrary: DownloadedLibrary? = null
     private val tree = BrowseTree(
         repository = repo,
         albumShuffle = shuffle,
@@ -48,6 +50,7 @@ class BrowseTreeTest {
             override fun icon(icon: BrowseIcon): Uri = Uri.parse("android.resource://pkg/${icon.name}")
         },
         random = Random(1),
+        downloadedWhileOffline = { offlineLibrary },
     )
 
     private suspend fun ids(parent: BrowseId, page: Int = 0, pageSize: Int = 100) =
@@ -69,13 +72,15 @@ class BrowseTreeTest {
     }
 
     @Test
-    fun `root children are the browsable tabs, with icons`() = runTest {
+    fun `root children are the browsable tabs, then shuffle albums, with icons`() = runTest {
         val children = tree.children(BrowseId.Root.encode(), 0, 100)!!
 
         assertThat(children.map { BrowseId.parse(it.mediaId) })
-            .containsExactly(BrowseId.Home, BrowseId.Library, BrowseId.Downloads).inOrder()
-        assertThat(children.all { it.mediaMetadata.isBrowsable == true && it.mediaMetadata.isPlayable == false })
-            .isTrue()
+            .containsExactly(BrowseId.Home, BrowseId.Library, BrowseId.Downloads, BrowseId.ShuffleAlbums).inOrder()
+        assertThat(
+            children.dropLast(1).all { it.mediaMetadata.isBrowsable == true && it.mediaMetadata.isPlayable == false },
+        ).isTrue()
+        assertThat(children.last().mediaMetadata.isPlayable).isTrue()
         assertThat(children.all { it.mediaMetadata.artworkUri != null }).isTrue()
     }
 
@@ -305,6 +310,21 @@ class BrowseTreeTest {
         assertThat(ids).containsExactly("x1", "x2", "y1")
         assertThat(ids.indexOf("x2")).isEqualTo(ids.indexOf("x1") + 1)
         assertThat(request.shuffleMode).isEqualTo(ShuffleMode.Off)
+    }
+
+    @Test
+    fun `offline shuffle albums picks downloaded albums and queues downloaded songs`() = runTest {
+        repo.albums = listOf(TestData.album("x"), TestData.album("y"))
+        repo.songs = listOf(
+            TestData.song("x1", albumId = "x", track = 1),
+            TestData.song("x2", albumId = "x", track = 2),
+            TestData.song("y1", albumId = "y", track = 1),
+        )
+        offlineLibrary = DownloadedLibrary(songIds = setOf("x2"), albumIds = setOf("x"))
+
+        val request = tree.playRequest(BrowseId.ShuffleAlbums.encode())!!
+
+        assertThat(request.songs.map { it.id }).containsExactly("x2")
     }
 
     @Test

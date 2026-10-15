@@ -90,7 +90,14 @@ class SeguePlaybackService : MediaLibraryService() {
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
-        library = SessionLibrary(this, scope, components.mediaBrowse, components.albumShuffle, components.search)
+        library = SessionLibrary(
+            this,
+            scope,
+            components.mediaBrowse,
+            components.albumShuffle,
+            components.search,
+            downloadedWhileOffline = components::downloadedWhileOffline,
+        )
 
         session = MediaLibrarySession.Builder(this, player, SessionCallback())
             .setBitmapLoader(components.createBitmapLoader(this))
