@@ -58,6 +58,7 @@ import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.navigateToNowPlaying
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
+import com.quantumff.segue.feature.queue.navigation.navigateToQueue
 import com.quantumff.segue.navigation.HomeGraph
 import com.quantumff.segue.navigation.SegueNavHost
 import com.quantumff.segue.navigation.TopLevelDestination
@@ -177,8 +178,9 @@ fun SegueApp(
     SystemBarAppearance(lightStatusIcons = SegueTheme.isDark || destination?.hasRoute(NowPlayingRoute::class) == true)
 
     val onOpenNowPlaying = remember(appState) { { appState.navigate { navigateToNowPlaying() } } }
-    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
-        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
+    val onOpenQueue = remember(appState) { { appState.navigate { navigateToQueue() } } }
+    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying, onOpenQueue) {
+        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying, onOpenQueue)
     }
 
     Box(
@@ -214,6 +216,7 @@ private class ShellPlayer(
     val positionMillis: StateFlow<Long>,
     val actions: ShellPlayerActions,
     val onOpenNowPlaying: () -> Unit,
+    val onOpenQueue: () -> Unit,
 )
 
 @Composable
@@ -335,7 +338,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     )
     val actions = player.actions
     val position = player.positionMillis.collectAsStateWithLifecycle()
-    val barActions = remember(actions, player.onOpenNowPlaying) {
+    val barActions = remember(actions, player.onOpenNowPlaying, player.onOpenQueue) {
         PlayerBarActions(
             onClick = player.onOpenNowPlaying,
             onPlayPauseClick = actions.onPlayPause,
@@ -344,7 +347,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
             onShuffleClick = actions.onCycleShuffle,
             onRepeatClick = actions.onCycleRepeat,
             onLyricsClick = player.onOpenNowPlaying,
-            onQueueClick = player.onOpenNowPlaying,
+            onQueueClick = player.onOpenQueue,
             onMoreClick = player.onOpenNowPlaying,
             // System volume is the only volume; the bar's slider is not wired.
             onVolumeChange = {},

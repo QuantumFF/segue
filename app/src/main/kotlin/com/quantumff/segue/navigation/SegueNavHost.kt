@@ -37,14 +37,13 @@ import com.quantumff.segue.feature.library.navigation.libraryScreen
 import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.loginScreen
 import com.quantumff.segue.feature.login.navigation.navigateToLogin
-import com.quantumff.segue.feature.nowplaying.QueuePanelPlaceholder
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.nowPlayingScreen
 import com.quantumff.segue.feature.playlist.navigation.PlaylistsRoute
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import com.quantumff.segue.feature.playlist.navigation.playlistScreen
 import com.quantumff.segue.feature.playlist.navigation.playlistsScreen
-import com.quantumff.segue.feature.queue.navigation.navigateToQueue
+import com.quantumff.segue.feature.queue.QueueContent
 import com.quantumff.segue.feature.queue.navigation.queueScreen
 import com.quantumff.segue.feature.search.navigation.SearchRoute
 import com.quantumff.segue.feature.search.navigation.searchScreen
@@ -188,8 +187,8 @@ fun SegueNavHost(
                 onArtistClick(id)
             },
             onAddToPlaylist = onAddToPlaylist,
-            // Until the queue feature provides its panel composable.
-            queueContent = { QueuePanelPlaceholder(onOpenQueue = { appState.navigate { navigateToQueue() } }) },
+            // The same queue, with all its gestures, as on the Queue screen.
+            queueContent = { QueueContent() },
         )
         queueScreen(onBackClick = onBackClick)
         loginScreen(onBackClick = onBackClick, onSignedIn = appState::onSignedIn)
