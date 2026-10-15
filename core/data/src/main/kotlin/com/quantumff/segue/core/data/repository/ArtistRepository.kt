@@ -33,6 +33,9 @@ interface ArtistRepository {
 
     val artistCount: Flow<Int>
 
+    /** Artists with a downloaded song, by name. For offline mode. */
+    fun downloadedArtists(): Flow<PagingData<Artist>>
+
     fun artist(id: String): Flow<Artist?>
 
     /** Newest first, including albums that credit the artist only in OpenSubsonic `artists`. */
@@ -72,6 +75,9 @@ internal class OfflineFirstArtistRepository @Inject constructor(
 ) : ArtistRepository {
     override fun artists(): Flow<PagingData<Artist>> =
         clients.pagedForActiveServer(artistDao::pagingSource, ArtistEntity::asExternalModel)
+
+    override fun downloadedArtists(): Flow<PagingData<Artist>> =
+        clients.pagedForActiveServer(artistDao::pagingSourceDownloaded, ArtistEntity::asExternalModel)
 
     override val artistCount: Flow<Int> = clients.forActiveServer(0, artistDao::observeCount)
 

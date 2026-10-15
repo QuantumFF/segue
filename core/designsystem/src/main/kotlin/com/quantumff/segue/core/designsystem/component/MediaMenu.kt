@@ -31,6 +31,7 @@ enum class MediaAction {
     GoToAlbum,
     GoToArtist,
     Download,
+    RemoveDownload,
     Rename,
     RemoveFromPlaylist,
     Delete,
@@ -55,7 +56,12 @@ object MediaActions {
         if (inPlaylist) add(MediaAction.RemoveFromPlaylist)
     }.toImmutableList()
 
-    fun album(isStarred: Boolean, hasArtist: Boolean = true): ImmutableList<MediaAction> = buildList {
+    /** [isDownloaded]: pinned for offline, so the menu offers "Remove download" instead of "Download". */
+    fun album(
+        isStarred: Boolean,
+        hasArtist: Boolean = true,
+        isDownloaded: Boolean = false,
+    ): ImmutableList<MediaAction> = buildList {
         add(MediaAction.Play)
         add(MediaAction.Shuffle)
         if (hasArtist) add(MediaAction.ShuffleArtistAlbums)
@@ -64,29 +70,33 @@ object MediaActions {
         add(MediaAction.AddToPlaylist)
         add(if (isStarred) MediaAction.Unfavorite else MediaAction.Favorite)
         if (hasArtist) add(MediaAction.GoToArtist)
-        add(MediaAction.Download)
+        add(downloadAction(isDownloaded))
     }.toImmutableList()
 
-    fun artist(isStarred: Boolean): ImmutableList<MediaAction> = persistentListOf(
+    fun artist(isStarred: Boolean, isDownloaded: Boolean = false): ImmutableList<MediaAction> = persistentListOf(
         MediaAction.Play,
         MediaAction.Shuffle,
         MediaAction.ShuffleAlbums,
         if (isStarred) MediaAction.Unfavorite else MediaAction.Favorite,
+        downloadAction(isDownloaded),
     )
 
-    fun playlist(editable: Boolean): ImmutableList<MediaAction> = buildList {
+    fun playlist(editable: Boolean, isDownloaded: Boolean = false): ImmutableList<MediaAction> = buildList {
         add(MediaAction.Play)
         add(MediaAction.Shuffle)
         add(MediaAction.ShuffleAlbums)
         add(MediaAction.PlayNext)
         add(MediaAction.AddToQueue)
-        add(MediaAction.Download)
+        add(downloadAction(isDownloaded))
         if (editable) {
             add(MediaAction.Rename)
             add(MediaAction.Delete)
         }
     }.toImmutableList()
 }
+
+private fun downloadAction(isDownloaded: Boolean) =
+    if (isDownloaded) MediaAction.RemoveDownload else MediaAction.Download
 
 /**
  * A [ContextMenuSheet] whose rows are [actions], labelled and iconed consistently across screens.
@@ -123,7 +133,9 @@ private fun mediaMenuItems(actions: ImmutableList<MediaAction>): ImmutableList<C
                 id = action.name,
                 label = labels[index],
                 icon = action.icon,
-                destructive = action == MediaAction.Delete || action == MediaAction.RemoveFromPlaylist,
+                destructive = action == MediaAction.Delete ||
+                    action == MediaAction.RemoveFromPlaylist ||
+                    action == MediaAction.RemoveDownload,
             )
         }.toImmutableList()
     }
@@ -144,6 +156,7 @@ private val MediaAction.label: Int
         MediaAction.GoToAlbum -> R.string.ds_action_go_to_album
         MediaAction.GoToArtist -> R.string.ds_action_go_to_artist
         MediaAction.Download -> R.string.ds_action_download
+        MediaAction.RemoveDownload -> R.string.ds_action_remove_download
         MediaAction.Rename -> R.string.ds_action_rename
         MediaAction.RemoveFromPlaylist -> R.string.ds_action_remove_from_playlist
         MediaAction.Delete -> R.string.ds_action_delete
@@ -164,7 +177,7 @@ private val MediaAction.icon: ImageVector
         MediaAction.GoToArtist -> SegueIcons.Artist
         MediaAction.Download -> SegueIcons.Download
         MediaAction.Rename -> SegueIcons.Edit
-        MediaAction.RemoveFromPlaylist, MediaAction.Delete -> SegueIcons.Remove
+        MediaAction.RemoveFromPlaylist, MediaAction.Delete, MediaAction.RemoveDownload -> SegueIcons.Remove
     }
 
 @PreviewSegueThemes

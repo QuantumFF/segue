@@ -292,8 +292,16 @@ class FakeSubsonicClient : SubsonicClient {
 
     override suspend fun getInternetRadioStations() = emptyList<NetworkInternetRadioStation>()
 
-    override fun streamUrl(id: String, maxBitRateKbps: Int?, format: String?, timeOffsetSeconds: Int?) =
-        "https://fake/stream/$id"
+    /** Where [streamUrl] points, e.g. a MockWebServer. */
+    var streamBaseUrl = "https://fake/stream/"
+
+    /** (id, maxBitRate, format) of each [streamUrl] call. */
+    val streamRequests = mutableListOf<Triple<String, Int?, String?>>()
+
+    override fun streamUrl(id: String, maxBitRateKbps: Int?, format: String?, timeOffsetSeconds: Int?): String {
+        streamRequests += Triple(id, maxBitRateKbps, format)
+        return "$streamBaseUrl$id"
+    }
 
     override fun coverArtUrl(id: String, size: Int?) = "https://fake/cover/$id?size=$size"
 

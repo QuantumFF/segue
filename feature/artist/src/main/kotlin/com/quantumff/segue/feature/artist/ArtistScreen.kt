@@ -30,6 +30,7 @@ import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
@@ -48,6 +49,7 @@ import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
@@ -92,6 +94,9 @@ fun ArtistDetailRoute(
         onRetry = viewModel::refresh,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onDownload = viewModel::download,
+        onRemoveDownload = viewModel::removeDownload,
+        onDownloadSong = viewModel::downloadSong,
     )
 }
 
@@ -117,6 +122,9 @@ fun ArtistScreen(
     onRetry: () -> Unit,
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onDownload: () -> Unit = {},
+    onRemoveDownload: () -> Unit = {},
+    onDownloadSong: (Song) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     Box(modifier.fillMaxSize()) {
@@ -162,6 +170,9 @@ fun ArtistScreen(
                 onToggleStar = onToggleStar,
                 onToggleSongStar = onToggleSongStar,
                 onRetry = onRetry,
+                onDownload = onDownload,
+                onRemoveDownload = onRemoveDownload,
+                onDownloadSong = onDownloadSong,
             )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -174,6 +185,7 @@ fun ArtistScreen(
                 ArtistMessage.FavoriteFailed -> R.string.feature_artist_favorite_failed
                 ArtistMessage.LoadFailed -> R.string.feature_artist_load_failed
                 ArtistMessage.NoSimilarSongs -> R.string.feature_artist_no_similar_songs
+                ArtistMessage.DownloadFailed -> R.string.feature_artist_download_failed
             },
         )
     }
@@ -202,9 +214,13 @@ private fun ArtistContent(
     onToggleStar: () -> Unit,
     onToggleSongStar: (Song) -> Unit,
     onRetry: () -> Unit,
+    onDownload: () -> Unit,
+    onRemoveDownload: () -> Unit,
+    onDownloadSong: (Song) -> Unit,
 ) {
     val artist = state.artist
     var artistMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var downloadMenuOpen by rememberSaveable { mutableStateOf(false) }
     var menuSongId by rememberSaveable { mutableStateOf<String?>(null) }
     var showAllTopSongs by rememberSaveable { mutableStateOf(false) }
     var biographyExpanded by rememberSaveable { mutableStateOf(false) }
@@ -251,6 +267,10 @@ private fun ArtistContent(
                 onClick = onToggleStar,
                 tint = if (artist.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
+            DownloadButton(
+                status = state.download,
+                onClick = { if (state.download == null) onDownload() else downloadMenuOpen = true },
+            )
         },
     ) {
         if (state.isOffline || state.isPreparingPlayback) {
@@ -280,7 +300,11 @@ private fun ArtistContent(
                     index,
                     song,
                 ->
-                val row = remember(song) { song.toTrackRowState() }
+                val download = state.songDownloads[song.id]
+                val available = state.isAvailable(song)
+                val row = remember(song, download, available) {
+                    song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
+                }
                 TrackRow(
                     state = row,
                     onClick = { onPlayTopSong(index) },
@@ -318,17 +342,27 @@ private fun ArtistContent(
     if (artistMenuOpen) {
         MediaContextMenu(
             header = artist.toMenuHeader(),
-            actions = MediaActions.artist(isStarred = artist.isStarred),
+            actions = MediaActions.artist(isStarred = artist.isStarred, isDownloaded = state.download != null),
             onAction = { action ->
                 when (action) {
                     MediaAction.Play -> onPlay(false)
                     MediaAction.Shuffle -> onPlay(true)
                     MediaAction.ShuffleAlbums -> onShuffleAlbums()
                     MediaAction.Favorite, MediaAction.Unfavorite -> onToggleStar()
+                    MediaAction.Download -> onDownload()
+                    MediaAction.RemoveDownload -> onRemoveDownload()
                     else -> Unit
                 }
             },
             onDismissRequest = { artistMenuOpen = false },
+        )
+    }
+    if (downloadMenuOpen) {
+        MediaContextMenu(
+            header = artist.toMenuHeader(),
+            actions = persistentListOf(MediaAction.RemoveDownload),
+            onAction = { onRemoveDownload() },
+            onDismissRequest = { downloadMenuOpen = false },
         )
     }
     state.topSongs.firstOrNull { it.id == menuSongId }?.let { song ->
@@ -348,6 +382,7 @@ private fun ArtistContent(
                     onAlbumClick,
                     onArtistClick,
                     onAddToPlaylist,
+                    onDownloadSong,
                 )
             },
             onDismissRequest = { menuSongId = null },
@@ -429,23 +464,17 @@ internal fun handleTopSongAction(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onDownloadSong: (Song) -> Unit = {},
 ) {
     when (action) {
         MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-
         MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-
         MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-
         MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-
         MediaAction.Favorite, MediaAction.Unfavorite -> onToggleSongStar(song)
-
         MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-
         MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-
-        // Downloads arrive with the offline phase.
+        MediaAction.Download -> onDownloadSong(song)
         else -> Unit
     }
 }

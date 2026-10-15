@@ -25,6 +25,7 @@ import com.quantumff.segue.core.database.model.ArtistFtsEntity
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.GenreEntity
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
+import com.quantumff.segue.core.database.model.PinEntity
 import com.quantumff.segue.core.database.model.PlaylistEntity
 import com.quantumff.segue.core.database.model.PlaylistSongEntity
 import com.quantumff.segue.core.database.model.QueueItemEntity
@@ -58,6 +59,7 @@ import com.quantumff.segue.core.database.util.Converters
         QueueItemEntity::class,
         PendingScrobbleEntity::class,
         DownloadEntity::class,
+        PinEntity::class,
         SyncMetadataEntity::class,
         ServerCapabilitiesEntity::class,
     ],

@@ -27,6 +27,13 @@ private const val ALBUM_FILTER =
     "serverId = :serverId AND (:starredOnly = 0 OR starredAt IS NOT NULL) " +
         "AND (:genre IS NULL OR genre = :genre) AND (:year IS NULL OR year = :year)"
 
+/** Albums with at least one downloaded song. Only in queries that need it, so others do not observe `downloads`. */
+private const val DOWNLOADED_ALBUM =
+    "id IN (SELECT s.albumId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id " +
+        "WHERE s.serverId = :serverId AND d.state = 'Completed' AND s.albumId IS NOT NULL)"
+
+private const val DOWNLOADED_ALBUM_FILTER = "$ALBUM_FILTER AND $DOWNLOADED_ALBUM"
+
 @Dao
 abstract class ArtistDao {
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
@@ -34,6 +41,22 @@ abstract class ArtistDao {
 
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
     abstract fun observeAll(serverId: String): Flow<List<ArtistEntity>>
+
+    /** Artists with a downloaded song, as track artist or as the artist of an album with one. */
+    @Query(
+        """
+        SELECT * FROM artists WHERE serverId = :serverId AND id IN (
+            SELECT s.artistId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+            WHERE s.serverId = :serverId AND d.state = 'Completed'
+            UNION
+            SELECT a.artistId FROM albums a INNER JOIN songs s ON s.serverId = a.serverId AND s.albumId = a.id
+            INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+            WHERE a.serverId = :serverId AND d.state = 'Completed'
+        )
+        ORDER BY sortName
+        """,
+    )
+    abstract fun pagingSourceDownloaded(serverId: String): PagingSource<Int, ArtistEntity>
 
     @Query("SELECT * FROM artists WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<ArtistEntity?>
@@ -101,6 +124,43 @@ abstract class AlbumDao {
 
     @Query("SELECT COUNT(*) FROM albums WHERE $ALBUM_FILTER")
     abstract fun observeCount(serverId: String, starredOnly: Boolean, genre: String?, year: Int?): Flow<Int>
+
+    // The same four orders limited to albums with a downloaded song (the "Downloaded" chip, offline mode).
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY sortName")
+    abstract fun downloadedPagingSourceByName(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName")
+    abstract fun downloadedPagingSourceByArtist(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY createdAt DESC, sortName")
+    abstract fun downloadedPagingSourceByRecentlyAdded(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY year DESC, sortName")
+    abstract fun downloadedPagingSourceByYear(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE $DOWNLOADED_ALBUM_FILTER")
+    abstract fun observeDownloadedCount(serverId: String, starredOnly: Boolean, genre: String?, year: Int?): Flow<Int>
 
     /** Release years present in the library, newest first. */
     @Query(
@@ -188,6 +248,22 @@ abstract class SongDao {
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND genre = :genre ORDER BY sortName")
     abstract fun pagingSourceByGenre(serverId: String, genre: String): PagingSource<Int, SongEntity>
+
+    @Query(
+        """
+        SELECT songs.* FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
+        WHERE songs.serverId = :serverId AND downloads.state = 'Completed' ORDER BY songs.sortName
+        """,
+    )
+    abstract fun pagingSourceDownloaded(serverId: String): PagingSource<Int, SongEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
+        WHERE songs.serverId = :serverId AND downloads.state = 'Completed'
+        """,
+    )
+    abstract fun observeDownloadedCount(serverId: String): Flow<Int>
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND albumId = :albumId ORDER BY discNumber, track, sortName")
     abstract fun observeByAlbum(serverId: String, albumId: String): Flow<List<SongEntity>>

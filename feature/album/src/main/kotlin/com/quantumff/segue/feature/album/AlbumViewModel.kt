@@ -4,18 +4,27 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongDownload
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +46,8 @@ class AlbumViewModel @Inject constructor(
     private val albumRepository: AlbumRepository,
     artistRepository: ArtistRepository,
     private val starRatingRepository: StarRatingRepository,
+    private val downloadRepository: DownloadRepository,
+    offlineModeRepository: OfflineModeRepository,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
 
@@ -54,13 +65,20 @@ class AlbumViewModel @Inject constructor(
         }
         .map { albums -> albums.filterNot { it.id == albumId }.toImmutableList() }
 
+    private val offline = combine(
+        downloadRepository.pinStatus(PinKind.Album, albumId),
+        downloadRepository.songDownloads,
+        offlineModeRepository.isOffline,
+        ::OfflineState,
+    )
+
     val uiState: StateFlow<AlbumUiState> = combine(
         album,
         albumRepository.albumSongs(albumId),
         moreByArtist,
-        refresh,
-        message,
-    ) { album, songs, more, refresh, message ->
+        combine(refresh, message, ::Pair),
+        offline,
+    ) { album, songs, more, (refresh, message), offline ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
@@ -69,6 +87,9 @@ class AlbumViewModel @Inject constructor(
                 moreByArtist = more,
                 isOffline = refresh == RefreshState.Failed,
                 message = message,
+                download = offline.pin,
+                songDownloads = offline.songs,
+                isOfflineMode = offline.isOffline,
             )
 
             refresh == RefreshState.Running -> AlbumUiState.Loading
@@ -103,6 +124,34 @@ class AlbumViewModel @Inject constructor(
         val songs = (uiState.value as? AlbumUiState.Success)?.songs ?: return
         if (songs.isEmpty()) return
         playActions.onPlaySongs(songs, startIndex.coerceIn(songs.indices), shuffle)
+    }
+
+    /** Pins the album for offline use. */
+    fun download() {
+        val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
+        viewModelScope.launch {
+            try {
+                downloadRepository.pin(PinTarget(PinKind.Album, album.id, album.name, album.coverArtId))
+            } catch (_: RemoteException) {
+                message.value = AlbumMessage.DownloadFailed
+            }
+        }
+    }
+
+    /** Unpins the album; files no other pin needs are deleted. */
+    fun removeDownload() {
+        viewModelScope.launch { downloadRepository.unpin(PinKind.Album, albumId) }
+    }
+
+    /** Pins one song for offline use. */
+    fun downloadSong(song: Song) {
+        viewModelScope.launch {
+            try {
+                downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId))
+            } catch (_: RemoteException) {
+                message.value = AlbumMessage.DownloadFailed
+            }
+        }
     }
 
     fun shuffleAlbums(playActions: PlayActions, option: ShuffleAlbumsOption) {
@@ -142,6 +191,12 @@ class AlbumViewModel @Inject constructor(
 
     private enum class RefreshState { Running, Done, Failed, NotFound }
 
+    private data class OfflineState(
+        val pin: DownloadStatus?,
+        val songs: ImmutableMap<String, SongDownload>,
+        val isOffline: Boolean,
+    )
+
     companion object {
         /** The [com.quantumff.segue.feature.album.navigation.AlbumRoute] argument. */
         const val ALBUM_ID_KEY = "albumId"
@@ -168,7 +223,16 @@ sealed interface AlbumUiState {
         /** The refresh failed: cached data is shown with an offline chip. */
         val isOffline: Boolean = false,
         val message: AlbumMessage? = null,
+        /** The album's pin status; null when it is not pinned for offline. */
+        val download: DownloadStatus? = null,
+        /** Downloads by song ID, for row badges. */
+        val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
+        /** Offline mode: rows of songs that are not downloaded are dimmed and do not play. */
+        val isOfflineMode: Boolean = false,
     ) : AlbumUiState {
+        fun isAvailable(song: Song): Boolean =
+            !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
+
         val showDiscHeaders: Boolean get() = discs.size > 1
         val trackCount: Int get() = if (songs.isEmpty()) album.songCount else songs.size
         val durationSeconds: Long
@@ -201,7 +265,7 @@ sealed interface ShuffleAlbumsOption {
     }
 }
 
-enum class AlbumMessage { FavoriteFailed, RatingFailed }
+enum class AlbumMessage { FavoriteFailed, RatingFailed, DownloadFailed }
 
 /** Groups [songs] (already in disc and track order) by disc number. Songs without one go on disc 1. */
 internal fun groupDiscs(album: Album, songs: List<Song>): ImmutableList<Disc> {

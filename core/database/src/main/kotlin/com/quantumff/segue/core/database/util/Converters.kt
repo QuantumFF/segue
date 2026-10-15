@@ -5,6 +5,7 @@ import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
 import com.quantumff.segue.core.database.model.ExtensionMap
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.PinKind
 
 /** Small structured values are stored as JSON text. The JSON lives in [JsonColumns]. */
 internal class Converters {
@@ -32,4 +33,10 @@ internal class Converters {
     @TypeConverter
     fun nameToDownloadState(value: String): DownloadState =
         DownloadState.entries.firstOrNull { it.name == value } ?: DownloadState.Failed
+
+    @TypeConverter
+    fun pinKindToName(value: PinKind): String = value.name
+
+    @TypeConverter
+    fun nameToPinKind(value: String): PinKind = PinKind.entries.firstOrNull { it.name == value } ?: PinKind.Song
 }

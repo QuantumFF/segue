@@ -59,6 +59,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StreamingQuality
@@ -98,6 +99,10 @@ fun SettingsScreen(
             onQueueSync = viewModel::setQueueSyncEnabled,
             onAdoptRemoteQueue = viewModel::setAdoptRemoteQueue,
             onLicenses = onLicensesClick,
+            onDownloadQuality = viewModel::setDownloadQuality,
+            onDownloadWifiOnly = viewModel::setDownloadWifiOnly,
+            onDownloadChargingOnly = viewModel::setDownloadChargingOnly,
+            onOfflineMode = viewModel::setOfflineMode,
         )
     }
     SettingsContent(
@@ -127,6 +132,10 @@ class SettingsActions(
     val onQueueSync: (Boolean) -> Unit,
     val onAdoptRemoteQueue: (Boolean) -> Unit,
     val onLicenses: () -> Unit,
+    val onDownloadQuality: (StreamingQuality) -> Unit = {},
+    val onDownloadWifiOnly: (Boolean) -> Unit = {},
+    val onDownloadChargingOnly: (Boolean) -> Unit = {},
+    val onOfflineMode: (Boolean) -> Unit = {},
 ) {
     companion object {
         val None = SettingsActions(
@@ -144,6 +153,7 @@ private enum class SettingsPicker {
     CellularQuality,
     CacheSize,
     StopWhenPaused,
+    DownloadQuality,
 }
 
 /** The stateless settings screen. */
@@ -258,6 +268,37 @@ fun SettingsContent(
                     modifier = Modifier.clickable { picker = SettingsPicker.CacheSize },
                 )
             }
+            item(key = "downloadQuality", contentType = "row") {
+                SettingsRow(
+                    title = stringResource(R.string.feature_settings_download_quality),
+                    summary = qualityLabel(uiState.downloads.quality),
+                    modifier = Modifier.clickable { picker = SettingsPicker.DownloadQuality },
+                )
+            }
+            item(key = "downloadWifiOnly", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_download_wifi_only),
+                    summary = stringResource(R.string.feature_settings_download_wifi_only_summary),
+                    checked = uiState.downloads.wifiOnly,
+                    onCheckedChange = actions.onDownloadWifiOnly,
+                )
+            }
+            item(key = "downloadCharging", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_download_charging_only),
+                    summary = stringResource(R.string.feature_settings_download_charging_only_summary),
+                    checked = uiState.downloads.chargingOnly,
+                    onCheckedChange = actions.onDownloadChargingOnly,
+                )
+            }
+            item(key = "offlineMode", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_offline_mode),
+                    summary = stringResource(R.string.feature_settings_offline_mode_summary),
+                    checked = uiState.downloads.forceOffline,
+                    onCheckedChange = actions.onOfflineMode,
+                )
+            }
             item(key = "downloads", contentType = "row") {
                 SettingsRow(
                     title = stringResource(R.string.feature_settings_downloads),
@@ -307,7 +348,13 @@ fun SettingsContent(
         }
     }
 
-    SettingsPickerSheet(picker = picker, prefs = prefs, actions = actions, onDismissRequest = { picker = null })
+    SettingsPickerSheet(
+        picker = picker,
+        prefs = prefs,
+        downloads = uiState.downloads,
+        actions = actions,
+        onDismissRequest = { picker = null },
+    )
 
     removing?.let { server ->
         AlertDialog(
@@ -341,6 +388,7 @@ fun SettingsContent(
 private fun SettingsPickerSheet(
     picker: SettingsPicker?,
     prefs: UserPreferences,
+    downloads: DownloadPreferences,
     actions: SettingsActions,
     onDismissRequest: () -> Unit,
 ) {
@@ -389,6 +437,15 @@ private fun SettingsPickerSheet(
             selected = prefs.cellularStreamingQuality,
             label = { qualityLabel(it) },
             onSelect = actions.onCellularQuality,
+            onDismissRequest = onDismissRequest,
+        )
+
+        SettingsPicker.DownloadQuality -> PickerSheet(
+            title = stringResource(R.string.feature_settings_download_quality),
+            options = SettingsViewModel.STREAMING_QUALITIES,
+            selected = downloads.quality,
+            label = { qualityLabel(it) },
+            onSelect = actions.onDownloadQuality,
             onDismissRequest = onDismissRequest,
         )
 

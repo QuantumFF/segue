@@ -77,22 +77,44 @@ internal class OfflineFirstAlbumRepository @Inject constructor(
         clients.pagedForActiveServer(
             source = { serverId ->
                 val starred = filter.starredOnly
-                when (sort) {
-                    AlbumSortOrder.Name -> albumDao.pagingSourceByName(serverId, starred, filter.genre, filter.year)
+                val (genre, year) = filter.genre to filter.year
+                if (filter.downloadedOnly) {
+                    when (sort) {
+                        AlbumSortOrder.Name -> albumDao.downloadedPagingSourceByName(serverId, starred, genre, year)
 
-                    AlbumSortOrder.Artist -> albumDao.pagingSourceByArtist(serverId, starred, filter.genre, filter.year)
+                        AlbumSortOrder.Artist -> albumDao.downloadedPagingSourceByArtist(serverId, starred, genre, year)
 
-                    AlbumSortOrder.RecentlyAdded ->
-                        albumDao.pagingSourceByRecentlyAdded(serverId, starred, filter.genre, filter.year)
+                        AlbumSortOrder.RecentlyAdded ->
+                            albumDao.downloadedPagingSourceByRecentlyAdded(serverId, starred, genre, year)
 
-                    AlbumSortOrder.Year -> albumDao.pagingSourceByYear(serverId, starred, filter.genre, filter.year)
+                        AlbumSortOrder.Year -> albumDao.downloadedPagingSourceByYear(serverId, starred, genre, year)
+                    }
+                } else {
+                    when (sort) {
+                        AlbumSortOrder.Name -> albumDao.pagingSourceByName(serverId, starred, genre, year)
+
+                        AlbumSortOrder.Artist -> albumDao.pagingSourceByArtist(serverId, starred, genre, year)
+
+                        AlbumSortOrder.RecentlyAdded -> albumDao.pagingSourceByRecentlyAdded(
+                            serverId,
+                            starred,
+                            genre,
+                            year,
+                        )
+
+                        AlbumSortOrder.Year -> albumDao.pagingSourceByYear(serverId, starred, genre, year)
+                    }
                 }
             },
             mapper = AlbumEntity::asExternalModel,
         )
 
     override fun albumCount(filter: AlbumFilter): Flow<Int> = clients.forActiveServer(0) { serverId ->
-        albumDao.observeCount(serverId, filter.starredOnly, filter.genre, filter.year)
+        if (filter.downloadedOnly) {
+            albumDao.observeDownloadedCount(serverId, filter.starredOnly, filter.genre, filter.year)
+        } else {
+            albumDao.observeCount(serverId, filter.starredOnly, filter.genre, filter.year)
+        }
     }
 
     override val albumYears: Flow<ImmutableList<Int>> =

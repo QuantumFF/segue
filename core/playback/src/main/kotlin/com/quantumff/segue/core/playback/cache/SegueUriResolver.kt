@@ -3,6 +3,7 @@ package com.quantumff.segue.core.playback.cache
 import android.net.Uri
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
+import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.repository.MediaUrlRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.StreamingQuality
@@ -13,12 +14,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 /**
- * Turns `segue://` URIs into authenticated server URLs when a loader opens them. Songs stream at
- * the Wi-Fi or cellular quality from settings, chosen by the network at that moment, and get a
- * stable cache key (the URL changes with every salt). Runs on loader threads, so blocking on the
- * account store is fine.
+ * Turns `segue://` URIs into what a loader opens. A downloaded song resolves to its local file
+ * (works in airplane mode). Other songs become authenticated server URLs that stream at the Wi-Fi
+ * or cellular quality from settings, chosen by the network at that moment, with a stable cache
+ * key (the URL changes with every salt), so the stream cache is read before the network. Runs on
+ * loader threads, so blocking on Room and the account store is fine.
  */
 class SegueUriResolver @Inject constructor(
+    private val downloads: DownloadRepository,
     private val mediaUrls: MediaUrlRepository,
     private val preferences: UserPreferencesRepository,
     private val network: NetworkMonitor,
@@ -31,6 +34,7 @@ class SegueUriResolver @Inject constructor(
             runBlocking {
                 when (uri.authority) {
                     SegueUris.SONG -> {
+                        downloads.localFile(id)?.let { file -> return@runBlocking dataSpec.withUri(Uri.fromFile(file)) }
                         val location = mediaUrls.stream(id, quality())
                         dataSpec.buildUpon().setUri(Uri.parse(location.url)).setKey(location.cacheKey).build()
                     }

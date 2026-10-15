@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
+import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
@@ -59,6 +60,7 @@ import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -99,22 +101,14 @@ fun PlaylistScreen(
         onTrackAction = { index, song, action ->
             when (action) {
                 MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-
                 MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-
                 MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-
                 MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-
                 MediaAction.Favorite, MediaAction.Unfavorite -> viewModel.toggleStar(song)
-
                 MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-
                 MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-
                 MediaAction.RemoveFromPlaylist -> viewModel.removeAt(index)
-
-                // TODO(downloads): download the song once downloads exist.
+                MediaAction.Download -> viewModel.downloadSong(song)
                 else -> Unit
             }
         },
@@ -128,6 +122,8 @@ fun PlaylistScreen(
         onRetryClick = viewModel::refresh,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onDownloadClick = viewModel::download,
+        onRemoveDownloadClick = viewModel::removeDownload,
     )
 }
 
@@ -152,9 +148,12 @@ fun PlaylistScreenContent(
     onRetryClick: () -> Unit,
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onDownloadClick: () -> Unit = {},
+    onRemoveDownloadClick: () -> Unit = {},
 ) {
     val playlist = uiState.playlist
     var showPlaylistMenu by remember { mutableStateOf(false) }
+    var showDownloadMenu by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<PlaylistDialog?>(null) }
     var trackMenu by remember { mutableStateOf<Pair<Int, Song>?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -211,11 +210,9 @@ fun PlaylistScreenContent(
                         onClick = onShuffleAlbumsClick,
                         enabled = canPlay,
                     )
-                    SegueIconButton(
-                        icon = SegueIcons.Download,
-                        contentDescription = stringResource(R.string.feature_playlist_download),
-                        // TODO(downloads): pin the playlist for offline once downloads exist.
-                        onClick = {},
+                    DownloadButton(
+                        status = uiState.download,
+                        onClick = { if (uiState.download == null) onDownloadClick() else showDownloadMenu = true },
                     )
                     if (uiState.isEditable) {
                         SegueIconButton(
@@ -271,8 +268,16 @@ fun PlaylistScreenContent(
                     key = { _, entry -> entry.key },
                     contentType = { _, _ -> "track" },
                 ) { index, entry ->
+                    val download = uiState.songDownloads[entry.song.id]
+                    val available = uiState.isAvailable(entry.song)
                     TrackRow(
-                        state = entry.song.toTrackRowState(rowKey = entry.key),
+                        state = remember(entry, download, available) {
+                            entry.song.toTrackRowState(
+                                rowKey = entry.key,
+                                download = download?.status?.toBadgeState(),
+                                isAvailable = available,
+                            )
+                        },
                         onClick = { onTrackClick(index) },
                         leading = TrackRowLeading.Art,
                         onLongClick = { trackMenu = index to entry.song },
@@ -291,6 +296,14 @@ fun PlaylistScreenContent(
             onRenameClick = { dialog = PlaylistDialog.Rename(playlist) },
             onDeleteClick = { dialog = PlaylistDialog.Delete(playlist) },
             onDismissRequest = { showPlaylistMenu = false },
+        )
+    }
+    if (showDownloadMenu && playlist != null) {
+        MediaContextMenu(
+            header = playlist.toMenuHeader(),
+            actions = persistentListOf(MediaAction.RemoveDownload),
+            onAction = { onRemoveDownloadClick() },
+            onDismissRequest = { showDownloadMenu = false },
         )
     }
     trackMenu?.let { (index, song) ->

@@ -26,6 +26,7 @@ import com.quantumff.segue.core.playback.cache.AdjustableLruCacheEvictor
 import com.quantumff.segue.core.playback.cache.NetworkMonitor
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.SegueUriResolver
+import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -66,7 +67,7 @@ class PlaybackComponents @Inject constructor(
     // Dynamic scheduling lets the playback thread sleep between renders (battery, PLAN.md).
     @OptIn(ExperimentalApi::class)
     fun createExoPlayer(context: Context): ExoPlayer {
-        val dataSourceFactory = ResolvingDataSource.Factory(cacheDataSourceFactory, resolver)
+        val dataSourceFactory = playbackDataSourceFactory(context, cacheDataSourceFactory, resolver)
         return ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(

@@ -18,11 +18,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.navigation
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.album.navigation.albumScreen
 import com.quantumff.segue.feature.album.navigation.navigateToAlbum
 import com.quantumff.segue.feature.artist.navigation.artistScreen
 import com.quantumff.segue.feature.artist.navigation.navigateToArtist
+import com.quantumff.segue.feature.downloads.DownloadsTab
 import com.quantumff.segue.feature.downloads.navigation.downloadsScreen
 import com.quantumff.segue.feature.downloads.navigation.navigateToDownloads
 import com.quantumff.segue.feature.home.navigation.HomeRoute
@@ -75,6 +77,14 @@ fun SegueNavHost(
     val onPlaylistClick = { id: String -> appState.navigate { navigateToPlaylist(id) } }
     val onGenreClick = { genre: String -> appState.navigate { navigateToGenre(genre) } }
     val onDownloadsClick = { appState.navigate { navigateToDownloads() } }
+    val onPinnedClick = { kind: PinKind, id: String ->
+        when (kind) {
+            PinKind.Album -> onAlbumClick(id)
+            PinKind.Playlist -> onPlaylistClick(id)
+            PinKind.Artist -> onArtistClick(id)
+            PinKind.Song -> Unit
+        }
+    }
     val onBackClick = appState::navigateBack
 
     NavHost(
@@ -108,6 +118,7 @@ fun SegueNavHost(
                 onDownloadsClick = onDownloadsClick,
                 playActions = playActions,
                 onAddToPlaylist = onAddToPlaylist,
+                downloadsTab = { DownloadsTab(onOpen = onPinnedClick) },
             )
         }
         navigation<PlaylistsGraph>(startDestination = PlaylistsRoute) {
@@ -164,7 +175,7 @@ fun SegueNavHost(
             onLicensesClick = { appState.navigate { navigateToLicenses() } },
         )
         licensesScreen(onBackClick = onBackClick)
-        downloadsScreen(onBackClick = onBackClick)
+        downloadsScreen(onBackClick = onBackClick, onOpen = onPinnedClick)
         nowPlayingScreen(
             onCollapseClick = onBackClick,
             // Collapse first, so back from the album or artist returns to where the user was.

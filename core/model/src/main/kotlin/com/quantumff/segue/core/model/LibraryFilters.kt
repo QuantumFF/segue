@@ -2,9 +2,17 @@ package com.quantumff.segue.core.model
 
 import kotlinx.collections.immutable.ImmutableList
 
-/** Narrows the album library (DESIGN.md §4.2 filter row). Null fields do not filter. */
-data class AlbumFilter(val starredOnly: Boolean = false, val genre: String? = null, val year: Int? = null) {
-    val isActive: Boolean get() = starredOnly || genre != null || year != null
+/**
+ * Narrows the album library (DESIGN.md §4.2 filter row). Null fields do not filter.
+ * [downloadedOnly] keeps albums with at least one downloaded song.
+ */
+data class AlbumFilter(
+    val starredOnly: Boolean = false,
+    val genre: String? = null,
+    val year: Int? = null,
+    val downloadedOnly: Boolean = false,
+) {
+    val isActive: Boolean get() = starredOnly || genre != null || year != null || downloadedOnly
 }
 
 /** Extra artist details from `getArtistInfo2`. Not cached in Room; fetched when the artist page opens. */

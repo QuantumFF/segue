@@ -6,6 +6,8 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
+import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import java.io.IOException
@@ -17,6 +19,9 @@ import org.junit.Rule
 import org.junit.Test
 
 class PlaylistViewModelTest {
+    private val downloads = FakeDownloadRepository()
+    private val offlineMode = FakeOfflineModeRepository()
+
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
@@ -27,7 +32,13 @@ class PlaylistViewModelTest {
     private val stars = FakeStarRatingRepository()
 
     private fun TestScope.viewModel(): PlaylistViewModel {
-        val viewModel = PlaylistViewModel(SavedStateHandle(mapOf("playlistId" to "p1")), playlists, stars)
+        val viewModel = PlaylistViewModel(
+            SavedStateHandle(mapOf("playlistId" to "p1")),
+            playlists,
+            stars,
+            downloads,
+            offlineMode,
+        )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

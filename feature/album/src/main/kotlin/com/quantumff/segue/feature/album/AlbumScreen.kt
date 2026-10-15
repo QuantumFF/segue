@@ -42,6 +42,7 @@ import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
 import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
@@ -60,6 +61,7 @@ import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
@@ -110,6 +112,9 @@ fun AlbumDetailRoute(
         onRetry = viewModel::refresh,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onDownload = viewModel::download,
+        onRemoveDownload = viewModel::removeDownload,
+        onDownloadSong = viewModel::downloadSong,
     )
 }
 
@@ -132,11 +137,11 @@ fun AlbumScreen(
     onRetry: () -> Unit,
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onDownload: () -> Unit = {},
+    onRemoveDownload: () -> Unit = {},
+    onDownloadSong: (Song) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val downloadUnavailable = stringResource(R.string.feature_album_download_unavailable)
-    val onDownload: () -> Unit = { scope.launch { snackbarHostState.showSnackbar(downloadUnavailable) } }
 
     Box(modifier.fillMaxSize()) {
         when (state) {
@@ -173,6 +178,8 @@ fun AlbumScreen(
                 onRatingChange = onRatingChange,
                 onRetry = onRetry,
                 onDownload = onDownload,
+                onRemoveDownload = onRemoveDownload,
+                onDownloadSong = onDownloadSong,
             )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -184,6 +191,7 @@ fun AlbumScreen(
             when (it) {
                 AlbumMessage.FavoriteFailed -> R.string.feature_album_favorite_failed
                 AlbumMessage.RatingFailed -> R.string.feature_album_rating_failed
+                AlbumMessage.DownloadFailed -> R.string.feature_album_download_failed
             },
         )
     }
@@ -213,9 +221,12 @@ private fun AlbumContent(
     onRatingChange: (Int) -> Unit,
     onRetry: () -> Unit,
     onDownload: () -> Unit,
+    onRemoveDownload: () -> Unit,
+    onDownloadSong: (Song) -> Unit,
 ) {
     val album = state.album
     var albumMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var downloadMenuOpen by rememberSaveable { mutableStateOf(false) }
     var shuffleSheetOpen by rememberSaveable { mutableStateOf(false) }
     var menuSongId by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -246,10 +257,9 @@ private fun AlbumContent(
                 onClick = onToggleStar,
                 tint = if (album.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            SegueIconButton(
-                icon = SegueIcons.Download,
-                contentDescription = stringResource(R.string.feature_album_download),
-                onClick = onDownload,
+            DownloadButton(
+                status = state.download,
+                onClick = { if (state.download == null) onDownload() else downloadMenuOpen = true },
             )
             SegueIconButton(
                 icon = SegueIcons.MoreVertical,
@@ -290,7 +300,11 @@ private fun AlbumContent(
     if (albumMenuOpen) {
         MediaContextMenu(
             header = album.toMenuHeader(),
-            actions = MediaActions.album(isStarred = album.isStarred, hasArtist = album.artistId != null),
+            actions = MediaActions.album(
+                isStarred = album.isStarred,
+                hasArtist = album.artistId != null,
+                isDownloaded = state.download != null,
+            ),
             onAction = { action ->
                 handleAlbumAction(
                     action = action,
@@ -301,9 +315,18 @@ private fun AlbumContent(
                     onArtistClick = onArtistClick,
                     onAddToPlaylist = onAddToPlaylist,
                     onDownload = onDownload,
+                    onRemoveDownload = onRemoveDownload,
                 )
             },
             onDismissRequest = { albumMenuOpen = false },
+        )
+    }
+    if (downloadMenuOpen) {
+        MediaContextMenu(
+            header = album.toMenuHeader(),
+            actions = persistentListOf(MediaAction.RemoveDownload),
+            onAction = { onRemoveDownload() },
+            onDismissRequest = { downloadMenuOpen = false },
         )
     }
     if (shuffleSheetOpen) {
@@ -330,7 +353,7 @@ private fun AlbumContent(
                     onToggleSongStar,
                     onArtistClick,
                     onAddToPlaylist,
-                    onDownload,
+                    { onDownloadSong(song) },
                 )
             },
             onDismissRequest = { menuSongId = null },
@@ -346,7 +369,11 @@ private fun LazyListScope.trackItems(state: AlbumUiState.Success, onPlay: (Int) 
             }
         }
         items(items = disc.tracks, key = { "track-${it.index}-${it.song.id}" }, contentType = { "track" }) { entry ->
-            val row = remember(entry.song) { entry.song.toTrackRowState() }
+            val download = state.songDownloads[entry.song.id]
+            val available = state.isAvailable(entry.song)
+            val row = remember(entry.song, download, available) {
+                entry.song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
+            }
             TrackRow(
                 state = row,
                 onClick = { onPlay(entry.index) },
@@ -535,6 +562,7 @@ internal fun handleAlbumAction(
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     onDownload: () -> Unit,
+    onRemoveDownload: () -> Unit = {},
 ) {
     val artistId = state.album.artistId
     when (action) {
@@ -556,6 +584,8 @@ internal fun handleAlbumAction(
         MediaAction.GoToArtist -> artistId?.let(onArtistClick)
 
         MediaAction.Download -> onDownload()
+
+        MediaAction.RemoveDownload -> onRemoveDownload()
 
         else -> Unit
     }
