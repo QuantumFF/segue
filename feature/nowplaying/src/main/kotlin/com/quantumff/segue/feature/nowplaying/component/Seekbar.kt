@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,8 +107,13 @@ internal fun NowPlayingSeekbar(
                 .height(TOUCH_HEIGHT)
                 .semantics {
                     contentDescription = seekDescription
-                    stateDescription = formatDuration(latestPosition() / MILLIS_PER_SECOND)
-                    progressBarRangeInfo = ProgressBarRangeInfo(progress.value, 0f..1f)
+                    // From the position samples, not the per-frame glide, so semantics update per tick.
+                    val position = latestPosition()
+                    stateDescription = formatDuration(position / MILLIS_PER_SECOND)
+                    progressBarRangeInfo = ProgressBarRangeInfo(
+                        if (latestDuration > 0) (position.toFloat() / latestDuration).coerceIn(0f, 1f) else 0f,
+                        0f..1f,
+                    )
                     setProgress { fraction ->
                         latestOnSeek((fraction * latestDuration).toLong())
                         true
@@ -184,13 +190,17 @@ private fun SeekbarTimes(positionMillis: () -> Long, durationMillis: Long, quali
     }
 }
 
-/** Its own scope, so position ticks recompose only this text. Negative values read "−1:23". */
+/**
+ * Its own scope, so position ticks recompose only this text, and only when the shown second
+ * changes (the ticker samples twice a second). Negative values read "−1:23".
+ */
 @Composable
 private fun TimeText(millis: () -> Long, modifier: Modifier = Modifier) {
-    val value = millis()
-    val text = formatDuration(kotlin.math.abs(value) / MILLIS_PER_SECOND)
+    val latestMillis by rememberUpdatedState(millis)
+    val seconds by remember { derivedStateOf { latestMillis() / MILLIS_PER_SECOND } }
+    val text = formatDuration(kotlin.math.abs(seconds))
     Text(
-        text = if (value < 0) "−$text" else text,
+        text = if (seconds < 0) "−$text" else text,
         style = MaterialTheme.typography.labelMedium.tabularNumbers(),
         color = SegueTheme.colors.onArtMuted,
         modifier = modifier.padding(vertical = SegueSpacing.xs),
