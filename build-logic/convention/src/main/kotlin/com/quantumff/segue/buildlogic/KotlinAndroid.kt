@@ -28,6 +28,10 @@ internal fun Project.configureKotlinAndroid(extension: CommonExtension) {
         compileOptions.targetCompatibility = JAVA_VERSION
         // Robolectric needs merged resources and the merged manifest.
         testOptions.unitTests.isIncludeAndroidResources = true
+        // Shared robolectric.properties (pins the sandbox SDK; see the file for why).
+        sourceSets.getByName("test").resources.directories.add(
+            rootProject.file("gradle/robolectric").absolutePath,
+        )
     }
     configureKotlinCompiler()
 }

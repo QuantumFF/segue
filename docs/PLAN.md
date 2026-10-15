@@ -3,7 +3,7 @@
 Segue is a modern, minimalist Android client for Navidrome, built on the Subsonic API with OpenSubsonic extensions.
 Its main goals are a rich feature set, excellent performance, and good battery life.
 
-- App ID: `com.quantumff.segue`. Min SDK 29, target/compile SDK 36. License GPL-3.0-or-later.
+- App ID: `com.quantumff.segue`. Min SDK 29, target/compile SDK 37. License GPL-3.0-or-later.
 - Visual design: a hybrid of Feishin and Symfonium that leans toward Feishin. See `docs/DESIGN.md`.
 
 ## Stack
