@@ -146,6 +146,12 @@ class BrowseTree(
         return request?.takeIf { it.songs.isNotEmpty() }
     }
 
+    /** The songs "add to queue" adds for [mediaId]: a track only itself. Null if it is not playable. */
+    suspend fun songs(mediaId: String): List<Song>? = when (val id = BrowseId.parse(mediaId)) {
+        is BrowseId.Track -> listOfNotNull(repository.song(id.songId))
+        else -> playRequest(mediaId)?.songs
+    }
+
     private suspend fun trackRequest(id: BrowseId.Track): PlayRequest? {
         val list = when (val parent = id.parent) {
             is BrowseId.Album -> repository.albumSongsForPlayback(parent.id)

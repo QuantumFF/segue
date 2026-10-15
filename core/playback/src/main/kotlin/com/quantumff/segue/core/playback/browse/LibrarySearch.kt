@@ -7,6 +7,7 @@ import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.ShuffleMode
+import kotlin.random.Random
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withTimeoutOrNull
@@ -26,6 +27,7 @@ class LibrarySearch(
     private val tree: BrowseTree,
     private val labels: SearchLabels,
     private val serverTimeoutMillis: Long = DEFAULT_SERVER_TIMEOUT_MILLIS,
+    private val random: Random = Random.Default,
 ) {
     /** Artists, albums, then songs, each group titled. */
     suspend fun results(query: String): List<MediaItem> {
@@ -63,7 +65,9 @@ class LibrarySearch(
         val songs = repository.artistAlbums(artistId)
             .take(MAX_ARTIST_ALBUMS)
             .flatMap { repository.albumSongsForPlayback(it.id) }
-        return PlayRequest(songs, startIndex = 0, shuffleMode = ShuffleMode.Tracks)
+        // Track shuffle starts with the start item, so pick it at random too.
+        val start = if (songs.isEmpty()) 0 else random.nextInt(songs.size)
+        return PlayRequest(songs, startIndex = start, shuffleMode = ShuffleMode.Tracks)
     }
 
     private suspend fun find(query: String): SearchResult {

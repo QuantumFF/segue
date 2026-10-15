@@ -33,4 +33,17 @@ class PlaybackServiceManifestTest {
         )
         assertThat(info.foregroundServiceType).isEqualTo(ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
     }
+
+    @Test
+    fun `the app declares itself an Android Auto media app`() {
+        val app = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
+        assertThat(app.metaData.getInt("com.google.android.gms.car.application")).isEqualTo(R.xml.automotive_app_desc)
+    }
+
+    @Test
+    fun `browse artwork is served by a private provider that can grant reads`() {
+        val provider = context.packageManager.resolveContentProvider("${context.packageName}.artwork", 0)!!
+        assertThat(provider.exported).isFalse()
+        assertThat(provider.grantUriPermissions).isTrue()
+    }
 }
