@@ -71,4 +71,7 @@ internal object WidgetState {
 }
 
 /** Off → Tracks → Albums → Off, like the notification's shuffle button. */
-internal fun nextShuffleMode(mode: ShuffleMode): ShuffleMode = ShuffleMode.entries[(mode.ordinal + 1) % ShuffleMode.entries.size]
+internal fun nextShuffleMode(mode: ShuffleMode): ShuffleMode = ShuffleMode.entries[
+    (mode.ordinal + 1) %
+        ShuffleMode.entries.size,
+]

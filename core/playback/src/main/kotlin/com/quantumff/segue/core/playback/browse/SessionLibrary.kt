@@ -54,11 +54,18 @@ class SessionLibrary(
 
     fun children(parentId: String, page: Int, pageSize: Int, params: LibraryParams?) = future {
         val items = tree.children(parentId, page, pageSize)
-        if (items == null) LibraryResult.ofError(SessionError.ERROR_BAD_VALUE) else LibraryResult.ofItemList(items, params)
+        if (items ==
+            null
+        ) {
+            LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+        } else {
+            LibraryResult.ofItemList(items, params)
+        }
     }
 
     fun item(mediaId: String) = future {
-        tree.item(mediaId)?.let { LibraryResult.ofItem(it, null) } ?: LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+        tree.item(mediaId)?.let { LibraryResult.ofItem(it, null) }
+            ?: LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
     }
 
     fun search(

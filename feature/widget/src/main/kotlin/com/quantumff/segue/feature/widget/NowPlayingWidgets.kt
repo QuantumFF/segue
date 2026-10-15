@@ -60,7 +60,11 @@ import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 class NowPlayingStripWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Single
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, STRIP_ART_PX) { state, art, colors ->
+    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, STRIP_ART_PX) {
+            state,
+            art,
+            colors,
+        ->
         Strip(state, art, colors)
     }
 }
@@ -69,7 +73,11 @@ class NowPlayingStripWidget : GlanceAppWidget() {
 class NowPlayingCardWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, CARD_ART_PX) { state, art, colors ->
+    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, CARD_ART_PX) {
+            state,
+            art,
+            colors,
+        ->
         Card(state, art, colors)
     }
 }
@@ -125,7 +133,12 @@ private fun Strip(state: NowPlayingSnapshot, art: Bitmap?, colors: WidgetColors)
             Titles(state, colors, titleSize = 14, modifier = GlanceModifier.defaultWeight())
             if (state.hasTrack) {
                 PlayPause(state, colors, filled = false)
-                ControlButton(R.drawable.widget_skip_forward, R.string.widget_next, actionRunCallback<NextAction>(), colors.onSurface)
+                ControlButton(
+                    R.drawable.widget_skip_forward,
+                    R.string.widget_next,
+                    actionRunCallback<NextAction>(),
+                    colors.onSurface,
+                )
             }
         }
     }
@@ -213,7 +226,12 @@ private fun Art(art: Bitmap?, colors: WidgetColors, size: Dp) {
 }
 
 @Composable
-private fun Titles(state: NowPlayingSnapshot, colors: WidgetColors, titleSize: Int, modifier: GlanceModifier) {
+private fun Titles(
+    state: NowPlayingSnapshot,
+    colors: WidgetColors,
+    titleSize: Int,
+    modifier: GlanceModifier = Modifier,
+) {
     val context = LocalContext.current
     val title = if (state.hasTrack) state.title.orEmpty() else context.getString(R.string.widget_tap_to_start)
     val subtitle = if (state.hasTrack) state.artist.orEmpty() else context.getString(R.string.widget_app_name)

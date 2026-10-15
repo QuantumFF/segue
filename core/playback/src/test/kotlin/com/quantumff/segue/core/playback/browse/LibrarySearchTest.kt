@@ -5,8 +5,8 @@ import android.os.Bundle
 import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
-import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumShuffleSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.ShuffleMode
@@ -78,7 +78,11 @@ class LibrarySearchTest {
             BrowseId.Album("al-1"),
             BrowseId.Track("so-1", null, 0),
         ).inOrder()
-        assertThat(items.map { it.mediaMetadata.extras?.getString(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_GROUP_TITLE) })
+        assertThat(
+            items.map {
+                it.mediaMetadata.extras?.getString(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_GROUP_TITLE)
+            },
+        )
             .containsExactly("Artists", "Albums", "Songs").inOrder()
     }
 

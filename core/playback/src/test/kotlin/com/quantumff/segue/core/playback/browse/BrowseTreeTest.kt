@@ -267,7 +267,8 @@ class BrowseTreeTest {
 
     @Test
     fun `an album or playlist plays from the start`() = runTest {
-        repo.songs = listOf(TestData.song("a", albumId = "al-1", track = 1), TestData.song("b", albumId = "al-1", track = 2))
+        repo.songs =
+            listOf(TestData.song("a", albumId = "al-1", track = 1), TestData.song("b", albumId = "al-1", track = 2))
         repo.playlistSongIds = mapOf("pl-1" to listOf("b", "a"))
 
         assertThat(tree.playRequest(BrowseId.Album("al-1").encode())!!.songs.map { it.id }).containsExactly("a", "b")
@@ -295,9 +296,14 @@ class BrowseTreeTest {
 
     @Test
     fun `adding a node to the queue adds its songs, a track only itself`() = runTest {
-        repo.songs = listOf(TestData.song("a", albumId = "al-1", track = 1), TestData.song("b", albumId = "al-1", track = 2))
+        repo.songs =
+            listOf(TestData.song("a", albumId = "al-1", track = 1), TestData.song("b", albumId = "al-1", track = 2))
 
-        assertThat(tree.songs(BrowseId.Track("b", BrowseId.Album("al-1"), 1).encode())!!.map { it.id }).containsExactly("b")
+        assertThat(
+            tree.songs(BrowseId.Track("b", BrowseId.Album("al-1"), 1).encode())!!.map {
+                it.id
+            },
+        ).containsExactly("b")
         assertThat(tree.songs(BrowseId.Album("al-1").encode())!!.map { it.id }).containsExactly("a", "b").inOrder()
         assertThat(tree.songs(BrowseId.Library.encode())).isNull()
     }

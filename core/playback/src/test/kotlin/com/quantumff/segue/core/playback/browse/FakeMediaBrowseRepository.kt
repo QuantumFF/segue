@@ -49,11 +49,14 @@ class FakeMediaBrowseRepository : MediaBrowseRepository {
     override suspend fun genres() = genres
 
     override suspend fun genreAlbums(genre: String, offset: Int, limit: Int) =
-        genreAlbumIds[genre].orEmpty().mapNotNull { id -> albums.firstOrNull { it.id == id } }.page("genre", offset, limit)
+        genreAlbumIds[genre].orEmpty().mapNotNull { id ->
+            albums.firstOrNull { it.id == id }
+        }.page("genre", offset, limit)
 
     override suspend fun playlists() = playlists
 
-    override suspend fun downloadedSongs(offset: Int, limit: Int) = songsById(downloadedIds).page("downloads", offset, limit)
+    override suspend fun downloadedSongs(offset: Int, limit: Int) =
+        songsById(downloadedIds).page("downloads", offset, limit)
 
     override suspend fun albumSongs(albumId: String) =
         songs.filter { it.albumId == albumId }.sortedWith(compareBy({ it.discNumber ?: 0 }, { it.track ?: 0 }))

@@ -34,7 +34,9 @@ class LibrarySearch(
         val result = find(query)
         return result.artists.map { tree.artistItem(it).inGroup(labels.artists) } +
             result.albums.map { tree.albumItem(it).inGroup(labels.albums) } +
-            result.songs.map { tree.trackItem(it, BrowseId.Track(it.id, parent = null, index = 0)).inGroup(labels.songs) }
+            result.songs.map {
+                tree.trackItem(it, BrowseId.Track(it.id, parent = null, index = 0)).inGroup(labels.songs)
+            }
     }
 
     /**

@@ -168,7 +168,9 @@ class AutoBrowseTreeTest {
         Log.i(TAG, message)
     }
 
-    private fun onMain(block: suspend () -> Unit) = runBlocking(Dispatchers.Main) { withTimeout(TEST_TIMEOUT_MILLIS) { block() } }
+    private fun onMain(block: suspend () -> Unit) = runBlocking(Dispatchers.Main) {
+        withTimeout(TEST_TIMEOUT_MILLIS) { block() }
+    }
 
     private suspend fun <T> ListenableFuture<T>.await(): T = suspendCancellableCoroutine { continuation ->
         addListener({ continuation.resume(get()) }, MoreExecutors.directExecutor())

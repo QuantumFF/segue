@@ -424,7 +424,8 @@ class SeguePlaybackService : MediaLibraryService() {
             page: Int,
             pageSize: Int,
             params: LibraryParams?,
-        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = library.children(parentId, page, pageSize, params)
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
+            library.children(parentId, page, pageSize, params)
 
         override fun onGetItem(
             session: MediaLibrarySession,

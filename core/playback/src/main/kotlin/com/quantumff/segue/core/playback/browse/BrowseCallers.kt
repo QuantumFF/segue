@@ -13,7 +13,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Applies [BrowseCallerPolicy] to real callers: reads a caller's package, UID, install location and
  * signing certificates from the package manager. Decisions are cached per process lifetime.
  */
-class BrowseCallers(private val context: Context, private val policy: BrowseCallerPolicy = BrowseCallerPolicy(Process.myUid())) {
+class BrowseCallers(
+    private val context: Context,
+    private val policy: BrowseCallerPolicy = BrowseCallerPolicy(Process.myUid()),
+) {
     private val decisions = ConcurrentHashMap<Pair<String, Int>, Boolean>()
 
     fun isAllowed(packageName: String, uid: Int): Boolean = decisions.getOrPut(packageName to uid) {

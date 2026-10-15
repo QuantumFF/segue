@@ -168,7 +168,11 @@ class BrowseTree(
 
     /** Same as the app's "Shuffle albums" for the library: random whole albums in plain order. */
     private suspend fun shuffleAlbums(): PlayRequest {
-        val picked = AlbumPicker.pick(albumShuffle.albumIds(AlbumShuffleSource.Library), AlbumPicker.DEFAULT_ALBUM_COUNT, random)
+        val picked = AlbumPicker.pick(
+            albumShuffle.albumIds(AlbumShuffleSource.Library),
+            AlbumPicker.DEFAULT_ALBUM_COUNT,
+            random,
+        )
         val songs = AlbumPicker.queueInAlbumOrder(albumShuffle.songs(AlbumShuffleSource.Library, picked), picked)
         return PlayRequest(songs, startIndex = 0, shuffleMode = ShuffleMode.Off)
     }

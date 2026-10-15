@@ -87,14 +87,20 @@ class ArtworkProvider : ContentProvider() {
 
     override fun getType(uri: Uri): String = "image/*"
 
-    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor? =
-        null
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        args: Array<out String>?,
+        sort: String?,
+    ): Cursor? = null
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
 
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
-    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int =
+        0
 
     companion object {
         private const val COVER = "cover"
