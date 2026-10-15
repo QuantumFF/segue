@@ -11,6 +11,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Emulators give relative numbers only, but they are what CI and local runs have.
+        testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR"
     }
 
     compileOptions {
@@ -21,8 +23,10 @@ android {
     targetProjectPath = ":app"
 }
 
+// Generate: ./gradlew :app:generateBaselineProfile
+// Benchmark: ./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest
+// Both run on the connected device or emulator (set ANDROID_SERIAL to pick one). See docs/PERFORMANCE.md.
 baselineProfile {
-    // Run against a connected device or emulator: ./gradlew :app:generateBaselineProfile
     useConnectedDevices = true
 }
 
