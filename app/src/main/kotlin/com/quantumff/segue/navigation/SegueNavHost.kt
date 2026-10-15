@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.navigation
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
@@ -34,6 +35,8 @@ import com.quantumff.segue.feature.library.navigation.libraryScreen
 import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.loginScreen
 import com.quantumff.segue.feature.login.navigation.navigateToLogin
+import com.quantumff.segue.feature.nowplaying.QueuePanelPlaceholder
+import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.nowPlayingScreen
 import com.quantumff.segue.feature.playlist.navigation.PlaylistsRoute
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
@@ -164,7 +167,18 @@ fun SegueNavHost(
         downloadsScreen(onBackClick = onBackClick)
         nowPlayingScreen(
             onCollapseClick = onBackClick,
-            onQueueClick = { appState.navigate { navigateToQueue() } },
+            // Collapse first, so back from the album or artist returns to where the user was.
+            onAlbumClick = { id ->
+                appState.navigateBack()
+                onAlbumClick(id)
+            },
+            onArtistClick = { id ->
+                appState.navigateBack()
+                onArtistClick(id)
+            },
+            onAddToPlaylist = onAddToPlaylist,
+            // Until the queue feature provides its panel composable.
+            queueContent = { QueuePanelPlaceholder(onOpenQueue = { appState.navigate { navigateToQueue() } }) },
         )
         queueScreen(onBackClick = onBackClick)
         loginScreen(onBackClick = onBackClick, onSignedIn = appState::onSignedIn)
@@ -195,10 +209,27 @@ private fun rememberSegueTransitions(appState: SegueAppState): SegueTransitions 
         }
         // Read at transition time: the flag is set by the navigation that starts the transition.
         val crossfade = { reduceMotion || appState.isTabSwitch }
+        // Now Playing slides over the current screen, which stays put underneath.
+        val toNowPlaying: AnimatedContentTransitionScope<NavBackStackEntry>.() -> Boolean =
+            { targetState.destination.hasRoute(NowPlayingRoute::class) }
+        val fromNowPlaying: AnimatedContentTransitionScope<NavBackStackEntry>.() -> Boolean =
+            { initialState.destination.hasRoute(NowPlayingRoute::class) }
         SegueTransitions(
             enter = { if (crossfade()) crossIn else slideIn(offset) },
-            exit = { if (crossfade()) crossOut else slideOut(-offset) },
-            popEnter = { if (reduceMotion) crossIn else slideIn(-offset) },
+            exit = {
+                when {
+                    toNowPlaying() -> ExitTransition.KeepUntilTransitionsFinished
+                    crossfade() -> crossOut
+                    else -> slideOut(-offset)
+                }
+            },
+            popEnter = {
+                when {
+                    fromNowPlaying() -> EnterTransition.None
+                    reduceMotion -> crossIn
+                    else -> slideIn(-offset)
+                }
+            },
             popExit = { if (reduceMotion) crossOut else slideOut(offset) },
         )
     }
