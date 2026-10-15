@@ -4,6 +4,7 @@ import com.quantumff.segue.core.network.auth.SaltGenerator
 import com.quantumff.segue.core.network.auth.SubsonicAuthInterceptor
 import com.quantumff.segue.core.network.auth.SubsonicAuthParams
 import javax.inject.Inject
+import javax.inject.Provider
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -15,9 +16,12 @@ import retrofit2.create
 /**
  * Creates a [SubsonicClient] per server account. All clients share the app's [OkHttpClient], so
  * they share its connection pool and thread pool.
+ *
+ * The client is a [Provider] because this factory is built during `Application.onCreate`, and
+ * building an [OkHttpClient] initializes TLS (about 50 ms of main-thread work at cold start).
  */
 class SubsonicClientFactory @Inject constructor(
-    private val okHttpClient: OkHttpClient,
+    private val okHttpClient: Provider<OkHttpClient>,
     private val json: Json,
     private val saltGenerator: SaltGenerator,
 ) {
@@ -30,7 +34,7 @@ class SubsonicClientFactory @Inject constructor(
             apiVersion = API_VERSION,
             saltGenerator = saltGenerator,
         )
-        val client = okHttpClient.newBuilder().addInterceptor(SubsonicAuthInterceptor(authParams)).build()
+        val client = okHttpClient.get().newBuilder().addInterceptor(SubsonicAuthInterceptor(authParams)).build()
         val api = Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(client)

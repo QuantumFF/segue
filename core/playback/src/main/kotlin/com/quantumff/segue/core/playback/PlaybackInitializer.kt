@@ -3,13 +3,16 @@ package com.quantumff.segue.core.playback
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.media3.datasource.cache.Cache
 import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.playback.cache.StreamCache
 import com.quantumff.segue.core.playback.service.PlaybackServiceBridge
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +28,8 @@ import kotlinx.coroutines.withContext
  * - Back online (connectivity callback or offline mode turned off): a queue save that failed
  *   while offline is uploaded. Pending scrobbles flush by themselves: their WorkManager job waits
  *   for a network.
+ * - The stream cache is opened on an IO thread, so the service (which the UI starts at once to
+ *   show the player) does not do that disk work on the main thread.
  */
 @Singleton
 class PlaybackInitializer @Inject constructor(
@@ -32,14 +37,17 @@ class PlaybackInitializer @Inject constructor(
     private val bridge: PlaybackServiceBridge,
     private val controller: PlaybackController,
     private val offlineMode: OfflineModeRepository,
+    @StreamCache private val streamCache: Provider<Cache>,
     @ApplicationScope private val appScope: CoroutineScope,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
+    @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) {
     private var started = false
 
     fun start() {
         if (started) return
         started = true
+        appScope.launch(ioDispatcher) { streamCache.get() }
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
                 override fun onStart(owner: LifecycleOwner) {
