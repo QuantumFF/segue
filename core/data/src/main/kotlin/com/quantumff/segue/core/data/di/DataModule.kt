@@ -14,6 +14,7 @@ import com.quantumff.segue.core.data.repository.DeviceClientName
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
+import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.MediaUrlRepository
 import com.quantumff.segue.core.data.repository.OfflineFirstAlbumRepository
 import com.quantumff.segue.core.data.repository.OfflineFirstArtistRepository
@@ -27,6 +28,7 @@ import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.PreferencesDeviceClientName
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.data.repository.RoomAlbumShuffleRepository
+import com.quantumff.segue.core.data.repository.RoomMediaBrowseRepository
 import com.quantumff.segue.core.data.repository.RoomQueueSnapshotRepository
 import com.quantumff.segue.core.data.repository.ScrobbleRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
@@ -78,6 +80,9 @@ internal interface DataModule {
 
     @Binds
     fun playlistRepository(impl: OfflineFirstPlaylistRepository): PlaylistRepository
+
+    @Binds
+    fun mediaBrowseRepository(impl: RoomMediaBrowseRepository): MediaBrowseRepository
 
     @Binds
     fun searchRepository(impl: OfflineFirstSearchRepository): SearchRepository

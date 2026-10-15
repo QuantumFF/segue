@@ -26,6 +26,22 @@ class BrowseDaoTest {
     }
 
     @Test
+    fun `recently added and recently played albums come newest first`() = runTest {
+        db.albumDao().upsertAll(
+            listOf(
+                album("old").copy(createdAt = 1, playedAt = 30),
+                album("new").copy(createdAt = 2, playedAt = 10),
+                album("never").copy(createdAt = 0),
+            ),
+        )
+
+        assertThat(dao.albumsByRecentlyAdded("s1", limit = 10, offset = 0).map { it.id })
+            .containsExactly("new", "old", "never").inOrder()
+        assertThat(dao.albumsByRecentlyPlayed("s1", limit = 10, offset = 0).map { it.id })
+            .containsExactly("old", "new").inOrder()
+    }
+
+    @Test
     fun `artists page by sort name`() = runTest {
         db.artistDao().upsertAll(listOf("c", "a", "b").map { artist(it) })
 
