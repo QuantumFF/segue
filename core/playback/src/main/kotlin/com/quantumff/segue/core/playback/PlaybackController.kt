@@ -18,6 +18,7 @@ import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayerUiState
@@ -34,6 +35,8 @@ import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
+import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
+import com.quantumff.segue.core.playback.sync.RemoteAdoption
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ExecutionException
 import javax.inject.Inject
@@ -49,6 +52,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -62,6 +66,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -95,6 +100,11 @@ class PlaybackController @Inject constructor(
     private class Removal(val item: MediaItem, val timelineIndex: Int, val playPosition: Int)
 
     private var lastRemoval: Removal? = null
+
+    private val autoAdoptionEvents = Channel<AutoAdoption>(Channel.BUFFERED)
+
+    /** Each automatic adoption of another device's queue, for the "Continued from" snackbar. */
+    val autoAdoptions: Flow<AutoAdoption> = autoAdoptionEvents.receiveAsFlow()
 
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
@@ -279,6 +289,17 @@ class PlaybackController @Inject constructor(
     }
 
     fun dismissRemoteQueue() = queueSync.dismissOffer()
+
+    /** Adopts a queue the auto-continue setting took over, then reports it for the snackbar. */
+    internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
+        adopt(adoption.queue)
+        autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
+    }
+
+    /** The snackbar's Undo: puts back the local queue the last automatic adoption replaced. */
+    fun undoAutoAdoption() = command { controller ->
+        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
+    }
 
     internal suspend fun adopt(queue: RemotePlayQueue): Unit = withContext(mainDispatcher) {
         try {

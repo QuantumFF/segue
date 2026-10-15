@@ -17,6 +17,9 @@ internal object SegueSessionCommands {
     const val MOVE_IN_PLAY_ORDER = PREFIX + "MOVE_IN_PLAY_ORDER"
     const val REINSERT = PREFIX + "REINSERT"
 
+    /** Restores the local queue an automatic remote adoption replaced (see QueueSyncEngine.takeAdoptionUndo). */
+    const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
+
     const val ARG_SHUFFLE_MODE = "shuffleMode"
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
@@ -32,7 +35,15 @@ internal object SegueSessionCommands {
     private const val SLEEP_END_OF_ALBUM = "endOfAlbum"
 
     val all: List<SessionCommand> =
-        listOf(CYCLE_SHUFFLE, SET_SHUFFLE, TOGGLE_FAVORITE, SET_SLEEP_TIMER, MOVE_IN_PLAY_ORDER, REINSERT)
+        listOf(
+            CYCLE_SHUFFLE,
+            SET_SHUFFLE,
+            TOGGLE_FAVORITE,
+            SET_SLEEP_TIMER,
+            MOVE_IN_PLAY_ORDER,
+            REINSERT,
+            UNDO_ADOPTION,
+        )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
     fun command(action: String) = SessionCommand(action, Bundle.EMPTY)

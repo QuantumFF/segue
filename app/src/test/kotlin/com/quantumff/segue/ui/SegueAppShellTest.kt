@@ -3,6 +3,7 @@ package com.quantumff.segue.ui
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -10,6 +11,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.playback.ShellPlayerState
 import org.junit.Rule
 import org.junit.Test
@@ -122,5 +124,36 @@ class SegueAppShellTest {
 
         compose.onNodeWithText("PLAYLISTS").assertExists()
         compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    private val offer = RemoteQueueOffer("Feishin", trackCount = 12, currentTitle = "Nude")
+
+    @Test
+    fun `a remote queue offer docks a continue bar above the mini player on any screen`() {
+        setShell(ShellLayout.Compact, player = testPlayer.copy(remoteOffer = offer))
+
+        assertShown("Continue from Feishin")
+        compose.onNodeWithText(TEST_TRACK).assertExists()
+        compose.onNodeWithText("Open a sample album").performClick()
+        assertShown("Continue from Feishin")
+    }
+
+    @Test
+    fun `with an empty queue the continue bar replaces the mini player`() {
+        setShell(ShellLayout.Medium, player = ShellPlayerState(remoteOffer = offer))
+
+        assertShown("Continue from Feishin")
+        compose.onNodeWithText(TEST_TRACK).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the continue bar shows above the expanded player bar and hides on full-screen routes`() {
+        setShell(ShellLayout.Expanded, player = testPlayer.copy(remoteOffer = offer))
+        assertShown("Continue from Feishin")
+
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        compose.onNodeWithText("Now playing").assertExists()
+        compose.onAllNodes(hasText("Continue from Feishin")).assertCountEquals(0)
     }
 }

@@ -3,6 +3,7 @@ package com.quantumff.segue.playback
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
+import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.core.model.RepeatMode
 import kotlinx.collections.immutable.toImmutableList
 import org.junit.Test
@@ -35,6 +36,14 @@ class ShellPlayerStateTest {
     @Test
     fun `an empty queue has no track`() {
         assertThat(PlayerUiState().toShellPlayerState().current).isNull()
+    }
+
+    @Test
+    fun `a remote queue offer reaches the shell, with or without a local queue`() {
+        val offer = RemoteQueueOffer("Feishin", trackCount = 3, currentTitle = "Nude")
+
+        assertThat(PlayerUiState(remoteQueue = offer).toShellPlayerState().remoteOffer).isEqualTo(offer)
+        assertThat(state(3, 1).copy(remoteQueue = offer).toShellPlayerState().remoteOffer).isEqualTo(offer)
     }
 
     @Test

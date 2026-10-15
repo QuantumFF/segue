@@ -21,7 +21,9 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.adaptive.WindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
@@ -35,8 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.core.view.WindowCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -44,6 +46,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.window.core.layout.WindowSizeClass
 import com.quantumff.segue.R
+import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBar
+import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
 import com.quantumff.segue.core.designsystem.component.PlayerBar
@@ -87,16 +91,26 @@ fun SegueApp(
     val playActions = playerViewModel.playActions
     val playerActions = remember(playerViewModel) { playerViewModel.shellActions() }
     val snackbarHostState = remember { SnackbarHostState() }
-    val nothingToPlay = stringResource(R.string.player_nothing_to_play)
-    val instantMixFailed = stringResource(R.string.player_instant_mix_failed)
+    val resources = LocalResources.current
     LaunchedEffect(playerViewModel) {
         playerViewModel.messages.collect { message ->
-            snackbarHostState.showSnackbar(
-                when (message) {
-                    PlayerMessage.NothingToPlay -> nothingToPlay
-                    PlayerMessage.InstantMixFailed -> instantMixFailed
-                },
-            )
+            when (message) {
+                PlayerMessage.NothingToPlay ->
+                    snackbarHostState.showSnackbar(resources.getString(R.string.player_nothing_to_play))
+
+                PlayerMessage.InstantMixFailed ->
+                    snackbarHostState.showSnackbar(resources.getString(R.string.player_instant_mix_failed))
+
+                // DESIGN.md §4.8: with auto-continue on, a snackbar replaces the banner, with Undo.
+                is PlayerMessage.ContinuedFrom -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = resources.getString(R.string.player_continued_from, message.deviceName),
+                        actionLabel = if (message.canUndo) resources.getString(R.string.player_undo) else null,
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) playerViewModel.undoAutoAdoption()
+                }
+            }
         }
     }
     var addToPlaylist by remember { mutableStateOf<List<String>?>(null) }
@@ -168,6 +182,8 @@ fun SegueApp(
         bottomBar = !fullScreen && !imeVisible,
         miniPlayer = !fullScreen && !imeVisible && hasTrack,
         playerBar = !fullScreen && hasTrack,
+        // On every screen but the full-screen ones; the Queue screen has its own banner.
+        continueBar = !fullScreen && !imeVisible && player.remoteOffer != null,
     )
     val onTabClick = appState::navigateToTab
 
@@ -207,6 +223,8 @@ private data class ShellChrome(
     val miniPlayer: Boolean,
     /** Expanded. */
     val playerBar: Boolean,
+    /** "Continue from <device>": docks above the mini player or player bar, or alone with an empty queue. */
+    val continueBar: Boolean,
 )
 
 /** Everything the player surfaces need, bundled so each shell layout takes one parameter. */
@@ -232,12 +250,13 @@ private fun CompactShell(
         ShellContent(
             navHost,
             bottomChrome = if (chrome.bottomBar) {
-                bottomChromeHeight(systemBottom, miniPlayer = chrome.miniPlayer, navBar = true)
+                bottomChromeHeight(systemBottom, miniPlayer = chrome.miniPlayer, navBar = true, chrome.continueBar)
             } else {
                 SegueSpacing.none
             },
         )
         Column(Modifier.align(Alignment.BottomCenter)) {
+            ChromeVisibility(chrome.continueBar) { ShellContinueBar(player) }
             ChromeVisibility(chrome.miniPlayer) { ShellMiniPlayer(player) }
             ChromeVisibility(chrome.bottomBar) {
                 SegueNavigationBar(currentTab = appState.currentTab, onTabClick = onTabClick)
@@ -258,21 +277,30 @@ private fun MediumShell(
     Row(Modifier.fillMaxSize()) {
         if (chrome.navigation) SegueNavigationRail(currentTab = appState.currentTab, onTabClick = onTabClick)
         Box(Modifier.weight(1f)) {
+            val docked = chrome.miniPlayer || chrome.continueBar
             ShellContent(
                 navHost,
-                bottomChrome = if (chrome.miniPlayer) {
-                    bottomChromeHeight(systemBottom, miniPlayer = true, navBar = false)
+                bottomChrome = if (docked) {
+                    bottomChromeHeight(systemBottom, chrome.miniPlayer, navBar = false, chrome.continueBar)
                 } else {
                     SegueSpacing.none
                 },
             )
-            ChromeVisibility(chrome.miniPlayer, Modifier.align(Alignment.BottomCenter)) {
-                ShellMiniPlayer(
-                    player = player,
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .navigationBarsPadding(),
-                )
+            Column(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .then(
+                        if (docked) {
+                            Modifier
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .navigationBarsPadding()
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
+                ChromeVisibility(chrome.continueBar) { ShellContinueBar(player) }
+                ChromeVisibility(chrome.miniPlayer) { ShellMiniPlayer(player) }
             }
         }
     }
@@ -290,6 +318,12 @@ private fun ExpandedShell(
         Row(Modifier.weight(1f)) {
             if (chrome.navigation) SegueSidebar(currentTab = appState.currentTab, onTabClick = onTabClick)
             Box(Modifier.weight(1f)) { ShellContent(navHost, bottomChrome = SegueSpacing.none) }
+        }
+        if (chrome.continueBar) {
+            ShellContinueBar(
+                player = player,
+                modifier = if (chrome.playerBar) Modifier else Modifier.navigationBarsPadding(),
+            )
         }
         // The player bar is permanent chrome on expanded width: only full-screen routes and an empty
         // queue hide it.
@@ -321,6 +355,18 @@ private fun ShellMiniPlayer(player: ShellPlayer, modifier: Modifier = Modifier) 
         next = state.next?.track,
         onSwipeToPrevious = { state.previous?.let { actions.onSkipTo(it.timelineIndex) } },
         onSwipeToNext = { state.next?.let { actions.onSkipTo(it.timelineIndex) } },
+        modifier = modifier,
+    )
+}
+
+/** The compact "Continue from <device>" bar (DESIGN.md §4.8). */
+@Composable
+private fun ShellContinueBar(player: ShellPlayer, modifier: Modifier = Modifier) {
+    val offer = player.state.remoteOffer ?: return
+    ContinueFromDeviceBar(
+        state = ContinueFromDeviceState(deviceName = offer.deviceName, detail = offer.currentTitle.orEmpty()),
+        onContinueClick = player.actions.onContinueRemote,
+        onDismissClick = player.actions.onDismissRemote,
         modifier = modifier,
     )
 }
@@ -379,8 +425,9 @@ private fun ChromeVisibility(visible: Boolean, modifier: Modifier = Modifier, co
     ) { content() }
 }
 
-private fun bottomChromeHeight(systemBottom: Dp, miniPlayer: Boolean, navBar: Boolean): Dp =
+private fun bottomChromeHeight(systemBottom: Dp, miniPlayer: Boolean, navBar: Boolean, continueBar: Boolean): Dp =
     (if (miniPlayer) SegueSizes.miniPlayer else SegueSpacing.none) +
+        (if (continueBar) SegueSizes.miniPlayer else SegueSpacing.none) +
         (if (navBar) SegueSizes.navigationBar else SegueSpacing.none) +
         systemBottom
 

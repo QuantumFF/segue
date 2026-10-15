@@ -18,6 +18,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.browse.SessionLibrary
@@ -205,8 +206,10 @@ class SeguePlaybackService : MediaLibraryService() {
     private data class Restored(val items: List<MediaItem>, val state: QueueState)
 
     /** The local snapshot as playable items with its shuffle, from Room only, so it works offline. */
-    private suspend fun loadSnapshot(): Restored? {
-        val snapshot = components.snapshots.snapshot.first() ?: return null
+    private suspend fun loadSnapshot(): Restored? = components.snapshots.snapshot.first()?.let { load(it) }
+
+    /** [snapshot] as playable items with its shuffle, from Room only. */
+    private suspend fun load(snapshot: QueueSnapshot): Restored? {
         // In queue order with duplicates; songs missing from the library are dropped (see QueueRestore).
         val songs = components.library.songsByIds(snapshot.songIds)
         val state = QueueRestore.plan(snapshot, songs.mapTo(HashSet()) { it.id }) ?: return null
@@ -218,6 +221,17 @@ class SeguePlaybackService : MediaLibraryService() {
         if (player.mediaItemCount > 0) return // Something was queued while we read the snapshot.
         player.restore(restored.items, restored.state)
         components.queueSync.markRestored(player.queueState())
+    }
+
+    /**
+     * Undo of an automatic remote adoption: the replaced local queue comes back, paused, shuffle
+     * and all. The queue edit is then saved and uploaded like any other.
+     */
+    private suspend fun undoAdoption() {
+        val previous = components.queueSync.takeAdoptionUndo() ?: return
+        val restored = load(previous) ?: return
+        player.pause()
+        player.restore(restored.items, restored.state)
     }
 
     // --- Session state: extras and buttons -------------------------------------------------------
@@ -333,6 +347,8 @@ class SeguePlaybackService : MediaLibraryService() {
                     args.getInt(SegueSessionCommands.ARG_TO),
                     args.getInt(SegueSessionCommands.ARG_COUNT, 1),
                 )
+
+                SegueSessionCommands.UNDO_ADOPTION -> scope.launch { undoAdoption() }
 
                 SegueSessionCommands.REINSERT -> SegueSessionCommands.reinsertArgs(
                     args,

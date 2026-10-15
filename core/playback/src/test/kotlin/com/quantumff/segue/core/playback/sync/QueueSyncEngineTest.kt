@@ -162,9 +162,67 @@ class QueueSyncEngineTest {
         val engine = engine()
         engine.adoptions.test {
             engine.checkRemote(isPlayingLocally = false)
-            assertThat(awaitItem()).isEqualTo(remoteQueue())
+            assertThat(awaitItem().queue).isEqualTo(remoteQueue())
         }
         assertThat(engine.remoteOffer.value).isNull()
+    }
+
+    @Test
+    fun `auto adopt keeps the previous local queue for undo, once`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x", "y"), 1, 9_000, ShuffleMode.Tracks, listOf(1, 0))
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            awaitItem()
+        }
+
+        val undo = engine.takeAdoptionUndo()
+        assertThat(undo?.songIds).containsExactly("x", "y").inOrder()
+        assertThat(undo?.positionMillis).isEqualTo(9_000)
+        assertThat(undo?.playOrder).containsExactly(1, 0).inOrder()
+        assertThat(engine.takeAdoptionUndo()).isNull()
+    }
+
+    @Test
+    fun `auto adopt over an empty local queue has nothing to undo`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            assertThat(awaitItem().undo).isNull()
+        }
+        assertThat(engine.takeAdoptionUndo()).isNull()
+    }
+
+    @Test
+    fun `the adoption reports whether it can be undone`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            assertThat(awaitItem().undo?.songIds).containsExactly("x")
+        }
+    }
+
+    @Test
+    fun `playing something else drops the undo`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            awaitItem()
+        }
+
+        engine.onLocalPlaybackStarted()
+
+        assertThat(engine.takeAdoptionUndo()).isNull()
     }
 
     @Test

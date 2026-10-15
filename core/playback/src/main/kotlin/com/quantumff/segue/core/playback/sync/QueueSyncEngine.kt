@@ -5,8 +5,10 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.PlayQueueRemoteRepository
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +20,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+
+/**
+ * A remote queue to adopt without asking, and [undo], the local queue it replaces (null when
+ * there was none), for the "Continued from <device> · Undo" snackbar.
+ */
+data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
 
 /**
  * Keeps the play queue in sync with the server and with the local Room snapshot. See
@@ -32,7 +40,8 @@ import kotlinx.coroutines.launch
  *   restores the snapshot.
  * - **Download** happens in [checkRemote] (app start and foreground). A queue saved by another
  *   client that is newer than the last server change this device accounted for becomes
- *   [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions]. Only server
+ *   [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions] with the local
+ *   queue it replaces, which [takeAdoptionUndo] hands back once for Undo. Only server
  *   timestamps are compared (see [RemoteQueuePolicy]), so a skewed device clock does not matter.
  */
 @Singleton
@@ -47,7 +56,10 @@ class QueueSyncEngine @Inject constructor(
 
     private val offeredQueue = MutableStateFlow<RemotePlayQueue?>(null)
     private val offer = MutableStateFlow<RemoteQueueOffer?>(null)
-    private val adoptionRequests = Channel<RemotePlayQueue>(Channel.BUFFERED)
+    private val adoptionRequests = Channel<RemoteAdoption>(Channel.BUFFERED)
+
+    /** The local queue an automatic adoption replaced, until undone or played over. */
+    private val adoptionUndo = AtomicReference<QueueSnapshot?>(null)
 
     /** Seen server changes not yet confirmed in Room, so a check right after a dismiss sees it. */
     @Volatile
@@ -57,7 +69,7 @@ class QueueSyncEngine @Inject constructor(
     val remoteOffer: StateFlow<RemoteQueueOffer?> = offer.asStateFlow()
 
     /** Remote queues to adopt without asking, when the user enabled that. */
-    val adoptions: Flow<RemotePlayQueue> = adoptionRequests.receiveAsFlow()
+    val adoptions: Flow<RemoteAdoption> = adoptionRequests.receiveAsFlow()
 
     override fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
         if (state.songIds.isEmpty()) return
@@ -85,6 +97,8 @@ class QueueSyncEngine @Inject constructor(
      */
     override fun onLocalPlaybackStarted() {
         offeredQueue.value?.let(::clearOffer)
+        // Playing on means keeping the adopted queue: Undo no longer applies.
+        adoptionUndo.set(null)
     }
 
     /**
@@ -118,7 +132,7 @@ class QueueSyncEngine @Inject constructor(
                 val offered = checkNotNull(queue)
                 offeredQueue.value = offered
                 offer.value = RemoteQueueOffer(
-                    deviceName = offered.changedBy ?: UNKNOWN_DEVICE,
+                    deviceName = offered.deviceName,
                     trackCount = offered.songs.size,
                     currentTitle = offered.songs.getOrNull(offered.currentIndex)?.title,
                     positionMillis = offered.positionMillis,
@@ -129,7 +143,10 @@ class QueueSyncEngine @Inject constructor(
             RemoteQueueDecision.Adopt -> {
                 val adopted = checkNotNull(queue)
                 clearOffer(handled = adopted)
-                adoptionRequests.send(adopted)
+                // The snapshot is the local queue: it is flushed when the app leaves the foreground.
+                val previous = snapshots.snapshot.first()?.takeIf { it.songIds.isNotEmpty() }
+                adoptionUndo.set(previous)
+                adoptionRequests.send(RemoteAdoption(adopted, previous))
             }
 
             is RemoteQueueDecision.Ignore -> {
@@ -145,6 +162,9 @@ class QueueSyncEngine @Inject constructor(
 
     /** Takes the offered queue to adopt it; null if there is none. */
     fun acceptOffer(): RemotePlayQueue? = offeredQueue.value?.also(::clearOffer)
+
+    /** The local queue the last automatic adoption replaced, to restore it; null if none. Only once. */
+    fun takeAdoptionUndo(): QueueSnapshot? = adoptionUndo.getAndSet(null)
 
     /** Keeps the local queue. The dismissed save is remembered, so it stays dismissed after a restart too. */
     fun dismissOffer() {
@@ -201,5 +221,8 @@ class QueueSyncEngine @Inject constructor(
     companion object {
         const val DEBOUNCE_MILLIS = 2_000L
         private const val UNKNOWN_DEVICE = "another device"
+
+        /** The client that saved the queue, for "Continue from <device>". */
+        val RemotePlayQueue.deviceName: String get() = changedBy ?: UNKNOWN_DEVICE
     }
 }
