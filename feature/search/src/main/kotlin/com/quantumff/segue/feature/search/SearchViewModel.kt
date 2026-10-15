@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.downloadedWhileOffline
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.OfflineLibrary
@@ -29,7 +31,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -103,14 +104,14 @@ class SearchViewModel @Inject constructor(
 
     private val results: Flow<SearchResults> = combine(
         queryState.map { it.trim() }.distinctUntilChanged(),
-        offlineModeRepository.isOffline,
+        offlineModeRepository.downloadedWhileOffline(downloadRepository),
         ::Pair,
     )
         // Every keystroke searches Room at once; the server is asked after a 300ms pause (see search()).
         .flatMapLatest { (query, offline) ->
             when {
                 query.isEmpty() -> flowOf(SearchResults.Idle)
-                offline -> searchOffline(query)
+                offline != null -> searchOffline(query, offline)
                 else -> search(query)
             }
         }
@@ -195,19 +196,10 @@ class SearchViewModel @Inject constructor(
         if (!final.includesServerResults) emit(SearchResults.Ready(final, serverPending = false, offline = true))
     }
 
-    /** Offline: Room only, narrowed to downloaded music; the server is not asked. */
-    private fun searchOffline(query: String): Flow<SearchResults> = flow {
-        emit(SearchResults.Loading)
+    /** Offline: Room only, narrowed to [downloaded] music; the server is not asked. */
+    private fun searchOffline(query: String, downloaded: DownloadedLibrary): Flow<SearchResults> = flow {
         val local = searchRepository.searchLocal(query).firstOrNull() ?: SearchResult.Empty
-        emitAll(
-            downloadRepository.downloadedLibrary.map { downloaded ->
-                SearchResults.Ready(
-                    OfflineLibrary.search(local, isOffline = true, downloaded),
-                    serverPending = false,
-                    offline = true,
-                )
-            },
-        )
+        emit(SearchResults.Ready(OfflineLibrary.search(local, downloaded), serverPending = false, offline = true))
     }
 
     private fun applyOverrides(results: SearchResults, overrides: Map<String, Boolean>): SearchResults {

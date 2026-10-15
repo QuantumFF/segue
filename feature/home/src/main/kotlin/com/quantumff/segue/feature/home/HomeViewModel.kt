@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.downloadedWhileOffline
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -117,23 +119,26 @@ class HomeViewModel @Inject constructor(
 
     /** Downloaded content while offline, read only then (Library's approach: offline lists come from downloads). */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val offlineContent = offlineModeRepository.isOffline.flatMapLatest { offline ->
-        if (!offline) {
-            flowOf(null)
-        } else {
-            combine(downloadRepository.downloadedLibrary, downloadRepository.overview) { library, overview ->
-                OfflineContent(
-                    library = library,
-                    pinnedPlaylists = overview.pins.filter { it.kind == PinKind.Playlist }.mapTo(HashSet()) { it.id },
-                )
+    private val offlineContent = offlineModeRepository.downloadedWhileOffline(downloadRepository)
+        .flatMapLatest { library ->
+            if (library == null) {
+                flowOf(null)
+            } else {
+                downloadRepository.overview.map { overview ->
+                    OfflineContent(
+                        library = library,
+                        pinnedPlaylists = overview.pins.filter {
+                            it.kind == PinKind.Playlist
+                        }.mapTo(HashSet()) { it.id },
+                    )
+                }
             }
         }
-    }
 
     /** [albums], narrowed to what is downloaded while offline. */
     private val visibleAlbums = combine(albums, offlineContent) { sections, offline ->
         if (offline == null) return@combine sections
-        fun List<Album>.downloaded() = OfflineLibrary.albums(this, isOffline = true, offline.library)
+        fun List<Album>.downloaded() = OfflineLibrary.albums(this, offline.library)
         AlbumSections(
             random = sections.random.downloaded(),
             recent = sections.recent.downloaded(),
@@ -148,16 +153,14 @@ class HomeViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        combine(visibleAlbums, offlineContent) { sections, offline -> sections to (offline != null) },
+        combine(visibleAlbums, offlineContent) { sections, offline -> sections to offline?.library },
         visiblePlaylists,
         libraryRepository.genres,
         combine(serverRepository.activeServer, syncRepository.progress, ::Pair),
         combine(status, pinnedFeatured, ::Pair),
-    ) { (sections, downloadedOnly), playlists, genres, (server, progress), (status, pinned) ->
-        val featured = (pinned ?: sections.random.take(FEATURED_COUNT)).let {
-            // Featured albums held through an Explore refresh still follow the offline filter.
-            if (downloadedOnly) it.filter { album -> sections.random.any { random -> random.id == album.id } } else it
-        }
+    ) { (sections, downloaded), playlists, genres, (server, progress), (status, pinned) ->
+        // Featured albums held through an Explore refresh still follow the offline filter.
+        val featured = pinned?.let { OfflineLibrary.albums(it, downloaded) } ?: sections.random.take(FEATURED_COUNT)
         val featuredIds = featured.mapTo(HashSet()) { it.id }
         HomeUiState(
             serverName = server?.name,
@@ -172,7 +175,7 @@ class HomeViewModel @Inject constructor(
             syncProgress = progress,
             isRefreshing = status.isRefreshing,
             isOffline = status.isOffline,
-            showsDownloadedOnly = downloadedOnly,
+            showsDownloadedOnly = downloaded != null,
             isLoading = false,
             message = status.message,
         )

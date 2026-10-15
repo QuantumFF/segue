@@ -19,6 +19,7 @@ import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.downloadedWhileOffline
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
@@ -71,8 +72,7 @@ class PlaybackComponents @Inject constructor(
     val networkType get() = network.networkType
 
     /** What is downloaded, while offline; null online. For browse lists that narrow offline. */
-    suspend fun downloadedWhileOffline(): DownloadedLibrary? =
-        if (offlineMode.isOffline.value) downloads.downloadedLibrary.first() else null
+    suspend fun downloadedWhileOffline(): DownloadedLibrary? = offlineMode.downloadedWhileOffline(downloads).first()
 
     /**
      * ExoPlayer for music: audio focus, pause on headphone unplug, a network wake lock, and media

@@ -43,14 +43,14 @@ class OfflineLibraryTest {
     fun `online every album is shown`() {
         val albums = listOf(album("al1"), album("al2"))
 
-        assertThat(OfflineLibrary.albums(albums, isOffline = false, downloaded)).isEqualTo(albums)
+        assertThat(OfflineLibrary.albums(albums, offline = null)).isEqualTo(albums)
     }
 
     @Test
     fun `offline only albums with a downloaded song are shown, in order`() {
         val albums = listOf(album("al3"), album("al1"), album("al2"))
 
-        assertThat(OfflineLibrary.albums(albums, isOffline = true, downloaded).map { it.id })
+        assertThat(OfflineLibrary.albums(albums, downloaded).map { it.id })
             .containsExactly("al3", "al2")
             .inOrder()
     }
@@ -64,7 +64,7 @@ class OfflineLibraryTest {
             includesServerResults = false,
         )
 
-        val filtered = OfflineLibrary.search(result, isOffline = true, downloaded)
+        val filtered = OfflineLibrary.search(result, downloaded)
 
         assertThat(filtered.artists.map { it.id }).containsExactly("ar1")
         assertThat(filtered.albums.map { it.id }).containsExactly("al2")
@@ -81,7 +81,7 @@ class OfflineLibraryTest {
             includesServerResults = true,
         )
 
-        assertThat(OfflineLibrary.search(result, isOffline = false, downloaded)).isEqualTo(result)
+        assertThat(OfflineLibrary.search(result, offline = null)).isEqualTo(result)
     }
 
     @Test

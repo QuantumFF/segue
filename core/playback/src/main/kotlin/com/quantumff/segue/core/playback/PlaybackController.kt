@@ -292,7 +292,11 @@ class PlaybackController @Inject constructor(
 
     /** Adopts a queue the auto-continue setting took over, then reports it for the snackbar. */
     internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
-        if (!adopt(adoption.queue)) return
+        if (!adopt(adoption.queue)) {
+            // Nothing was replaced: there is nothing to undo.
+            queueSync.takeAdoptionUndo()
+            return
+        }
         autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
     }
 

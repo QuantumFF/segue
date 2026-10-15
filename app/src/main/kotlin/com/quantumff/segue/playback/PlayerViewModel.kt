@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.downloadedWhileOffline
 import com.quantumff.segue.core.model.OfflinePlayback
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
@@ -42,7 +43,7 @@ sealed interface PlayerMessage {
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playback: PlaybackController,
-    offlineMode: OfflineModeRepository,
+    private val offlineMode: OfflineModeRepository,
     private val downloads: DownloadRepository,
 ) : ViewModel() {
     private val isOffline: StateFlow<Boolean> = offlineMode.isOffline
@@ -86,7 +87,7 @@ class PlayerViewModel @Inject constructor(
         onShuffleAlbums = { source ->
             viewModelScope.launch {
                 // Offline: downloaded albums only (DESIGN.md §1, offline is first-class).
-                val offline = if (isOffline.value) downloads.downloadedLibrary.first() else null
+                val offline = offlineMode.downloadedWhileOffline(downloads).first()
                 if (!playback.shuffleAlbums(source, offline)) messageChannel.send(PlayerMessage.NothingToPlay)
             }
         },
