@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Boots the agents' emulator (AVD segue_agent, headless, wiped on every boot) and prints its
+# serial. Reuses it when it is already running. `scripts/agent-emulator stop` shuts it down.
+# The serial is ANDROID_SERIAL in .claude/settings.json; segue_pixel belongs to the user.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+serial=${ANDROID_SERIAL:-$(jq -r .env.ANDROID_SERIAL "$root/.claude/settings.json")}
+port=${serial#emulator-}
+sdk=${ANDROID_HOME:-$(sed -n 's/^sdk\.dir=//p' "$root/local.properties")}
+avd=segue_agent
+
+if [[ ${1:-} == stop ]]; then
+  adb -s "$serial" emu kill >/dev/null 2>&1 || true
+  exit 0
+fi
+
+booted() { [[ $(adb -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; }
+
+if ! booted; then
+  if ! "$sdk/emulator/emulator" -list-avds | grep -qx "$avd"; then
+    echo no | "$sdk/cmdline-tools/latest/bin/avdmanager" create avd -n "$avd" \
+      -k "system-images;android-37.0;google_apis;x86_64" -d pixel_8 >&2
+  fi
+  if ! adb devices | grep -q "^$serial[[:space:]]"; then
+    log=${TMPDIR:-/tmp}/$avd-emulator.log
+    nohup "$sdk/emulator/emulator" -avd "$avd" -port "$port" -wipe-data -no-snapshot \
+      -no-window -no-audio -memory 2048 -cores 2 >"$log" 2>&1 &
+    echo "booting $avd on $serial (log: $log)" >&2
+  fi
+  adb -s "$serial" wait-for-device
+  until booted; do sleep 3; done
+fi
+echo "$serial"
