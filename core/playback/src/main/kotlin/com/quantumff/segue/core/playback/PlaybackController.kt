@@ -20,6 +20,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
@@ -39,7 +40,6 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.random.Random
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -73,7 +73,8 @@ import kotlinx.coroutines.withContext
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
  * commands take queue positions ([QueueItem.timelineIndex]). The queue order is the play order:
- * Segue shuffles only when songs are queued, never a running queue.
+ * Segue shuffles only when songs are queued, never a running queue. Play intents (play, play next,
+ * add to queue, play albums) suspend until the service answers whether it queued anything.
  */
 @Singleton
 class PlaybackController @Inject constructor(
@@ -83,7 +84,6 @@ class PlaybackController @Inject constructor(
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
-    private val random = Random.Default
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
@@ -145,37 +145,30 @@ class PlaybackController @Inject constructor(
 
     /**
      * An explicit "Play" or "Shuffle" of [songs], replacing the queue: in order from [startIndex],
-     * or with [shuffle] queued in a fresh shuffled order from its first song. Shuffling happens
-     * here, when songs are queued; a running queue is never reshuffled.
+     * or with [shuffle] queued in a fresh shuffled order from its first song. The service queues
+     * them ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
+     * running queue, and offline only the downloaded songs. False if there is nothing to play.
      */
-    fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean) = command { controller ->
-        if (songs.isEmpty()) return@command
-        val queue = if (shuffle) songs.shuffled(random) else songs
-        val start = if (shuffle) 0 else startIndex.coerceIn(songs.indices)
-        controller.setMediaItems(queue.map { it.toMediaItem() }, start, 0)
-        controller.prepare()
-        controller.play()
-    }
+    suspend fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean): Boolean =
+        queue(songs, QueuePlacement.Replace, startIndex, shuffle)
 
-    /** Inserts [songs] right after the current track. */
-    fun playNext(songs: List<Song>) = command { controller ->
-        if (controller.mediaItemCount == 0) {
-            controller.setMediaItems(songs.map { it.toMediaItem() })
-            controller.prepare()
-        } else {
-            controller.addMediaItems(controller.currentMediaItemIndex + 1, songs.map { it.toMediaItem() })
-        }
-    }
+    /** Inserts [songs] right after the current track. False if there is nothing to play. */
+    suspend fun playNext(songs: List<Song>): Boolean = queue(songs, QueuePlacement.Next)
 
-    /** Appends [songs] to the end of the queue. */
-    fun addToQueue(songs: List<Song>) = command { controller ->
-        if (controller.mediaItemCount == 0) {
-            controller.setMediaItems(songs.map { it.toMediaItem() })
-            controller.prepare()
-        } else {
-            controller.addMediaItems(songs.map { it.toMediaItem() })
-        }
-    }
+    /** Appends [songs] to the end of the queue. False if there is nothing to play. */
+    suspend fun addToQueue(songs: List<Song>): Boolean = queue(songs, QueuePlacement.End)
+
+    private suspend fun queue(
+        songs: List<Song>,
+        placement: QueuePlacement,
+        startIndex: Int = 0,
+        shuffle: Boolean = false,
+    ) = send(
+        SegueSessionCommands.QUEUE_SONGS,
+        SegueSessionCommands.queueSongsArgs(
+            SegueSessionCommands.QueueSongs(songs.map { it.toMediaItem() }, placement, startIndex, shuffle),
+        ),
+    )
 
     /** Moves the item at queue position [from] to position [to]. */
     fun move(from: Int, to: Int) = command { controller -> controller.moveMediaItem(from, to) }
@@ -294,21 +287,8 @@ class PlaybackController @Inject constructor(
      * [com.quantumff.segue.core.playback.feed.AlbumFeedController]). Reads Room only; offline only
      * downloaded songs are queued. False if there is nothing to play.
      */
-    suspend fun playAlbums(request: AlbumPlayRequest): Boolean = withContext(mainDispatcher) {
-        try {
-            val result = controller().sendCustomCommand(
-                SegueSessionCommands.command(SegueSessionCommands.PLAY_ALBUMS),
-                SegueSessionCommands.playAlbumsArgs(request, seed = random.nextLong()),
-            ).await()
-            result.resultCode == SessionResult.RESULT_SUCCESS &&
-                result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Log.w(TAG, "Could not play albums", e)
-            false
-        }
-    }
+    suspend fun playAlbums(request: AlbumPlayRequest): Boolean =
+        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request))
 
     /**
      * Instant mix from [seed]: the song, then songs similar to its artist (`getSimilarSongs2`),
@@ -324,11 +304,24 @@ class PlaybackController @Inject constructor(
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
         if (mix.size <= (if (seed == null) 0 else 1)) return false
-        play(mix, startIndex = 0, shuffle = false)
-        return true
+        return play(mix, startIndex = 0, shuffle = false)
     }
 
     // --- Connection ----------------------------------------------------------------------------------
+
+    /** Sends a queueing command ([action]) and answers whether the service queued anything. */
+    private suspend fun send(action: String, args: Bundle): Boolean = withContext(mainDispatcher) {
+        try {
+            val result = controller().sendCustomCommand(SegueSessionCommands.command(action), args).await()
+            result.resultCode == SessionResult.RESULT_SUCCESS &&
+                result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.w(TAG, "Could not queue ($action)", e)
+            false
+        }
+    }
 
     private fun command(block: suspend (MediaController) -> Unit) {
         scope.launch {

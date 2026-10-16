@@ -181,12 +181,16 @@ class NowPlayingViewModel @Inject constructor(
     /** Plays the related songs from [index]. */
     fun playRelated(index: Int) {
         val songs = (related.value as? RelatedUiState.Loaded)?.songs ?: return
-        playback.play(songs, startIndex = index, shuffle = false)
+        viewModelScope.launch { playback.play(songs, startIndex = index, shuffle = false) }
     }
 
-    fun playNext(song: Song) = playback.playNext(listOf(song))
+    fun playNext(song: Song) {
+        viewModelScope.launch { playback.playNext(listOf(song)) }
+    }
 
-    fun addToQueue(songs: List<Song>) = playback.addToQueue(songs)
+    fun addToQueue(songs: List<Song>) {
+        viewModelScope.launch { playback.addToQueue(songs) }
+    }
 
     private fun loadLyrics(songId: String): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)

@@ -1,13 +1,8 @@
 package com.quantumff.segue.core.playback.browse
 
-import android.net.Uri
 import android.os.Bundle
-import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumOrder
-import com.quantumff.segue.core.model.AlbumPlayRequest
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
@@ -23,21 +18,7 @@ import org.robolectric.RobolectricTestRunner
 class LibrarySearchTest {
     private val repo = FakeMediaBrowseRepository()
     private val searchRepository = FakeSearchRepository()
-    private val tree = BrowseTree(
-        repository = repo,
-        labels = BrowseLabels("H", "L", "D", "S", "RP", "RA", "St", "Al", "Ar", "Pl", "G"),
-        artwork = object : BrowseArtwork {
-            override fun cover(coverArtId: String): Uri = Uri.parse("content://art/$coverArtId")
-
-            override fun icon(icon: BrowseIcon): Uri? = null
-        },
-    )
-    private val search = LibrarySearch(
-        searchRepository,
-        repo,
-        tree,
-        SearchLabels(artists = "Artists", albums = "Albums", songs = "Songs"),
-    )
+    private val search = LibrarySearch(searchRepository, repo)
 
     private val radiohead = TestData.artist("ar-1", name = "Radiohead")
     private val inRainbows = TestData.album("al-1", name = "In Rainbows", artistId = "ar-1")
@@ -59,25 +40,16 @@ class LibrarySearchTest {
     )
 
     @Test
-    fun `results list artists, albums, then songs under group titles, using the server results`() = runTest {
+    fun `search uses the server results once they arrive`() = runTest {
         searchRepository.results["radiohead"] = results(
             result(songs = listOf(nude), server = false),
             result(listOf(radiohead), listOf(inRainbows), listOf(nude)),
         )
 
-        val items = search.results("radiohead")
+        val result = search.find("radiohead")
 
-        assertThat(items.map { BrowseId.parse(it.mediaId) }).containsExactly(
-            BrowseId.Artist("ar-1"),
-            BrowseId.Album("al-1"),
-            BrowseId.Track("so-1", null, 0),
-        ).inOrder()
-        assertThat(
-            items.map {
-                it.mediaMetadata.extras?.getString(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_GROUP_TITLE)
-            },
-        )
-            .containsExactly("Artists", "Albums", "Songs").inOrder()
+        assertThat(result.includesServerResults).isTrue()
+        assertThat(result.artists).containsExactly(radiohead)
     }
 
     @Test
@@ -90,6 +62,7 @@ class LibrarySearchTest {
         val request = search.playRequest("radiohead", focusExtras("vnd.android.cursor.item/artist"))!!
 
         assertThat(request.songs.map { it.id }).containsExactly("so-1", "so-2")
+        assertThat(request.shuffle).isTrue()
     }
 
     @Test
@@ -117,12 +90,9 @@ class LibrarySearchTest {
     }
 
     @Test
-    fun `an empty request shuffles albums as an album feed`() = runTest {
-        repo.albums = listOf(inRainbows)
+    fun `an empty request is not a fixed list`() = runTest {
         repo.songs = listOf(nude)
 
-        assertThat(search.albumPlayRequest("")).isEqualTo(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled))
-        assertThat(search.albumPlayRequest("nude")).isNull()
         assertThat(search.playRequest("", Bundle.EMPTY)).isNull()
     }
 

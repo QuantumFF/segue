@@ -7,12 +7,10 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaConstants
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumOrder
-import com.quantumff.segue.core.model.AlbumPlayRequest
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 
 /** Titles of the fixed nodes, from string resources. */
@@ -39,8 +37,15 @@ interface BrowseArtwork {
     fun icon(icon: BrowseIcon): Uri?
 }
 
-/** What to queue for a playable node: [songs], already in play order, from [startIndex]. */
-data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0)
+/** Group titles for search results. */
+data class SearchLabels(val artists: String, val albums: String, val songs: String)
+
+/**
+ * What to queue for a playable node or a voice request: [songs] in play order from [startIndex],
+ * or, with [shuffle], in a fresh shuffled order (shuffled when queued, see
+ * [com.quantumff.segue.core.playback.service.QueueEditor]).
+ */
+data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0, val shuffle: Boolean = false)
 
 /**
  * The media browse tree for Android Auto and other media browsers, read from Room.
@@ -55,7 +60,7 @@ data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0)
  * Lists the database can page are read one page at a time; short lists (an artist's albums, an
  * album's tracks, playlists, genres) are read whole and sliced. Albums show as a grid, tracks and
  * everything else as a list. Shuffle albums is an album feed run by the playback service
- * ([albumPlayRequest]), which picks downloaded albums only while offline.
+ * (see [SessionPlayResolver]), which picks downloaded albums only while offline.
  */
 class BrowseTree(
     private val repository: MediaBrowseRepository,
@@ -132,19 +137,15 @@ class BrowseTree(
         is BrowseId.Track -> repository.song(id.songId)?.let { trackItem(it, id) }
     }
 
-    /**
-     * The album feed that playing [mediaId] starts: "Shuffle albums" shuffles the whole library
-     * through the same persisted feed as the app's buttons (queued a window at a time; offline,
-     * downloaded albums only). Null for every other node.
-     */
-    fun albumPlayRequest(mediaId: String): AlbumPlayRequest? = when (BrowseId.parse(mediaId)) {
-        BrowseId.ShuffleAlbums -> AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled)
-        else -> null
-    }
+    /** Search results as list rows: artists, albums, then songs, each group under its title. */
+    fun searchResults(result: SearchResult, labels: SearchLabels): List<MediaItem> =
+        result.artists.map { artistItem(it).inGroup(labels.artists) } +
+            result.albums.map { albumItem(it).inGroup(labels.albums) } +
+            result.songs.map { trackItem(it, BrowseId.Track(it.id, parent = null, index = 0)).inGroup(labels.songs) }
 
     /**
      * What playing [mediaId] queues, or null if it is not playable or there is nothing to play.
-     * "Shuffle albums" is an album feed instead ([albumPlayRequest]).
+     * "Shuffle albums" is an album feed instead ([SessionPlayResolver]).
      */
     suspend fun playRequest(mediaId: String): PlayRequest? {
         val request = when (val id = BrowseId.parse(mediaId)) {
@@ -253,7 +254,7 @@ class BrowseTree(
         )
         .build()
 
-    internal fun albumItem(album: Album): MediaItem = MediaItem.Builder()
+    private fun albumItem(album: Album): MediaItem = MediaItem.Builder()
         .setMediaId(BrowseId.Album(album.id).encode())
         .setMediaMetadata(
             MediaMetadata.Builder()
@@ -271,7 +272,7 @@ class BrowseTree(
         )
         .build()
 
-    internal fun artistItem(artist: Artist): MediaItem = MediaItem.Builder()
+    private fun artistItem(artist: Artist): MediaItem = MediaItem.Builder()
         .setMediaId(BrowseId.Artist(artist.id).encode())
         .setMediaMetadata(
             MediaMetadata.Builder()
@@ -315,7 +316,7 @@ class BrowseTree(
         .build()
 
     /** A track in a list: a list row with small art and duration. */
-    fun trackItem(song: Song, id: BrowseId.Track): MediaItem = MediaItem.Builder()
+    private fun trackItem(song: Song, id: BrowseId.Track): MediaItem = MediaItem.Builder()
         .setMediaId(id.encode())
         .setMediaMetadata(
             MediaMetadata.Builder()
@@ -335,6 +336,13 @@ class BrowseTree(
         mapIndexed { i, song -> trackItem(song, BrowseId.Track(song.id, parent, offset + i)) }
 
     private fun <T> List<T>.slice(offset: Int, limit: Int): List<T> = drop(offset).take(limit)
+
+    private fun MediaItem.inGroup(title: String): MediaItem {
+        val extras = Bundle(mediaMetadata.extras ?: Bundle.EMPTY).apply {
+            putString(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_GROUP_TITLE, title)
+        }
+        return buildUpon().setMediaMetadata(mediaMetadata.buildUpon().setExtras(extras).build()).build()
+    }
 
     private fun BrowseId.isBrowsable() = this !is BrowseId.Track && this != BrowseId.ShuffleAlbums
 

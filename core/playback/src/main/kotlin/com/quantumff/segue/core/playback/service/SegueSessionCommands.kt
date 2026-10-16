@@ -1,12 +1,13 @@
 package com.quantumff.segue.core.playback.service
 
 import android.os.Bundle
+import androidx.media3.common.BundleListRetriever
+import androidx.media3.common.MediaItem
 import androidx.media3.session.SessionCommand
-import com.quantumff.segue.core.model.AlbumFilter
+import com.google.common.collect.ImmutableList
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
-import com.quantumff.segue.core.model.AlbumSortOrder
-import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.AlbumSourceRecord
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SleepTimer
 
@@ -23,6 +24,9 @@ internal object SegueSessionCommands {
     /** "Play albums" / "Shuffle albums": starts an album feed (see AlbumFeedController). Answers [ARG_STARTED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
+    /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_STARTED]. */
+    const val QUEUE_SONGS = PREFIX + "QUEUE_SONGS"
+
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
@@ -35,7 +39,9 @@ internal object SegueSessionCommands {
     private const val ARG_DOWNLOADED = "downloadedOnly"
     private const val ARG_ALBUM_ORDER = "albumOrder"
     private const val ARG_PLACEMENT = "placement"
-    private const val ARG_SEED = "seed"
+    private const val ARG_ITEMS = "items"
+    private const val ARG_START_INDEX = "startIndex"
+    private const val ARG_SHUFFLE = "shuffle"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -47,6 +53,7 @@ internal object SegueSessionCommands {
             SET_SLEEP_TIMER,
             UNDO_ADOPTION,
             PLAY_ALBUMS,
+            QUEUE_SONGS,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
@@ -74,75 +81,69 @@ internal object SegueSessionCommands {
         else -> null
     }
 
-    fun playAlbumsArgs(request: AlbumPlayRequest, seed: Long) = Bundle().apply {
+    fun playAlbumsArgs(request: AlbumPlayRequest) = Bundle().apply {
         putString(ARG_ALBUM_ORDER, request.order.name)
         putString(ARG_PLACEMENT, request.placement.name)
-        putLong(ARG_SEED, seed)
-        when (val source = request.source) {
-            AlbumSource.Library -> putString(ARG_SOURCE_KIND, KIND_LIBRARY)
-
-            is AlbumSource.Albums -> {
-                putString(ARG_SOURCE_KIND, KIND_ALBUMS)
-                putString(ARG_SORT, source.sort.name)
-                putBoolean(ARG_STARRED, source.filter.starredOnly)
-                putString(ARG_GENRE, source.filter.genre)
-                source.filter.year?.let { putInt(ARG_YEAR, it) }
-                putBoolean(ARG_DOWNLOADED, source.filter.downloadedOnly)
-            }
-
-            is AlbumSource.Artist -> putSource(KIND_ARTIST, source.artistId)
-
-            is AlbumSource.Genre -> putSource(KIND_GENRE, source.name)
-
-            is AlbumSource.Playlist -> putSource(KIND_PLAYLIST, source.playlistId)
-        }
+        val source = AlbumSourceRecord.of(request.source)
+        putString(ARG_SOURCE_KIND, source.kind)
+        putString(ARG_SOURCE_ID, source.id)
+        putString(ARG_SORT, source.sort)
+        putBoolean(ARG_STARRED, source.starredOnly)
+        putString(ARG_GENRE, source.genre)
+        source.year?.let { putInt(ARG_YEAR, it) }
+        putBoolean(ARG_DOWNLOADED, source.downloadedOnly)
     }
 
-    /** The request and seed of [playAlbumsArgs], or null if [bundle] does not hold one. */
-    fun playAlbums(bundle: Bundle): Pair<AlbumPlayRequest, Long>? {
-        val id = bundle.getString(ARG_SOURCE_ID)
-        val source = when (bundle.getString(ARG_SOURCE_KIND)) {
-            KIND_LIBRARY -> AlbumSource.Library
-
-            KIND_ALBUMS -> AlbumSource.Albums(
-                sort = enumOrNull<AlbumSortOrder>(bundle.getString(ARG_SORT)) ?: return null,
-                filter = AlbumFilter(
-                    starredOnly = bundle.getBoolean(ARG_STARRED),
-                    genre = bundle.getString(ARG_GENRE),
-                    year = if (bundle.containsKey(ARG_YEAR)) bundle.getInt(ARG_YEAR) else null,
-                    downloadedOnly = bundle.getBoolean(ARG_DOWNLOADED),
-                ),
-            )
-
-            KIND_ARTIST -> AlbumSource.Artist(id ?: return null)
-
-            KIND_GENRE -> AlbumSource.Genre(id ?: return null)
-
-            KIND_PLAYLIST -> AlbumSource.Playlist(id ?: return null)
-
-            else -> return null
-        }
+    /** The request of [playAlbumsArgs], or null if [bundle] does not hold one. */
+    fun playAlbums(bundle: Bundle): AlbumPlayRequest? {
+        val source = AlbumSourceRecord(
+            kind = bundle.getString(ARG_SOURCE_KIND) ?: return null,
+            id = bundle.getString(ARG_SOURCE_ID),
+            sort = bundle.getString(ARG_SORT),
+            starredOnly = bundle.getBoolean(ARG_STARRED),
+            genre = bundle.getString(ARG_GENRE),
+            year = if (bundle.containsKey(ARG_YEAR)) bundle.getInt(ARG_YEAR) else null,
+            downloadedOnly = bundle.getBoolean(ARG_DOWNLOADED),
+        ).toSource() ?: return null
         val order = enumOrNull<AlbumOrder>(bundle.getString(ARG_ALBUM_ORDER)) ?: return null
         val placement = enumOrNull<QueuePlacement>(bundle.getString(ARG_PLACEMENT)) ?: return null
-        return AlbumPlayRequest(source, order, placement) to bundle.getLong(ARG_SEED)
+        return AlbumPlayRequest(source, order, placement)
     }
 
-    /** The answer to [PLAY_ALBUMS]: whether anything was queued. */
+    /** A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. */
+    data class QueueSongs(
+        val items: List<MediaItem>,
+        val placement: QueuePlacement,
+        val startIndex: Int,
+        val shuffle: Boolean,
+    )
+
+    fun queueSongsArgs(request: QueueSongs) = Bundle().apply {
+        // Read in chunks through a binder, as Media3 sends setMediaItems: a long list would not fit
+        // in one transaction.
+        putBinder(ARG_ITEMS, BundleListRetriever(ImmutableList.copyOf(request.items.map { it.toBundle() })))
+        putString(ARG_PLACEMENT, request.placement.name)
+        putInt(ARG_START_INDEX, request.startIndex)
+        putBoolean(ARG_SHUFFLE, request.shuffle)
+    }
+
+    /** The request of [queueSongsArgs], or null if [bundle] does not hold one. */
+    fun queueSongs(bundle: Bundle): QueueSongs? {
+        val items = bundle.getBinder(ARG_ITEMS) ?: return null
+        val placement = enumOrNull<QueuePlacement>(bundle.getString(ARG_PLACEMENT)) ?: return null
+        return QueueSongs(
+            BundleListRetriever.getList(items).map(MediaItem::fromBundle),
+            placement,
+            bundle.getInt(ARG_START_INDEX),
+            bundle.getBoolean(ARG_SHUFFLE),
+        )
+    }
+
+    /** The answer to [PLAY_ALBUMS] and [QUEUE_SONGS]: whether anything was queued. */
     fun startedResult(started: Boolean) = Bundle().apply { putBoolean(ARG_STARTED, started) }
-
-    private fun Bundle.putSource(kind: String, id: String) {
-        putString(ARG_SOURCE_KIND, kind)
-        putString(ARG_SOURCE_ID, id)
-    }
 
     private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =
         enumValues<E>().firstOrNull { it.name == name }
-
-    private const val KIND_LIBRARY = "library"
-    private const val KIND_ALBUMS = "albums"
-    private const val KIND_ARTIST = "artist"
-    private const val KIND_GENRE = "genre"
-    private const val KIND_PLAYLIST = "playlist"
 
     /** Session extras: the sleep timer, which Media3's player state cannot carry. */
     fun extras(timer: SleepTimer?) = sleepArgs(timer)
