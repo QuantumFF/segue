@@ -12,6 +12,22 @@
     <string name="feature_queue_scroll_to_current">Scroll to current track</string>
     <string name="feature_queue_save_as_playlist">Save as playlist</string>
     <string name="feature_queue_clear">Clear queue</string>
+    <string name="feature_queue_upload">Upload queue</string>
+    <string name="feature_queue_download">Download queue</string>
+    <string name="feature_queue_uploaded">Queue uploaded to the server</string>
+    <string name="feature_queue_upload_failed">Could not upload the queue</string>
+    <plurals name="feature_queue_downloaded">
+        <item quantity="one">Downloaded %d track from the server</item>
+        <item quantity="other">Downloaded %d tracks from the server</item>
+    </plurals>
+    <string name="feature_queue_nothing_to_download">No queue is saved on the server</string>
+    <string name="feature_queue_download_failed">Could not download the queue</string>
+    <string name="feature_queue_download_title">Replace the queue?</string>
+    <plurals name="feature_queue_download_message">
+        <item quantity="one">%1$d track saved by %2$s will replace the queue on this device.</item>
+        <item quantity="other">%1$d tracks saved by %2$s will replace the queue on this device.</item>
+    </plurals>
+    <string name="feature_queue_download_confirm">Replace</string>
     <string name="feature_queue_reorder">Reorder</string>
     <string name="feature_queue_play_next">Play next</string>
     <string name="feature_queue_remove">Remove</string>

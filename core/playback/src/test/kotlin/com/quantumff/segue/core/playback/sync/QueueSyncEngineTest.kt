@@ -10,6 +10,7 @@ import com.quantumff.segue.core.playback.testing.FakePlayQueueRemoteRepository
 import com.quantumff.segue.core.playback.testing.FakeQueueSnapshotRepository
 import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
 import java.io.IOException
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
@@ -300,6 +301,71 @@ class QueueSyncEngineTest {
         engine.checkRemote(isPlayingLocally = false)
         assertThat(engine.remoteOffer.value).isNull()
         assertThat(remote.fetches).isEqualTo(0)
+    }
+
+    // --- By hand ------------------------------------------------------------------------------
+
+    @Test
+    fun `uploading by hand saves at once, even with queue sync off, and is not uploaded again`() = runTest {
+        preferences.preferences.update { it.copy(queueSyncEnabled = false) }
+        val engine = engine()
+        engine.uploadNow(state)
+        assertThat(remote.saves).containsExactly(state)
+
+        preferences.preferences.update { it.copy(queueSyncEnabled = true) }
+        engine.onQueueEvent(QueueEvent.Pause, state)
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+        assertThat(remote.saves).containsExactly(state)
+    }
+
+    @Test
+    fun `uploading by hand declines the offered queue`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        engine.uploadNow(state)
+        runCurrent()
+        assertThat(engine.remoteOffer.value).isNull()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+    }
+
+    @Test
+    fun `a failed upload by hand throws and is retried by the next event`() = runTest {
+        remote.saveError = RemoteException.Unreachable(IOException("offline"))
+        val engine = engine()
+        val error = runCatching { engine.uploadNow(state) }.exceptionOrNull()
+        assertThat(error).isInstanceOf(RemoteException::class.java)
+
+        remote.saveError = null
+        engine.onQueueEvent(QueueEvent.Pause, state)
+        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+        assertThat(remote.saves).containsExactly(state)
+    }
+
+    @Test
+    fun `downloading by hand returns any saved queue, our own and with queue sync off included`() = runTest {
+        preferences.preferences.update { it.copy(queueSyncEnabled = false) }
+        remote.queue = remoteQueue(by = "Segue-own")
+        assertThat(engine().fetchNow()).isEqualTo(remoteQueue(by = "Segue-own"))
+    }
+
+    @Test
+    fun `downloading by hand finds nothing when the saved queue is empty`() = runTest {
+        remote.queue = remoteQueue().copy(songs = persistentListOf())
+        assertThat(engine().fetchNow()).isNull()
+    }
+
+    @Test
+    fun `a downloaded queue is not offered again`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.checkRemote(isPlayingLocally = false)
+        engine.markDownloaded(checkNotNull(engine.fetchNow()))
+        runCurrent()
+        assertThat(engine.remoteOffer.value).isNull()
+
+        engine.checkRemote(isPlayingLocally = false)
+        assertThat(engine.remoteOffer.value).isNull()
     }
 
     // --- Clock skew ---------------------------------------------------------------------------

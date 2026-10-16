@@ -284,8 +284,24 @@ internal fun QueueMessages(
             latestOnShown()
             val text = when (shown) {
                 is QueueMessage.Removed -> resources.getString(R.string.feature_queue_removed, shown.title)
+
                 is QueueMessage.SavedAsPlaylist -> resources.getString(R.string.feature_queue_saved, shown.name)
+
                 QueueMessage.SaveFailed -> resources.getString(R.string.feature_queue_save_failed)
+
+                QueueMessage.Uploaded -> resources.getString(R.string.feature_queue_uploaded)
+
+                QueueMessage.UploadFailed -> resources.getString(R.string.feature_queue_upload_failed)
+
+                is QueueMessage.Downloaded -> resources.getQuantityString(
+                    R.plurals.feature_queue_downloaded,
+                    shown.trackCount,
+                    shown.trackCount,
+                )
+
+                QueueMessage.NothingToDownload -> resources.getString(R.string.feature_queue_nothing_to_download)
+
+                QueueMessage.DownloadFailed -> resources.getString(R.string.feature_queue_download_failed)
             }
             val undoable = shown is QueueMessage.Removed
             val result = hostState.showSnackbar(

@@ -17,12 +17,14 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
+import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import com.quantumff.segue.core.playback.sync.RemoteAdoption
@@ -255,6 +257,32 @@ class PlaybackController @Inject constructor(
     fun undoAutoAdoption() = command { controller ->
         controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
     }
+
+    /** "Upload queue": saves the queue to the server now; nothing if it is empty. Throws RemoteException. */
+    suspend fun uploadQueue() {
+        val state = withContext(mainDispatcher) {
+            val controller = controller()
+            QueueState(
+                songIds = List(controller.mediaItemCount) { controller.getMediaItemAt(it).mediaId },
+                currentIndex = controller.currentMediaItemIndex,
+                positionMillis = controller.currentPosition,
+            )
+        }
+        if (state.songIds.isNotEmpty()) queueSync.uploadNow(state)
+    }
+
+    /**
+     * "Download queue": the queue saved on the server, for [adoptDownloadedQueue]; null if none.
+     * Throws RemoteException.
+     */
+    suspend fun fetchRemoteQueue(): RemotePlayQueue? = queueSync.fetchNow()
+
+    /**
+     * Has the service replace the local queue with [queue] from [fetchRemoteQueue], paused
+     * ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]). False if it did not.
+     */
+    suspend fun adoptDownloadedQueue(queue: RemotePlayQueue): Boolean =
+        adopt(queueSync.stageDownload(queue)).also { adopted -> if (adopted) queueSync.markDownloaded(queue) }
 
     // --- Generated queues ----------------------------------------------------------------------------
 

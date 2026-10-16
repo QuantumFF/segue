@@ -59,11 +59,25 @@ internal object LucidePaths {
         "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0z",
     )
 
+    /** lucide:cloud-download */
+    val CloudDownload: List<String> = listOf(
+        "M12 13v8l-4-4",
+        "m12 21 4-4",
+        "M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284",
+    )
+
     /** lucide:cloud-off */
     val CloudOff: List<String> = listOf(
         "M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057",
         "M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78",
         "m2 2 20 20",
+    )
+
+    /** lucide:cloud-upload */
+    val CloudUpload: List<String> = listOf(
+        "M12 13v8",
+        "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242",
+        "m8 17 4-4 4 4",
     )
 
     /** lucide:disc-3 */

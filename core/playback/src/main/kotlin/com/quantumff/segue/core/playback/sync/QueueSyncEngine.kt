@@ -48,6 +48,9 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  * - **Adoption**: an accepted offer ([acceptOffer]) or an automatic adoption is staged for the
  *   player, which takes it with [takeAdoption] ([SavedQueueLoader]). Whatever the player loads
  *   from a saved queue it reports through [markRestored] or [markAdopted].
+ * - **By hand**, from the queue screen: [uploadNow] and [fetchNow] skip the debounce, the checks
+ *   and the queue sync setting, because the user asked for exactly that. A fetched queue is
+ *   staged for the player like an accepted offer ([stageDownload]).
  */
 @Singleton
 class QueueSyncEngine @Inject constructor(
@@ -206,6 +209,31 @@ class QueueSyncEngine @Inject constructor(
     fun dismissOffer() {
         offeredQueue.value?.let(::clearOffer)
     }
+
+    /**
+     * "Upload queue": saves [state] to the server now, whatever the queue sync setting. The
+     * server then holds this device's queue, so an offered queue counts as declined. Throws
+     * RemoteException.
+     */
+    suspend fun uploadNow(state: QueueState) {
+        remote.save(state.songIds, state.currentIndex, state.positionMillis)
+        uploader.markWritten(state)
+        offeredQueue.value?.let(::clearOffer)
+    }
+
+    /**
+     * "Download queue": the queue saved on the server, whoever saved it and whatever the queue
+     * sync setting; null when nothing is saved. Once adopted, report it to [markDownloaded].
+     * Throws RemoteException.
+     */
+    suspend fun fetchNow(): RemotePlayQueue? = remote.fetch()?.takeIf { it.songs.isNotEmpty() }
+
+    /** Stages [queue] from [fetchNow] for the player ([takeAdoption]), with nothing to undo. */
+    internal fun stageDownload(queue: RemotePlayQueue): RemoteAdoption =
+        RemoteAdoption(queue, undo = null).also(pendingAdoption::set)
+
+    /** [queue] from [fetchNow] was adopted: it is accounted for, so it is not offered again. */
+    fun markDownloaded(queue: RemotePlayQueue) = clearOffer(handled = queue)
 
     /** The player was restored from the local snapshot: that state is already saved everywhere. */
     internal fun markRestored(state: QueueState) {

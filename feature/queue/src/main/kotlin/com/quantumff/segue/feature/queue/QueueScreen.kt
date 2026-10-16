@@ -23,6 +23,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,8 +62,25 @@ fun QueueRoute(onBackClick: () -> Unit, modifier: Modifier = Modifier, viewModel
         onClearQueue = viewModel::clearQueue,
         onSaveAsPlaylist = viewModel::saveAsPlaylist,
         modifier = modifier,
+        transfer = remember(viewModel) {
+            QueueTransferActions(
+                onUpload = viewModel::uploadQueue,
+                onDownload = viewModel::downloadQueue,
+                onConfirmDownload = viewModel::confirmDownload,
+                onCancelDownload = viewModel::cancelDownload,
+            )
+        },
     )
 }
+
+/** The menu's "Upload queue" and "Download queue", and the download's confirmation. */
+@Immutable
+data class QueueTransferActions(
+    val onUpload: () -> Unit = {},
+    val onDownload: () -> Unit = {},
+    val onConfirmDownload: () -> Unit = {},
+    val onCancelDownload: () -> Unit = {},
+)
 
 @Composable
 fun QueueScreen(
@@ -73,6 +91,7 @@ fun QueueScreen(
     onClearQueue: () -> Unit,
     onSaveAsPlaylist: (String) -> Unit,
     modifier: Modifier = Modifier,
+    transfer: QueueTransferActions = QueueTransferActions(),
     listState: LazyListState = rememberLazyListState(),
 ) {
     var dialog by rememberSaveable { mutableStateOf(QueueDialog.None) }
@@ -98,7 +117,10 @@ fun QueueScreen(
                     )
                 }
                 QueueMenu(
-                    enabled = state.trackCount > 0,
+                    hasTracks = state.trackCount > 0,
+                    isTransferring = state.isTransferring,
+                    onUploadClick = transfer.onUpload,
+                    onDownloadClick = transfer.onDownload,
                     onSaveClick = { dialog = QueueDialog.Save },
                     onClearClick = { dialog = QueueDialog.Clear },
                 )
@@ -139,6 +161,9 @@ fun QueueScreen(
             onDismiss = { dialog = QueueDialog.None },
         )
     }
+    state.downloadConfirmation?.let {
+        DownloadQueueDialog(it, onConfirm = transfer.onConfirmDownload, onDismiss = transfer.onCancelDownload)
+    }
 }
 
 private enum class QueueDialog {
@@ -147,20 +172,47 @@ private enum class QueueDialog {
     Save,
 }
 
+@Suppress("LongParameterList")
 @Composable
-private fun QueueMenu(enabled: Boolean, onSaveClick: () -> Unit, onClearClick: () -> Unit) {
+private fun QueueMenu(
+    hasTracks: Boolean,
+    isTransferring: Boolean,
+    onUploadClick: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onSaveClick: () -> Unit,
+    onClearClick: () -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
+        // Enabled on an empty queue too: Download can fill it.
         SegueIconButton(
             icon = SegueIcons.MoreVertical,
             contentDescription = stringResource(com.quantumff.segue.core.designsystem.R.string.ds_more_options),
             onClick = { expanded = true },
-            enabled = enabled,
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = SegueShapes.lg) {
             DropdownMenuItem(
+                text = { Text(stringResource(R.string.feature_queue_upload)) },
+                leadingIcon = { Icon(SegueIcons.UploadQueue, contentDescription = null) },
+                enabled = hasTracks && !isTransferring,
+                onClick = {
+                    expanded = false
+                    onUploadClick()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.feature_queue_download)) },
+                leadingIcon = { Icon(SegueIcons.DownloadQueue, contentDescription = null) },
+                enabled = !isTransferring,
+                onClick = {
+                    expanded = false
+                    onDownloadClick()
+                },
+            )
+            DropdownMenuItem(
                 text = { Text(stringResource(R.string.feature_queue_save_as_playlist)) },
                 leadingIcon = { Icon(SegueIcons.AddToPlaylist, contentDescription = null) },
+                enabled = hasTracks,
                 onClick = {
                     expanded = false
                     onSaveClick()
@@ -171,6 +223,7 @@ private fun QueueMenu(enabled: Boolean, onSaveClick: () -> Unit, onClearClick: (
                 leadingIcon = {
                     Icon(SegueIcons.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                 },
+                enabled = hasTracks,
                 onClick = {
                     expanded = false
                     onClearClick()
@@ -191,6 +244,29 @@ private fun ClearQueueDialog(trackCount: Int, onConfirm: () -> Unit, onDismiss: 
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.feature_queue_clear_confirm), color = MaterialTheme.colorScheme.error)
             }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_queue_cancel)) } },
+    )
+}
+
+@Composable
+private fun DownloadQueueDialog(confirmation: DownloadConfirmation, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = SegueShapes.xl,
+        title = { Text(stringResource(R.string.feature_queue_download_title)) },
+        text = {
+            Text(
+                pluralStringResource(
+                    R.plurals.feature_queue_download_message,
+                    confirmation.trackCount,
+                    confirmation.trackCount,
+                    confirmation.deviceName,
+                ),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.feature_queue_download_confirm)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_queue_cancel)) } },
     )
