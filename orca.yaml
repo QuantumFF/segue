@@ -1,0 +1,15 @@
+# Orca reads this when it makes a worktree of this repo.
+scripts:
+  # local.properties is gitignored, but Gradle needs its sdk.dir, so a new
+  # worktree takes the main checkout's copy. Build outputs are not copied:
+  # Gradle's build cache lives in ~/.gradle and every checkout shares it, so a
+  # new worktree's first assembleDebug is mostly cache hits.
+  setup: |
+    cd "$ORCA_WORKTREE_PATH"
+    if [ ! -f local.properties ]; then
+      if [ -f "$ORCA_ROOT_PATH/local.properties" ]; then
+        cp "$ORCA_ROOT_PATH/local.properties" local.properties
+      elif [ -n "$ANDROID_HOME" ]; then
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+      fi
+    fi
