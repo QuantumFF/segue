@@ -5,10 +5,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
@@ -34,9 +37,13 @@ class ArtistViewModelTest {
     private val stars = FakeStarRatingRepository()
     private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
     private val shuffledAlbums = mutableListOf<AlbumSource>()
+    private val albumRequests = mutableListOf<AlbumPlayRequest>()
     private val playActions = PlayActions(
         onPlaySongs = { songs, start, shuffle -> played += Triple(songs, start, shuffle) },
-        onPlayAlbums = { shuffledAlbums += it.source },
+        onPlayAlbums = {
+            shuffledAlbums += it.source
+            albumRequests += it
+        },
         onPlayNext = {},
         onAddToQueue = {},
         onStartInstantMix = {},
@@ -104,6 +111,22 @@ class ArtistViewModelTest {
     fun noCachedArtistAndFailedRefreshIsError() = runTest {
         artists.error = RemoteException.Unreachable(IOException("offline"))
         viewModel().uiState.test { assertThat(awaitItem()).isEqualTo(ArtistUiState.Error) }
+    }
+
+    @Test
+    fun playAlbumsButtonsQueueTheArtistsAlbumsWithTheChosenOrderAndPlacement() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.Replace, playActions)
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.Next, playActions)
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.End, playActions)
+
+        val artist = AlbumSource.Artist("artist-1")
+        assertThat(albumRequests).containsExactly(
+            AlbumPlayRequest(artist, AlbumOrder.InOrder, QueuePlacement.Replace),
+            AlbumPlayRequest(artist, AlbumOrder.Shuffled, QueuePlacement.Next),
+            AlbumPlayRequest(artist, AlbumOrder.InOrder, QueuePlacement.End),
+        ).inOrder()
     }
 
     @Test

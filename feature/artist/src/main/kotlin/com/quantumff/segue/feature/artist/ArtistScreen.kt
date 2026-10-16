@@ -20,9 +20,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.R as DesignR
@@ -33,6 +35,8 @@ import com.quantumff.segue.core.designsystem.component.DetailTopBar
 import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtons
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsInset
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
@@ -47,6 +51,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
+import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
@@ -58,9 +63,11 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -88,6 +95,7 @@ fun ArtistDetailRoute(
         onPlay = { shuffle -> viewModel.play(playActions, shuffle) },
         onPlayTopSong = { viewModel.playTopSong(playActions, it) },
         onShuffleAlbums = { viewModel.shuffleAlbums(playActions) },
+        onPlayAlbums = { order, placement -> viewModel.playAlbums(order, placement, playActions) },
         onInstantMix = { viewModel.startInstantMix(playActions) },
         onToggleStar = viewModel::toggleArtistStar,
         onToggleSongStar = viewModel::toggleSongStar,
@@ -122,6 +130,7 @@ fun ArtistScreen(
     onRetry: () -> Unit,
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit = { _, _ -> },
     onDownload: () -> Unit = {},
     onRemoveDownload: () -> Unit = {},
     onDownloadSong: (Song) -> Unit = {},
@@ -166,6 +175,7 @@ fun ArtistScreen(
                 onPlay = onPlay,
                 onPlayTopSong = onPlayTopSong,
                 onShuffleAlbums = onShuffleAlbums,
+                onPlayAlbums = onPlayAlbums,
                 onInstantMix = onInstantMix,
                 onToggleStar = onToggleStar,
                 onToggleSongStar = onToggleSongStar,
@@ -210,6 +220,7 @@ private fun ArtistContent(
     onPlay: (shuffle: Boolean) -> Unit,
     onPlayTopSong: (index: Int) -> Unit,
     onShuffleAlbums: () -> Unit,
+    onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit,
     onInstantMix: () -> Unit,
     onToggleStar: () -> Unit,
     onToggleSongStar: (Song) -> Unit,
@@ -224,8 +235,16 @@ private fun ArtistContent(
     var menuSongId by rememberSaveable { mutableStateOf<String?>(null) }
     var showAllTopSongs by rememberSaveable { mutableStateOf(false) }
     var biographyExpanded by rememberSaveable { mutableStateOf(false) }
+    val collapse = rememberCollapseOnScrollState()
+    val hasAlbums = state.albums.isNotEmpty() || state.appearsOn.isNotEmpty()
 
     HeroDetailLayout(
+        modifier = Modifier.nestedScroll(collapse.connection),
+        extraBottomPadding = if (hasAlbums) FloatingAlbumPlayButtonsInset else 0.dp,
+        // The artist's albums in the order the page lists them (DESIGN.md §5.9).
+        overlay = {
+            FloatingAlbumPlayButtons(visible = hasAlbums, expanded = collapse.expanded, onPlay = onPlayAlbums)
+        },
         hero = HeroHeaderState(
             overline = stringResource(R.string.feature_artist_overline),
             title = artist.name,

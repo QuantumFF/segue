@@ -32,7 +32,10 @@ internal class ActiveServerCoverArtUrlResolver @Inject constructor(private val c
         } catch (_: RemoteException.NotSignedIn) {
             return null
         }
-        return CoverArtLocation(url = client.coverArtUrl(coverArtId, size), cacheKey = "$CACHE_KEY_VERSION:$serverId:$coverArtId:$size")
+        return CoverArtLocation(
+            url = client.coverArtUrl(coverArtId, size),
+            cacheKey = "$CACHE_KEY_VERSION:$serverId:$coverArtId:$size",
+        )
     }
 }
 

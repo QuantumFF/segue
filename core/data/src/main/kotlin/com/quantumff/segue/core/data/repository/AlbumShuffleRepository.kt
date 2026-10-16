@@ -8,6 +8,7 @@ import com.quantumff.segue.core.database.dao.PlaylistDao
 import com.quantumff.segue.core.database.dao.SongDao
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.ArtistAlbums
 import com.quantumff.segue.core.model.Song
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -22,7 +23,7 @@ import kotlinx.coroutines.withContext
 interface AlbumShuffleRepository {
     /**
      * The albums [source] covers: the library, a Library albums view (in its sort order), an
-     * artist's albums, albums with songs in a genre, or albums on a playlist. IDs only, so even a
+     * artist's albums (in the artist page's order), albums with songs in a genre, or albums on a playlist. IDs only, so even a
      * large library is cheap to list.
      */
     suspend fun albumIds(source: AlbumSource): List<String>
@@ -55,7 +56,11 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
                 downloadedOnly = source.filter.downloadedOnly,
             )
 
-            is AlbumSource.Artist -> albumDao.observeByArtist(serverId, source.artistId).first().map { it.id }
+            // The artist page's order: their own albums, then the ones that only credit them.
+            is AlbumSource.Artist -> {
+                val albums = albumDao.observeByArtist(serverId, source.artistId).first().map { it.asExternalModel() }
+                ArtistAlbums.of(source.artistId, albums).inPageOrder.map { it.id }
+            }
 
             is AlbumSource.Genre -> songDao.albumIdsByGenre(serverId, source.name)
 

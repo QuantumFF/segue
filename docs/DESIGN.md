@@ -233,6 +233,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
 - Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮.
+- **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: their own albums (newest first), then "Appears on". The list adds the buttons' inset to its bottom padding.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
   2. Album carousels grouped by OpenSubsonic `releaseTypes`: Albums, EPs & Singles, Compilations, Appears on. Without that extension, show one "Albums" carousel sorted by year descending.
