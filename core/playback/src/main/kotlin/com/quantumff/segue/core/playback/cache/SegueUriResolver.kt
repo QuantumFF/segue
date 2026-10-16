@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
 import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.image.CoverArtUrlResolver
 import com.quantumff.segue.core.data.repository.MediaUrlRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.StreamingQuality
@@ -17,12 +18,15 @@ import kotlinx.coroutines.runBlocking
  * Turns `segue://` URIs into what a loader opens. A downloaded song resolves to its local file
  * (works in airplane mode). Other songs become authenticated server URLs that stream at the Wi-Fi
  * or cellular quality from settings, chosen by the network at that moment, with a stable cache
- * key (the URL changes with every salt), so the stream cache is read before the network. Runs on
- * loader threads, so blocking on Room and the account store is fine.
+ * key (the URL changes with every salt), so the stream cache is read before the network. Cover
+ * art becomes a signed `getCoverArt` URL from [CoverArtUrlResolver], with the stable cache key the
+ * app's image loader uses too. Runs on loader threads, so blocking on Room and the account store
+ * is fine.
  */
 class SegueUriResolver @Inject constructor(
     private val downloads: DownloadRepository,
     private val mediaUrls: MediaUrlRepository,
+    private val covers: CoverArtUrlResolver,
     private val preferences: UserPreferencesRepository,
     private val network: NetworkMonitor,
 ) : ResolvingDataSource.Resolver {
@@ -41,7 +45,9 @@ class SegueUriResolver @Inject constructor(
 
                     SegueUris.COVER -> {
                         val size = uri.getQueryParameter(SegueUris.SIZE)?.toIntOrNull()
-                        dataSpec.withUri(Uri.parse(mediaUrls.coverArtUrl(id, size)))
+                            ?: throw IOException("No size in $uri")
+                        val location = covers.resolve(id, size) ?: throw IOException("Not signed in")
+                        dataSpec.buildUpon().setUri(Uri.parse(location.url)).setKey(location.cacheKey).build()
                     }
 
                     else -> throw IOException("Unknown media URI $uri")

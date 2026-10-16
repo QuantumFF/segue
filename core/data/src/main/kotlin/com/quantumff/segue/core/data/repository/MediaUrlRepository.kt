@@ -11,13 +11,10 @@ import javax.inject.Inject
  */
 data class StreamLocation(val url: String, val cacheKey: String)
 
-/** Builds authenticated media URLs for the active server, for the player. */
+/** Builds authenticated stream URLs for the active server, for the player. Cover art: CoverArtUrlResolver. */
 interface MediaUrlRepository {
     /** Throws RemoteException.NotSignedIn when signed out. */
     suspend fun stream(songId: String, quality: StreamingQuality): StreamLocation
-
-    /** Throws RemoteException.NotSignedIn when signed out. */
-    suspend fun coverArtUrl(coverArtId: String, size: Int?): String
 }
 
 internal class SubsonicMediaUrlRepository @Inject constructor(private val clients: SubsonicClientProvider) :
@@ -29,10 +26,5 @@ internal class SubsonicMediaUrlRepository @Inject constructor(private val client
         // The server and quality are part of the key: a transcode is a different file.
         val key = "$serverId/$songId/${bitRate ?: 0}/${quality.format ?: "raw"}"
         return StreamLocation(url, key)
-    }
-
-    override suspend fun coverArtUrl(coverArtId: String, size: Int?): String {
-        val serverId = clients.requireActiveServerId()
-        return clients.client(serverId).coverArtUrl(coverArtId, size)
     }
 }
