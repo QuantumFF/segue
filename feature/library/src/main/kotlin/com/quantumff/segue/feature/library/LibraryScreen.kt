@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -35,8 +37,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -525,11 +527,14 @@ private fun TabContent(
         bottom = bottom + FloatingAlbumPlayButtonsInset,
     )
     val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
-    // A new sort or filter starts at the top, where "Play albums" starts too; otherwise the list
-    // would stay anchored on whichever album was first before.
-    val albumView = Triple(state.sort, state.filter, state.isOffline)
-    val albumGridState = key(albumView) { rememberLazyGridState() }
-    val albumListState = key(albumView) { rememberLazyListState() }
+    val albumGridState = rememberLazyGridState()
+    val albumListState = rememberLazyListState()
+    ScrollAlbumsToTopOnViewChange(
+        view = Triple(state.sort, state.filter, state.isOffline),
+        albums = albums,
+        gridState = albumGridState,
+        listState = albumListState,
+    )
     when (state.tab) {
         LibraryTab.Albums -> when {
             state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
@@ -611,6 +616,60 @@ private fun TabContent(
             )
         }
     }
+}
+
+/**
+ * A new sort or filter starts the Albums tab at the top, where "Play albums" starts too.
+ *
+ * The new albums land a few frames after [view] changes, and a lazy grid keeps its first visible
+ * item in view across a data change, so a reset at the change alone would follow the album that
+ * was showing to its spot in the new order. Asking for the top again in the frame the new albums
+ * land (the first album changes) overrides that, up until the user scrolls.
+ */
+@Composable
+private fun ScrollAlbumsToTopOnViewChange(
+    view: Any,
+    albums: LazyPagingItems<Album>,
+    gridState: LazyGridState,
+    listState: LazyListState,
+) {
+    val tracker = remember { AlbumViewTracker(view) }
+    val firstAlbumId = if (albums.itemCount > 0) albums.peek(0)?.id else null
+    val scrolling = gridState.isScrollInProgress || listState.isScrollInProgress
+    // A side effect runs before this frame's layout, so the request wins over the grid's anchoring.
+    SideEffect {
+        val scrollToTop = when {
+            tracker.view != view -> {
+                tracker.view = view
+                tracker.staleFirstAlbumId = firstAlbumId
+                tracker.awaitingAlbums = true
+                true
+            }
+
+            !tracker.awaitingAlbums -> false
+
+            scrolling -> {
+                tracker.awaitingAlbums = false
+                false
+            }
+
+            firstAlbumId != tracker.staleFirstAlbumId -> {
+                tracker.awaitingAlbums = false
+                true
+            }
+
+            else -> false
+        }
+        if (scrollToTop) {
+            gridState.requestScrollToItem(0)
+            listState.requestScrollToItem(0)
+        }
+    }
+}
+
+private class AlbumViewTracker(var view: Any) {
+    var staleFirstAlbumId: String? = null
+    var awaitingAlbums = false
 }
 
 @Composable
