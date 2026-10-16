@@ -75,9 +75,10 @@ Its main goals are a rich feature set, excellent performance, and good battery l
   timeline period, so each track gets its own gain in sync with its audio. A known peak caps the
   gain so the loudest sample just reaches full scale; without one, a peak limiter (instant attack,
   100 ms release) holds amplified audio below −0.2 dBFS. Offload stays off while boost is on.
-  Without boost the processor leaves the chain, so plain ReplayGain costs no extra copy. Switching
-  boost during playback seeks in place, which flushes the audio buffered at the old level and lets
-  the processor join or leave the chain.
+  The processor stays in the PCM chain with boost off, copying buffers through at unity: the sink
+  only re-reads which processors are active when it flushes (a track change or a real seek), so a
+  processor that left the chain could not pick up boost mid-track. Switching boost during a track
+  briefly plays the audio already buffered at the old level.
 
 ## Phases
 1. Scaffold + design spec

@@ -11,9 +11,10 @@ import com.quantumff.segue.core.playback.service.ScreenOffOffload
  * [processor], and no offload while boost needs the processor. Add it as a player listener so the
  * volume follows track changes.
  *
- * Switching boost moves the gain between player volume and the processor. During playback that
- * comes with a seek in place: it flushes the audio already buffered at the old level, and the
- * processor joins or leaves the audio chain at that flush. Mode and target changes need no seek.
+ * Switching boost moves the gain between player volume and the processor. The volume changes at
+ * once and the processor from its next buffer, so the audio already in the output buffer (well
+ * under a second) briefly plays at the wrong level. A seek in place would flush it, but ExoPlayer
+ * skips a seek to the current position, so that is left as is: it only happens on the switch.
  */
 class ReplayGainController(
     private val player: Player,
@@ -23,15 +24,10 @@ class ReplayGainController(
     private var settings = ReplayGainSettings()
 
     fun update(settings: ReplayGainSettings) {
-        val boostChanged = settings.boost != this.settings.boost
         this.settings = settings
         processor.settings = settings
         offload.processingRequired = settings.boost
         applyVolume()
-        if (boostChanged && player.isLoaded()) {
-            Log.d(REPLAY_GAIN_TAG, "Boost ${if (settings.boost) "on" else "off"}: seeking in place to flush")
-            player.seekTo(player.currentMediaItemIndex, player.currentPosition)
-        }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = applyVolume()
@@ -45,7 +41,4 @@ class ReplayGainController(
         )
         player.volume = volume
     }
-
-    /** Media is prepared, so the audio sink may hold buffered audio. */
-    private fun Player.isLoaded() = playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING
 }

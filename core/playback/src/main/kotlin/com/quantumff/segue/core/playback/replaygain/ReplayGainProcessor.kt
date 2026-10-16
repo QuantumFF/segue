@@ -13,7 +13,11 @@ import kotlin.math.roundToInt
 
 /**
  * ReplayGain with boost: applies [ReplayGainLevel.gain] to PCM, so quiet tracks can be amplified.
- * Without boost it stays out of the chain; player volume does the work then.
+ * Without boost the gain is 1 and buffers are copied through; player volume does the work then.
+ * It stays in the chain either way: the pipeline only re-reads `isActive` when it flushes (a
+ * track change or a real seek), so leaving the chain with boost off would leave the rest of the
+ * track without ReplayGain when boost is switched on. A copy per buffer is cheap next to decoding,
+ * and offload, where the battery win is, skips processors anyway.
  *
  * Each track gets its own gain without a main-thread race: `DefaultAudioSink` reconfigures the
  * processors at every track change, gapless ones included, and flushes them with the new track's
@@ -42,13 +46,6 @@ class ReplayGainProcessor : BaseAudioProcessor() {
         return inputAudioFormat
     }
 
-    /**
-     * In the chain only while boost is on, so plain ReplayGain costs no extra copy. The pipeline
-     * reads this when it flushes: at every track change, and at the seek in place that
-     * [ReplayGainController] makes when boost is switched during playback.
-     */
-    override fun isActive(): Boolean = super.isActive() && settings.boost
-
     override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
         val item = streamMetadata.mediaItem()
         streamId = item?.mediaId
@@ -56,6 +53,7 @@ class ReplayGainProcessor : BaseAudioProcessor() {
         levelSettings = null
         if (inputAudioFormat.sampleRate > 0) limiter.configure(inputAudioFormat.sampleRate)
         limiter.reset()
+        Log.d(REPLAY_GAIN_TAG, "Flushed for $streamId: format=$inputAudioFormat, in chain=$isActive")
     }
 
     override fun onReset() {
