@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_app_name">Segue</string>
+    <string name="widget_tap_to_start">Tap to start</string>
+    <string name="widget_no_art">No cover art</string>
+    <string name="widget_play">Play</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_next">Next</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_strip_label">Now playing strip</string>
+    <string name="widget_card_label">Now playing card</string>
+    <string name="widget_strip_description">Now playing: art, title, play and next</string>
+    <string name="widget_card_description">Now playing with larger art</string>
+</resources>

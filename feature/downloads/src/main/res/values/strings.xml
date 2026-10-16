@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_downloads_title">Downloads</string>
+    <string name="feature_downloads_empty_title">No downloads yet</string>
+    <string name="feature_downloads_empty_message">Pin albums or playlists to listen offline</string>
+    <string name="feature_downloads_storage">%1$s used · %2$s free</string>
+    <string name="feature_downloads_storage_limit">%1$s used · limit %2$s</string>
+    <string name="feature_downloads_limit_reached_title">Storage limit of %1$s reached</string>
+    <string name="feature_downloads_limit_reached_message">New downloads wait until you remove some or raise the limit in Settings › Downloads &amp; storage.</string>
+    <string name="feature_downloads_offline_mode">Offline mode</string>
+    <string name="feature_downloads_offline_mode_on">Only downloaded music is shown and played</string>
+    <string name="feature_downloads_offline_mode_off">Turn on to use only downloaded music</string>
+    <string name="feature_downloads_offline_no_network">No connection: showing downloaded music</string>
+    <string name="feature_downloads_section_active">Downloading</string>
+    <string name="feature_downloads_section_failed">Failed</string>
+    <string name="feature_downloads_section_downloaded">Downloaded</string>
+    <string name="feature_downloads_pause">Pause download</string>
+    <string name="feature_downloads_resume">Resume download</string>
+    <string name="feature_downloads_cancel">Cancel download</string>
+    <string name="feature_downloads_retry">Retry download</string>
+    <string name="feature_downloads_remove_all">Remove all</string>
+    <string name="feature_downloads_remove_all_title">Remove all downloads?</string>
+    <string name="feature_downloads_remove_all_message">Everything downloaded for offline use is deleted from this device.</string>
+    <string name="feature_downloads_keep">Keep</string>
+    <string name="feature_downloads_progress">%1$d of %2$d songs</string>
+    <string name="feature_downloads_paused">Paused · %1$s</string>
+    <string name="feature_downloads_queued">Waiting · %1$s</string>
+    <string name="feature_downloads_kind_album">Album</string>
+    <string name="feature_downloads_kind_playlist">Playlist</string>
+    <string name="feature_downloads_kind_artist">Artist</string>
+    <string name="feature_downloads_kind_song">Song</string>
+    <plurals name="feature_downloads_songs">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
+    <plurals name="feature_downloads_failed_songs">
+        <item quantity="one">%d song failed</item>
+        <item quantity="other">%d songs failed</item>
+    </plurals>
+</resources>

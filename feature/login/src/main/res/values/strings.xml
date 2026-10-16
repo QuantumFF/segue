@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_login_wordmark">Segue</string>
+    <string name="feature_login_subtitle">Connect to your Navidrome server</string>
+    <string name="feature_login_server_url">Server address</string>
+    <string name="feature_login_server_url_placeholder">https://music.example.com</string>
+    <string name="feature_login_username">Username</string>
+    <string name="feature_login_password">Password</string>
+    <string name="feature_login_show_password">Show password</string>
+    <string name="feature_login_hide_password">Hide password</string>
+    <string name="feature_login_connect">Connect</string>
+    <string name="feature_login_checking">Checking…</string>
+    <string name="feature_login_back">Back</string>
+
+    <string name="feature_login_error_missing_url">Enter your server address</string>
+    <string name="feature_login_error_missing_username">Enter your username</string>
+    <string name="feature_login_error_invalid_url">That is not a valid server address</string>
+    <string name="feature_login_error_not_found">Server not found. Check the address.</string>
+    <string name="feature_login_error_unreachable">Server not reachable</string>
+    <string name="feature_login_error_tls">Secure connection failed. The server\'s certificate is not trusted.</string>
+    <string name="feature_login_error_not_subsonic">No Navidrome server at this address</string>
+    <string name="feature_login_error_server">The server could not sign you in</string>
+    <string name="feature_login_error_credentials">Wrong username or password</string>
+
+    <string name="feature_login_sync_title">Setting up your library</string>
+    <string name="feature_login_sync_message">Segue copies your library to this device so browsing is instant and works offline.</string>
+    <string name="feature_login_sync_waiting">Waiting for a network connection and enough battery</string>
+    <string name="feature_login_sync_failed">The first sync did not finish. Segue will retry when you open the app.</string>
+    <string name="feature_login_sync_continue">Continue</string>
+    <string name="feature_login_sync_continue_hint">Browsing works while the sync finishes in the background.</string>
+</resources>

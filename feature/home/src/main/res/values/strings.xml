@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_home_title">Home</string>
+    <string name="feature_home_featured">Featured</string>
+    <string name="feature_home_recently_played">Recently played</string>
+    <string name="feature_home_recently_added">Recently added</string>
+    <string name="feature_home_most_played">Most played</string>
+    <string name="feature_home_explore">Explore</string>
+    <string name="feature_home_explore_refresh">New random albums</string>
+    <string name="feature_home_favorites">Favorites</string>
+    <string name="feature_home_playlists">Playlists</string>
+    <string name="feature_home_genres">Genres</string>
+    <string name="feature_home_play_album">Play %1$s</string>
+    <string name="feature_home_featured_page">Featured album %1$d of %2$d</string>
+    <string name="feature_home_empty_title">Nothing here yet</string>
+    <string name="feature_home_empty_message">Your library is empty, or Segue could not reach the server.</string>
+    <string name="feature_home_syncing_title">Syncing your library</string>
+    <string name="feature_home_syncing_message">Albums appear here as soon as they are copied.</string>
+    <string name="feature_home_refresh">Refresh</string>
+    <string name="feature_home_playback_failed">Could not load the album\'s songs</string>
+    <string name="feature_home_favorite_failed">Could not update favorites</string>
+    <plurals name="feature_home_track_count">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <string name="feature_home_album_list_title_recent">Recently played</string>
+    <string name="feature_home_album_list_title_newest">Recently added</string>
+    <string name="feature_home_album_list_title_frequent">Most played</string>
+    <string name="feature_home_album_list_title_random">Explore</string>
+    <string name="feature_home_album_list_title_starred">Favorites</string>
+    <string name="feature_home_album_list_title_highest">Top rated</string>
+    <string name="feature_home_album_list_title_alphabetical">Albums</string>
+</resources>

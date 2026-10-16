@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_album_overline">Album</string>
+    <string name="feature_album_shuffle">Shuffle</string>
+    <string name="feature_album_shuffle_long_press">Shuffle albums options</string>
+    <string name="feature_album_favorite">Favorite</string>
+    <string name="feature_album_unfavorite">Remove from favorites</string>
+    <string name="feature_album_download">Download</string>
+    <plurals name="feature_album_tracks">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <plurals name="feature_album_minutes">
+        <item quantity="one">%d min</item>
+        <item quantity="other">%d min</item>
+    </plurals>
+    <string name="feature_album_disc">Disc %1$d</string>
+    <string name="feature_album_disc_titled">Disc %1$d · %2$s</string>
+    <string name="feature_album_released">Released %1$d · %2$s, %3$s</string>
+    <string name="feature_album_footer">%1$s, %2$s</string>
+    <string name="feature_album_more_by">More by %1$s</string>
+    <string name="feature_album_shuffle_albums_title">Shuffle albums</string>
+    <string name="feature_album_shuffle_by_artist">Shuffle albums by %1$s</string>
+    <string name="feature_album_shuffle_by_genre">Shuffle %1$s albums</string>
+    <string name="feature_album_error_title">Couldn\'t load this album</string>
+    <string name="feature_album_error_message">Check your connection and try again</string>
+    <string name="feature_album_not_found_title">Album not found</string>
+    <string name="feature_album_not_found_message">It may have been removed from the server</string>
+    <string name="feature_album_favorite_failed">Couldn\'t update favorites</string>
+    <string name="feature_album_rating_failed">Couldn\'t save the rating</string>
+    <string name="feature_album_download_failed">Couldn\'t start the download</string>
+</resources>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_artist_overline">Artist</string>
+    <string name="feature_artist_shuffle">Shuffle</string>
+    <string name="feature_artist_shuffle_albums">Shuffle albums</string>
+    <string name="feature_artist_instant_mix">Instant mix</string>
+    <string name="feature_artist_favorite">Favorite</string>
+    <string name="feature_artist_unfavorite">Remove from favorites</string>
+    <plurals name="feature_artist_albums">
+        <item quantity="one">%d album</item>
+        <item quantity="other">%d albums</item>
+    </plurals>
+    <plurals name="feature_artist_tracks">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <string name="feature_artist_top_songs">Top songs</string>
+    <string name="feature_artist_show_less">Show less</string>
+    <string name="feature_artist_section_albums">Albums</string>
+    <string name="feature_artist_section_appears_on">Appears on</string>
+    <string name="feature_artist_section_similar">Similar artists</string>
+    <string name="feature_artist_section_about">About</string>
+    <string name="feature_artist_more">More</string>
+    <string name="feature_artist_less">Less</string>
+    <string name="feature_artist_error_title">Couldn\'t load this artist</string>
+    <string name="feature_artist_error_message">Check your connection and try again</string>
+    <string name="feature_artist_not_found_title">Artist not found</string>
+    <string name="feature_artist_not_found_message">They may have been removed from the server</string>
+    <string name="feature_artist_favorite_failed">Couldn\'t update favorites</string>
+    <string name="feature_artist_load_failed">Couldn\'t load songs. Check your connection.</string>
+    <string name="feature_artist_no_similar_songs">No similar songs found for this artist</string>
+    <string name="feature_artist_download_failed">Couldn\'t start the download</string>
+</resources>

@@ -1,0 +1,40 @@
+{
+  "subsonic-response": {
+    "status": "ok",
+    "version": "1.16.1",
+    "type": "navidrome",
+    "serverVersion": "0.58.0 (fe1b0a2)",
+    "openSubsonic": true,
+    "playlist": {
+      "id": "pl-1",
+      "name": "Late night",
+      "comment": "Quiet stuff",
+      "songCount": 2,
+      "duration": 527,
+      "public": true,
+      "owner": "admin",
+      "created": "2024-01-01T00:00:00Z",
+      "changed": "2024-09-01T12:00:00Z",
+      "coverArt": "pl-pl-1_66d45a00",
+      "readonly": false,
+      "entry": [
+        {
+          "id": "5pTq9vU2mHB4kGiMDw1z1T",
+          "isDir": false,
+          "title": "15 Step",
+          "albumId": "3AFHPHxJIYHtKsRfXkpbrF",
+          "duration": 238,
+          "replayGain": {}
+        },
+        {
+          "id": "1gQ0k9XnH2a7sYw3bL5mFe",
+          "isDir": false,
+          "title": "Bodysnatchers",
+          "albumId": "3AFHPHxJIYHtKsRfXkpbrF",
+          "duration": 289,
+          "replayGain": {}
+        }
+      ]
+    }
+  }
+}

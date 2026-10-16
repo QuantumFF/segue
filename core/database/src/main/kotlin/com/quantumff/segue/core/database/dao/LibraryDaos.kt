@@ -1,0 +1,445 @@
+package com.quantumff.segue.core.database.dao
+
+import androidx.paging.PagingSource
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Upsert
+import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
+import com.quantumff.segue.core.database.model.AlbumEntity
+import com.quantumff.segue.core.database.model.AlbumListEntryEntity
+import com.quantumff.segue.core.database.model.ArtistEntity
+import com.quantumff.segue.core.database.model.GenreEntity
+import com.quantumff.segue.core.database.model.PlaylistEntity
+import com.quantumff.segue.core.database.model.PlaylistSongEntity
+import com.quantumff.segue.core.database.model.SongEntity
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Android before API 31 ships SQLite with a 999 bound-parameter limit, so `IN (:ids)` queries run
+ * in chunks of this size.
+ */
+internal const val SQL_CHUNK = 500
+
+/** The album filter row (DESIGN.md §4.2): favorites only, one genre, one year. Null parameters do not filter. */
+private const val ALBUM_FILTER =
+    "serverId = :serverId AND (:starredOnly = 0 OR starredAt IS NOT NULL) " +
+        "AND (:genre IS NULL OR genre = :genre) AND (:year IS NULL OR year = :year)"
+
+/** Albums with at least one downloaded song. Only in queries that need it, so others do not observe `downloads`. */
+private const val DOWNLOADED_ALBUM =
+    "id IN (SELECT s.albumId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id " +
+        "WHERE s.serverId = :serverId AND d.state = 'Completed' AND s.albumId IS NOT NULL)"
+
+private const val DOWNLOADED_ALBUM_FILTER = "$ALBUM_FILTER AND $DOWNLOADED_ALBUM"
+
+@Dao
+abstract class ArtistDao {
+    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
+    abstract fun pagingSource(serverId: String): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
+    abstract fun observeAll(serverId: String): Flow<List<ArtistEntity>>
+
+    /** Artists with a downloaded song, as track artist or as the artist of an album with one. */
+    @Query(
+        """
+        SELECT * FROM artists WHERE serverId = :serverId AND id IN (
+            SELECT s.artistId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+            WHERE s.serverId = :serverId AND d.state = 'Completed'
+            UNION
+            SELECT a.artistId FROM albums a INNER JOIN songs s ON s.serverId = a.serverId AND s.albumId = a.id
+            INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
+            WHERE a.serverId = :serverId AND d.state = 'Completed'
+        )
+        ORDER BY sortName
+        """,
+    )
+    abstract fun pagingSourceDownloaded(serverId: String): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT * FROM artists WHERE serverId = :serverId AND id = :id")
+    abstract fun observe(serverId: String, id: String): Flow<ArtistEntity?>
+
+    @Query("SELECT COUNT(*) FROM artists WHERE serverId = :serverId")
+    abstract fun observeCount(serverId: String): Flow<Int>
+
+    @Query("SELECT * FROM artists WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
+    abstract fun observeStarred(serverId: String): Flow<List<ArtistEntity>>
+
+    @Upsert
+    abstract suspend fun upsertAll(artists: List<ArtistEntity>)
+
+    @Query("SELECT id FROM artists WHERE serverId = :serverId")
+    abstract suspend fun ids(serverId: String): List<String>
+
+    @Query("UPDATE artists SET starredAt = :starredAt WHERE serverId = :serverId AND id = :id")
+    abstract suspend fun setStarred(serverId: String, id: String, starredAt: Long?)
+
+    @Query("UPDATE artists SET userRating = :rating WHERE serverId = :serverId AND id = :id")
+    abstract suspend fun setRating(serverId: String, id: String, rating: Int?)
+
+    @Transaction
+    open suspend fun deleteByIds(serverId: String, ids: Collection<String>) {
+        ids.chunked(SQL_CHUNK).forEach { deleteChunk(serverId, it) }
+    }
+
+    @Query("DELETE FROM artists WHERE serverId = :serverId AND id IN (:ids)")
+    protected abstract suspend fun deleteChunk(serverId: String, ids: List<String>)
+}
+
+@Dao
+abstract class AlbumDao {
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY sortName, id")
+    abstract fun pagingSourceByName(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName, id")
+    abstract fun pagingSourceByArtist(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY createdAt DESC, sortName, id")
+    abstract fun pagingSourceByRecentlyAdded(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY year DESC, sortName, id")
+    abstract fun pagingSourceByYear(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE $ALBUM_FILTER")
+    abstract fun observeCount(serverId: String, starredOnly: Boolean, genre: String?, year: Int?): Flow<Int>
+
+    // The same four orders limited to albums with a downloaded song (the "Downloaded" chip, offline mode).
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY sortName, id")
+    abstract fun downloadedPagingSourceByName(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName, id")
+    abstract fun downloadedPagingSourceByArtist(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY createdAt DESC, sortName, id")
+    abstract fun downloadedPagingSourceByRecentlyAdded(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY year DESC, sortName, id")
+    abstract fun downloadedPagingSourceByYear(
+        serverId: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+    ): PagingSource<Int, AlbumEntity>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE $DOWNLOADED_ALBUM_FILTER")
+    abstract fun observeDownloadedCount(serverId: String, starredOnly: Boolean, genre: String?, year: Int?): Flow<Int>
+
+    /**
+     * The IDs of the albums the paged Library list shows for this sort and filter, in the same
+     * order ("Play albums"). [sort] is an `AlbumSortOrder` name; each branch mirrors the matching
+     * paging query above, ties broken by ID.
+     */
+    @Query(
+        """
+        SELECT id FROM albums WHERE $ALBUM_FILTER AND (:downloadedOnly = 0 OR $DOWNLOADED_ALBUM)
+        ORDER BY
+            CASE WHEN :sort = 'Artist' THEN artist END COLLATE NOCASE,
+            CASE WHEN :sort = 'Artist' THEN year END,
+            CASE WHEN :sort = 'RecentlyAdded' THEN createdAt END DESC,
+            CASE WHEN :sort = 'Year' THEN year END DESC,
+            sortName, id
+        """,
+    )
+    abstract suspend fun idsInViewOrder(
+        serverId: String,
+        sort: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+        downloadedOnly: Boolean,
+    ): List<String>
+
+    /** Release years present in the library, newest first. */
+    @Query(
+        "SELECT DISTINCT year FROM albums WHERE serverId = :serverId AND year IS NOT NULL AND year > 0 ORDER BY year DESC",
+    )
+    abstract fun observeYears(serverId: String): Flow<List<Int>>
+
+    @Query("SELECT * FROM albums WHERE serverId = :serverId AND id = :id")
+    abstract fun observe(serverId: String, id: String): Flow<AlbumEntity?>
+
+    /** Albums by the artist, including albums that only credit them in OpenSubsonic `artists`. */
+    @Query(
+        """
+        SELECT * FROM albums WHERE serverId = :serverId AND (
+            artistId = :artistId OR id IN (SELECT albumId FROM album_artists WHERE serverId = :serverId AND artistId = :artistId)
+        )
+        ORDER BY year DESC, sortName
+        """,
+    )
+    abstract fun observeByArtist(serverId: String, artistId: String): Flow<List<AlbumEntity>>
+
+    @Query("SELECT * FROM albums WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
+    abstract fun observeStarred(serverId: String): Flow<List<AlbumEntity>>
+
+    @Upsert
+    abstract suspend fun upsertAll(albums: List<AlbumEntity>)
+
+    @Query("SELECT id FROM albums WHERE serverId = :serverId")
+    abstract suspend fun ids(serverId: String): List<String>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE serverId = :serverId")
+    abstract suspend fun count(serverId: String): Int
+
+    /** The subset of [ids] already stored. */
+    open suspend fun knownIds(serverId: String, ids: Collection<String>): List<String> =
+        ids.chunked(SQL_CHUNK).flatMap { knownIdsChunk(serverId, it) }
+
+    @Query("UPDATE albums SET starredAt = :starredAt WHERE serverId = :serverId AND id = :id")
+    abstract suspend fun setStarred(serverId: String, id: String, starredAt: Long?)
+
+    @Query("UPDATE albums SET userRating = :rating WHERE serverId = :serverId AND id = :id")
+    abstract suspend fun setRating(serverId: String, id: String, rating: Int?)
+
+    /** Replaces the artist credits of [albumIds] with [refs]. */
+    @Transaction
+    open suspend fun replaceAlbumArtists(
+        serverId: String,
+        albumIds: Collection<String>,
+        refs: List<AlbumArtistCrossRef>,
+    ) {
+        albumIds.chunked(SQL_CHUNK).forEach { deleteAlbumArtistsChunk(serverId, it) }
+        insertAlbumArtists(refs)
+    }
+
+    /** Deletes albums with their songs and artist credits. */
+    @Transaction
+    open suspend fun deleteByIds(serverId: String, ids: Collection<String>) {
+        ids.chunked(SQL_CHUNK).forEach {
+            deleteAlbumArtistsChunk(serverId, it)
+            deleteSongsOfAlbumsChunk(serverId, it)
+            deleteChunk(serverId, it)
+        }
+    }
+
+    @Query("SELECT id FROM albums WHERE serverId = :serverId AND id IN (:ids)")
+    protected abstract suspend fun knownIdsChunk(serverId: String, ids: List<String>): List<String>
+
+    @Insert
+    protected abstract suspend fun insertAlbumArtists(refs: List<AlbumArtistCrossRef>)
+
+    @Query("DELETE FROM album_artists WHERE serverId = :serverId AND albumId IN (:albumIds)")
+    protected abstract suspend fun deleteAlbumArtistsChunk(serverId: String, albumIds: List<String>)
+
+    @Query("DELETE FROM songs WHERE serverId = :serverId AND albumId IN (:albumIds)")
+    protected abstract suspend fun deleteSongsOfAlbumsChunk(serverId: String, albumIds: List<String>)
+
+    @Query("DELETE FROM albums WHERE serverId = :serverId AND id IN (:ids)")
+    protected abstract suspend fun deleteChunk(serverId: String, ids: List<String>)
+}
+
+@Dao
+abstract class SongDao {
+    @Query("SELECT * FROM songs WHERE serverId = :serverId ORDER BY sortName")
+    abstract fun pagingSource(serverId: String): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE serverId = :serverId AND genre = :genre ORDER BY sortName")
+    abstract fun pagingSourceByGenre(serverId: String, genre: String): PagingSource<Int, SongEntity>
+
+    @Query(
+        """
+        SELECT songs.* FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
+        WHERE songs.serverId = :serverId AND downloads.state = 'Completed' ORDER BY songs.sortName
+        """,
+    )
+    abstract fun pagingSourceDownloaded(serverId: String): PagingSource<Int, SongEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
+        WHERE songs.serverId = :serverId AND downloads.state = 'Completed'
+        """,
+    )
+    abstract fun observeDownloadedCount(serverId: String): Flow<Int>
+
+    @Query("SELECT * FROM songs WHERE serverId = :serverId AND albumId = :albumId ORDER BY discNumber, track, sortName")
+    abstract fun observeByAlbum(serverId: String, albumId: String): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs WHERE serverId = :serverId AND id = :id")
+    abstract fun observe(serverId: String, id: String): Flow<SongEntity?>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE serverId = :serverId")
+    abstract fun observeCount(serverId: String): Flow<Int>
+
+    @Query("SELECT * FROM songs WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
+    abstract fun observeStarred(serverId: String): Flow<List<SongEntity>>
+
+    /** Songs for [ids], in no particular order. Missing IDs are skipped. */
+    open suspend fun getByIds(serverId: String, ids: Collection<String>): List<SongEntity> =
+        ids.distinct().chunked(SQL_CHUNK).flatMap { getByIdsChunk(serverId, it) }
+
+    /** Songs of [albumIds], each album in disc then track order; albums in no particular order. */
+    open suspend fun getByAlbumIds(serverId: String, albumIds: Collection<String>): List<SongEntity> =
+        albumIds.distinct().chunked(SQL_CHUNK).flatMap { getByAlbumIdsChunk(serverId, it) }
+
+    /** Albums with at least one song in [genre]. */
+    @Query("SELECT DISTINCT albumId FROM songs WHERE serverId = :serverId AND genre = :genre AND albumId IS NOT NULL")
+    abstract suspend fun albumIdsByGenre(serverId: String, genre: String): List<String>
+
+    @Upsert
+    abstract suspend fun upsertAll(songs: List<SongEntity>)
+
+    @Query("UPDATE songs SET starredAt = :starredAt WHERE serverId = :serverId AND id = :id")
+    abstract suspend fun setStarred(serverId: String, id: String, starredAt: Long?)
+
+    @Query("UPDATE songs SET userRating = :rating WHERE serverId = :serverId AND id = :id")
+    abstract suspend fun setRating(serverId: String, id: String, rating: Int?)
+
+    /** Makes [songs] the complete track list of [albumIds]: songs no longer on those albums are removed. */
+    @Transaction
+    open suspend fun replaceSongsOfAlbums(serverId: String, albumIds: Collection<String>, songs: List<SongEntity>) {
+        val keep = songs.mapTo(HashSet()) { it.id }
+        albumIds.chunked(SQL_CHUNK).forEach { chunk ->
+            val stale = idsOfAlbumsChunk(serverId, chunk).filterNot { it in keep }
+            stale.chunked(SQL_CHUNK).forEach { deleteChunk(serverId, it) }
+        }
+        upsertAll(songs)
+    }
+
+    @Query("SELECT * FROM songs WHERE serverId = :serverId AND id IN (:ids)")
+    protected abstract suspend fun getByIdsChunk(serverId: String, ids: List<String>): List<SongEntity>
+
+    @Query(
+        "SELECT * FROM songs WHERE serverId = :serverId AND albumId IN (:albumIds) " +
+            "ORDER BY albumId, discNumber, track, sortName",
+    )
+    protected abstract suspend fun getByAlbumIdsChunk(serverId: String, albumIds: List<String>): List<SongEntity>
+
+    @Query("SELECT id FROM songs WHERE serverId = :serverId AND albumId IN (:albumIds)")
+    protected abstract suspend fun idsOfAlbumsChunk(serverId: String, albumIds: List<String>): List<String>
+
+    @Query("DELETE FROM songs WHERE serverId = :serverId AND id IN (:ids)")
+    protected abstract suspend fun deleteChunk(serverId: String, ids: List<String>)
+}
+
+@Dao
+abstract class GenreDao {
+    @Query("SELECT * FROM genres WHERE serverId = :serverId ORDER BY name COLLATE NOCASE")
+    abstract fun observeAll(serverId: String): Flow<List<GenreEntity>>
+
+    @Transaction
+    open suspend fun replaceAll(serverId: String, genres: List<GenreEntity>) {
+        deleteAll(serverId)
+        insertAll(genres)
+    }
+
+    @Query("DELETE FROM genres WHERE serverId = :serverId")
+    protected abstract suspend fun deleteAll(serverId: String)
+
+    @Upsert
+    protected abstract suspend fun insertAll(genres: List<GenreEntity>)
+}
+
+@Dao
+abstract class PlaylistDao {
+    @Query("SELECT * FROM playlists WHERE serverId = :serverId ORDER BY name COLLATE NOCASE")
+    abstract fun observeAll(serverId: String): Flow<List<PlaylistEntity>>
+
+    @Query("SELECT * FROM playlists WHERE serverId = :serverId AND id = :id")
+    abstract fun observe(serverId: String, id: String): Flow<PlaylistEntity?>
+
+    /** The playlist's songs in order, duplicates included. Songs not yet synced are skipped. */
+    @Query(
+        """
+        SELECT songs.* FROM playlist_songs
+        INNER JOIN songs ON songs.serverId = playlist_songs.serverId AND songs.id = playlist_songs.songId
+        WHERE playlist_songs.serverId = :serverId AND playlist_songs.playlistId = :playlistId
+        ORDER BY playlist_songs.position
+        """,
+    )
+    abstract fun observeSongs(serverId: String, playlistId: String): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM playlists WHERE serverId = :serverId")
+    abstract suspend fun getAll(serverId: String): List<PlaylistEntity>
+
+    @Upsert
+    abstract suspend fun upsertAll(playlists: List<PlaylistEntity>)
+
+    /** Stores the playlist and makes [songIds] its complete track list. */
+    @Transaction
+    open suspend fun replacePlaylist(playlist: PlaylistEntity, songIds: List<String>) {
+        upsertAll(listOf(playlist))
+        deleteSongs(playlist.serverId, playlist.id)
+        insertSongs(songIds.mapIndexed { index, id -> PlaylistSongEntity(playlist.serverId, playlist.id, index, id) })
+    }
+
+    @Transaction
+    open suspend fun deleteByIds(serverId: String, ids: Collection<String>) {
+        ids.forEach {
+            deleteSongs(serverId, it)
+            delete(serverId, it)
+        }
+    }
+
+    @Query("DELETE FROM playlists WHERE serverId = :serverId AND id = :id")
+    protected abstract suspend fun delete(serverId: String, id: String)
+
+    @Query("DELETE FROM playlist_songs WHERE serverId = :serverId AND playlistId = :playlistId")
+    protected abstract suspend fun deleteSongs(serverId: String, playlistId: String)
+
+    @Insert
+    protected abstract suspend fun insertSongs(songs: List<PlaylistSongEntity>)
+}
+
+@Dao
+abstract class AlbumListDao {
+    @Query(
+        """
+        SELECT albums.* FROM album_list_entries
+        INNER JOIN albums ON albums.serverId = album_list_entries.serverId AND albums.id = album_list_entries.albumId
+        WHERE album_list_entries.serverId = :serverId AND album_list_entries.listType = :listType
+        ORDER BY album_list_entries.position
+        """,
+    )
+    abstract fun observeAlbums(serverId: String, listType: String): Flow<List<AlbumEntity>>
+
+    @Transaction
+    open suspend fun replace(serverId: String, listType: String, albumIds: List<String>) {
+        deleteList(serverId, listType)
+        insertAll(albumIds.mapIndexed { index, id -> AlbumListEntryEntity(serverId, listType, index, id) })
+    }
+
+    @Query("DELETE FROM album_list_entries WHERE serverId = :serverId AND listType = :listType")
+    protected abstract suspend fun deleteList(serverId: String, listType: String)
+
+    @Upsert
+    protected abstract suspend fun insertAll(entries: List<AlbumListEntryEntity>)
+}

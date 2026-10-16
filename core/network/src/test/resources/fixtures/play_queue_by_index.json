@@ -1,0 +1,42 @@
+{
+  "subsonic-response": {
+    "status": "ok",
+    "version": "1.16.1",
+    "type": "navidrome",
+    "serverVersion": "0.58.0 (fe1b0a2)",
+    "openSubsonic": true,
+    "playQueueByIndex": {
+      "entry": [
+        {
+          "id": "5pTq9vU2mHB4kGiMDw1z1T",
+          "isDir": false,
+          "title": "15 Step",
+          "album": "In Rainbows",
+          "duration": 238,
+          "replayGain": {}
+        },
+        {
+          "id": "1gQ0k9XnH2a7sYw3bL5mFe",
+          "isDir": false,
+          "title": "Bodysnatchers",
+          "album": "In Rainbows",
+          "duration": 289,
+          "replayGain": {}
+        },
+        {
+          "id": "5pTq9vU2mHB4kGiMDw1z1T",
+          "isDir": false,
+          "title": "15 Step",
+          "album": "In Rainbows",
+          "duration": 238,
+          "replayGain": {}
+        }
+      ],
+      "currentIndex": 2,
+      "position": 1200,
+      "username": "admin",
+      "changed": "2024-09-12T18:30:00Z",
+      "changedBy": "Segue-3f2a"
+    }
+  }
+}
