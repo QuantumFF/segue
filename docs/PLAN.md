@@ -60,7 +60,8 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 
 ## ReplayGain
 - **Source:** Off, Track or Album. A missing value falls back to the other one, then to
-  OpenSubsonic `fallbackGain`; a track without any plays at unity.
+  OpenSubsonic `fallbackGain`; a track without any plays at unity. A 0 dB gain with a zero or
+  absent peak counts as missing, since servers report missing values that way.
 - **Normalisation** mirrors Symfonium's "Replay gain normalisation": the loudness every track is
   levelled to. −18 LUFS (ReplayGain 2.0, the default) applies Navidrome's gains as they are;
   −23 LUFS (EBU R128) is 5 dB quieter. Symfonium also has "Disabled", which skips its conversion

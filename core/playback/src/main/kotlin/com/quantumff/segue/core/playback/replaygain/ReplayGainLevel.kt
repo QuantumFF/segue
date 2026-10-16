@@ -30,10 +30,12 @@ data class ReplayGainLevel(val volume: Float, val gain: Float, val limit: Boolea
 
         fun of(gain: ReplayGain?, settings: ReplayGainSettings): ReplayGainLevel {
             if (gain == null) return Unity
+            val track = Pair(gain.trackGain, gain.trackPeak).orMissing()
+            val album = Pair(gain.albumGain, gain.albumPeak).orMissing()
             val (db, peak) = when (settings.mode) {
                 ReplayGainMode.Off -> return Unity
-                ReplayGainMode.Track -> (gain.trackGain ?: gain.albumGain) to (gain.trackPeak ?: gain.albumPeak)
-                ReplayGainMode.Album -> (gain.albumGain ?: gain.trackGain) to (gain.albumPeak ?: gain.trackPeak)
+                ReplayGainMode.Track -> (track.first ?: album.first) to (track.second ?: album.second)
+                ReplayGainMode.Album -> (album.first ?: track.first) to (album.second ?: track.second)
             }
             val totalDb = min((db ?: gain.fallbackGain ?: return Unity) + settings.target.offsetDb, MAX_BOOST_DB)
             var linear = 10f.pow(totalDb / DB_PER_DECADE)
@@ -48,6 +50,13 @@ data class ReplayGainLevel(val volume: Float, val gain: Float, val limit: Boolea
 
         private const val UNITY = 1f
         private const val DB_PER_DECADE = 20f
+
+        /**
+         * A (gain, peak) pair with a 0 dB gain and a zero or absent peak is how servers report a
+         * missing value; real audio always peaks above 0. Missing pairs become (null, null).
+         */
+        private fun Pair<Float?, Float?>.orMissing(): Pair<Float?, Float?> =
+            if (first == 0f && (second == null || second == 0f)) Pair(null, null) else this
 
         /** [linear] in dB, for logs. */
         internal fun decibels(linear: Float) = DB_PER_DECADE * log10(linear)

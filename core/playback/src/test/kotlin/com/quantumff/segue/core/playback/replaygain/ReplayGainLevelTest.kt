@@ -42,6 +42,32 @@ class ReplayGainLevelTest {
     }
 
     @Test
+    fun `a zero gain with a zero or absent peak counts as missing, so the other value is used`() {
+        // Servers report a missing album gain as 0; real audio always peaks above 0.
+        val noAlbum = ReplayGain(trackGain = -4f, albumGain = 0f, trackPeak = 0.9f, albumPeak = 0f)
+        assertThat(db(ReplayGainLevel.of(noAlbum, track.copy(mode = ReplayGainMode.Album)).volume))
+            .isWithin(0.01).of(-4.0)
+        val noAlbumPeak = ReplayGain(trackGain = -4f, albumGain = 0f, trackPeak = 0.9f)
+        assertThat(db(ReplayGainLevel.of(noAlbumPeak, track.copy(mode = ReplayGainMode.Album)).volume))
+            .isWithin(0.01).of(-4.0)
+        val noTrack = ReplayGain(trackGain = 0f, albumGain = -7f, albumPeak = 0.9f)
+        assertThat(db(ReplayGainLevel.of(noTrack, track).volume)).isWithin(0.01).of(-7.0)
+    }
+
+    @Test
+    fun `a zero gain with a real peak is a real 0 dB`() {
+        val zero = ReplayGain(trackGain = -4f, albumGain = 0f, trackPeak = 0.9f, albumPeak = 0.5f)
+        assertThat(ReplayGainLevel.of(zero, track.copy(mode = ReplayGainMode.Album)).volume).isEqualTo(1f)
+    }
+
+    @Test
+    fun `both values missing as zeros fall through to the fallback gain, then unity`() {
+        val zeros = ReplayGain(trackGain = 0f, albumGain = 0f, trackPeak = 0f, albumPeak = 0f)
+        assertThat(ReplayGainLevel.of(zeros.copy(fallbackGain = -3f), track).volume.let(::db)).isWithin(0.01).of(-3.0)
+        assertThat(ReplayGainLevel.of(zeros, boost)).isEqualTo(ReplayGainLevel.Unity)
+    }
+
+    @Test
     fun `missing tags leave the track at unity, with or without boost`() {
         assertThat(ReplayGainLevel.of(null, track)).isEqualTo(ReplayGainLevel.Unity)
         assertThat(ReplayGainLevel.of(null, boost)).isEqualTo(ReplayGainLevel.Unity)
