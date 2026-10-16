@@ -36,7 +36,12 @@
     <string name="feature_settings_replay_gain_off">Off</string>
     <string name="feature_settings_replay_gain_track">Track gain</string>
     <string name="feature_settings_replay_gain_album">Album gain</string>
-    <string name="feature_settings_preamp">ReplayGain preamp</string>
+    <string name="feature_settings_replay_gain_target">ReplayGain normalisation</string>
+    <string name="feature_settings_replay_gain_target_summary">%1$s. The loudness every track is matched to.</string>
+    <string name="feature_settings_replay_gain_target_rg2">−18 LUFS (ReplayGain 2.0)</string>
+    <string name="feature_settings_replay_gain_target_ebu">−23 LUFS (European Broadcasting Union)</string>
+    <string name="feature_settings_replay_gain_boost">Boost quiet tracks</string>
+    <string name="feature_settings_replay_gain_boost_summary">Raises quiet tracks too, holding peaks below clipping. Uses more battery.</string>
     <string name="feature_settings_stop_when_paused">Stop when paused</string>
     <plurals name="feature_settings_minutes">
         <item quantity="one">After %d minute</item>

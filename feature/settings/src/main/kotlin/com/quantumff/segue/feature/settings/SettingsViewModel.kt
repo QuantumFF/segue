@@ -9,6 +9,7 @@ import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
@@ -16,7 +17,6 @@ import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlin.math.roundToInt
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.SharingStarted
@@ -64,11 +64,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setReplayGainMode(mode: ReplayGainMode) = launch { preferencesRepository.setReplayGainMode(mode) }
 
-    /** Snaps to [PREAMP_STEP_DB] and clamps to [UserPreferences.REPLAY_GAIN_PREAMP_RANGE]. */
-    fun setReplayGainPreamp(db: Float) = launch {
-        val snapped = (db / PREAMP_STEP_DB).roundToInt() * PREAMP_STEP_DB
-        preferencesRepository.setReplayGainPreampDb(snapped.coerceIn(UserPreferences.REPLAY_GAIN_PREAMP_RANGE))
-    }
+    fun setReplayGainTarget(target: ReplayGainTarget) = launch { preferencesRepository.setReplayGainTarget(target) }
+
+    fun setReplayGainBoost(enabled: Boolean) = launch { preferencesRepository.setReplayGainBoost(enabled) }
 
     fun setWifiQuality(quality: StreamingQuality) = launch { preferencesRepository.setWifiStreamingQuality(quality) }
 
@@ -99,7 +97,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     companion object {
-        const val PREAMP_STEP_DB = 0.5f
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
         /** Streaming quality choices: the original file, or a transcode Navidrome can produce. */

@@ -12,6 +12,7 @@ import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.datastore.StoredAccounts
 import com.quantumff.segue.core.datastore.StoredAccountsSerializer
+import com.quantumff.segue.core.datastore.UserPreferencesDataSource
 import com.quantumff.segue.core.datastore.crypto.AesGcmPasswordCipher
 import com.quantumff.segue.core.datastore.crypto.AndroidKeystoreKeyProvider
 import com.quantumff.segue.core.datastore.crypto.PasswordCipher
@@ -38,6 +39,7 @@ object DataStoreModule {
         @ApplicationScope scope: CoroutineScope,
         @Dispatcher(SegueDispatchers.IO) ioDispatcher: CoroutineDispatcher,
     ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        migrations = UserPreferencesDataSource.MIGRATIONS,
         scope = scope + ioDispatcher,
         produceFile = { context.preferencesDataStoreFile("user_preferences") },
     )

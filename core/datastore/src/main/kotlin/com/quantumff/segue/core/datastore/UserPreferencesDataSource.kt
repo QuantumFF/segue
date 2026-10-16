@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.datastore
 
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -10,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -39,7 +41,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             queueSyncEnabled = prefs[Keys.QueueSyncEnabled] ?: defaults.queueSyncEnabled,
             adoptRemoteQueueAutomatically = prefs[Keys.AdoptRemoteQueue] ?: defaults.adoptRemoteQueueAutomatically,
             replayGainMode = prefs.enum(Keys.ReplayGainMode, defaults.replayGainMode),
-            replayGainPreampDb = prefs[Keys.ReplayGainPreamp] ?: defaults.replayGainPreampDb,
+            replayGainTarget = prefs.enum(Keys.ReplayGainTarget, defaults.replayGainTarget),
+            replayGainBoost = prefs[Keys.ReplayGainBoost] ?: defaults.replayGainBoost,
             streamCacheSizeMb = prefs[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
             stopWhenPausedMinutes = prefs[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
         )
@@ -72,7 +75,9 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
 
     suspend fun setReplayGainMode(mode: ReplayGainMode) = set(Keys.ReplayGainMode, mode.name)
 
-    suspend fun setReplayGainPreampDb(preampDb: Float) = set(Keys.ReplayGainPreamp, preampDb)
+    suspend fun setReplayGainTarget(target: ReplayGainTarget) = set(Keys.ReplayGainTarget, target.name)
+
+    suspend fun setReplayGainBoost(enabled: Boolean) = set(Keys.ReplayGainBoost, enabled)
 
     suspend fun setStreamCacheSizeMb(sizeMb: Int) = set(Keys.StreamCacheSizeMb, sizeMb)
 
@@ -127,7 +132,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     private inline fun <reified E : Enum<E>> Preferences.enum(key: Preferences.Key<String>, default: E): E =
         this[key]?.let { stored -> enumValues<E>().firstOrNull { it.name == stored } } ?: default
 
-    private object Keys {
+    internal object Keys {
         val ThemeMode = stringPreferencesKey("theme_mode")
         val AccentSource = stringPreferencesKey("accent_source")
         val AccentPreset = stringPreferencesKey("accent_preset")
@@ -140,14 +145,21 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val AdoptRemoteQueue = booleanPreferencesKey("adopt_remote_queue_automatically")
         val DeviceId = stringPreferencesKey("device_id")
         val ReplayGainMode = stringPreferencesKey("replay_gain_mode")
-        val ReplayGainPreamp = floatPreferencesKey("replay_gain_preamp_db")
+        val ReplayGainTarget = stringPreferencesKey("replay_gain_target")
+        val ReplayGainBoost = booleanPreferencesKey("replay_gain_boost")
+
+        /** The free preamp ReplayGainTarget replaced; see [ReplayGainPreampMigration]. */
+        val LegacyReplayGainPreamp = floatPreferencesKey("replay_gain_preamp_db")
         val StreamCacheSizeMb = intPreferencesKey("stream_cache_size_mb")
         val StopWhenPausedMinutes = intPreferencesKey("stop_when_paused_minutes")
         val RecentSearches = stringPreferencesKey("recent_searches")
     }
 
-    private companion object {
-        const val RECENT_SEPARATOR = "\n"
-        const val MAX_RECENT_SEARCHES = 10
+    companion object {
+        /** Run by the preferences DataStore before its first read. */
+        val MIGRATIONS: List<DataMigration<Preferences>> = listOf(ReplayGainPreampMigration)
+
+        private const val RECENT_SEPARATOR = "\n"
+        private const val MAX_RECENT_SEARCHES = 10
     }
 }
