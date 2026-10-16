@@ -126,19 +126,16 @@ class LibraryViewModel @Inject constructor(
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
     private val sort = savedStateHandle.getStateFlow(KEY_SORT, AlbumSortOrder.RecentlyAdded)
     private val viewMode = savedStateHandle.getStateFlow(KEY_VIEW_MODE, LibraryViewMode.Grid)
-    private val filter: Flow<AlbumFilter> = combine(
-        savedStateHandle.getStateFlow(KEY_STARRED, false),
-        savedStateHandle.getStateFlow<String?>(KEY_GENRE, null),
-        savedStateHandle.getStateFlow<Int?>(KEY_YEAR, null),
-        savedStateHandle.getStateFlow(KEY_DOWNLOADED, false),
-    ) { starred, genre, year, downloaded ->
-        AlbumFilter(starredOnly = starred, genre = genre, year = year, downloadedOnly = downloaded)
-    }.distinctUntilChanged()
+    private val starredOnly = savedStateHandle.getStateFlow(KEY_STARRED, false)
+    private val genreFilter = savedStateHandle.getStateFlow<String?>(KEY_GENRE, null)
+    private val yearFilter = savedStateHandle.getStateFlow<Int?>(KEY_YEAR, null)
+    private val downloadedOnly = savedStateHandle.getStateFlow(KEY_DOWNLOADED, false)
 
-    /** [filter], limited to downloaded albums while offline. */
-    private val effectiveFilter: Flow<AlbumFilter> = combine(filter, isOffline) { filter, offline ->
-        if (offline) filter.copy(downloadedOnly = true) else filter
-    }.distinctUntilChanged()
+    private val filter: Flow<AlbumFilter> = combine(starredOnly, genreFilter, yearFilter, downloadedOnly, ::AlbumFilter)
+        .distinctUntilChanged()
+
+    /** [filter], limited to downloaded albums while offline: what the Albums tab shows. */
+    private val effectiveFilter: Flow<AlbumFilter> = combine(filter, isOffline, ::shownFilter).distinctUntilChanged()
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<LibraryMessage?>(null)
 
@@ -300,15 +297,13 @@ class LibraryViewModel @Inject constructor(
      * shows: its sort and filters, limited to downloaded albums while offline.
      */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement, playActions: PlayActions) {
-        val filter = AlbumFilter(
-            starredOnly = savedStateHandle[KEY_STARRED] ?: false,
-            genre = savedStateHandle[KEY_GENRE],
-            year = savedStateHandle[KEY_YEAR],
-            downloadedOnly = (savedStateHandle[KEY_DOWNLOADED] ?: false) || isOffline.value,
-        )
-        val sort = savedStateHandle[KEY_SORT] ?: AlbumSortOrder.RecentlyAdded
-        playActions.onPlayAlbums(AlbumPlayRequest(AlbumSource.Albums(sort, filter), order, placement))
+        val stored = AlbumFilter(starredOnly.value, genreFilter.value, yearFilter.value, downloadedOnly.value)
+        val view = AlbumSource.Albums(sort.value, shownFilter(stored, isOffline.value))
+        playActions.onPlayAlbums(AlbumPlayRequest(view, order, placement))
     }
+
+    private fun shownFilter(filter: AlbumFilter, offline: Boolean): AlbumFilter =
+        if (offline) filter.copy(downloadedOnly = true) else filter
 
     /** Handles the album menu actions that need data; navigation actions stay with the screen. */
     fun onAlbumAction(

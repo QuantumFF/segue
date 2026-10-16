@@ -24,20 +24,20 @@ object AlbumFeedPolicy {
      * the queue. Cheap enough to compute on every queue event.
      */
     fun fingerprint(songIdsInPlayOrder: List<String>): Long {
-        var hash = FNV_OFFSET
-        fun mix(value: Int) {
-            hash = (hash xor value.toLong()) * FNV_PRIME
-        }
-        mix(songIdsInPlayOrder.size)
-        for (id in songIdsInPlayOrder) {
-            mix(id.length)
-            for (char in id) mix(char.code)
-        }
+        var hash = Fnv1a.mix(Fnv1a.OFFSET, songIdsInPlayOrder.size)
+        for (id in songIdsInPlayOrder) hash = Fnv1a.mix(Fnv1a.mix(hash, id.length), id)
         return hash
     }
+}
 
-    private const val FNV_OFFSET = -0x340d631b7bdddcdbL // 0xcbf29ce484222325
-    private const val FNV_PRIME = 0x100000001b3L
+/** 64-bit FNV-1a: a fast, stable hash of strings and ints, for fingerprints and shuffle keys. */
+private object Fnv1a {
+    const val OFFSET = -0x340d631b7bdddcdbL // 0xcbf29ce484222325
+    private const val PRIME = 0x100000001b3L
+
+    fun mix(hash: Long, value: Int): Long = (hash xor value.toLong()) * PRIME
+
+    fun mix(hash: Long, text: String): Long = text.fold(hash) { acc, char -> mix(acc, char.code) }
 }
 
 /** The order a feed queues albums in. */
@@ -53,11 +53,7 @@ object AlbumFeedOrder {
         AlbumOrder.Shuffled -> albumIds.distinct().sortedWith(compareBy<String> { shuffleKey(seed, it) }.thenBy { it })
     }
 
-    private fun shuffleKey(seed: Long, albumId: String): Long {
-        var hash = FNV_OFFSET
-        for (char in albumId) hash = (hash xor char.code.toLong()) * FNV_PRIME
-        return splitMix(seed xor hash)
-    }
+    private fun shuffleKey(seed: Long, albumId: String): Long = splitMix(seed xor Fnv1a.mix(Fnv1a.OFFSET, albumId))
 
     /** SplitMix64's finalizer: spreads nearby inputs over the whole range. */
     private fun splitMix(value: Long): Long {
@@ -67,8 +63,6 @@ object AlbumFeedOrder {
         return z xor (z ushr SHIFT_3)
     }
 
-    private const val FNV_OFFSET = -0x340d631b7bdddcdbL
-    private const val FNV_PRIME = 0x100000001b3L
     private const val GOLDEN_GAMMA = -0x61c8864680b583ebL // 0x9e3779b97f4a7c15
     private const val MIX_1 = -0x40a7b892e31b1a47L // 0xbf58476d1ce4e5b9
     private const val MIX_2 = -0x6b2fb644ecceee15L // 0x94d049bb133111eb

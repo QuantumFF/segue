@@ -55,16 +55,18 @@ class AlbumFeedController(
     private var extension: Job? = null
     private var editing = false
     private val persistence = Mutex()
+    private val starting = Mutex()
 
     /**
      * Queues the first window of [request] and, when its albums end the queue, keeps the feed
      * running. False if there is nothing to play (the queue is then left alone).
      */
-    suspend fun start(request: AlbumPlayRequest, seed: Long): Boolean {
+    suspend fun start(request: AlbumPlayRequest, seed: Long): Boolean = starting.withLock {
+        // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
         val downloaded = offline()
         val order = albumOrder(request.source, request.order, seed, downloaded)
         val window = windows(request.source, downloaded).next(order, cursor = 0, AlbumFeedPolicy.WINDOW_TRACKS)
-        if (window.songs.isEmpty()) return false
+        if (window.songs.isEmpty()) return@withLock false
         stop()
         val items = window.songs.map { it.toMediaItem() }
         var first = 0
@@ -100,7 +102,7 @@ class AlbumFeedController(
             persist()
             extendIfNeeded()
         }
-        return true
+        true
     }
 
     /** After the queue snapshot is restored: picks the saved feed back up if the queue is still the one it left. */
