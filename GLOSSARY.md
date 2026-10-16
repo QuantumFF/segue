@@ -15,7 +15,7 @@ _Avoid_: Mode, insert type
 
 **Play intent**:
 A user's request to queue something: a list of songs, an album, an artist, a playlist or an album source, with a placement and whether to shuffle. An artist means their top songs, or all their albums when the server has no top songs. When a play intent queues nothing, the user is told why.
-_Avoid_: Play request (only for the internal shape of one), command
+_Avoid_: Play request, command
 
 **Shuffle**:
 A change in order made once, when songs are queued. **Tracks** shuffle reorders songs; **albums** shuffle reorders whole albums and keeps each album's disc and track order. A running queue is never reshuffled.
@@ -41,7 +41,7 @@ _Avoid_: Queue backup, polling
 
 **Saved queue**:
 A queue stored somewhere other than the player: on this device for restore after process death, or on the server by queue sync.
-_Avoid_: Snapshot (only for the local copy's storage shape)
+_Avoid_: Snapshot, backup
 
 **Adoption**:
 Replacing the local queue with another client's newer saved queue, paused, either when the user taps *Continue from &lt;device&gt;* or automatically. An automatic adoption can be undone.
@@ -51,7 +51,7 @@ _Avoid_: Import, takeover
 
 **Pin**:
 A user's choice to keep an album, playlist, artist or song downloaded for offline listening.
-_Avoid_: Favorite (that is a server-side star), save
+_Avoid_: Favorite (that marks a song, album or artist the user likes), save
 
 **Offline**:
 The device has no validated internet connection, or the user turned on *Offline mode*. A server that is down while the network is fine does not count. Either way, only downloaded songs are available.
@@ -59,4 +59,4 @@ _Avoid_: Disconnected
 
 **Available**:
 A song that can play right now: always when online, and only when downloaded while offline. Unavailable songs are shown dimmed and are never queued.
-_Avoid_: Playable (ambiguous with the codec), enabled
+_Avoid_: Playable, enabled
