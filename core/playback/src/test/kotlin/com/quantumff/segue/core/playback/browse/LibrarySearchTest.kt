@@ -4,8 +4,9 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.SearchResult
@@ -24,12 +25,6 @@ class LibrarySearchTest {
     private val searchRepository = FakeSearchRepository()
     private val tree = BrowseTree(
         repository = repo,
-        albumShuffle = object : AlbumShuffleRepository {
-            override suspend fun albumIds(source: AlbumSource) = repo.albums.map { it.id }
-
-            override suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song> =
-                repo.songs.filter { it.albumId in albumIds }
-        },
         labels = BrowseLabels("H", "L", "D", "S", "RP", "RA", "St", "Al", "Ar", "Pl", "G"),
         artwork = object : BrowseArtwork {
             override fun cover(coverArtId: String): Uri = Uri.parse("content://art/$coverArtId")
@@ -122,13 +117,13 @@ class LibrarySearchTest {
     }
 
     @Test
-    fun `an empty request shuffles albums`() = runTest {
+    fun `an empty request shuffles albums as an album feed`() = runTest {
         repo.albums = listOf(inRainbows)
         repo.songs = listOf(nude)
 
-        val request = search.playRequest("", Bundle.EMPTY)!!
-
-        assertThat(request.songs.map { it.id }).containsExactly("so-1")
+        assertThat(search.albumPlayRequest("")).isEqualTo(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled))
+        assertThat(search.albumPlayRequest("nude")).isNull()
+        assertThat(search.playRequest("", Bundle.EMPTY)).isNull()
     }
 
     @Test

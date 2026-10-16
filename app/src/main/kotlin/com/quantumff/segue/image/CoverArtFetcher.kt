@@ -12,7 +12,7 @@ import com.quantumff.segue.core.designsystem.art.CoverArtRequest
 /**
  * Loads a [CoverArtRequest]: resolves the signed `getCoverArt?id=…&size=…` URL for the active
  * server, then hands it to the OkHttp network fetcher. The URL carries a fresh auth salt on every
- * call, so the disk cache key is the stable `<serverId>:<coverArtId>:<size>` instead.
+ * call, so the disk cache key is the stable [com.quantumff.segue.core.data.image.CoverArtLocation.cacheKey] instead.
  *
  * Signed out (no URL): the fetch fails and the placeholder stays (DESIGN.md §5.8).
  */

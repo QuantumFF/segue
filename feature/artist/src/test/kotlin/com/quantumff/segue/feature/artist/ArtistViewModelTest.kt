@@ -5,10 +5,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
@@ -33,10 +36,10 @@ class ArtistViewModelTest {
     private val albums = FakeAlbumRepository()
     private val stars = FakeStarRatingRepository()
     private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-    private val shuffledAlbums = mutableListOf<AlbumSource>()
+    private val albumRequests = mutableListOf<AlbumPlayRequest>()
     private val playActions = PlayActions(
         onPlaySongs = { songs, start, shuffle -> played += Triple(songs, start, shuffle) },
-        onPlayAlbums = { shuffledAlbums += it.source },
+        onPlayAlbums = { albumRequests += it },
         onPlayNext = {},
         onAddToQueue = {},
         onStartInstantMix = {},
@@ -107,6 +110,22 @@ class ArtistViewModelTest {
     }
 
     @Test
+    fun playAlbumsButtonsQueueTheArtistsAlbumsWithTheChosenOrderAndPlacement() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.Replace, playActions)
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.Next, playActions)
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.End, playActions)
+
+        val artist = AlbumSource.Artist("artist-1")
+        assertThat(albumRequests).containsExactly(
+            AlbumPlayRequest(artist, AlbumOrder.InOrder, QueuePlacement.Replace),
+            AlbumPlayRequest(artist, AlbumOrder.Shuffled, QueuePlacement.Next),
+            AlbumPlayRequest(artist, AlbumOrder.InOrder, QueuePlacement.End),
+        ).inOrder()
+    }
+
+    @Test
     fun playUsesTopSongsAndShuffleAlbumsUsesTheArtist() = runTest {
         seed()
         artists.topSongs = listOf(TestData.song("t1"), TestData.song("t2"))
@@ -121,7 +140,7 @@ class ArtistViewModelTest {
             Triple(listOf("t1", "t2"), 0, true),
             Triple(listOf("t1", "t2"), 1, false),
         ).inOrder()
-        assertThat(shuffledAlbums).containsExactly(AlbumSource.Artist("artist-1"))
+        assertThat(albumRequests).containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.designsystem.component
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -18,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -40,6 +43,10 @@ fun HeroDetailLayout(
     onMoreClick: (() -> Unit)? = null,
     onSubtitleClick: (() -> Unit)? = null,
     heroActions: @Composable RowScope.() -> Unit = {},
+    /** Extra space under the last item, e.g. [FloatingAlbumPlayButtonsInset] under [overlay] buttons. */
+    extraBottomPadding: Dp = 0.dp,
+    /** Drawn over the list, under the top bar: e.g. [FloatingAlbumPlayButtons]. */
+    overlay: @Composable BoxScope.() -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -57,7 +64,7 @@ fun HeroDetailLayout(
     Box(modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(bottom = shellPadding.calculateBottomPadding()),
+            contentPadding = PaddingValues(bottom = shellPadding.calculateBottomPadding() + extraBottomPadding),
             modifier = Modifier.fillMaxSize(),
         ) {
             item(key = HERO_KEY, contentType = HERO_KEY) {
@@ -71,6 +78,7 @@ fun HeroDetailLayout(
             }
             content()
         }
+        overlay()
         DetailTopBar(
             title = hero.title,
             collapsed = collapsed,

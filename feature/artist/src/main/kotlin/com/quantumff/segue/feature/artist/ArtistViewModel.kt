@@ -11,14 +11,18 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistAlbums
 import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,7 +74,7 @@ class ArtistViewModel @Inject constructor(
     ) { artist, albums, (remote, refresh), (message, busy), (download, songDownloads, offline) ->
         when {
             artist != null -> {
-                val (own, appearsOn) = albums.partition { it.artistId == artistId }
+                val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
                 ArtistUiState.Success(
                     artist = artist,
                     albums = own.toImmutableList(),
@@ -132,7 +136,15 @@ class ArtistViewModel @Inject constructor(
         if (index in songs.indices) playActions.onPlaySongs(songs, index, false)
     }
 
-    fun shuffleAlbums(playActions: PlayActions) = playActions.shuffleAlbums(AlbumSource.Artist(artistId))
+    /** The hero's "Shuffle albums": the floating Shuffle pill's tap. */
+    fun shuffleAlbums(playActions: PlayActions) = playAlbums(AlbumOrder.Shuffled, QueuePlacement.Replace, playActions)
+
+    /**
+     * "Play albums" or "Shuffle albums" of the artist's albums, in the order the page shows them:
+     * their own albums newest first, then the ones they appear on.
+     */
+    fun playAlbums(order: AlbumOrder, placement: QueuePlacement, playActions: PlayActions) =
+        playActions.onPlayAlbums(AlbumPlayRequest(AlbumSource.Artist(artistId), order, placement))
 
     /** Plays songs similar to the artist (`getSimilarSongs2`). */
     fun startInstantMix(playActions: PlayActions) {

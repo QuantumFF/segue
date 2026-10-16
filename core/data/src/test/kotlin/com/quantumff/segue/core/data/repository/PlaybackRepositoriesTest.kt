@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.network.SubsonicException
+import com.quantumff.segue.core.network.model.NetworkArtistRef
 import java.io.IOException
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -121,6 +122,30 @@ class PlaybackRepositoriesTest {
         assertThat(repository.albumIds(AlbumSource.Artist("ar2"))).containsExactly("a2")
         assertThat(repository.songs(AlbumSource.Library, listOf("a1")).map { it.id })
             .containsExactly("a1-s1", "a1-s2", "a1-s3")
+            .inOrder()
+    }
+
+    @Test
+    fun `an artist's albums come in the artist page's order - their own newest first, then appearances`() = runTest {
+        val guest = listOf(NetworkArtistRef("ar1", "Artist ar1"), NetworkArtistRef("ar2", "Artist ar2"))
+        libraryWriter(db).writeAlbums(
+            SERVER_ID,
+            listOf(
+                networkAlbum("own-old", artistId = "ar1").copy(year = 2000),
+                networkAlbum("guest-new", artistId = "ar2").copy(year = 2020, artists = guest),
+                networkAlbum("own-new", artistId = "ar1").copy(year = 2010),
+            ),
+        )
+        val repository = RoomAlbumShuffleRepository(
+            clients,
+            db.albumDao(),
+            db.songDao(),
+            db.playlistDao(),
+            StandardTestDispatcher(testScheduler),
+        )
+
+        assertThat(repository.albumIds(AlbumSource.Artist("ar1")))
+            .containsExactly("own-new", "own-old", "guest-new")
             .inOrder()
     }
 

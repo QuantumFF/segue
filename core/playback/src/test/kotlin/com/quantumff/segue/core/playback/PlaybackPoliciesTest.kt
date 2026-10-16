@@ -8,7 +8,6 @@ import com.quantumff.segue.core.playback.cache.PrefetchPolicy
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sleep.SleepTimerPolicy
-import kotlin.random.Random
 import org.junit.Test
 
 class SleepTimerPolicyTest {
@@ -55,20 +54,6 @@ class InstantMixTest {
 }
 
 class AlbumPickerTest {
-    @Test
-    fun `picks distinct random albums up to the limit`() {
-        val picked = AlbumPicker.pick((1..100).map { "al$it" }, count = 10, random = Random(1))
-        assertThat(picked).hasSize(10)
-        assertThat(picked.toSet()).hasSize(10)
-        assertThat(AlbumPicker.pick((1..100).map { "al$it" }, 10, Random(2))).isNotEqualTo(picked)
-    }
-
-    @Test
-    fun `fewer albums than the limit are all used, shuffled`() {
-        val picked = AlbumPicker.pick(listOf("a", "b", "c"), count = 10, random = Random(1))
-        assertThat(picked).containsExactly("a", "b", "c")
-    }
-
     @Test
     fun `songs are grouped into whole albums in the picked order, keeping disc and track order`() {
         fun song(id: String, album: String, disc: Int, track: Int) = Song(

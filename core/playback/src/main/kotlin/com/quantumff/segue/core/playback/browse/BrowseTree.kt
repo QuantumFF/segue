@@ -5,18 +5,15 @@ import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaConstants
-import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
-import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.playback.shuffle.AlbumPicker
-import kotlin.random.Random
 
 /** Titles of the fixed nodes, from string resources. */
 data class BrowseLabels(
@@ -57,16 +54,13 @@ data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0)
  *
  * Lists the database can page are read one page at a time; short lists (an artist's albums, an
  * album's tracks, playlists, genres) are read whole and sliced. Albums show as a grid, tracks and
- * everything else as a list. While offline ([downloadedWhileOffline] returns what is downloaded),
- * Shuffle albums picks downloaded albums only.
+ * everything else as a list. Shuffle albums is an album feed run by the playback service
+ * ([albumPlayRequest]), which picks downloaded albums only while offline.
  */
 class BrowseTree(
     private val repository: MediaBrowseRepository,
-    private val albumShuffle: AlbumShuffleRepository,
     private val labels: BrowseLabels,
     private val artwork: BrowseArtwork,
-    private val random: Random = Random.Default,
-    private val downloadedWhileOffline: suspend () -> DownloadedLibrary? = { null },
 ) {
     fun root(): MediaItem = folder(BrowseId.Root, "Segue", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
 
@@ -138,10 +132,22 @@ class BrowseTree(
         is BrowseId.Track -> repository.song(id.songId)?.let { trackItem(it, id) }
     }
 
-    /** What playing [mediaId] queues, or null if it is not playable or there is nothing to play. */
+    /**
+     * The album feed that playing [mediaId] starts: "Shuffle albums" shuffles the whole library
+     * through the same persisted feed as the app's buttons (queued a window at a time; offline,
+     * downloaded albums only). Null for every other node.
+     */
+    fun albumPlayRequest(mediaId: String): AlbumPlayRequest? = when (BrowseId.parse(mediaId)) {
+        BrowseId.ShuffleAlbums -> AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled)
+        else -> null
+    }
+
+    /**
+     * What playing [mediaId] queues, or null if it is not playable or there is nothing to play.
+     * "Shuffle albums" is an album feed instead ([albumPlayRequest]).
+     */
     suspend fun playRequest(mediaId: String): PlayRequest? {
         val request = when (val id = BrowseId.parse(mediaId)) {
-            BrowseId.ShuffleAlbums -> shuffleAlbums()
             is BrowseId.Album -> PlayRequest(repository.albumSongsForPlayback(id.id))
             is BrowseId.Playlist -> PlayRequest(repository.playlistSongs(id.id))
             is BrowseId.Track -> trackRequest(id)
@@ -177,21 +183,6 @@ class BrowseTree(
         val start = index.takeIf { list.getOrNull(it)?.id == id.songId } ?: list.indexOfFirst { it.id == id.songId }
         if (start >= 0) return PlayRequest(list, start)
         return repository.song(id.songId)?.let { PlayRequest(listOf(it)) }
-    }
-
-    /** Like the app's "Shuffle albums" for the library: random whole albums, queued in shuffled order. */
-    private suspend fun shuffleAlbums(): PlayRequest {
-        val offline = downloadedWhileOffline()
-        val picked = AlbumPicker.pick(
-            OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(AlbumSource.Library), offline),
-            AlbumPicker.DEFAULT_ALBUM_COUNT,
-            random,
-        )
-        val songs = AlbumPicker.queueInAlbumOrder(
-            OfflineLibrary.shuffleSongs(albumShuffle.songs(AlbumSource.Library, picked), offline),
-            picked,
-        )
-        return PlayRequest(songs, startIndex = 0)
     }
 
     // --- Items -----------------------------------------------------------------------------------

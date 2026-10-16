@@ -115,6 +115,19 @@ fun MacrobenchmarkScope.scrollAlbumGrid() {
     repeat(SCROLL_STEPS) { fling(Direction.UP) }
 }
 
+/**
+ * Taps the floating "Play albums" pill over the album grid: the album feed queues the first window
+ * of whole albums and starts playing. Then opens and closes the Shuffle pill's queue options menu.
+ */
+fun MacrobenchmarkScope.playLibraryAlbums() {
+    device.waitFor(By.desc("Play albums")).click()
+    device.waitFor(By.desc("Pause"), PLAYBACK_TIMEOUT_MS)
+    device.waitFor(By.desc("Shuffle albums: queue options")).click()
+    device.waitFor(By.text("Add to queue"))
+    device.pressBack()
+    device.waitForIdle()
+}
+
 /** Opens the first album in the grid and starts it. */
 fun MacrobenchmarkScope.openAlbumAndPlay() {
     val grid = albumGrid()

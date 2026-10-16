@@ -52,6 +52,9 @@ class AlbumFeedController(
 
     private var extension: Job? = null
 
+    /** A feed whose first window a media session is about to queue ([firstWindowForSession]). */
+    private var pending: AlbumFeed? = null
+
     // All state here is read and written on the player's (main) thread only; the coroutines run on
     // it too, so [current] can be compared by identity after a suspension to spot a stopped feed.
     private var editing = false
@@ -64,11 +67,10 @@ class AlbumFeedController(
      */
     suspend fun start(request: AlbumPlayRequest, seed: Long): Boolean = starting.withLock {
         // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
-        val downloaded = offline()
-        val order = albumOrder(request.source, request.order, seed, downloaded)
-        val window = windows(request.source, downloaded).next(order, cursor = 0, AlbumFeedPolicy.WINDOW_TRACKS)
+        val window = firstWindow(request, seed)
         if (window.songs.isEmpty()) return@withLock false
         stop()
+        pending = null
         val items = window.songs.map { it.toMediaItem() }
         var first = 0
         ownEdit {
@@ -105,6 +107,20 @@ class AlbumFeedController(
         true
     }
 
+    /**
+     * The first window of [request] for a media session to queue itself, as the reply to a media
+     * browser's play request (Android Auto's "Shuffle albums"): the session, not the feed, replaces
+     * the queue. Once the session has queued exactly these items, the feed runs as if [start] had
+     * queued them; any other queue change first drops it. Empty if there is nothing to play.
+     */
+    suspend fun firstWindowForSession(request: AlbumPlayRequest, seed: Long): List<MediaItem> = starting.withLock {
+        val window = firstWindow(request, seed)
+        val items = window.songs.map { it.toMediaItem() }
+        pending = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint(items))
+            .takeUnless { items.isEmpty() || window.exhausted }
+        items
+    }
+
     /** After the queue snapshot is restored: picks the saved feed back up if the queue is still the one it left. */
     suspend fun restore() {
         val saved = feeds.feed() ?: return
@@ -126,7 +142,19 @@ class AlbumFeedController(
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-        if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) onQueueChanged()
+        if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) return
+        onQueueChanged()
+        adoptPending()
+    }
+
+    /** The session queued a prepared first window: the feed takes it over. Any other change drops it. */
+    private fun adoptPending() {
+        val feed = pending ?: return
+        pending = null
+        if (current != null || feed.queueFingerprint != fingerprint()) return
+        current = feed
+        persist()
+        extendIfNeeded()
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = extendIfNeeded()
@@ -196,6 +224,12 @@ class AlbumFeedController(
         }
     }
 
+    private suspend fun firstWindow(request: AlbumPlayRequest, seed: Long): AlbumFeedWindows.Window {
+        val downloaded = offline()
+        val order = albumOrder(request.source, request.order, seed, downloaded)
+        return windows(request.source, downloaded).next(order, cursor = 0, AlbumFeedPolicy.WINDOW_TRACKS)
+    }
+
     private suspend fun albumOrder(
         source: AlbumSource,
         order: AlbumOrder,
@@ -212,6 +246,8 @@ class AlbumFeedController(
     private fun remaining(): Int = player.mediaItemCount - 1 - player.currentMediaItemIndex
 
     private fun fingerprint(): Long = AlbumFeedPolicy.fingerprint(player.queueState().songIds)
+
+    private fun fingerprint(items: List<MediaItem>): Long = AlbumFeedPolicy.fingerprint(items.map { it.mediaId })
 
     private companion object {
         const val TAG = "AlbumFeed"

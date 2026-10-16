@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.network.di
 
+import com.quantumff.segue.core.network.CoverArtResponseInterceptor
 import com.quantumff.segue.core.network.auth.SaltGenerator
 import com.quantumff.segue.core.network.auth.SecureRandomSaltGenerator
 import dagger.Binds
@@ -29,12 +30,16 @@ object NetworkModule {
         isLenient = true
     }
 
-    /** The one OkHttp client. Per-server clients derive from it with `newBuilder()`. */
+    /**
+     * The one OkHttp client. Per-server clients derive from it with `newBuilder()`. Every cover art
+     * consumer uses it, so a `getCoverArt` error is a failure everywhere ([CoverArtResponseInterceptor]).
+     */
     @Provides
     @Singleton
     fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .addInterceptor(CoverArtResponseInterceptor())
         .build()
 
     private const val CONNECT_TIMEOUT_SECONDS = 15L
