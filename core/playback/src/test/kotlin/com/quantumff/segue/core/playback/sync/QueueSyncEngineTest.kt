@@ -113,17 +113,6 @@ class QueueSyncEngineTest {
         assertThat(remote.saves).containsExactly(state, cleared).inOrder()
     }
 
-    @Test
-    fun `a queue restored from the snapshot is not written back or uploaded`() = runTest {
-        val engine = engine()
-        engine.markRestored(state)
-        engine.onQueueEvent(QueueEvent.QueueEdit, state)
-        engine.onAppBackground(state)
-        advanceTimeBy(10_000)
-        assertThat(snapshots.saves).isEmpty()
-        assertThat(remote.saves).isEmpty()
-    }
-
     // --- Download and conflicts -------------------------------------------------------------
 
     @Test
@@ -164,6 +153,8 @@ class QueueSyncEngineTest {
             assertThat(awaitItem().queue).isEqualTo(remoteQueue())
         }
         assertThat(engine.remoteOffer.value).isNull()
+        assertThat(engine.takeAdoption()?.queue).isEqualTo(remoteQueue())
+        assertThat(engine.takeAdoption()).isNull()
     }
 
     @Test
@@ -252,21 +243,16 @@ class QueueSyncEngineTest {
     }
 
     @Test
-    fun `accepting the offer returns the queue and the adopted state is not uploaded back`() = runTest {
+    fun `accepting the offer stages the offered queue for the player, without undo`() = runTest {
         remote.queue = remoteQueue()
         val engine = engine()
+        assertThat(engine.acceptOffer()).isFalse()
         engine.checkRemote(isPlayingLocally = false)
 
-        val adopted = engine.acceptOffer()
-        assertThat(adopted).isEqualTo(remoteQueue())
+        assertThat(engine.acceptOffer()).isTrue()
         assertThat(engine.remoteOffer.value).isNull()
-
-        val adoptedState = QueueState(listOf("r1", "r2"), 1, 3_000)
-        engine.markAdopted(adoptedState)
-        engine.onQueueEvent(QueueEvent.QueueEdit, adoptedState)
-        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
-        assertThat(remote.saves).isEmpty()
-        assertThat(snapshots.saves).containsExactly(adoptedState)
+        assertThat(engine.takeAdoption()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
+        assertThat(engine.acceptOffer()).isFalse()
     }
 
     @Test

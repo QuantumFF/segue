@@ -41,6 +41,7 @@ import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingPublisher
 import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
+import com.quantumff.segue.core.playback.sync.SavedQueueLoader
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -54,8 +55,8 @@ class PlaybackComponents @Inject constructor(
     val bridge: PlaybackServiceBridge,
     val scrobbles: ScrobbleRepository,
     val starRatings: StarRatingRepository,
-    val library: LibraryRepository,
-    val snapshots: QueueSnapshotRepository,
+    private val library: LibraryRepository,
+    private val snapshots: QueueSnapshotRepository,
     val preferences: UserPreferencesRepository,
     val cacheEvictor: AdjustableLruCacheEvictor,
     /** Android Auto browsing and search. */
@@ -136,6 +137,9 @@ class PlaybackComponents @Inject constructor(
             .setDataSourceFactory(ResolvingDataSource.Factory(OkHttpDataSource.Factory(okHttpClient), resolver))
             .build(),
     )
+
+    fun createSavedQueueLoader(player: SeguePlayer, editor: QueueEditor) =
+        SavedQueueLoader(player, queueSync, snapshots, library, editor)
 
     fun createPrefetcher(scope: CoroutineScope) =
         NextTrackPrefetcher(scope, ioDispatcher, cacheDataSourceFactory, resolver, network)

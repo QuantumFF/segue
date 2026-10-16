@@ -21,7 +21,6 @@ import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.QueuePlacement
-import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
@@ -29,7 +28,6 @@ import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.media.toQueueItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
-import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import com.quantumff.segue.core.playback.sync.RemoteAdoption
@@ -238,44 +236,26 @@ class PlaybackController @Inject constructor(
 
     // --- Remote queue --------------------------------------------------------------------------------
 
-    /** "Continue from <device>": takes over the offered queue, paused at its saved position. */
+    /**
+     * "Continue from <device>": the service takes over the offered queue, paused at its saved
+     * position ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]).
+     */
     fun adoptRemoteQueue() {
-        val queue = queueSync.acceptOffer() ?: return
-        scope.launch { adopt(queue) }
+        if (!queueSync.acceptOffer()) return
+        scope.launch { send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY) }
     }
 
     fun dismissRemoteQueue() = queueSync.dismissOffer()
 
-    /** Adopts a queue the auto-continue setting took over, then reports it for the snackbar. */
+    /** Has the service adopt a queue the auto-continue setting took over, then reports it for the snackbar. */
     internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
-        if (!adopt(adoption.queue)) {
-            // Nothing was replaced: there is nothing to undo.
-            queueSync.takeAdoptionUndo()
-            return
-        }
+        if (!send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY)) return
         autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
     }
 
     /** The snackbar's Undo: puts back the local queue the last automatic adoption replaced. */
     fun undoAutoAdoption() = command { controller ->
         controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
-    }
-
-    /** Replaces the local queue with [queue], paused. False if the player could not take it. */
-    internal suspend fun adopt(queue: RemotePlayQueue): Boolean = withContext(mainDispatcher) {
-        try {
-            val controller = controller()
-            controller.pause()
-            val index = queue.currentIndex.coerceIn(queue.songs.indices)
-            controller.setMediaItems(queue.songs.map { it.toMediaItem() }, index, queue.positionMillis)
-            queueSync.markAdopted(QueueState(queue.songs.map { it.id }, index, queue.positionMillis))
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Log.w(TAG, "Could not adopt the remote queue", e)
-            false
-        }
     }
 
     // --- Generated queues ----------------------------------------------------------------------------
@@ -309,7 +289,7 @@ class PlaybackController @Inject constructor(
 
     // --- Connection ----------------------------------------------------------------------------------
 
-    /** Sends a queueing command ([action]) and answers whether the service queued anything. */
+    /** Sends a queueing or adopting command ([action]) and answers whether the service queued anything. */
     private suspend fun send(action: String, args: Bundle): Boolean = withContext(mainDispatcher) {
         try {
             val result = controller().sendCustomCommand(SegueSessionCommands.command(action), args).await()
@@ -318,7 +298,7 @@ class PlaybackController @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Log.w(TAG, "Could not queue ($action)", e)
+            Log.w(TAG, "Session command failed ($action)", e)
             false
         }
     }
