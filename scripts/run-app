@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# The user's launcher, not for agents: builds this checkout's debug app,
+# installs it on the user's own segue_pixel emulator and launches it. Starts
+# the emulator first if it isn't running. Works from any directory and any Orca
+# worktree: it builds the checkout it lives in.
+#
+# segue_pixel is pinned to port 5554 so its serial is always emulator-5554.
+set -euo pipefail
+
+# Claude Code sets CLAUDECODE=1 in every agent shell.
+if [ "${CLAUDECODE:-}" = 1 ]; then
+  echo "run-app drives the user's own emulator; agents use scripts/agent-emulator instead." >&2
+  exit 1
+fi
+
+cd "$(dirname "$0")/.."
+
+avd=segue_pixel
+port=5554
+export ANDROID_SERIAL=emulator-$port
+sdk=${ANDROID_HOME:-$HOME/Android/Sdk}
+adb=$sdk/platform-tools/adb
+log=${TMPDIR:-/tmp}/$avd-emulator.log
+
+if ! "$adb" get-state >/dev/null 2>&1; then
+  echo "Starting $avd on port $port (log: $log)"
+  # setsid detaches it, so closing this terminal doesn't kill the emulator, and
+  # it gets no stdin so it never reads from this terminal.
+  setsid -f "$sdk/emulator/emulator" -avd "$avd" -port "$port" </dev/null >"$log" 2>&1
+fi
+
+echo "Waiting for $ANDROID_SERIAL to boot"
+if ! timeout 300 "$adb" wait-for-device shell \
+  'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 1; done'; then
+  echo "$ANDROID_SERIAL did not boot within 5 minutes; see $log" >&2
+  exit 1
+fi
+
+./gradlew :app:installDebug
+
+app=com.quantumff.segue.debug
+since=$("$adb" shell "date '+%m-%d %H:%M:%S.000'")
+"$adb" shell monkey -p "$app" -c android.intent.category.LAUNCHER 1 >/dev/null
+# A crash on startup drops back to whatever was on screen before, which looks
+# like the app never opened. Give it a few seconds, then show the crash.
+sleep 4
+if ! "$adb" shell pidof "$app" >/dev/null; then
+  echo "$app crashed on launch:" >&2
+  "$adb" logcat -d -b crash -T "$since" | grep -A 3 'FATAL EXCEPTION' >&2 || true
+  exit 1
+fi
+echo "Launched $app on $ANDROID_SERIAL"
