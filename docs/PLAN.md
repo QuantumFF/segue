@@ -36,7 +36,16 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 - Shuffle modes: Off / Tracks / Albums.
 - Albums mode groups the queue into album blocks, keyed by album ID. The album blocks are shuffled with Fisher-Yates. Tracks inside each block keep disc and track order. The current album stays first.
 - Implemented as a custom Media3 `ShuffleOrder`, so the underlying queue is never reordered and unshuffle is lossless. Inserting and removing tracks must keep album blocks together.
-- There is also a "Shuffle albums" entry point for the whole library, an artist, a genre, or a playlist.
+- The shuffle mode is switched on the Now Playing transport only. The queue screen has no shuffle row, because a running queue is not reshuffled. Shuffled albums are added to a queue instead (below).
+- "Play albums" and "Shuffle albums" queue whole albums from a source: the Library albums view as sorted and filtered, a genre's album grid, an artist, a genre, a playlist, or the whole library.
+  - Ordered keeps the source order; shuffled uses a seeded album order. Each album keeps disc and track order.
+  - Placement is replace (play now), play next, or add to queue (DESIGN.md §5.9).
+- Large libraries are queued lazily as an **album feed**, run by the playback service:
+  - The first window is whole albums totalling about 200 tracks. When fewer than 30 tracks remain after the current one, the feed appends about 100 more. Album IDs are cheap to list. Songs are read 8 albums at a time, so only what is queued is ever loaded.
+  - The shuffle sorts albums by a hash of the seed and the album ID. The order can therefore be rebuilt from the seed instead of being stored, and new albums slot in without reshuffling the rest. Albums already in the queue are skipped.
+  - The feed is persisted in Room (`album_feed`: source, order, seed, cursor, and a fingerprint of the queue's song IDs in play order), so it survives process death. On restore it resumes only if the restored queue still matches its fingerprint.
+  - Any change the feed did not make ends it for good: add, remove, move, replace, clear, or a shuffle change. A "Play next" that lands before other upcoming tracks queues one window and does not extend.
+  - Queue sync needs nothing special: it uploads what is actually queued.
 
 ## Performance
 - Baseline Profiles, R8 full mode, Compose stability (immutable UI models, stable lambdas)

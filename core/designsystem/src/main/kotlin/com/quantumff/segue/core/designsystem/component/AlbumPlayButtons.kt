@@ -67,7 +67,8 @@ import com.quantumff.segue.core.model.QueuePlacement
 
 /**
  * "Play albums" and "Shuffle albums" for a list of albums (DESIGN.md §5.9): two split pills, 48
- * tall. Tapping a pill plays now (replaces the queue); its chevron, or a long press on the pill,
+ * tall, labelled "Play" and "Shuffle" (the full names are their content descriptions). Tapping a
+ * pill plays now (replaces the queue); its chevron, or a long press on the pill,
  * opens "Play next" / "Add to queue". With [expanded] false only the icons show.
  */
 @Composable
@@ -80,7 +81,8 @@ fun AlbumPlayButtons(
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
         SplitPill(
             icon = SegueIcons.PlayFilled,
-            label = stringResource(R.string.ds_play_albums),
+            label = stringResource(R.string.ds_play),
+            description = stringResource(R.string.ds_play_albums),
             expanded = expanded,
             containerColor = colors.primary,
             contentColor = colors.onPrimary,
@@ -89,7 +91,8 @@ fun AlbumPlayButtons(
         )
         SplitPill(
             icon = SegueIcons.ShuffleAlbums,
-            label = stringResource(R.string.ds_action_shuffle_albums),
+            label = stringResource(R.string.ds_shuffle),
+            description = stringResource(R.string.ds_action_shuffle_albums),
             expanded = expanded,
             containerColor = colors.surfaceContainerHighest,
             contentColor = colors.onSurface,
@@ -166,6 +169,8 @@ fun rememberCollapseOnScrollState(): CollapseOnScrollState = remember { Collapse
 private fun SplitPill(
     icon: ImageVector,
     label: String,
+    // The full action ("Shuffle albums") for screen readers; the pill shows the short [label].
+    description: String,
     expanded: Boolean,
     containerColor: Color,
     contentColor: Color,
@@ -175,7 +180,7 @@ private fun SplitPill(
     var menuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     val reduceMotion = LocalReduceMotion.current
-    val menuLabel = stringResource(R.string.ds_queue_options, label)
+    val menuLabel = stringResource(R.string.ds_queue_options, description)
     Box {
         Row(
             modifier = Modifier
@@ -197,7 +202,7 @@ private fun SplitPill(
                         },
                         onLongClickLabel = menuLabel,
                     )
-                    .semantics { contentDescription = label }
+                    .semantics { contentDescription = description }
                     .padding(start = SegueSpacing.lg, end = SegueSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
