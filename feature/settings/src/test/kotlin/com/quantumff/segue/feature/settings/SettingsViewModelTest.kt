@@ -2,14 +2,12 @@ package com.quantumff.segue.feature.settings
 
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.model.AccentPreset
-import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
-import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
+import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
@@ -45,49 +43,15 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun appearanceSettersReachTheRepository() = runTest {
-        viewModel.setThemeMode(ThemeMode.Black)
-        viewModel.setAccentSource(AccentSource.AlbumArt)
-        viewModel.setAccentPreset(AccentPreset.Teal)
+    fun preferenceUpdatesReachTheRepositoryAndShowInState() = runTest {
+        viewModel.updatePreferences { it.copy(themeMode = ThemeMode.Black) }
+        viewModel.updatePreferences { it.copy(replayGainTarget = ReplayGainTarget.Ebu) }
 
-        val prefs = preferences.preferences.value
-        assertThat(prefs.themeMode).isEqualTo(ThemeMode.Black)
-        assertThat(prefs.accentSource).isEqualTo(AccentSource.AlbumArt)
-        assertThat(prefs.accentPreset).isEqualTo(AccentPreset.Teal)
-    }
-
-    @Test
-    fun playbackStreamingAndQueueSettersReachTheRepository() = runTest {
-        val opus = StreamingQuality(maxBitRateKbps = 128, format = "opus")
-        viewModel.setReplayGainMode(ReplayGainMode.Album)
-        viewModel.setWifiQuality(StreamingQuality.Original)
-        viewModel.setCellularQuality(opus)
-        viewModel.setStreamCacheSize(2048)
-        viewModel.setStopWhenPaused(30)
-        viewModel.setQueueSyncEnabled(false)
-        viewModel.setAdoptRemoteQueue(true)
-
-        val prefs = preferences.preferences.value
-        assertThat(prefs.replayGainMode).isEqualTo(ReplayGainMode.Album)
-        assertThat(prefs.wifiStreamingQuality).isEqualTo(StreamingQuality.Original)
-        assertThat(prefs.cellularStreamingQuality).isEqualTo(opus)
-        assertThat(prefs.streamCacheSizeMb).isEqualTo(2048)
-        assertThat(prefs.stopWhenPausedMinutes).isEqualTo(30)
-        assertThat(prefs.queueSyncEnabled).isFalse()
-        assertThat(prefs.adoptRemoteQueueAutomatically).isTrue()
-    }
-
-    @Test
-    fun replayGainTargetAndBoostReachTheRepository() = runTest {
-        assertThat(preferences.preferences.value.replayGainTarget).isEqualTo(ReplayGainTarget.ReplayGain2)
-        assertThat(preferences.preferences.value.replayGainBoost).isFalse()
-
-        viewModel.setReplayGainTarget(ReplayGainTarget.Ebu)
-        viewModel.setReplayGainBoost(true)
-
-        val prefs = preferences.preferences.value
-        assertThat(prefs.replayGainTarget).isEqualTo(ReplayGainTarget.Ebu)
-        assertThat(prefs.replayGainBoost).isTrue()
+        val expected = UserPreferences(themeMode = ThemeMode.Black, replayGainTarget = ReplayGainTarget.Ebu)
+        assertThat(preferences.preferences.value).isEqualTo(expected)
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().preferences).isEqualTo(expected)
+        }
     }
 
     @Test

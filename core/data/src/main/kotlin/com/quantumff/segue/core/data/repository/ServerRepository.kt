@@ -52,7 +52,7 @@ interface ServerRepository {
 internal class AccountServerRepository @Inject constructor(
     private val accounts: AccountsDataSource,
     private val clientCreator: SubsonicClientCreator,
-    private val capabilities: CachedServerCapabilitiesRepository,
+    private val capabilities: ServerCapabilitiesRepository,
     private val syncScheduler: SyncScheduler,
     private val serverDataDao: ServerDataDao,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
@@ -96,7 +96,7 @@ internal class AccountServerRepository @Inject constructor(
     override suspend fun refreshActiveServer() {
         val serverId = accounts.activeServerId.first() ?: return
         try {
-            capabilities.refresh()
+            capabilities.refresh(serverId)
         } catch (e: RemoteException.AuthFailed) {
             throw e
         } catch (_: RemoteException) {

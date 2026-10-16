@@ -5,15 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
-import com.quantumff.segue.core.model.AccentPreset
-import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
-import com.quantumff.segue.core.model.ReplayGainMode
-import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
-import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -56,26 +51,9 @@ class SettingsViewModel @Inject constructor(
 
     fun removeServer(serverId: String) = launch { serverRepository.remove(serverId) }
 
-    fun setThemeMode(mode: ThemeMode) = launch { preferencesRepository.setThemeMode(mode) }
-
-    fun setAccentSource(source: AccentSource) = launch { preferencesRepository.setAccentSource(source) }
-
-    fun setAccentPreset(preset: AccentPreset) = launch { preferencesRepository.setAccentPreset(preset) }
-
-    fun setReplayGainMode(mode: ReplayGainMode) = launch { preferencesRepository.setReplayGainMode(mode) }
-
-    fun setReplayGainTarget(target: ReplayGainTarget) = launch { preferencesRepository.setReplayGainTarget(target) }
-
-    fun setReplayGainBoost(enabled: Boolean) = launch { preferencesRepository.setReplayGainBoost(enabled) }
-
-    fun setWifiQuality(quality: StreamingQuality) = launch { preferencesRepository.setWifiStreamingQuality(quality) }
-
-    fun setCellularQuality(quality: StreamingQuality) =
-        launch { preferencesRepository.setCellularStreamingQuality(quality) }
-
-    fun setStreamCacheSize(megabytes: Int) = launch { preferencesRepository.setStreamCacheSizeMb(megabytes) }
-
-    fun setStopWhenPaused(minutes: Int) = launch { preferencesRepository.setStopWhenPausedMinutes(minutes) }
+    /** e.g. `updatePreferences { it.copy(themeMode = ThemeMode.Dark) }`. */
+    fun updatePreferences(transform: (UserPreferences) -> UserPreferences) =
+        launch { preferencesRepository.update(transform) }
 
     fun setDownloadQuality(quality: StreamingQuality) = launch { downloadRepository.setQuality(quality) }
 
@@ -86,11 +64,6 @@ class SettingsViewModel @Inject constructor(
     fun setOfflineMode(enabled: Boolean) = launch { downloadRepository.setForceOffline(enabled) }
 
     fun setStorageLimit(limit: StorageLimit) = launch { downloadRepository.setStorageLimit(limit) }
-
-    fun setQueueSyncEnabled(enabled: Boolean) = launch { preferencesRepository.setQueueSyncEnabled(enabled) }
-
-    fun setAdoptRemoteQueue(enabled: Boolean) =
-        launch { preferencesRepository.setAdoptRemoteQueueAutomatically(enabled) }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

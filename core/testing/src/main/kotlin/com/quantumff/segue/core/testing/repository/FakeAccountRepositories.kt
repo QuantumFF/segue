@@ -5,16 +5,11 @@ import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerCapabilitiesRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
-import com.quantumff.segue.core.model.AccentPreset
-import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.Playlist
-import com.quantumff.segue.core.model.ReplayGainMode
-import com.quantumff.segue.core.model.ReplayGainTarget
+import com.quantumff.segue.core.model.RecentSearches
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.ServerCapabilities
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.StreamingQuality
-import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -62,10 +57,16 @@ class FakeServerRepository : ServerRepository {
     }
 }
 
-class FakeServerCapabilitiesRepository : ServerCapabilitiesRepository {
-    override val capabilities = MutableStateFlow(ServerCapabilities.Unknown)
+/** Capabilities per server id; [ServerCapabilities.Unknown] for servers not in [byServer]. */
+class FakeServerCapabilitiesRepository(val byServer: MutableMap<String, ServerCapabilities> = mutableMapOf()) :
+    ServerCapabilitiesRepository {
+    override suspend fun forServer(serverId: String) = byServer[serverId] ?: ServerCapabilities.Unknown
 
-    override suspend fun refresh() = Unit
+    override suspend fun store(serverId: String, capabilities: ServerCapabilities) {
+        byServer[serverId] = capabilities
+    }
+
+    override suspend fun refresh(serverId: String) = Unit
 }
 
 class FakePlaylistRepository : PlaylistRepository {
@@ -145,43 +146,13 @@ class FakeUserPreferencesRepository : UserPreferencesRepository {
     override val preferences = MutableStateFlow(UserPreferences())
     override val recentSearches = MutableStateFlow<ImmutableList<String>>(emptyList<String>().toImmutableList())
 
-    override suspend fun setThemeMode(mode: ThemeMode) = preferences.update { it.copy(themeMode = mode) }
-
-    override suspend fun setAccentSource(source: AccentSource) = preferences.update { it.copy(accentSource = source) }
-
-    override suspend fun setAccentPreset(preset: AccentPreset) = preferences.update { it.copy(accentPreset = preset) }
-
-    override suspend fun setWifiStreamingQuality(quality: StreamingQuality) =
-        preferences.update { it.copy(wifiStreamingQuality = quality) }
-
-    override suspend fun setCellularStreamingQuality(quality: StreamingQuality) =
-        preferences.update { it.copy(cellularStreamingQuality = quality) }
-
-    override suspend fun setQueueSyncEnabled(enabled: Boolean) =
-        preferences.update { it.copy(queueSyncEnabled = enabled) }
-
-    override suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean) =
-        preferences.update { it.copy(adoptRemoteQueueAutomatically = enabled) }
-
-    override suspend fun setReplayGainMode(mode: ReplayGainMode) = preferences.update { it.copy(replayGainMode = mode) }
-
-    override suspend fun setReplayGainTarget(target: ReplayGainTarget) =
-        preferences.update { it.copy(replayGainTarget = target) }
-
-    override suspend fun setReplayGainBoost(enabled: Boolean) = preferences.update {
-        it.copy(replayGainBoost = enabled)
-    }
-
-    override suspend fun setStreamCacheSizeMb(sizeMb: Int) = preferences.update { it.copy(streamCacheSizeMb = sizeMb) }
-
-    override suspend fun setStopWhenPausedMinutes(minutes: Int) =
-        preferences.update { it.copy(stopWhenPausedMinutes = minutes) }
+    override suspend fun update(transform: (UserPreferences) -> UserPreferences) = preferences.update(transform)
 
     override suspend fun addRecentSearch(query: String) = recentSearches.update { current ->
-        (listOf(query) + current.filterNot { it == query }).toImmutableList()
+        RecentSearches.add(current, query).toImmutableList()
     }
 
     override suspend fun removeRecentSearch(query: String) = recentSearches.update { current ->
-        current.filterNot { it == query }.toImmutableList()
+        RecentSearches.remove(current, query).toImmutableList()
     }
 }

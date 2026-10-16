@@ -28,7 +28,7 @@ interface LyricsRepository {
 @Singleton
 internal class SubsonicLyricsRepository @Inject constructor(
     private val clients: SubsonicClientProvider,
-    private val capabilities: CachedServerCapabilitiesRepository,
+    private val capabilities: ServerCapabilitiesRepository,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : LyricsRepository {
     private val cache = object : LinkedHashMap<Pair<String, String>, ImmutableList<Lyrics>>(

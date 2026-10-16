@@ -68,7 +68,7 @@ internal class OfflineFirstArtistRepository @Inject constructor(
     private val clients: SubsonicClientProvider,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
-    private val capabilities: CachedServerCapabilitiesRepository,
+    private val capabilities: ServerCapabilitiesRepository,
     private val writer: LibraryWriter,
     private val transactions: TransactionRunner,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
