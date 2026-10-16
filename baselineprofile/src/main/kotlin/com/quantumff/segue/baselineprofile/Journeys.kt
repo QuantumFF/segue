@@ -1,5 +1,7 @@
 package com.quantumff.segue.baselineprofile
 
+import androidx.benchmark.macro.BaselineProfileMode
+import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -24,7 +26,14 @@ private const val SYNC_TIMEOUT_MS = 120_000L
 private const val UI_TIMEOUT_MS = 10_000L
 private const val PLAYBACK_TIMEOUT_MS = 20_000L
 private const val SCROLL_STEPS = 3
-private const val GESTURE_MARGIN_FRACTION = 5
+
+/** Iterations per benchmark configuration. */
+const val BENCHMARK_ITERATIONS = 10
+
+/** What every benchmark compares: no AOT compilation against the shipped Baseline Profile. */
+val comparedCompilationModes: List<CompilationMode>
+    get() = listOf(CompilationMode.None(), CompilationMode.Partial(BaselineProfileMode.Require))
+private const val GESTURE_MARGIN_FRACTION = 0.2f
 
 /**
  * The package under test. The release-based variants the plugin builds (nonMinifiedRelease,
@@ -40,8 +49,9 @@ private fun UiDevice.waitFor(selector: BySelector, timeout: Long = UI_TIMEOUT_MS
     checkNotNull(wait(Until.findObject(selector), timeout)) { "Timed out waiting for $selector" }
 
 /**
- * Signs in to the demo server if the app shows the login screen, then waits until the album grid
- * has content (the first library sync). Leaves the app on Home.
+ * Starts the app and, if it shows the login screen, signs in to the demo server and waits until
+ * the album grid has content (the first library sync). Leaves the app running, signed in, on
+ * whatever screen it opened (Home after a fresh sign-in).
  */
 fun MacrobenchmarkScope.signInIfNeeded() {
     // A notification shade left open (emulator boot notices) hides the app from UiAutomator.
@@ -67,7 +77,15 @@ fun MacrobenchmarkScope.signInIfNeeded() {
     device.waitFor(home, LOGIN_TIMEOUT_MS)
     openLibraryAlbums()
     device.waitFor(By.textEndsWith(" albums"), SYNC_TIMEOUT_MS)
-    device.pressBack()
+    device.waitFor(home).click()
+}
+
+/** Signs in outside any measured or recorded block: call it from a test's `@Before`. */
+fun signInBeforeRecording() {
+    MacrobenchmarkScope(targetPackage, launchWithClearTask = true).run {
+        signInIfNeeded()
+        killProcess()
+    }
 }
 
 /** Library tab, Albums. */
@@ -89,7 +107,7 @@ fun MacrobenchmarkScope.scrollAlbumGrid() {
         // Re-found each time: Compose replaces the grid's accessibility node as it scrolls.
         val grid = albumGrid()
         // Keep clear of the system gesture areas.
-        grid.setGestureMargin(device.displayWidth / GESTURE_MARGIN_FRACTION)
+        grid.setGestureMargin((device.displayWidth * GESTURE_MARGIN_FRACTION).toInt())
         grid.fling(direction)
         device.waitForIdle()
     }
@@ -123,9 +141,4 @@ fun MacrobenchmarkScope.openNowPlayingAndQueue() {
     device.waitForIdle()
     device.pressBack()
     device.waitForIdle()
-}
-
-/** Stops playback (and the app, saving its profile) so the next iteration starts quiet. */
-fun MacrobenchmarkScope.stopPlayback() {
-    killProcess()
 }

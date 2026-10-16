@@ -1,11 +1,11 @@
 package com.quantumff.segue.baselineprofile
 
-import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.filters.LargeTest
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,15 +18,17 @@ class ScrollBenchmarks(private val compilation: CompilationMode) {
     @get:Rule
     val rule = MacrobenchmarkRule()
 
+    @Before
+    fun signIn() = signInBeforeRecording()
+
     @Test
     fun scrollAlbumGrid() = rule.measureRepeated(
         packageName = targetPackage,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = compilation,
         startupMode = StartupMode.COLD,
-        iterations = ITERATIONS,
+        iterations = BENCHMARK_ITERATIONS,
         setupBlock = {
-            signInIfNeeded()
             pressHome()
             startActivityAndWait()
             openLibraryAlbums()
@@ -36,11 +38,8 @@ class ScrollBenchmarks(private val compilation: CompilationMode) {
     }
 
     companion object {
-        private const val ITERATIONS = 10
-
         @JvmStatic
         @Parameterized.Parameters(name = "{0}")
-        fun parameters() = listOf(CompilationMode.None(), CompilationMode.Partial(BaselineProfileMode.Require))
-            .map { arrayOf(it) }
+        fun parameters() = comparedCompilationModes.map { arrayOf(it) }
     }
 }

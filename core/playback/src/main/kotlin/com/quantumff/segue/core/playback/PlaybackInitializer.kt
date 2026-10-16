@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.playback
 
+import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -47,7 +48,14 @@ class PlaybackInitializer @Inject constructor(
     fun start() {
         if (started) return
         started = true
-        appScope.launch(ioDispatcher) { streamCache.get() }
+        appScope.launch(ioDispatcher) {
+            // Only a warm-up: if the cache cannot open, the service hits (and reports) it itself.
+            try {
+                streamCache.get()
+            } catch (@Suppress("TooGenericExceptionCaught") e: RuntimeException) {
+                Log.w(TAG, "Could not open the stream cache", e)
+            }
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
                 override fun onStart(owner: LifecycleOwner) {
@@ -70,5 +78,9 @@ class PlaybackInitializer @Inject constructor(
                 wasOffline = isOffline
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "PlaybackInitializer"
     }
 }

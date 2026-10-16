@@ -1,11 +1,11 @@
 package com.quantumff.segue.baselineprofile
 
-import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.filters.LargeTest
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,32 +21,26 @@ class StartupBenchmarks(private val startupMode: StartupMode, private val compil
     @get:Rule
     val rule = MacrobenchmarkRule()
 
+    @Before
+    fun signIn() = signInBeforeRecording()
+
     @Test
     fun startup() = rule.measureRepeated(
         packageName = targetPackage,
         metrics = listOf(StartupTimingMetric()),
         compilationMode = compilation,
         startupMode = startupMode,
-        iterations = ITERATIONS,
-        setupBlock = {
-            signInIfNeeded()
-            pressHome()
-            // Signing in started the app; a cold start needs it gone again.
-            if (startupMode == StartupMode.COLD) killProcess()
-        },
+        iterations = BENCHMARK_ITERATIONS,
+        setupBlock = { pressHome() },
     ) {
         startActivityAndWait()
     }
 
     companion object {
-        private const val ITERATIONS = 10
-
         @JvmStatic
         @Parameterized.Parameters(name = "{0}-{1}")
         fun parameters() = listOf(StartupMode.COLD, StartupMode.WARM).flatMap { mode ->
-            listOf(CompilationMode.None(), CompilationMode.Partial(BaselineProfileMode.Require)).map {
-                arrayOf(mode, it)
-            }
+            comparedCompilationModes.map { arrayOf(mode, it) }
         }
     }
 }

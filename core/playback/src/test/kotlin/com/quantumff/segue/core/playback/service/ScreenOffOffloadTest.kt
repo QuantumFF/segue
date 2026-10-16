@@ -2,6 +2,7 @@ package com.quantumff.segue.core.playback.service
 
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
@@ -49,7 +50,7 @@ class ScreenOffOffloadTest {
 
     @Test
     fun startsOffloadedWhenTheScreenIsAlreadyOff() {
-        shadowOf(context.getSystemService(android.os.PowerManager::class.java)).turnScreenOn(false)
+        shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(false)
         offload.start()
         assertThat(preferences().audioOffloadMode).isEqualTo(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
     }

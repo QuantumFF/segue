@@ -25,7 +25,14 @@ between the two modes) shows −14%. Measure on a phone before trusting any of t
 
 Startup fixes found with StrictMode (below): the `OkHttpClient` (TLS setup, about 50 ms) was
 built on the main thread while Hilt injected the `Application`; the downloads directory and the
-stream cache were opened on the main thread. A debug cold start now logs no violations.
+stream cache were opened on the main thread. A debug cold start now logs no violations. (The
+stream cache is opened on an IO thread at app start; a service that starts before that finishes
+waits for it rather than opening it again.)
+
+The release build carries both profiles: `assets/dexopt/baseline.prof`, and the startup profile
+applied by R8 as DEX layout (`build/intermediates/merged_startup_profile`; startup classes go to
+`classes.dex`). The baselineprofile plugin enables this by default with R8; nothing in
+`app/build.gradle.kts` needed changing.
 
 ## Album grid scroll jank
 
@@ -52,7 +59,9 @@ The emulator renders through the host GPU, so most of the jank is the emulator's
   models in `core:model` are stable through `compose_compiler_config.conf`.
 - Lists and grids use stable keys and `contentType`; cover art requests the `getCoverArt` size
   bucket for its drawn size.
-- Position ticker (500 ms), measured by logging each recomposition while playing for 20 s:
+- Position ticker (500 ms), measured by temporarily adding
+  `SideEffect { Log.d("Recomp", name) }` to the composables below in a debug build, then
+  counting log lines while playing for 20 s:
 
   | Surface | Before | After |
   |---------|-------:|------:|
@@ -75,6 +84,7 @@ Release build, playing an album from the demo server, stop-when-paused set to 5 
 | Wake locks after stop-when-paused | `size=0`; service no longer foreground or started (`startRequested=false`) | None |
 | Wi-Fi lock | Was held from play to pause (`WAKE_MODE_NETWORK`; Android 14 turns it into a low-latency lock, which disables Wi-Fi power save). Now held only while ExoPlayer loads: 2.5 s at the start of a track, then released while it plays from the buffer | **Fixed** |
 | Network while playing a buffered/prefetched track | `dumpsys netstats --poll` per-UID bytes over 60 s mid-track: 0 B rx, 0 B tx | Radio idle |
+| Scrobbles and queue sync | Code: one timer per track for the scrobble point (`Scrobbler`), sends batched through a network-constrained WorkManager job; queue uploads debounced (`DebouncedQueueWriter`) and event-driven; the position ticker only runs while a position is on screen | As specified |
 | Periodic work and alarms | `dumpsys jobscheduler`: no registered jobs while playing (history shows only the app-start library syncs); `dumpsys alarm`: no entries for the app | None |
 | WorkManager constraints | Library sync started offline sits in `jobscheduler` as `NET BATNOTLOW`, unsatisfied connectivity, and runs when Wi-Fi returns. Downloads: unmetered/connected plus optional charging from settings; scrobbles: connected | As specified |
 | Audio offload, screen off | The emulator's audio HAL has only mixer outputs (`dumpsys media.audio_flinger`), so it cannot offload. `ScreenOffOffloadTest` checks the switch: offload enabled (gapless required) on screen off, default on screen on, and when starting with the screen off | Verify on a phone |
