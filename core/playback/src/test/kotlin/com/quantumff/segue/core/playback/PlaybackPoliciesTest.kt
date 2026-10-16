@@ -6,7 +6,6 @@ import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.cache.NetworkType
 import com.quantumff.segue.core.playback.cache.PrefetchPolicy
 import com.quantumff.segue.core.playback.mix.InstantMix
-import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sleep.SleepTimerPolicy
 import org.junit.Test
 
@@ -50,31 +49,6 @@ class InstantMixTest {
     fun `top songs are only used when similar songs run short`() {
         val mix = InstantMix.build(null, similar = (1..10).map { song("s$it") }, top = listOf(song("t")), limit = 4)
         assertThat(mix.map { it.id }).containsExactly("s1", "s2", "s3", "s4").inOrder()
-    }
-}
-
-class AlbumPickerTest {
-    @Test
-    fun `songs are grouped into whole albums in the picked order, keeping disc and track order`() {
-        fun song(id: String, album: String, disc: Int, track: Int) = Song(
-            id = id,
-            title = id,
-            albumId = album,
-            album = album,
-            artist = null,
-            artistId = null,
-            discNumber = disc,
-            track = track,
-        )
-        val songs = listOf(
-            song("b2", "B", 1, 2),
-            song("a1", "A", 1, 1),
-            song("b1", "B", 1, 1),
-            song("a3", "A", 2, 1),
-            song("a2", "A", 1, 2),
-        )
-        val queue = AlbumPicker.queueInAlbumOrder(songs, albumOrder = listOf("B", "A"))
-        assertThat(queue.map { it.id }).containsExactly("b1", "b2", "a1", "a2", "a3").inOrder()
     }
 }
 

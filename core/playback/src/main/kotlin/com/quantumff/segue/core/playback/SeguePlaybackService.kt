@@ -38,6 +38,7 @@ import com.quantumff.segue.core.playback.replaygain.ReplayGainSettings
 import com.quantumff.segue.core.playback.scrobble.Scrobbler
 import com.quantumff.segue.core.playback.service.LoadingWifiLock
 import com.quantumff.segue.core.playback.service.PlaybackComponents
+import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.ScreenOffOffload
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
@@ -80,6 +81,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var sleepTimer: SleepTimerController
     private lateinit var prefetcher: NextTrackPrefetcher
     private lateinit var library: SessionLibrary
+    private lateinit var queueEditor: QueueEditor
     private lateinit var albumFeed: AlbumFeedController
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
@@ -92,8 +94,10 @@ class SeguePlaybackService : MediaLibraryService() {
         exoPlayer = components.createExoPlayer(this, replayGainProcessor)
         player = SeguePlayer(exoPlayer)
         queueSyncListener = QueueSyncListener(player, components.queueSync)
+        queueEditor = QueueEditor(player, offline = components::downloadedWhileOffline)
         albumFeed = AlbumFeedController(
             player,
+            queueEditor,
             components.albumShuffle,
             components.albumFeeds,
             scope,

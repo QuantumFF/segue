@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
+import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -46,11 +47,19 @@ class AlbumFeedControllerTest {
     private fun song(id: String, album: String?, track: Int = 1) =
         Song(id = id, title = id, albumId = album, album = album, artist = null, artistId = null, track = track)
 
-    private fun TestScope.controller(offline: DownloadedLibrary? = null) =
-        AlbumFeedController(player, albums, feeds, this, offline = { offline }).also {
-            controller = it
-            exo.addListener(it)
-        }
+    private fun TestScope.controller(offline: DownloadedLibrary? = null) = AlbumFeedController(
+        player,
+        QueueEditor(player, offline = {
+            offline
+        }),
+        albums,
+        feeds,
+        this,
+        offline = { offline },
+    ).also {
+        controller = it
+        exo.addListener(it)
+    }
 
     private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
 

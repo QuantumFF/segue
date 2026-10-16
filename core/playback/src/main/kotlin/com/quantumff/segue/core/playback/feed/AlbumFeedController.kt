@@ -12,9 +12,9 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.OfflineLibrary
-import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.playback.media.albumKey
 import com.quantumff.segue.core.playback.media.toMediaItem
+import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -27,7 +27,7 @@ import kotlinx.coroutines.sync.withLock
  * "Play albums" and "Shuffle albums" in the playback service (docs/PLAN.md, "Album shuffle").
  *
  * [start] queues the first window of whole albums (about [AlbumFeedPolicy.WINDOW_TRACKS] tracks)
- * in the request's order and placement. While those albums are the end of the queue, the running
+ * in the request's order and placement ([QueueEditor.place]). While those albums are the end of the queue, the running
  * [AlbumFeed] appends the next window whenever playback gets within
  * [AlbumFeedPolicy.LOW_WATER_TRACKS] of the end, and persists its cursor so it survives process
  * death ([restore]). Queue sync needs nothing special: it uploads whatever is queued.
@@ -40,6 +40,8 @@ import kotlinx.coroutines.sync.withLock
  */
 class AlbumFeedController(
     private val player: SeguePlayer,
+    /** Places each window; the windows are already narrowed to what can play. */
+    private val queue: QueueEditor,
     private val albums: AlbumShuffleRepository,
     private val feeds: AlbumFeedRepository,
     private val scope: CoroutineScope,
@@ -73,30 +75,7 @@ class AlbumFeedController(
         pending = null
         val items = window.songs.map { it.toMediaItem() }
         var first = 0
-        ownEdit {
-            when {
-                request.placement == QueuePlacement.Replace -> {
-                    player.setMediaItems(items, 0, 0)
-                    player.prepare()
-                    player.play()
-                }
-
-                player.mediaItemCount == 0 -> {
-                    player.setMediaItems(items)
-                    player.prepare()
-                }
-
-                request.placement == QueuePlacement.Next -> {
-                    first = player.currentMediaItemIndex + 1
-                    player.insertNext(items)
-                }
-
-                else -> {
-                    first = player.mediaItemCount
-                    player.addMediaItems(items)
-                }
-            }
-        }
+        ownEdit { first = queue.place(items, request.placement) }
         // Only a feed whose albums end the queue may grow; "play next" before other tracks stays one window.
         val endsQueue = first + items.size == player.mediaItemCount
         if (endsQueue && !window.exhausted) {

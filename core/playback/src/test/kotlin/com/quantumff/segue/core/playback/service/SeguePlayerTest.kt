@@ -33,8 +33,6 @@ class SeguePlayerTest {
 
     private val queue = listOf(song("a1", "a"), song("a2", "a"), song("b1", "b"), song("c1", "c"))
 
-    private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
-
     @Test
     fun `shuffle is never offered and a stray shuffle request is ignored`() {
         player.setMediaItems(queue.map { it.toMediaItem() })
@@ -52,16 +50,6 @@ class SeguePlayerTest {
 
         assertThat(player.queueState()).isEqualTo(QueueState(listOf("a1", "a2", "b1", "c1"), 2, 1_500))
         assertThat(player.upNext(5)).containsExactly("c1")
-    }
-
-    @Test
-    fun `insert next plays the items right after the current one, in order`() {
-        player.setMediaItems(queue.map { it.toMediaItem() }, 3, 0)
-
-        player.insertNext(listOf(song("x1", "x"), song("x2", "x")).map { it.toMediaItem() })
-
-        assertThat(queueIds()).containsExactly("a1", "a2", "b1", "c1", "x1", "x2").inOrder()
-        assertThat(player.upNext(2)).containsExactly("x1", "x2").inOrder()
     }
 
     @Test

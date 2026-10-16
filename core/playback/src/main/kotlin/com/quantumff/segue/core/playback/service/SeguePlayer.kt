@@ -29,9 +29,6 @@ class SeguePlayer(private val exo: ExoPlayer) : ForwardingPlayer(exo) {
     fun restore(items: List<MediaItem>, state: QueueState) =
         setMediaItems(items, state.currentIndex, state.positionMillis)
 
-    /** Inserts [items] right after the current item, so they play next, in this order. */
-    fun insertNext(items: List<MediaItem>) = addMediaItems(exo.currentMediaItemIndex + 1, items)
-
     /** The queue, for queue sync and the snapshot. */
     fun queueState(): QueueState = QueueState(
         songIds = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId },
