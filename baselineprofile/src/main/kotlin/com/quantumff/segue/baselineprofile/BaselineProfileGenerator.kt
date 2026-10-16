@@ -13,8 +13,8 @@ import org.junit.runner.RunWith
  * `./gradlew :app:generateBaselineProfile` with one device or emulator attached (a rooted
  * google_apis emulator works). Writes app/src/release/generated/baselineProfiles.
  *
- * Journey: cold start to Home, scroll the album grid, open an album, play it, open Now Playing
- * and the queue. Signing in to the demo server (see [signInIfNeeded]) happens before recording,
+ * Journey: cold start to Home, scroll the album grid, tap "Play albums" (and open the queue
+ * options), open an album, play it, open Now Playing and the queue. Signing in to the demo server (see [signInIfNeeded]) happens before recording,
  * so login code stays out of the profiles.
  */
 @LargeTest
@@ -47,6 +47,7 @@ class BaselineProfileGenerator {
             startActivityAndWait()
             openLibraryAlbums()
             scrollAlbumGrid()
+            playLibraryAlbums()
             openAlbumAndPlay()
             openNowPlayingAndQueue()
             // Also stops playback, and saves the profile, so the next iteration starts quiet.
