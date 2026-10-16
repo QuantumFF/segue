@@ -202,6 +202,18 @@ class AlbumFeedControllerTest {
     }
 
     @Test
+    fun `a saved feed survives a start where no queue was restored`() = runTest(UnconfinedTestDispatcher()) {
+        val saved = AlbumFeed(view, AlbumOrder.InOrder, seed = 1, cursor = 20, queueFingerprint = 42)
+        feeds.stored = saved
+
+        val feed = controller()
+        feed.restore()
+
+        assertThat(feed.current).isNull()
+        assertThat(feeds.stored).isEqualTo(saved)
+    }
+
+    @Test
     fun `offline only downloaded songs of downloaded albums are queued`() = runTest(UnconfinedTestDispatcher()) {
         val downloaded =
             DownloadedLibrary(songIds = setOf("al2-t1", "al2-t2", "al5-t3"), albumIds = setOf("al2", "al5"))

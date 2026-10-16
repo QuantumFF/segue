@@ -51,6 +51,9 @@ class AlbumFeedController(
         private set
 
     private var extension: Job? = null
+
+    // All state here is read and written on the player's (main) thread only; the coroutines run on
+    // it too, so [current] can be compared by identity after a suspension to spot a stopped feed.
     private var editing = false
     private val persistence = Mutex()
     private val starting = Mutex()
@@ -105,7 +108,8 @@ class AlbumFeedController(
     /** After the queue snapshot is restored: picks the saved feed back up if the queue is still the one it left. */
     suspend fun restore() {
         val saved = feeds.feed() ?: return
-        if (current != null) return
+        // Nothing was restored (no snapshot, or it failed): keep the feed for the next start.
+        if (current != null || player.mediaItemCount == 0) return
         if (saved.queueFingerprint == fingerprint()) {
             current = saved
             extendIfNeeded()
@@ -115,7 +119,7 @@ class AlbumFeedController(
     }
 
     /** The queue may have changed: a change the feed did not make ends it. */
-    fun onQueueChanged() {
+    private fun onQueueChanged() {
         val feed = current ?: return
         if (editing || feed.queueFingerprint == fingerprint()) return
         stop()

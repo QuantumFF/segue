@@ -50,9 +50,9 @@ data class AlbumPlayRequest(
  * albums are appended as playback nears the end of what is queued, so a library of thousands of
  * albums never has to be loaded up front. Persisted, so it survives process death.
  *
- * The feed only extends a queue it built: [queueFingerprint] identifies the queue (song IDs in play
+ * The feed only extends a queue it built: [queueFingerprint] identifies the queue (its song IDs in
  * order) as the feed last left it, and any other edit (a track added, removed or moved, the queue
- * replaced, shuffle changed) ends the feed.
+ * replaced or cleared) ends the feed.
  */
 data class AlbumFeed(
     val source: AlbumSource,
