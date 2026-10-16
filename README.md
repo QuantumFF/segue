@@ -49,7 +49,8 @@ and Symfonium.
   The foreground service runs only while playing.
 - Baseline Profiles and R8 full mode.
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for measurements, once that's available.
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for startup and jank measurements, the battery audit,
+and how to re-run the benchmarks.
 
 ## Install
 
@@ -94,7 +95,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/DESIGN.md](docs/
 | `core:playback` | Media3 `MediaLibraryService`, album shuffle, queue sync, scrobbling, Android Auto |
 | `core:testing` | Shared test utilities |
 | `feature:*` | Screens: home, library, album, artist, playlist, search, nowplaying, queue, downloads, settings, login, widget |
-| `baselineprofile` | Baseline Profile generator |
+| `baselineprofile` | Baseline Profile generator and startup/scroll Macrobenchmarks |
 
 ## License
 
