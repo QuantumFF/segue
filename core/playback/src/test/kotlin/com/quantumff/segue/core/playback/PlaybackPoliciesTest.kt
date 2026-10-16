@@ -1,64 +1,15 @@
 package com.quantumff.segue.core.playback
 
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.model.ReplayGain
-import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.cache.NetworkType
 import com.quantumff.segue.core.playback.cache.PrefetchPolicy
 import com.quantumff.segue.core.playback.mix.InstantMix
-import com.quantumff.segue.core.playback.replaygain.ReplayGainVolume
 import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sleep.SleepTimerPolicy
-import kotlin.math.log10
 import kotlin.random.Random
 import org.junit.Test
-
-class ReplayGainVolumeTest {
-    private val gains = ReplayGain(trackGain = -6f, albumGain = -9f, trackPeak = 0.5f, albumPeak = 0.9f)
-
-    private fun db(volume: Float) = 20 * log10(volume)
-
-    @Test
-    fun `off is unity`() {
-        assertThat(ReplayGainVolume.of(gains, ReplayGainMode.Off, preampDb = 6f)).isEqualTo(1f)
-    }
-
-    @Test
-    fun `track and album modes use their gain`() {
-        assertThat(db(ReplayGainVolume.of(gains, ReplayGainMode.Track, 0f)).toDouble()).isWithin(0.01).of(-6.0)
-        assertThat(db(ReplayGainVolume.of(gains, ReplayGainMode.Album, 0f)).toDouble()).isWithin(0.01).of(-9.0)
-    }
-
-    @Test
-    fun `a missing value falls back to the other mode, then the fallback gain`() {
-        val trackOnly = ReplayGain(trackGain = -4f)
-        assertThat(db(ReplayGainVolume.of(trackOnly, ReplayGainMode.Album, 0f)).toDouble()).isWithin(0.01).of(-4.0)
-        val fallback = ReplayGain(fallbackGain = -2f)
-        assertThat(db(ReplayGainVolume.of(fallback, ReplayGainMode.Track, 0f)).toDouble()).isWithin(0.01).of(-2.0)
-        assertThat(ReplayGainVolume.of(null, ReplayGainMode.Track, 0f)).isEqualTo(1f)
-    }
-
-    @Test
-    fun `preamp is added`() {
-        assertThat(db(ReplayGainVolume.of(gains, ReplayGainMode.Track, -3f)).toDouble()).isWithin(0.01).of(-9.0)
-    }
-
-    @Test
-    fun `the peak caps the gain to prevent clipping`() {
-        // +10 dB on a track peaking at 0.5 would clip; the cap is 1 / 0.5 = 2.0, then volume caps at 1.
-        val loud = ReplayGain(trackGain = 4f, trackPeak = 0.8f)
-        assertThat(ReplayGainVolume.of(loud, ReplayGainMode.Track, 0f)).isEqualTo(1f)
-        val peaky = ReplayGain(trackGain = -1f, trackPeak = 1.5f)
-        assertThat(ReplayGainVolume.of(peaky, ReplayGainMode.Track, 0f).toDouble()).isWithin(0.001).of(1 / 1.5)
-    }
-
-    @Test
-    fun `volume can only attenuate so positive gain is capped at unity`() {
-        assertThat(ReplayGainVolume.of(ReplayGain(trackGain = 5f), ReplayGainMode.Track, 0f)).isEqualTo(1f)
-    }
-}
 
 class SleepTimerPolicyTest {
     @Test

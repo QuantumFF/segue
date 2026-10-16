@@ -9,6 +9,7 @@ import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.ServerCapabilities
 import com.quantumff.segue.core.model.ShuffleMode
@@ -168,8 +169,12 @@ class FakeUserPreferencesRepository : UserPreferencesRepository {
 
     override suspend fun setReplayGainMode(mode: ReplayGainMode) = preferences.update { it.copy(replayGainMode = mode) }
 
-    override suspend fun setReplayGainPreampDb(preampDb: Float) =
-        preferences.update { it.copy(replayGainPreampDb = preampDb.coerceIn(UserPreferences.REPLAY_GAIN_PREAMP_RANGE)) }
+    override suspend fun setReplayGainTarget(target: ReplayGainTarget) =
+        preferences.update { it.copy(replayGainTarget = target) }
+
+    override suspend fun setReplayGainBoost(enabled: Boolean) = preferences.update {
+        it.copy(replayGainBoost = enabled)
+    }
 
     override suspend fun setStreamCacheSizeMb(sizeMb: Int) = preferences.update { it.copy(streamCacheSizeMb = sizeMb) }
 

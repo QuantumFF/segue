@@ -45,15 +45,42 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 
 ## Battery
 - ExoPlayer audio offload when the screen is off (gapless-compatible)
+- ReplayGain is player volume by default, which offload honors. The opt-in "Boost quiet tracks"
+  needs an `AudioProcessor`, which offload skips, so offload stays off for as long as boost is on
+  (one switch per setting change, never per track, so gapless transitions stay intact)
 - Burst-prefetch the current and next tracks into Media3 `SimpleCache`, so the radio can go idle
 - No timer polling. Scrobbles are batched and queue sync is debounced.
 - WorkManager constraints for downloads and sync. The service is foreground only while playing.
 
 ## Features (all phases)
-- Gapless, ReplayGain (track/album), transcoding per network type, offline downloads (pin albums/playlists)
+- Gapless, ReplayGain (track/album, see "ReplayGain"), transcoding per network type, offline downloads (pin albums/playlists)
 - Scrobbling via Navidrome, synced lyrics, stars/ratings, playlist CRUD, internet radio
 - Instant mix (`getSimilarSongs`), sleep timer (including "end of album"), widgets, Android Auto, multi-server
 - Later: Chromecast, optional crossfade, EQ
+
+## ReplayGain
+- **Source:** Off, Track or Album. A missing value falls back to the other one, then to
+  OpenSubsonic `fallbackGain`; a track without any plays at unity. A 0 dB gain whose peak is
+  absent, 0 or exactly 1 counts as missing: Navidrome's scanner up to 0.54 stored absent tags as
+  gain 0 and peak 1, and libraries scanned then still serve them.
+- **Normalisation** mirrors Symfonium's "Replay gain normalisation": the loudness every track is
+  levelled to. −18 LUFS (ReplayGain 2.0, the default) applies Navidrome's gains as they are;
+  −23 LUFS (EBU R128) is 5 dB quieter. Symfonium also has "Disabled", which skips its conversion
+  between Opus R128 tags (−23 LUFS reference) and ReplayGain tags (−18 LUFS). Navidrome already
+  converts R128 gains to the −18 LUFS reference (+5 dB) when it scans, so "Disabled" would equal
+  −18 LUFS here and is left out. The old free preamp migrates to the nearest target.
+- **Without boost** (default): player volume, which offload honors. Volume can only attenuate, so
+  positive gains stop at unity. The volume changes on the main thread at the track transition, a
+  few milliseconds late in a gapless transition.
+- **Boost quiet tracks:** an `AudioProcessor` in the audio sink applies the gain, up to +15 dB.
+  The sink flushes processors at every track change, gapless ones included, with the new track's
+  timeline period, so each track gets its own gain in sync with its audio. A known peak caps the
+  gain so the loudest sample just reaches full scale; without one, a peak limiter (instant attack,
+  100 ms release) holds amplified audio below −0.2 dBFS. Offload stays off while boost is on.
+  The processor stays in the PCM chain with boost off, copying buffers through at unity: the sink
+  only re-reads which processors are active when it flushes (a track change or a real seek), so a
+  processor that left the chain could not pick up boost mid-track. Switching boost during a track
+  briefly plays the audio already buffered at the old level.
 
 ## Phases
 1. Scaffold + design spec

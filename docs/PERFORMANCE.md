@@ -88,7 +88,7 @@ Release build, playing an album from the demo server, stop-when-paused set to 5 
 | Scrobbles and queue sync | Code: one timer per track for the scrobble point (`Scrobbler`), sends batched through a network-constrained WorkManager job; queue uploads debounced (`DebouncedQueueWriter`) and event-driven; the position ticker only runs while a position is on screen | As specified |
 | Periodic work and alarms | `dumpsys jobscheduler`: no registered jobs while playing (history shows only the app-start library syncs); `dumpsys alarm`: no entries for the app | None |
 | WorkManager constraints | Library sync started offline sits in `jobscheduler` as `NET BATNOTLOW`, unsatisfied connectivity, and runs when Wi-Fi returns. Downloads: unmetered/connected plus optional charging from settings; scrobbles: connected | As specified |
-| Audio offload, screen off | The emulator's audio HAL has only mixer outputs (`dumpsys media.audio_flinger`), so it cannot offload. `ScreenOffOffloadTest` checks the switch: offload enabled (gapless required) on screen off, default on screen on, and when starting with the screen off | Verify on a phone |
+| Audio offload, screen off | The emulator's audio HAL has only mixer outputs (`dumpsys media.audio_flinger`), so it cannot offload. `ScreenOffOffloadTest` checks the switch: offload enabled (gapless required) on screen off, default on screen on, when starting with the screen off, and never while ReplayGain boost is on | Verify on a phone |
 | Foreground service timeout | Foreground while playing; paused for 5 min, the service stops itself and leaves the foreground | As specified |
 
 Unverified on the emulator: actual DSP offload and offload sleep (needs a phone: play, turn the

@@ -49,6 +49,21 @@ class ScreenOffOffloadTest {
     }
 
     @Test
+    fun neverOffloadsWhileAudioProcessingIsRequired() {
+        offload.processingRequired = true
+        offload.start()
+
+        broadcast(Intent.ACTION_SCREEN_OFF)
+        assertThat(preferences()).isEqualTo(AudioOffloadPreferences.DEFAULT)
+
+        offload.processingRequired = false
+        assertThat(preferences().audioOffloadMode).isEqualTo(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+
+        offload.processingRequired = true
+        assertThat(preferences()).isEqualTo(AudioOffloadPreferences.DEFAULT)
+    }
+
+    @Test
     fun startsOffloadedWhenTheScreenIsAlreadyOff() {
         shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(false)
         offload.start()

@@ -33,7 +33,8 @@ and Symfonium.
 
 ## Features
 
-- Gapless playback, ReplayGain (track/album, with preamp), per-network streaming quality
+- Gapless playback, ReplayGain (track/album, −18 or −23 LUFS normalisation, optional boost for
+  quiet tracks), per-network streaming quality
 - Offline downloads: pin albums, playlists or artists. Wi-Fi/charging constraints, a storage limit,
   and offline mode
 - Synced lyrics (OpenSubsonic), sleep timer (time, end of track, end of album), instant mix, related songs

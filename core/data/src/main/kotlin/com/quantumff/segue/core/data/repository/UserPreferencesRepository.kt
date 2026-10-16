@@ -4,6 +4,7 @@ import com.quantumff.segue.core.datastore.UserPreferencesDataSource
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -36,8 +37,9 @@ interface UserPreferencesRepository {
 
     suspend fun setReplayGainMode(mode: ReplayGainMode)
 
-    /** Clamped to [UserPreferences.REPLAY_GAIN_PREAMP_RANGE]. */
-    suspend fun setReplayGainPreampDb(preampDb: Float)
+    suspend fun setReplayGainTarget(target: ReplayGainTarget)
+
+    suspend fun setReplayGainBoost(enabled: Boolean)
 
     suspend fun setStreamCacheSizeMb(sizeMb: Int)
 
@@ -75,8 +77,9 @@ internal class DataStoreUserPreferencesRepository @Inject constructor(private va
 
     override suspend fun setReplayGainMode(mode: ReplayGainMode) = source.setReplayGainMode(mode)
 
-    override suspend fun setReplayGainPreampDb(preampDb: Float) =
-        source.setReplayGainPreampDb(preampDb.coerceIn(UserPreferences.REPLAY_GAIN_PREAMP_RANGE))
+    override suspend fun setReplayGainTarget(target: ReplayGainTarget) = source.setReplayGainTarget(target)
+
+    override suspend fun setReplayGainBoost(enabled: Boolean) = source.setReplayGainBoost(enabled)
 
     override suspend fun setStreamCacheSizeMb(sizeMb: Int) = source.setStreamCacheSizeMb(sizeMb)
 

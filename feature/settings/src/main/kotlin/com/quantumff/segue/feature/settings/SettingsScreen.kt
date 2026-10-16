@@ -22,13 +22,11 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -56,11 +54,11 @@ import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
-import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
@@ -91,7 +89,8 @@ fun SettingsScreen(
             onAccentSource = viewModel::setAccentSource,
             onAccentPreset = viewModel::setAccentPreset,
             onReplayGainMode = viewModel::setReplayGainMode,
-            onReplayGainPreamp = viewModel::setReplayGainPreamp,
+            onReplayGainTarget = viewModel::setReplayGainTarget,
+            onReplayGainBoost = viewModel::setReplayGainBoost,
             onWifiQuality = viewModel::setWifiQuality,
             onCellularQuality = viewModel::setCellularQuality,
             onStreamCacheSize = viewModel::setStreamCacheSize,
@@ -125,7 +124,8 @@ class SettingsActions(
     val onAccentSource: (AccentSource) -> Unit,
     val onAccentPreset: (AccentPreset) -> Unit,
     val onReplayGainMode: (ReplayGainMode) -> Unit,
-    val onReplayGainPreamp: (Float) -> Unit,
+    val onReplayGainTarget: (ReplayGainTarget) -> Unit,
+    val onReplayGainBoost: (Boolean) -> Unit,
     val onWifiQuality: (StreamingQuality) -> Unit,
     val onCellularQuality: (StreamingQuality) -> Unit,
     val onStreamCacheSize: (Int) -> Unit,
@@ -142,7 +142,7 @@ class SettingsActions(
 ) {
     companion object {
         val None = SettingsActions(
-            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
         )
     }
 }
@@ -152,6 +152,7 @@ private enum class SettingsPicker {
     Theme,
     AccentSource,
     ReplayGain,
+    ReplayGainTarget,
     WifiQuality,
     CellularQuality,
     CacheSize,
@@ -229,11 +230,25 @@ fun SettingsContent(
                     modifier = Modifier.clickable { picker = SettingsPicker.ReplayGain },
                 )
             }
-            item(key = "preamp", contentType = "slider") {
-                PreampRow(
-                    preampDb = prefs.replayGainPreampDb,
+            item(key = "replayGainTarget", contentType = "row") {
+                val enabled = prefs.replayGainMode != ReplayGainMode.Off
+                SettingsRow(
+                    title = stringResource(R.string.feature_settings_replay_gain_target),
+                    summary = stringResource(
+                        R.string.feature_settings_replay_gain_target_summary,
+                        replayGainTargetLabel(prefs.replayGainTarget),
+                    ),
+                    enabled = enabled,
+                    modifier = Modifier.clickable(enabled = enabled) { picker = SettingsPicker.ReplayGainTarget },
+                )
+            }
+            item(key = "replayGainBoost", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_replay_gain_boost),
+                    summary = stringResource(R.string.feature_settings_replay_gain_boost_summary),
+                    checked = prefs.replayGainBoost,
                     enabled = prefs.replayGainMode != ReplayGainMode.Off,
-                    onPreampChange = actions.onReplayGainPreamp,
+                    onCheckedChange = actions.onReplayGainBoost,
                 )
             }
             item(key = "stopWhenPaused", contentType = "row") {
@@ -433,6 +448,15 @@ private fun SettingsPickerSheet(
             onDismissRequest = onDismissRequest,
         )
 
+        SettingsPicker.ReplayGainTarget -> PickerSheet(
+            title = stringResource(R.string.feature_settings_replay_gain_target),
+            options = ReplayGainTarget.entries.toImmutableList(),
+            selected = prefs.replayGainTarget,
+            label = { replayGainTargetLabel(it) },
+            onSelect = actions.onReplayGainTarget,
+            onDismissRequest = onDismissRequest,
+        )
+
         SettingsPicker.WifiQuality -> PickerSheet(
             title = stringResource(R.string.feature_settings_quality_wifi),
             options = SettingsViewModel.STREAMING_QUALITIES,
@@ -576,36 +600,6 @@ private fun AccentSwatches(selected: AccentPreset, onSelect: (AccentPreset) -> U
 }
 
 @Composable
-private fun PreampRow(preampDb: Float, enabled: Boolean, onPreampChange: (Float) -> Unit) {
-    // Local while dragging; committed (and snapped) when the drag ends.
-    var value by remember(preampDb) { mutableFloatStateOf(preampDb) }
-    val range = UserPreferences.REPLAY_GAIN_PREAMP_RANGE
-    Column(Modifier.padding(horizontal = SegueSpacing.lg)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = SegueSpacing.sm)) {
-            Text(
-                text = stringResource(R.string.feature_settings_preamp),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = preampLabel(value),
-                style = MaterialTheme.typography.labelMedium.tabularNumbers(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Slider(
-            value = value,
-            onValueChange = { value = it },
-            onValueChangeFinished = { onPreampChange(value) },
-            valueRange = range,
-            steps = ((range.endInclusive - range.start) / SettingsViewModel.PREAMP_STEP_DB).toInt() - 1,
-            enabled = enabled,
-        )
-    }
-}
-
-@Composable
 private fun SwitchRow(
     title: String,
     summary: String,
@@ -663,6 +657,14 @@ private fun replayGainLabel(mode: ReplayGainMode): String = stringResource(
 )
 
 @Composable
+private fun replayGainTargetLabel(target: ReplayGainTarget): String = stringResource(
+    when (target) {
+        ReplayGainTarget.ReplayGain2 -> R.string.feature_settings_replay_gain_target_rg2
+        ReplayGainTarget.Ebu -> R.string.feature_settings_replay_gain_target_ebu
+    },
+)
+
+@Composable
 private fun qualityLabel(quality: StreamingQuality): String {
     val format = quality.format
     return when {
@@ -688,16 +690,6 @@ private fun sizeLabel(megabytes: Int): String = if (megabytes >= MB_PER_GB && me
 @Composable
 private fun minutesLabel(minutes: Int): String =
     pluralStringResource(R.plurals.feature_settings_minutes, minutes, minutes)
-
-/** "+3.0 dB", "0.0 dB", "−1.5 dB". */
-internal fun preampLabel(db: Float): String {
-    val sign = when {
-        db > 0f -> "+"
-        db < 0f -> "−"
-        else -> ""
-    }
-    return "$sign${"%.1f".format(kotlin.math.abs(db))} dB"
-}
 
 private fun Context.versionName(): String = try {
     val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

@@ -27,12 +27,13 @@ import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.megabytes
 import com.quantumff.segue.core.playback.media.coverArtId
 import com.quantumff.segue.core.playback.media.isStarred
-import com.quantumff.segue.core.playback.media.replayGain
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.media.withPlayableUri
 import com.quantumff.segue.core.playback.media.withStarred
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
-import com.quantumff.segue.core.playback.replaygain.ReplayGainVolume
+import com.quantumff.segue.core.playback.replaygain.ReplayGainController
+import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
+import com.quantumff.segue.core.playback.replaygain.ReplayGainSettings
 import com.quantumff.segue.core.playback.scrobble.Scrobbler
 import com.quantumff.segue.core.playback.service.LoadingWifiLock
 import com.quantumff.segue.core.playback.service.PlaybackComponents
@@ -73,6 +74,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var player: SeguePlayer
     private lateinit var queueSyncListener: QueueSyncListener
     private lateinit var offload: ScreenOffOffload
+    private lateinit var replayGain: ReplayGainController
     private lateinit var sleepTimer: SleepTimerController
     private lateinit var prefetcher: NextTrackPrefetcher
     private lateinit var library: SessionLibrary
@@ -83,7 +85,8 @@ class SeguePlaybackService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
         scope = CoroutineScope(SupervisorJob() + components.mainDispatcher)
-        exoPlayer = components.createExoPlayer(this)
+        val replayGainProcessor = ReplayGainProcessor()
+        exoPlayer = components.createExoPlayer(this, replayGainProcessor)
         player = SeguePlayer(exoPlayer) {
             updateSessionState()
             queueSyncListener.onShuffleModeChanged()
@@ -92,6 +95,7 @@ class SeguePlaybackService : MediaLibraryService() {
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
+        replayGain = ReplayGainController(exoPlayer, replayGainProcessor, offload)
         library = SessionLibrary(
             this,
             scope,
@@ -107,6 +111,7 @@ class SeguePlaybackService : MediaLibraryService() {
             .build()
 
         exoPlayer.addListener(PlayerEvents())
+        exoPlayer.addListener(replayGain)
         exoPlayer.addListener(LoadingWifiLock(exoPlayer))
         exoPlayer.addListener(queueSyncListener)
         exoPlayer.addListener(sleepTimer)
@@ -118,7 +123,7 @@ class SeguePlaybackService : MediaLibraryService() {
                 preferences = prefs
                 player.preferredShuffleMode = prefs.defaultShuffleMode
                 components.cacheEvictor.maxBytes = megabytes(prefs.streamCacheSizeMb)
-                applyReplayGain()
+                replayGain.update(ReplayGainSettings.from(prefs))
             }
         }
         scope.launch { components.networkType.drop(1).collect { updatePrefetch() } }
@@ -149,7 +154,6 @@ class SeguePlaybackService : MediaLibraryService() {
     // Queue sync events come from QueueSyncListener; these are the service's other reactions.
     private inner class PlayerEvents : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            applyReplayGain()
             updateSessionState()
             updatePrefetch()
         }
@@ -172,11 +176,6 @@ class SeguePlaybackService : MediaLibraryService() {
             updateIdleStop()
             publishNowPlaying()
         }
-    }
-
-    private fun applyReplayGain() {
-        val gain = exoPlayer.currentMediaItem?.replayGain
-        exoPlayer.volume = ReplayGainVolume.of(gain, preferences.replayGainMode, preferences.replayGainPreampDb)
     }
 
     /** Prefetch only while the user means to play; a paused queue does not need the radio. */

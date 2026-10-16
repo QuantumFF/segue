@@ -6,6 +6,7 @@ import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -77,15 +78,16 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun preampSnapsToHalfDecibelsAndClamps() = runTest {
-        viewModel.setReplayGainPreamp(3.3f)
-        assertThat(preferences.preferences.value.replayGainPreampDb).isEqualTo(3.5f)
+    fun replayGainTargetAndBoostReachTheRepository() = runTest {
+        assertThat(preferences.preferences.value.replayGainTarget).isEqualTo(ReplayGainTarget.ReplayGain2)
+        assertThat(preferences.preferences.value.replayGainBoost).isFalse()
 
-        viewModel.setReplayGainPreamp(42f)
-        assertThat(preferences.preferences.value.replayGainPreampDb).isEqualTo(15f)
+        viewModel.setReplayGainTarget(ReplayGainTarget.Ebu)
+        viewModel.setReplayGainBoost(true)
 
-        viewModel.setReplayGainPreamp(-20f)
-        assertThat(preferences.preferences.value.replayGainPreampDb).isEqualTo(-15f)
+        val prefs = preferences.preferences.value
+        assertThat(prefs.replayGainTarget).isEqualTo(ReplayGainTarget.Ebu)
+        assertThat(prefs.replayGainBoost).isTrue()
     }
 
     @Test
@@ -99,13 +101,6 @@ class SettingsViewModelTest {
         viewModel.removeServer("home")
         assertThat(servers.serversState.value.map { it.id }).containsExactly(TestData.server.id)
         assertThat(servers.activeId.value).isEqualTo(TestData.server.id)
-    }
-
-    @Test
-    fun preampLabelShowsSignAndOneDecimal() {
-        assertThat(preampLabel(3f)).isEqualTo("+3.0 dB")
-        assertThat(preampLabel(0f)).isEqualTo("0.0 dB")
-        assertThat(preampLabel(-1.5f)).isEqualTo("−1.5 dB")
     }
 
     @Test
