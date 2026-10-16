@@ -78,7 +78,7 @@ class PlaybackComponents @Inject constructor(
 ) {
     val networkType get() = network.networkType
 
-    /** What is downloaded, while offline; null online. For browse lists that narrow offline. */
+    /** What is downloaded, while offline; null online. Everything the service queues is narrowed to it. */
     suspend fun downloadedWhileOffline(): DownloadedLibrary? = offlineMode.downloadedWhileOffline(downloads).first()
 
     /**

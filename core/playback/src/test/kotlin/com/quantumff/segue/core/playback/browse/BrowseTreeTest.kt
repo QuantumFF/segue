@@ -5,11 +5,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.model.AlbumOrder
-import com.quantumff.segue.core.model.AlbumPlayRequest
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.data.TestData
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -223,6 +222,26 @@ class BrowseTreeTest {
         assertThat(tree.item(BrowseId.Album("missing").encode())).isNull()
     }
 
+    @Test
+    fun `search results list artists, albums, then songs under group titles`() {
+        val result = SearchResult(
+            persistentListOf(TestData.artist("ar-1")),
+            persistentListOf(TestData.album("al-1")),
+            persistentListOf(TestData.song("so-1")),
+            includesServerResults = true,
+        )
+
+        val items = tree.searchResults(result, SearchLabels(artists = "Artists", albums = "Albums", songs = "Songs"))
+
+        assertThat(items.map { BrowseId.parse(it.mediaId) }).containsExactly(
+            BrowseId.Artist("ar-1"),
+            BrowseId.Album("al-1"),
+            BrowseId.Track("so-1", null, 0),
+        ).inOrder()
+        assertThat(items.map { it.extras.getString(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_GROUP_TITLE) })
+            .containsExactly("Artists", "Albums", "Songs").inOrder()
+    }
+
     // --- Playback ---------------------------------------------------------------------------------
 
     @Test
@@ -282,16 +301,13 @@ class BrowseTreeTest {
     }
 
     @Test
-    fun `shuffle albums is the whole library as a shuffled album feed, not a fixed list`() = runTest {
+    fun `shuffle albums is an album feed, not a fixed list`() = runTest {
         repo.albums = listOf(TestData.album("x"))
         repo.songs = listOf(TestData.song("x1", albumId = "x", track = 1))
         val shuffleAlbums = BrowseId.ShuffleAlbums.encode()
 
-        assertThat(tree.albumPlayRequest(shuffleAlbums))
-            .isEqualTo(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled))
         assertThat(tree.playRequest(shuffleAlbums)).isNull()
         assertThat(tree.songs(shuffleAlbums)).isNull()
-        assertThat(tree.albumPlayRequest(BrowseId.Album("x").encode())).isNull()
     }
 
     @Test

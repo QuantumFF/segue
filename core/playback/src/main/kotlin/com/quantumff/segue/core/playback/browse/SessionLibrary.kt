@@ -2,7 +2,6 @@ package com.quantumff.segue.core.playback.browse
 
 import android.content.Context
 import android.net.Uri
-import android.os.Bundle
 import android.util.Log
 import android.util.LruCache
 import androidx.media3.common.MediaItem
@@ -18,7 +17,6 @@ import com.google.common.util.concurrent.SettableFuture
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
-import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.playback.R
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -26,8 +24,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The library side of the media session: browse, search and play-by-ID for Android Auto and other
- * allowed media browsers. Turns [BrowseTree] and [LibrarySearch] into Media3 results. Call from the
- * session's application (main) thread; [scope] runs there too.
+ * allowed media browsers. Turns [BrowseTree] and [LibrarySearch] into Media3 results; [plays]
+ * resolves play requests. Call from the session's application (main) thread; [scope] runs there too.
  */
 class SessionLibrary(
     private val context: Context,
@@ -36,8 +34,12 @@ class SessionLibrary(
     search: SearchRepository,
     private val callers: BrowseCallers = BrowseCallers(context),
 ) {
-    val tree = BrowseTree(repository, labels(context), artwork(context))
-    private val search = LibrarySearch(search, repository, tree, searchLabels(context))
+    private val tree = BrowseTree(repository, labels(context), artwork(context))
+    private val search = LibrarySearch(search, repository)
+    private val searchLabels = searchLabels(context)
+
+    /** What a controller's set or add request queues, browse nodes and voice requests included. */
+    val plays = SessionPlayResolver(tree, this.search)
     private val searchResults = LruCache<String, List<MediaItem>>(SEARCH_CACHE_SIZE)
     private var lastHomeRefresh = 0L
 
@@ -83,39 +85,8 @@ class SessionLibrary(
         LibraryResult.ofItemList(searchResults(query).drop(page * pageSize).take(pageSize), params)
     }
 
-    /** True when [items] are a browse node or a voice search, which [playRequest] resolves. */
-    fun resolves(items: List<MediaItem>): Boolean {
-        val item = items.singleOrNull() ?: return false
-        return item.requestMetadata.searchQuery != null || BrowseId.parse(item.mediaId) != null
-    }
-
-    /**
-     * The album feed a browse node or a voice request starts instead of a fixed list: "Shuffle
-     * albums", and "play some music" (an empty query). Null for everything else.
-     */
-    fun albumPlayRequest(item: MediaItem): AlbumPlayRequest? {
-        val query = item.requestMetadata.searchQuery
-        return if (query != null) search.albumPlayRequest(query) else tree.albumPlayRequest(item.mediaId)
-    }
-
-    /** What playing a browse node, or a voice "play <query>", queues. */
-    suspend fun playRequest(item: MediaItem): PlayRequest? {
-        val query = item.requestMetadata.searchQuery
-        return if (query != null) {
-            search.playRequest(query, item.requestMetadata.extras ?: Bundle.EMPTY)
-        } else {
-            tree.playRequest(item.mediaId)
-        }
-    }
-
-    /** Whether any of [items] is a browse node that [songsFor] expands. */
-    fun hasBrowseNodes(items: List<MediaItem>) = items.any { BrowseId.parse(it.mediaId) != null }
-
-    /** The songs [item] stands for: a browse node's songs, or null for a plain song item. */
-    suspend fun songsFor(item: MediaItem) = if (BrowseId.parse(item.mediaId) == null) null else tree.songs(item.mediaId)
-
-    private suspend fun searchResults(query: String): List<MediaItem> =
-        searchResults.get(query) ?: search.results(query).also { searchResults.put(query, it) }
+    private suspend fun searchResults(query: String): List<MediaItem> = searchResults.get(query)
+        ?: tree.searchResults(search.find(query), searchLabels).also { searchResults.put(query, it) }
 
     /** Auto just connected: refresh the server-ordered home lists in the background, at most every few minutes. */
     private fun refreshHomeLists(session: MediaLibrarySession) {
