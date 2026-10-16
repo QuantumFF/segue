@@ -83,7 +83,7 @@ internal fun QueueViewModel.actions() = QueueActions(
 
 /**
  * The queue (DESIGN.md §4.8), ready to embed in Now Playing's Queue panel: the header (jump to
- * current, upload, download, ⋮), the "Continue from <device>" banner, and the reorderable list,
+ * current, upload, download), the "Continue from <device>" banner, and the reorderable list,
  * with its own snackbar unless [snackbarHostState] is given (then the host shows it).
  */
 @Composable
@@ -305,10 +305,6 @@ internal fun QueueMessages(
             latestOnShown()
             val text = when (shown) {
                 is QueueMessage.Removed -> resources.getString(R.string.feature_queue_removed, shown.title)
-
-                is QueueMessage.SavedAsPlaylist -> resources.getString(R.string.feature_queue_saved, shown.name)
-
-                QueueMessage.SaveFailed -> resources.getString(R.string.feature_queue_save_failed)
 
                 QueueMessage.Uploaded -> resources.getString(R.string.feature_queue_uploaded)
 

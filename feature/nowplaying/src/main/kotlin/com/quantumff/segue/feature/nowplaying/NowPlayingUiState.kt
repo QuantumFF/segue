@@ -59,6 +59,8 @@ data class NowPlayingUiState(
     /** "FLAC · 16/44.1" or "MP3 · 320"; null when the format is unknown. */
     val quality: String? = null,
     val details: TrackDetails? = null,
+    /** Tracks in the queue, for "Clear queue". */
+    val queueSize: Int = 0,
 )
 
 /** The details sheet. Missing values are null and their rows are left out. */
@@ -138,6 +140,7 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         sleepTimer = sleepTimer,
         quality = librarySong?.let { qualityLabel(it.suffix, it.bitRate, file?.samplingRate, file?.bitDepth) },
         details = librarySong?.let { it.toDetails(file) },
+        queueSize = queue.size,
     )
 }
 

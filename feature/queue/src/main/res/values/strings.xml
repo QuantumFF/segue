@@ -9,8 +9,6 @@
         <item quantity="other">%d played</item>
     </plurals>
     <string name="feature_queue_scroll_to_current">Jump to current track</string>
-    <string name="feature_queue_save_as_playlist">Save as playlist</string>
-    <string name="feature_queue_clear">Clear queue</string>
     <string name="feature_queue_upload">Upload queue</string>
     <string name="feature_queue_download">Download queue</string>
     <string name="feature_queue_uploaded">Queue uploaded to the server</string>
@@ -32,19 +30,8 @@
     <string name="feature_queue_remove">Remove</string>
     <string name="feature_queue_removed">Removed %s</string>
     <string name="feature_queue_undo">Undo</string>
-    <string name="feature_queue_saved">Saved as %s</string>
-    <string name="feature_queue_save_failed">Could not save the playlist</string>
     <string name="feature_queue_empty_title">Nothing queued</string>
     <string name="feature_queue_empty_message">Play an album, a playlist or a song to fill the queue</string>
-    <string name="feature_queue_clear_title">Clear the queue?</string>
-    <plurals name="feature_queue_clear_message">
-        <item quantity="one">%d track will be removed. This also clears the queue saved on the server.</item>
-        <item quantity="other">%d tracks will be removed. This also clears the queue saved on the server.</item>
-    </plurals>
-    <string name="feature_queue_clear_confirm">Clear</string>
     <string name="feature_queue_cancel">Cancel</string>
-    <string name="feature_queue_save_title">Save queue as playlist</string>
-    <string name="feature_queue_playlist_name">Playlist name</string>
-    <string name="feature_queue_save_confirm">Save</string>
     <string name="feature_queue_just_now">Just now</string>
 </resources>

@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.nowplaying
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.exceptionOrNull
 import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -10,6 +11,7 @@ import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
+import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
@@ -24,6 +26,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,8 +37,16 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** One-off messages, shown as snackbars. */
+sealed interface NowPlayingMessage {
+    data class QueueSavedAsPlaylist(val name: String) : NowPlayingMessage
+
+    data object QueueSaveFailed : NowPlayingMessage
+}
 
 /**
  * Now Playing: the player state plus what the library and server know about the current track.
@@ -50,6 +61,7 @@ class NowPlayingViewModel @Inject constructor(
     private val artists: ArtistRepository,
     private val fileInfo: SongFileInfoRepository,
     private val playIntents: PlayIntents,
+    private val playlists: PlaylistRepository,
 ) : ViewModel() {
     private val currentSongId: Flow<String?> = playback.eventState
         .map { it.currentItem?.songId }
@@ -130,6 +142,9 @@ class NowPlayingViewModel @Inject constructor(
         .holdLastNonNull(RelatedUiState.Loading)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
+    private val messageChannel = Channel<NowPlayingMessage>(Channel.BUFFERED)
+    val messages: Flow<NowPlayingMessage> = messageChannel.receiveAsFlow()
+
     /** Which panels are on screen; lyrics and related songs load only for those. */
     fun setVisiblePanels(panels: Set<NowPlayingPanel>) {
         visiblePanels.value = panels
@@ -180,6 +195,23 @@ class NowPlayingViewModel @Inject constructor(
     fun addToQueue(songs: List<Song>) {
         viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs), QueuePlacement.End) }
     }
+
+    /** Saves the queue, in play order, as a new playlist called [name]. */
+    fun saveQueueAsPlaylist(name: String) {
+        val songIds = playback.eventState.value.queue.map { it.songId }
+        if (name.isBlank() || songIds.isEmpty()) return
+        viewModelScope.launch {
+            val message = try {
+                playlists.createPlaylist(name.trim(), songIds)
+                NowPlayingMessage.QueueSavedAsPlaylist(name.trim())
+            } catch (_: RemoteException) {
+                NowPlayingMessage.QueueSaveFailed
+            }
+            messageChannel.send(message)
+        }
+    }
+
+    fun clearQueue() = playback.clearQueue()
 
     private fun loadLyrics(songId: String): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)

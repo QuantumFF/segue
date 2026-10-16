@@ -46,9 +46,11 @@ internal enum class NowPlayingMenuAction {
     SleepTimer,
     InstantMix,
     AddToPlaylist,
+    SaveQueueAsPlaylist,
     GoToAlbum,
     GoToArtist,
     Details,
+    ClearQueue,
 }
 
 /** The ⋮ menu: a context sheet about the current track (DESIGN.md §4.7, §5.7). */
@@ -69,7 +71,14 @@ internal fun NowPlayingMenu(
                     else -> true
                 }
             }
-            .map { ContextMenuItem(id = it.name, label = labels.getValue(it), icon = it.icon) }
+            .map {
+                ContextMenuItem(
+                    id = it.name,
+                    label = labels.getValue(it),
+                    icon = it.icon,
+                    destructive = it == NowPlayingMenuAction.ClearQueue,
+                )
+            }
             .toImmutableList()
     }
     ContextMenuSheet(
@@ -92,9 +101,11 @@ private val NowPlayingMenuAction.label: Int
         NowPlayingMenuAction.SleepTimer -> R.string.feature_nowplaying_menu_sleep_timer
         NowPlayingMenuAction.InstantMix -> com.quantumff.segue.core.designsystem.R.string.ds_action_instant_mix
         NowPlayingMenuAction.AddToPlaylist -> com.quantumff.segue.core.designsystem.R.string.ds_action_add_to_playlist
+        NowPlayingMenuAction.SaveQueueAsPlaylist -> R.string.feature_nowplaying_menu_save_queue
         NowPlayingMenuAction.GoToAlbum -> com.quantumff.segue.core.designsystem.R.string.ds_action_go_to_album
         NowPlayingMenuAction.GoToArtist -> com.quantumff.segue.core.designsystem.R.string.ds_action_go_to_artist
         NowPlayingMenuAction.Details -> R.string.feature_nowplaying_menu_details
+        NowPlayingMenuAction.ClearQueue -> R.string.feature_nowplaying_menu_clear_queue
     }
 
 private val NowPlayingMenuAction.icon
@@ -102,9 +113,11 @@ private val NowPlayingMenuAction.icon
         NowPlayingMenuAction.SleepTimer -> SegueIcons.Timer
         NowPlayingMenuAction.InstantMix -> SegueIcons.Related
         NowPlayingMenuAction.AddToPlaylist -> SegueIcons.AddToPlaylist
+        NowPlayingMenuAction.SaveQueueAsPlaylist -> SegueIcons.UpNext
         NowPlayingMenuAction.GoToAlbum -> SegueIcons.Disc3
         NowPlayingMenuAction.GoToArtist -> SegueIcons.Artist
         NowPlayingMenuAction.Details -> SegueIcons.Info
+        NowPlayingMenuAction.ClearQueue -> SegueIcons.Remove
     }
 
 /** File details: format, bit rate, sample rate, bit depth, channels, size, ReplayGain, path. */

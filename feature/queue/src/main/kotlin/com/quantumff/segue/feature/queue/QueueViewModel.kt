@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
@@ -27,10 +26,6 @@ import kotlinx.coroutines.launch
 sealed interface QueueMessage {
     /** A track was removed; the snackbar offers Undo. */
     data class Removed(val title: String) : QueueMessage
-
-    data class SavedAsPlaylist(val name: String) : QueueMessage
-
-    data object SaveFailed : QueueMessage
 
     data object Uploaded : QueueMessage
 
@@ -65,16 +60,14 @@ data class QueueUiState(
 )
 
 /**
- * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, clear, save as playlist,
- * upload or download the server's saved queue by hand, and the "Continue from <device>" banner.
+ * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, upload or download the
+ * server's saved queue by hand, and the "Continue from <device>" banner. Clear and Save as
+ * playlist are Now Playing's.
  * Queues are shuffled only when music is added, never in place, so the queue order is the play
  * order.
  */
 @HiltViewModel
-class QueueViewModel @Inject constructor(
-    private val playback: PlaybackController,
-    private val playlists: PlaylistRepository,
-) : ViewModel() {
+class QueueViewModel @Inject constructor(private val playback: PlaybackController) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
     val uiState: StateFlow<QueueUiState> = combine(playback.eventState, local) { player, local ->
@@ -98,23 +91,6 @@ class QueueViewModel @Inject constructor(
     fun undoRemove() = playback.undoRemove()
 
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }
-
-    fun clearQueue() = playback.clearQueue()
-
-    /** Saves the queue, in play order, as a new playlist called [name]. */
-    fun saveAsPlaylist(name: String) {
-        val songIds = playback.eventState.value.queue.map { it.songId }
-        if (name.isBlank() || songIds.isEmpty()) return
-        viewModelScope.launch {
-            val message = try {
-                playlists.createPlaylist(name.trim(), songIds)
-                QueueMessage.SavedAsPlaylist(name.trim())
-            } catch (_: RemoteException) {
-                QueueMessage.SaveFailed
-            }
-            local.update { it.copy(message = message) }
-        }
-    }
 
     /** Saves the queue to the server now, whatever the queue sync setting. */
     fun uploadQueue() = runTransfer {

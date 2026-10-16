@@ -30,6 +30,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -51,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,6 +61,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
+import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -80,8 +83,10 @@ import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricsPanel
 import com.quantumff.segue.feature.nowplaying.related.RelatedActions
 import com.quantumff.segue.feature.nowplaying.related.RelatedPanel
+import com.quantumff.segue.feature.nowplaying.sheet.ClearQueueDialog
 import com.quantumff.segue.feature.nowplaying.sheet.NowPlayingMenu
 import com.quantumff.segue.feature.nowplaying.sheet.NowPlayingMenuAction
+import com.quantumff.segue.feature.nowplaying.sheet.SaveQueueAsPlaylistDialog
 import com.quantumff.segue.feature.nowplaying.sheet.SleepTimerSheet
 import com.quantumff.segue.feature.nowplaying.sheet.TrackDetailsSheet
 import kotlin.coroutines.cancellation.CancellationException
@@ -109,6 +114,19 @@ fun NowPlayingScreen(
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val activeLyricLine = viewModel.activeLyricLine.collectAsStateWithLifecycle()
     val related by viewModel.related.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val resources = LocalResources.current
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { message ->
+            val text = when (message) {
+                is NowPlayingMessage.QueueSavedAsPlaylist ->
+                    resources.getString(R.string.feature_nowplaying_queue_saved, message.name)
+
+                NowPlayingMessage.QueueSaveFailed -> resources.getString(R.string.feature_nowplaying_queue_save_failed)
+            }
+            snackbarHostState.showSnackbar(text)
+        }
+    }
     val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist) {
         NowPlayingActions(
             onCollapse = onCollapse,
@@ -131,6 +149,8 @@ fun NowPlayingScreen(
             onPlayRelated = viewModel::playRelated,
             onPlayNext = viewModel::playNext,
             onAddToQueue = viewModel::addToQueue,
+            onSaveQueueAsPlaylist = viewModel::saveQueueAsPlaylist,
+            onClearQueue = viewModel::clearQueue,
         )
     }
     NowPlayingScreen(
@@ -141,15 +161,18 @@ fun NowPlayingScreen(
         related = related,
         actions = actions,
         queueContent = queueContent,
+        snackbarHostState = snackbarHostState,
         modifier = modifier,
     )
 }
 
-/** Which sheet is open. */
+/** Which sheet or dialog is open. */
 private enum class NowPlayingSheet {
     Menu,
     SleepTimer,
     Details,
+    SaveQueue,
+    ClearQueue,
 }
 
 /**
@@ -167,6 +190,7 @@ internal fun NowPlayingScreen(
     actions: NowPlayingActions,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
@@ -210,6 +234,12 @@ internal fun NowPlayingScreen(
                 onMenuClick = { sheet = NowPlayingSheet.Menu },
             )
         }
+        SegueSnackbarHost(
+            snackbarHostState,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
+        )
         if (track != null && !twoPane) {
             LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
         }
@@ -231,12 +261,16 @@ internal fun NowPlayingScreen(
 
                         NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
 
+                        NowPlayingMenuAction.SaveQueueAsPlaylist -> sheet = NowPlayingSheet.SaveQueue
+
                         NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
 
                         NowPlayingMenuAction.GoToArtist ->
                             current.artists.firstOrNull()?.let { actions.onArtistClick(it.id) }
 
                         NowPlayingMenuAction.Details -> sheet = NowPlayingSheet.Details
+
+                        NowPlayingMenuAction.ClearQueue -> sheet = NowPlayingSheet.ClearQueue
                     }
                 },
                 onDismissRequest = { if (sheet == NowPlayingSheet.Menu) sheet = null },
@@ -251,6 +285,23 @@ internal fun NowPlayingScreen(
         )
 
         NowPlayingSheet.Details -> TrackDetailsSheet(details = state.details, onDismissRequest = { sheet = null })
+
+        NowPlayingSheet.SaveQueue -> SaveQueueAsPlaylistDialog(
+            onConfirm = { name ->
+                sheet = null
+                actions.onSaveQueueAsPlaylist(name)
+            },
+            onDismiss = { sheet = null },
+        )
+
+        NowPlayingSheet.ClearQueue -> ClearQueueDialog(
+            trackCount = state.queueSize,
+            onConfirm = {
+                sheet = null
+                actions.onClearQueue()
+            },
+            onDismiss = { sheet = null },
+        )
 
         null -> Unit
     }

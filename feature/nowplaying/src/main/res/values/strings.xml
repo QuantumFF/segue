@@ -20,6 +20,20 @@
 
     <string name="feature_nowplaying_panel_lyrics">Lyrics</string>
     <string name="feature_nowplaying_panel_queue">Queue</string>
+    <string name="feature_nowplaying_menu_save_queue">Save queue as playlist</string>
+    <string name="feature_nowplaying_menu_clear_queue">Clear queue</string>
+    <string name="feature_nowplaying_queue_saved">Saved the queue as %s</string>
+    <string name="feature_nowplaying_queue_save_failed">Could not save the playlist</string>
+    <string name="feature_nowplaying_save_queue_title">Save queue as playlist</string>
+    <string name="feature_nowplaying_playlist_name">Playlist name</string>
+    <string name="feature_nowplaying_save_queue_confirm">Save</string>
+    <string name="feature_nowplaying_clear_queue_title">Clear the queue?</string>
+    <plurals name="feature_nowplaying_clear_queue_message">
+        <item quantity="one">%d track will be removed. This also clears the queue saved on the server.</item>
+        <item quantity="other">%d tracks will be removed. This also clears the queue saved on the server.</item>
+    </plurals>
+    <string name="feature_nowplaying_clear_queue_confirm">Clear</string>
+    <string name="feature_nowplaying_cancel">Cancel</string>
     <string name="feature_nowplaying_panel_related">Related</string>
     <string name="feature_nowplaying_back_to_art">Back to cover art</string>
 
