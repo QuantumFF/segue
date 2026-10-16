@@ -152,12 +152,23 @@ class AutoBrowseTreeTest {
         return items
     }
 
-    /** The service resolves browse IDs asynchronously; wait for the new queue to arrive. */
+    /**
+     * The service resolves browse IDs and voice requests asynchronously; wait until the controller's
+     * queue is the resolved one. Until then it holds the request itself (a browse ID, which starts
+     * with "/", or an empty voice item). Checks on every timeline change, whatever its reason: the
+     * session may report the new queue together with the player's own source update.
+     */
     private suspend fun awaitTimeline() = withTimeout(TIMEOUT_MILLIS) {
+        fun resolved() = browser.mediaItemCount > 0 &&
+            (0 until browser.mediaItemCount).none {
+                val id = browser.getMediaItemAt(it).mediaId
+                id.isEmpty() || id.startsWith("/")
+            }
+        if (resolved()) return@withTimeout
         suspendCancellableCoroutine { continuation ->
             val listener = object : Player.Listener {
                 override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                    if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED && !timeline.isEmpty) {
+                    if (resolved()) {
                         browser.removeListener(this)
                         if (continuation.isActive) continuation.resume(Unit)
                     }
