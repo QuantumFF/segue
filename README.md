@@ -12,7 +12,7 @@ and Symfonium.
   <img src="docs/screenshots/up-next.webp" width="24%" alt="Up next">
 </p>
 <p>
-  <img src="docs/screenshots/album-shuffle.webp" width="24%" alt="Album shuffle">
+  <img src="docs/screenshots/library-buttons.webp" width="24%" alt="Play and Shuffle albums buttons">
   <img src="docs/screenshots/downloads-continue.webp" width="24%" alt="Downloads and Continue from another device">
   <img src="docs/screenshots/artist.webp" width="24%" alt="Artist">
   <img src="docs/screenshots/tablet.webp" width="24%" alt="Tablet layout">
