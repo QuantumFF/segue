@@ -3,22 +3,19 @@ package com.quantumff.segue.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
-import com.quantumff.segue.core.data.download.downloadedWhileOffline
+import com.quantumff.segue.core.data.RemoteOutcome
+import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
-import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.OfflineLibrary
-import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SyncProgress
@@ -27,16 +24,12 @@ import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -90,19 +83,14 @@ private data class AlbumSections(
 
 private data class Status(val isRefreshing: Boolean, val isOffline: Boolean, val message: HomeMessage?)
 
-/** What offline narrows the sections to; null online. */
-private data class OfflineContent(val library: DownloadedLibrary, val pinnedPlaylists: Set<String>)
-
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val albumRepository: AlbumRepository,
-    private val playlistRepository: PlaylistRepository,
     libraryRepository: LibraryRepository,
     serverRepository: ServerRepository,
     private val syncRepository: LibrarySyncRepository,
     private val starRatingRepository: StarRatingRepository,
-    downloadRepository: DownloadRepository,
-    private val offlineModeRepository: OfflineModeRepository,
+    private val offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val status = MutableStateFlow(Status(isRefreshing = false, isOffline = false, message = null))
 
@@ -117,44 +105,22 @@ class HomeViewModel @Inject constructor(
         albumRepository.starredAlbums,
     ) { random, recent, newest, frequent, favorites -> AlbumSections(random, recent, newest, frequent, favorites) }
 
-    /** Downloaded content while offline, read only then (Library's approach: offline lists come from downloads). */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val offlineContent = offlineModeRepository.downloadedWhileOffline(downloadRepository)
-        .flatMapLatest { library ->
-            if (library == null) {
-                flowOf(null)
-            } else {
-                downloadRepository.overview.map { overview ->
-                    OfflineContent(
-                        library = library,
-                        pinnedPlaylists = overview.pins.filter {
-                            it.kind == PinKind.Playlist
-                        }.mapTo(HashSet()) { it.id },
-                    )
-                }
-            }
-        }
-
-    /** [albums], narrowed to what is downloaded while offline. */
-    private val visibleAlbums = combine(albums, offlineContent) { sections, offline ->
-        if (offline == null) return@combine sections
-        fun List<Album>.downloaded() = OfflineLibrary.albums(this, offline.library)
+    /** [albums], narrowed to what is downloaded while offline, paired with that downloaded music. */
+    private val visibleAlbums = combine(albums, offlineView.downloadedWhileOffline) { sections, offline ->
+        if (offline == null) return@combine sections to null
+        fun List<Album>.downloaded() = OfflineLibrary.albums(this, offline)
         AlbumSections(
             random = sections.random.downloaded(),
             recent = sections.recent.downloaded(),
             newest = sections.newest.downloaded(),
             frequent = sections.frequent.downloaded(),
             favorites = sections.favorites.downloaded(),
-        )
-    }
-
-    private val visiblePlaylists = combine(playlistRepository.playlists, offlineContent) { playlists, offline ->
-        if (offline == null) playlists else playlists.filter { it.id in offline.pinnedPlaylists }
+        ) to offline
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        combine(visibleAlbums, offlineContent) { sections, offline -> sections to offline?.library },
-        visiblePlaylists,
+        visibleAlbums,
+        offlineView.playlists,
         libraryRepository.genres,
         combine(serverRepository.activeServer, syncRepository.progress, ::Pair),
         combine(status, pinnedFeatured, ::Pair),
@@ -189,7 +155,7 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         if (status.value.isRefreshing) return
         // Offline the server is not asked: the cached, downloaded music is what there is.
-        if (offlineModeRepository.isOffline.value) return
+        if (offlineView.isOffline.value) return
         status.update { it.copy(isRefreshing = true) }
         // A full refresh may reshuffle Featured again.
         pinnedFeatured.value = null
@@ -197,25 +163,25 @@ class HomeViewModel @Inject constructor(
             val results = REFRESHED_LISTS.map { type ->
                 async {
                     val size = if (type == AlbumListType.Random) RANDOM_SIZE else AlbumRepository.DEFAULT_LIST_SIZE
-                    runCatchingRemote { albumRepository.refreshAlbumList(type, size) }
+                    remoteOutcome { albumRepository.refreshAlbumList(type, size) }
                 }
             }.awaitAll()
-            val offline = results.any { it is RemoteException.Unreachable }
+            val offline = results.any { it is RemoteOutcome.Unreachable }
             status.update { it.copy(isRefreshing = false, isOffline = offline) }
         }
     }
 
     /** The Explore header's refresh: a new random selection. */
     fun refreshExplore() {
-        if (offlineModeRepository.isOffline.value) return
+        if (offlineView.isOffline.value) return
         uiState.value.featured.takeIf { it.isNotEmpty() }?.let { pinnedFeatured.value = it }
         viewModelScope.launch {
-            runCatchingRemote { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
+            remoteOutcome { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
         }
     }
 
     fun retrySync() {
-        viewModelScope.launch { runCatchingRemote { syncRepository.requestSync() } }
+        viewModelScope.launch { remoteOutcome { syncRepository.requestSync() } }
     }
 
     /** Loads [album]'s songs (fetching them if needed) and hands them to [onLoaded], usually a play intent. */
@@ -246,14 +212,6 @@ class HomeViewModel @Inject constructor(
 
     private fun showMessage(message: HomeMessage) {
         status.update { it.copy(message = message) }
-    }
-
-    /** Runs [block]; returns the [RemoteException] it threw, or null. */
-    private suspend fun runCatchingRemote(block: suspend () -> Unit): RemoteException? = try {
-        block()
-        null
-    } catch (e: RemoteException) {
-        e
     }
 
     private companion object {

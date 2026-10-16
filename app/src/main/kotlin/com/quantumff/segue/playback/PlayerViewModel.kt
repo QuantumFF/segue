@@ -4,11 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
-import com.quantumff.segue.core.model.OfflinePlayback
 import com.quantumff.segue.core.model.PlayActions
-import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -17,7 +14,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -42,8 +38,7 @@ sealed interface PlayerMessage {
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playback: PlaybackController,
-    private val offlineMode: OfflineModeRepository,
-    private val downloads: DownloadRepository,
+    offlineMode: OfflineModeRepository,
 ) : ViewModel() {
     private val isOffline: StateFlow<Boolean> = offlineMode.isOffline
 
@@ -68,29 +63,11 @@ class PlayerViewModel @Inject constructor(
     )
 
     val playActions = PlayActions(
-        // Offline, songs that are not downloaded are skipped (DESIGN.md §5.2: they cannot play).
-        onPlaySongs = { songs, startIndex, shuffle ->
-            if (!isOffline.value) {
-                playback.play(songs, startIndex, shuffle)
-            } else {
-                viewModelScope.launch {
-                    val selection = OfflinePlayback.playable(songs, startIndex, isOffline = true, downloadedIds())
-                    if (selection == null) {
-                        messageChannel.send(PlayerMessage.NothingToPlay)
-                    } else {
-                        playback.play(selection.songs, selection.startIndex, shuffle)
-                    }
-                }
-            }
-        },
-        // Offline, the service queues downloaded songs only (DESIGN.md §1, offline is first-class).
-        onPlayAlbums = { request ->
-            viewModelScope.launch {
-                if (!playback.playAlbums(request)) messageChannel.send(PlayerMessage.NothingToPlay)
-            }
-        },
-        onPlayNext = { songs -> withQueueable(songs, playback::playNext) },
-        onAddToQueue = { songs -> withQueueable(songs, playback::addToQueue) },
+        // The service queues what can play: offline only downloaded songs (DESIGN.md §1, §5.2).
+        onPlaySongs = { songs, startIndex, shuffle -> queue { playback.play(songs, startIndex, shuffle) } },
+        onPlayAlbums = { request -> queue { playback.playAlbums(request) } },
+        onPlayNext = { songs -> queue { playback.playNext(songs) } },
+        onAddToQueue = { songs -> queue { playback.addToQueue(songs) } },
         onStartInstantMix = { seed ->
             viewModelScope.launch {
                 // The mix comes from the server (getSimilarSongs2), so there is none offline.
@@ -109,16 +86,12 @@ class PlayerViewModel @Inject constructor(
         },
     )
 
-    /** Songs to queue: all of them online; offline only the downloaded ones (read from Room, so never stale). */
-    private fun withQueueable(songs: List<Song>, queue: (List<Song>) -> Unit) {
-        if (!isOffline.value) return queue(songs)
+    /** Runs a play intent; when the service queued nothing, says so. */
+    private fun queue(intent: suspend () -> Boolean) {
         viewModelScope.launch {
-            val kept = OfflinePlayback.queueable(songs, isOffline = true, downloadedIds())
-            if (kept.isEmpty()) messageChannel.send(PlayerMessage.NothingToPlay) else queue(kept)
+            if (!intent()) messageChannel.send(PlayerMessage.NothingToPlay)
         }
     }
-
-    private suspend fun downloadedIds(): Set<String> = downloads.downloadedSongIds.first()
 
     fun shellActions() = ShellPlayerActions(
         onPlayPause = playback::togglePlayPause,

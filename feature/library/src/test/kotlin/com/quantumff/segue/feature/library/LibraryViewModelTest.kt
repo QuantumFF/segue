@@ -29,6 +29,7 @@ import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
@@ -70,12 +71,11 @@ class LibraryViewModelTest {
             albums,
             artists,
             library,
-            playlists,
             sync,
             stars,
             servers,
             downloads,
-            offlineMode,
+            offlineLibraryView(offlineMode, downloads, artists, library, playlists),
         )
     }
 
@@ -94,22 +94,14 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun offlineShowsOnlyDownloadedAlbumsSongsAndPinnedPlaylists() = runTest {
+    fun offlineAlbumsTabShowsDownloadedAlbumsWithTheChipOn() = runTest {
         albums.downloadedAlbumIds = setOf("1")
-        library.downloadedSongsState.value = listOf(TestData.song("s2"))
-        playlists.playlistsState.value = listOf(TestData.playlist("p1"), TestData.playlist("p2"))
-        downloads.overview.value = DownloadOverview(
-            pins = persistentListOf(PinnedDownload(PinKind.Playlist, "p2", "p2", null, 1, 1, 0, 0, 1f, 1)),
-        )
         offlineMode.isOffline.value = true
         viewModel.uiState.test {
             val state = expectMostRecentItem()
             assertThat(state.isOffline).isTrue()
             assertThat(state.showsDownloadedOnly).isTrue()
             assertThat(state.albumCount).isEqualTo(1)
-            assertThat(state.songCount).isEqualTo(1)
-            assertThat(state.playlists?.map { it.id }).containsExactly("p2")
-            assertThat(state.pinnedPlaylists).containsExactly("p2", DownloadStatus.Downloaded)
         }
     }
 

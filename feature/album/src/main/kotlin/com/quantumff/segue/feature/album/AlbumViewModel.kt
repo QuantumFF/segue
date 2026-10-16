@@ -4,27 +4,26 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumSource
-import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,11 +46,12 @@ class AlbumViewModel @Inject constructor(
     artistRepository: ArtistRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
 
-    private val refresh = MutableStateFlow(RefreshState.Running)
+    /** The last refresh's outcome; null while one runs. */
+    private val refresh = MutableStateFlow<RemoteOutcome<Unit>?>(null)
     private val message = MutableStateFlow<AlbumMessage?>(null)
 
     private val album = albumRepository.album(albumId)
@@ -65,36 +65,28 @@ class AlbumViewModel @Inject constructor(
         }
         .map { albums -> albums.filterNot { it.id == albumId }.toImmutableList() }
 
-    private val offline = combine(
-        downloadRepository.pinStatus(PinKind.Album, albumId),
-        downloadRepository.songDownloads,
-        offlineModeRepository.isOffline,
-        ::OfflineState,
-    )
-
     val uiState: StateFlow<AlbumUiState> = combine(
         album,
         albumRepository.albumSongs(albumId),
         moreByArtist,
         combine(refresh, message, ::Pair),
-        offline,
-    ) { album, songs, more, (refresh, message), offline ->
+        combine(downloadRepository.pinStatus(PinKind.Album, albumId), offlineView.songAvailability, ::Pair),
+    ) { album, songs, more, (refresh, message), (download, availability) ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
                 songs = songs,
                 discs = groupDiscs(album, songs),
                 moreByArtist = more,
-                isOffline = refresh == RefreshState.Failed,
+                isOffline = refresh is RemoteOutcome.Failed,
                 message = message,
-                download = offline.pin,
-                songDownloads = offline.songs,
-                isOfflineMode = offline.isOffline,
+                download = download,
+                availability = availability,
             )
 
-            refresh == RefreshState.Running -> AlbumUiState.Loading
+            refresh == null -> AlbumUiState.Loading
 
-            refresh == RefreshState.NotFound -> AlbumUiState.NotFound
+            refresh is RemoteOutcome.NotFound -> AlbumUiState.NotFound
 
             else -> AlbumUiState.Error
         }
@@ -106,17 +98,8 @@ class AlbumViewModel @Inject constructor(
 
     /** Refetches the album; the cached copy stays on screen meanwhile. */
     fun refresh() {
-        refresh.value = RefreshState.Running
-        viewModelScope.launch {
-            refresh.value = try {
-                albumRepository.refreshAlbum(albumId)
-                RefreshState.Done
-            } catch (_: RemoteException.NotFound) {
-                RefreshState.NotFound
-            } catch (_: RemoteException) {
-                RefreshState.Failed
-            }
-        }
+        refresh.value = null
+        viewModelScope.launch { refresh.value = remoteOutcome { albumRepository.refreshAlbum(albumId) } }
     }
 
     /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. */
@@ -189,14 +172,6 @@ class AlbumViewModel @Inject constructor(
         }
     }
 
-    private enum class RefreshState { Running, Done, Failed, NotFound }
-
-    private data class OfflineState(
-        val pin: DownloadStatus?,
-        val songs: ImmutableMap<String, SongDownload>,
-        val isOffline: Boolean,
-    )
-
     companion object {
         /** The [com.quantumff.segue.feature.album.navigation.AlbumRoute] argument. */
         const val ALBUM_ID_KEY = "albumId"
@@ -225,14 +200,9 @@ sealed interface AlbumUiState {
         val message: AlbumMessage? = null,
         /** The album's pin status; null when it is not pinned for offline. */
         val download: DownloadStatus? = null,
-        /** Downloads by song ID, for row badges. */
-        val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
-        /** Offline mode: rows of songs that are not downloaded are dimmed and do not play. */
-        val isOfflineMode: Boolean = false,
+        /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
+        val availability: SongAvailability = SongAvailability(),
     ) : AlbumUiState {
-        fun isAvailable(song: Song): Boolean =
-            !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
-
         val showDiscHeaders: Boolean get() = discs.size > 1
         val trackCount: Int get() = if (songs.isEmpty()) album.songCount else songs.size
         val durationSeconds: Long

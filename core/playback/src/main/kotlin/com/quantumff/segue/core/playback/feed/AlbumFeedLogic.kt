@@ -2,7 +2,6 @@ package com.quantumff.segue.core.playback.feed
 
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import kotlin.math.min
 
 /** Window sizes and the edit check of an album feed (docs/PLAN.md, "Album shuffle"). */
@@ -97,7 +96,7 @@ class AlbumFeedWindows(private val songsOf: suspend (albumIds: List<String>) -> 
             val loaded = if (wanted.isEmpty()) emptyMap() else songsOf(wanted).groupBy { it.albumId }
             for (albumId in batch) {
                 next++
-                if (albumId !in skip) songs += AlbumPicker.queueInAlbumOrder(loaded[albumId].orEmpty(), listOf(albumId))
+                if (albumId !in skip) songs += loaded[albumId].orEmpty().sortedWith(DISC_AND_TRACK)
                 if (songs.size >= minTracks) break
             }
         }
@@ -107,5 +106,8 @@ class AlbumFeedWindows(private val songsOf: suspend (albumIds: List<String>) -> 
     companion object {
         /** Albums read per query: a typical album has about ten tracks. */
         const val BATCH_ALBUMS = 8
+
+        /** Each album is queued whole, in disc and track order. */
+        private val DISC_AND_TRACK = compareBy<Song>({ it.discNumber ?: 0 }, { it.track ?: 0 })
     }
 }

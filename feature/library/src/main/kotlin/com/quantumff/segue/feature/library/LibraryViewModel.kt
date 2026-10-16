@@ -7,13 +7,12 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
-import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.designsystem.component.MediaAction
@@ -40,8 +39,6 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +47,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -114,14 +110,12 @@ class LibraryViewModel @Inject constructor(
     private val albumRepository: AlbumRepository,
     private val artistRepository: ArtistRepository,
     private val libraryRepository: LibraryRepository,
-    playlistRepository: PlaylistRepository,
     private val syncRepository: LibrarySyncRepository,
     private val starRatingRepository: StarRatingRepository,
     serverRepository: ServerRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    private val offlineView: OfflineLibraryView,
 ) : ViewModel() {
-    private val isOffline = offlineModeRepository.isOffline
 
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
     private val sort = savedStateHandle.getStateFlow(KEY_SORT, AlbumSortOrder.RecentlyAdded)
@@ -135,7 +129,7 @@ class LibraryViewModel @Inject constructor(
         .distinctUntilChanged()
 
     /** [filter], limited to downloaded albums while offline: what the Albums tab shows. */
-    private val effectiveFilter: Flow<AlbumFilter> = combine(filter, isOffline, ::shownFilter).distinctUntilChanged()
+    private val effectiveFilter: Flow<AlbumFilter> = offlineView.albumFilter(filter)
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<LibraryMessage?>(null)
 
@@ -143,13 +137,9 @@ class LibraryViewModel @Inject constructor(
         .flatMapLatest { (sort, filter) -> albumRepository.albums(sort, filter) }
         .cachedIn(viewModelScope)
 
-    val artists: Flow<PagingData<Artist>> = isOffline
-        .flatMapLatest { offline -> if (offline) artistRepository.downloadedArtists() else artistRepository.artists() }
-        .cachedIn(viewModelScope)
+    val artists: Flow<PagingData<Artist>> = offlineView.artists.cachedIn(viewModelScope)
 
-    val songs: Flow<PagingData<Song>> = isOffline
-        .flatMapLatest { offline -> if (offline) libraryRepository.downloadedSongs() else libraryRepository.songs() }
-        .cachedIn(viewModelScope)
+    val songs: Flow<PagingData<Song>> = offlineView.songs.cachedIn(viewModelScope)
 
     private val settings = combine(tab, sort, viewMode, filter) { tab, sort, viewMode, filter ->
         Settings(tab, sort, viewMode, filter)
@@ -157,26 +147,22 @@ class LibraryViewModel @Inject constructor(
 
     private val counts = combine(
         effectiveFilter.flatMapLatest { albumRepository.albumCount(it) },
-        isOffline.flatMapLatest { offline -> if (offline) flowOf(null) else artistRepository.artistCount },
-        isOffline.flatMapLatest { offline ->
-            if (offline) libraryRepository.downloadedSongCount else libraryRepository.songCount
-        },
+        offlineView.artistCount,
+        offlineView.songCount,
     ) { albums, artists, songs -> Counts(albums, artists, songs) }
 
     private val downloads = combine(
-        isOffline,
-        downloadRepository.overview,
+        offlineView.isOffline,
+        offlineView.pinStatuses,
         downloadRepository.songDownloads,
-    ) { offline, overview, songs ->
-        fun pinned(kind: PinKind) =
-            overview.pins.filter { it.kind == kind }.associate { it.id to it.status }.toImmutableMap()
-        Downloads(offline, pinned(PinKind.Album), pinned(PinKind.Artist), pinned(PinKind.Playlist), songs)
+    ) { offline, pinned, songs ->
+        Downloads(offline, pinned[PinKind.Album], pinned[PinKind.Artist], pinned[PinKind.Playlist], songs)
     }
 
     private val browse = combine(
         libraryRepository.genres,
         albumRepository.albumYears,
-        playlistRepository.playlists,
+        offlineView.playlists,
     ) { genres, years, playlists -> Browse(genres, years, playlists) }
 
     private val status = combine(
@@ -209,11 +195,7 @@ class LibraryViewModel @Inject constructor(
             songCount = counts.songs,
             genres = browse.genres,
             years = browse.years,
-            playlists = if (downloads.isOffline) {
-                browse.playlists.filter { it.id in downloads.playlists }.toImmutableList()
-            } else {
-                browse.playlists
-            },
+            playlists = browse.playlists,
             syncProgress = status.progress,
             isRefreshing = status.refreshing,
             message = status.message,
@@ -298,12 +280,9 @@ class LibraryViewModel @Inject constructor(
      */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement, playActions: PlayActions) {
         val stored = AlbumFilter(starredOnly.value, genreFilter.value, yearFilter.value, downloadedOnly.value)
-        val view = AlbumSource.Albums(sort.value, shownFilter(stored, isOffline.value))
+        val view = AlbumSource.Albums(sort.value, offlineView.albumFilter(stored))
         playActions.onPlayAlbums(AlbumPlayRequest(view, order, placement))
     }
-
-    private fun shownFilter(filter: AlbumFilter, offline: Boolean): AlbumFilter =
-        if (offline) filter.copy(downloadedOnly = true) else filter
 
     /** Handles the album menu actions that need data; navigation actions stay with the screen. */
     fun onAlbumAction(

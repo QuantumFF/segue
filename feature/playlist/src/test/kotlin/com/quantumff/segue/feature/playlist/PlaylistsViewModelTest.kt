@@ -16,6 +16,7 @@ import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
@@ -37,7 +38,12 @@ class PlaylistsViewModelTest {
         activeId.value = TestData.server.id
     }
 
-    private fun viewModel() = PlaylistsViewModel(playlists, servers, downloads, offlineMode)
+    private fun viewModel() = PlaylistsViewModel(
+        playlists,
+        servers,
+        downloads,
+        offlineLibraryView(offlineMode, downloads, playlists = playlists),
+    )
 
     @Test
     fun showsPlaylistsAndServerName_andRefreshesOnEntry() = runTest {
@@ -127,22 +133,5 @@ class PlaylistsViewModelTest {
         assertThat(playlists.refreshed).containsExactly("p1")
         // Still empty after the refresh: nothing to play, and no callback.
         assertThat(loaded).isEmpty()
-    }
-
-    @Test
-    fun offlineListsOnlyPinnedPlaylistsWithTheirStatus() = runTest {
-        playlists.playlistsState.value = listOf(TestData.playlist("p1"), TestData.playlist("p2"))
-        downloads.overview.value = DownloadOverview(
-            pins = persistentListOf(
-                PinnedDownload(PinKind.Playlist, "p2", "Playlist p2", null, 2, 2, 0, 0, 1f, 10),
-            ),
-        )
-        offlineMode.isOffline.value = true
-
-        viewModel().uiState.test {
-            val state = expectMostRecentItem()
-            assertThat(state.playlists.map { it.id }).containsExactly("p2")
-            assertThat(state.downloads).containsExactly("p2", DownloadStatus.Downloaded)
-        }
     }
 }

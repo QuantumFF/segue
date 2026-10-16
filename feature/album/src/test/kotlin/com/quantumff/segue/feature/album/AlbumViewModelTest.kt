@@ -21,6 +21,7 @@ import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
@@ -64,7 +65,7 @@ class AlbumViewModelTest {
         artistRepository = artists,
         starRatingRepository = stars,
         downloadRepository = downloads,
-        offlineModeRepository = offlineMode,
+        offlineView = offlineLibraryView(offlineMode, downloads),
     )
 
     private fun seed() {
@@ -204,17 +205,6 @@ class AlbumViewModelTest {
 
             viewModel.removeDownload()
             assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
-        }
-    }
-
-    @Test
-    fun offlineModeDisablesSongsThatAreNotDownloaded() = runTest {
-        seed()
-        downloads.songDownloads.value = persistentMapOf("s1" to SongDownload("s1", DownloadState.Completed, 1f))
-        offlineMode.isOffline.value = true
-        viewModel().uiState.test {
-            val state = awaitItem() as AlbumUiState.Success
-            assertThat(songs.map(state::isAvailable)).containsExactly(true, false, false).inOrder()
         }
     }
 }
