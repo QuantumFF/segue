@@ -75,8 +75,9 @@ class PlaybackComponents @Inject constructor(
     suspend fun downloadedWhileOffline(): DownloadedLibrary? = offlineMode.downloadedWhileOffline(downloads).first()
 
     /**
-     * ExoPlayer for music: audio focus, pause on headphone unplug, a network wake lock, and media
-     * loaded from `segue://` URIs through the stream cache. Gapless needs nothing extra: ExoPlayer
+     * ExoPlayer for music: audio focus, pause on headphone unplug, a CPU wake lock while playing
+     * (the service adds a Wi-Fi lock only while loading, see [LoadingWifiLock]), and media loaded
+     * from `segue://` URIs through the stream cache. Gapless needs nothing extra: ExoPlayer
      * reads encoder delay and padding from the files.
      *
      * The load control buffers up to ten minutes (or its byte budget) and refills only below 30
@@ -99,7 +100,7 @@ class PlaybackComponents @Inject constructor(
                 true,
             )
             .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(MIN_BUFFER_MS, MAX_BUFFER_MS, START_BUFFER_MS, REBUFFER_MS)

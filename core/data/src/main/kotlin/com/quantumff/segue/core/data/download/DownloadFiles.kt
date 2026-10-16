@@ -13,9 +13,14 @@ import javax.inject.Singleton
  * A download in progress writes `<song>.<ext>.part` and is renamed when complete.
  */
 @Singleton
-internal class DownloadFiles(val root: File) {
+internal class DownloadFiles private constructor(rootDirectory: () -> File) {
+    constructor(root: File) : this({ root })
+
+    /** Resolves `filesDir` on first use: it is built during `Application.onCreate`, on the main thread. */
     @Inject
-    constructor(@ApplicationContext context: Context) : this(File(context.filesDir, DIRECTORY))
+    constructor(@ApplicationContext context: Context) : this({ File(context.filesDir, DIRECTORY) })
+
+    val root: File by lazy(rootDirectory)
 
     fun serverDirectory(serverId: String): File = File(root, safeName(serverId))
 

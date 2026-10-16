@@ -22,6 +22,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -218,11 +222,13 @@ private fun TransportAndSeek(
     }
 }
 
-/** Its own scope, so the 1Hz position tick recomposes only this text. */
+/** Its own scope, so the position tick recomposes only this text, once per shown second. */
 @Composable
 private fun ElapsedText(positionSeconds: () -> Long) {
+    val latestPosition by rememberUpdatedState(positionSeconds)
+    val seconds by remember { derivedStateOf { latestPosition() } }
     Text(
-        text = formatDuration(positionSeconds()),
+        text = formatDuration(seconds),
         style = MaterialTheme.typography.labelMedium.tabularNumbers(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

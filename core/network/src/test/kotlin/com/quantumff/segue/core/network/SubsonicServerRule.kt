@@ -21,7 +21,7 @@ class SubsonicServerRule : ExternalResource() {
         server.start()
         val config =
             SubsonicServerConfig(baseUrl = server.url("/music").toString(), username = "admin", password = "sesame")
-        client = SubsonicClientFactory(OkHttpClient(), NetworkModule.json(), saltGenerator).create(config)
+        client = SubsonicClientFactory({ OkHttpClient() }, NetworkModule.json(), saltGenerator).create(config)
     }
 
     override fun after() = server.close()
