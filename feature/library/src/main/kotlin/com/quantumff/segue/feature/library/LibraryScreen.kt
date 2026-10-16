@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -35,8 +37,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.paging.ItemSnapshotList
 import androidx.paging.PagingData
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -525,11 +528,14 @@ private fun TabContent(
         bottom = bottom + FloatingAlbumPlayButtonsInset,
     )
     val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
-    // A new sort or filter starts at the top, where "Play albums" starts too; otherwise the list
-    // would stay anchored on whichever album was first before.
-    val albumView = Triple(state.sort, state.filter, state.isOffline)
-    val albumGridState = key(albumView) { rememberLazyGridState() }
-    val albumListState = key(albumView) { rememberLazyListState() }
+    val albumGridState = rememberLazyGridState()
+    val albumListState = rememberLazyListState()
+    PinAlbumsToTopOnViewChange(
+        view = AlbumView(state.sort, state.filter, state.isOffline),
+        albums = albums,
+        gridState = albumGridState,
+        listState = albumListState,
+    )
     when (state.tab) {
         LibraryTab.Albums -> when {
             state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
@@ -610,6 +616,54 @@ private fun TabContent(
                 onActionClick = { onEvent(LibraryEvent.OpenDownloads) },
             )
         }
+    }
+}
+
+/** What the Albums tab shows: a change of any of it starts the tab back at the top. */
+private data class AlbumView(val sort: AlbumSortOrder, val filter: AlbumFilter, val isOffline: Boolean)
+
+/**
+ * A new sort or filter starts the Albums tab at the top, where "Play albums" starts too.
+ *
+ * The new albums land a few frames after [view] changes, and a lazy grid keeps its first visible
+ * item in view across a data change, so a reset at the change alone would follow the album that
+ * was showing to its spot in the new order. So after a change the albums stay pinned to the top
+ * through every update until the user scrolls.
+ */
+@Composable
+private fun PinAlbumsToTopOnViewChange(
+    view: AlbumView,
+    albums: LazyPagingItems<Album>,
+    gridState: LazyGridState,
+    listState: LazyListState,
+) {
+    val pin = remember { AlbumTopPin(view) }
+    val shown = albums.itemSnapshotList
+    val scrolling = gridState.isScrollInProgress || listState.isScrollInProgress
+    // A side effect runs before this frame's layout, so the request wins over the grid's anchoring.
+    SideEffect {
+        if (pin.holdsTop(view, shown, scrolling)) {
+            gridState.requestScrollToItem(0)
+            listState.requestScrollToItem(0)
+        }
+    }
+}
+
+private class AlbumTopPin(private var view: AlbumView) {
+    private var pinned = false
+    private var shown: ItemSnapshotList<Album>? = null
+
+    /** Whether this frame needs the top again: a new [view], or new albums before the user scrolls. */
+    fun holdsTop(view: AlbumView, shown: ItemSnapshotList<Album>, scrolling: Boolean): Boolean {
+        val changed = view != this.view || shown !== this.shown
+        if (view != this.view) {
+            this.view = view
+            pinned = true
+        } else if (scrolling) {
+            pinned = false
+        }
+        this.shown = shown
+        return pinned && changed
     }
 }
 
