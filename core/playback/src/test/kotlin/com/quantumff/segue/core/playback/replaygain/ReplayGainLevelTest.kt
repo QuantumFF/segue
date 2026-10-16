@@ -55,6 +55,19 @@ class ReplayGainLevelTest {
     }
 
     @Test
+    fun `Navidrome's filler of gain 0 and peak 1 counts as missing`() {
+        // Navidrome's legacy scanner stored absent tags as gain 0, peak 1 (demo.navidrome.org still serves them).
+        val filler = ReplayGain(trackGain = -8.33f, albumGain = 0f, trackPeak = 0.9f, albumPeak = 1f)
+        assertThat(db(ReplayGainLevel.of(filler, track.copy(mode = ReplayGainMode.Album)).volume))
+            .isWithin(0.01).of(-8.33)
+        val noTrack = ReplayGain(trackGain = 0f, albumGain = -7f, trackPeak = 1f, albumPeak = 0.9f)
+        assertThat(db(ReplayGainLevel.of(noTrack, track).volume)).isWithin(0.01).of(-7.0)
+        // The album's own peak, not the filler, caps the boosted album gain.
+        assertThat(ReplayGainLevel.of(noTrack.copy(albumGain = 6f, albumPeak = 0.8f), boost).gain.toDouble())
+            .isWithin(0.001).of(1.25)
+    }
+
+    @Test
     fun `a zero gain with a real peak is a real 0 dB`() {
         val zero = ReplayGain(trackGain = -4f, albumGain = 0f, trackPeak = 0.9f, albumPeak = 0.5f)
         assertThat(ReplayGainLevel.of(zero, track.copy(mode = ReplayGainMode.Album)).volume).isEqualTo(1f)

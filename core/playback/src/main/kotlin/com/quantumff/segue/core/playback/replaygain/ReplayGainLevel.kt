@@ -52,11 +52,13 @@ data class ReplayGainLevel(val volume: Float, val gain: Float, val limit: Boolea
         private const val DB_PER_DECADE = 20f
 
         /**
-         * A (gain, peak) pair with a 0 dB gain and a zero or absent peak is how servers report a
-         * missing value; real audio always peaks above 0. Missing pairs become (null, null).
+         * A (gain, peak) pair that stands for absent tags becomes (null, null): a 0 dB gain with a
+         * peak that is absent, 0 (real audio peaks above 0) or exactly 1. Navidrome's scanner up
+         * to 0.54 stored absent tags as gain 0 and peak 1, and libraries scanned then still serve
+         * them (demo.navidrome.org on 0.64 does); its current scanner omits them instead.
          */
         private fun Pair<Float?, Float?>.orMissing(): Pair<Float?, Float?> =
-            if (first == 0f && (second == null || second == 0f)) Pair(null, null) else this
+            if (first == 0f && (second == null || second == 0f || second == 1f)) Pair(null, null) else this
 
         /** [linear] in dB, for logs. */
         internal fun decibels(linear: Float) = DB_PER_DECADE * log10(linear)
