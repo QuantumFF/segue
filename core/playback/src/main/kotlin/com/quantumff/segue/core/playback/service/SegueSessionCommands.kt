@@ -18,7 +18,13 @@ internal object SegueSessionCommands {
     const val TOGGLE_FAVORITE = PREFIX + "TOGGLE_FAVORITE"
     const val SET_SLEEP_TIMER = PREFIX + "SET_SLEEP_TIMER"
 
-    /** Restores the local queue an automatic remote adoption replaced (see QueueSyncEngine.takeAdoptionUndo). */
+    /**
+     * Adopts the remote queue queue sync staged (QueueSyncEngine.acceptOffer or an automatic
+     * adoption), paused; see SavedQueueLoader.adopt. Answers [ARG_STARTED].
+     */
+    const val ADOPT_QUEUE = PREFIX + "ADOPT_QUEUE"
+
+    /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
 
     /** "Play albums" / "Shuffle albums": starts an album feed (see AlbumFeedController). Answers [ARG_STARTED]. */
@@ -51,6 +57,7 @@ internal object SegueSessionCommands {
         listOf(
             TOGGLE_FAVORITE,
             SET_SLEEP_TIMER,
+            ADOPT_QUEUE,
             UNDO_ADOPTION,
             PLAY_ALBUMS,
             QUEUE_SONGS,
@@ -59,6 +66,10 @@ internal object SegueSessionCommands {
 
     fun command(action: String) = SessionCommand(action, Bundle.EMPTY)
 
+    /**
+     * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state
+     * cannot carry. [sleepTimer] reads either back.
+     */
     fun sleepArgs(timer: SleepTimer?) = Bundle().apply {
         when (timer) {
             is SleepTimer.AtTime -> {
@@ -139,12 +150,9 @@ internal object SegueSessionCommands {
         )
     }
 
-    /** The answer to [PLAY_ALBUMS] and [QUEUE_SONGS]: whether anything was queued. */
+    /** The answer to [PLAY_ALBUMS], [QUEUE_SONGS] and [ADOPT_QUEUE]: whether anything was queued. */
     fun startedResult(started: Boolean) = Bundle().apply { putBoolean(ARG_STARTED, started) }
 
     private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =
         enumValues<E>().firstOrNull { it.name == name }
-
-    /** Session extras: the sleep timer, which Media3's player state cannot carry. */
-    fun extras(timer: SleepTimer?) = sleepArgs(timer)
 }

@@ -64,7 +64,7 @@ class PlaybackInitializer @Inject constructor(
                 }
 
                 override fun onStop(owner: LifecycleOwner) {
-                    queueSync.onAppBackground(bridge.queueState())
+                    queueSync.flush(bridge.queueState())
                 }
             },
         )

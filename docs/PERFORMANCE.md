@@ -118,10 +118,11 @@ DEX file.
 
 ## Reproduce
 
-Use one device or emulator and point Gradle at it with `ANDROID_SERIAL`.
+Use one device or emulator and point Gradle at it with `ANDROID_SERIAL`. Agents already have it
+set to their own emulator (`scripts/agent-emulator` boots it) and skip the export.
 
 ```sh
-export ANDROID_SERIAL=emulator-5572
+export ANDROID_SERIAL=<serial from adb devices>
 
 # Regenerate the Baseline Profile and startup profile
 # (writes app/src/release/generated/baselineProfiles/{baseline,startup}-prof.txt)

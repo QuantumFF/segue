@@ -1,5 +1,7 @@
 package com.quantumff.segue.core.playback.nowplaying
 
+import androidx.media3.common.Player
+import com.quantumff.segue.core.playback.media.coverArtId
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -20,6 +22,18 @@ data class NowPlayingSnapshot(
 
     companion object {
         val Empty = NowPlayingSnapshot()
+
+        /** What [player] plays now; [Empty] with nothing queued. */
+        fun of(player: Player): NowPlayingSnapshot {
+            val item = player.currentMediaItem ?: return Empty
+            return NowPlayingSnapshot(
+                songId = item.mediaId,
+                title = item.mediaMetadata.title?.toString(),
+                artist = item.mediaMetadata.artist?.toString(),
+                coverArtId = item.coverArtId,
+                isPlaying = player.playWhenReady && player.playbackState != Player.STATE_ENDED,
+            )
+        }
     }
 }
 
