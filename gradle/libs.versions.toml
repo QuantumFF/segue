@@ -1,13 +1,13 @@
 [versions]
 # Build
 agp = "9.4.1"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 ksp = "2.3.12"
 hilt = "2.60.1"
 androidxHilt = "1.4.0"
 room = "2.8.5"
 baselineprofile = "1.5.0"
-spotless = "8.10.3"
+spotless = "8.10.4"
 ktlint = "1.8.0"
 composeRules = "0.6.7"
 
