@@ -37,7 +37,7 @@ import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
@@ -67,7 +67,7 @@ fun PlaylistsScreen(
             when (action) {
                 MediaAction.Play -> viewModel.loadSongs(playlist.id) { playActions.onPlaySongs(it, 0, false) }
                 MediaAction.Shuffle -> viewModel.loadSongs(playlist.id) { playActions.onPlaySongs(it, 0, true) }
-                MediaAction.ShuffleAlbums -> playActions.onShuffleAlbums(AlbumShuffleSource.Playlist(playlist.id))
+                MediaAction.ShuffleAlbums -> playActions.shuffleAlbums(AlbumSource.Playlist(playlist.id))
                 MediaAction.PlayNext -> viewModel.loadSongs(playlist.id, playActions.onPlayNext)
                 MediaAction.AddToQueue -> viewModel.loadSongs(playlist.id, playActions.onAddToQueue)
                 MediaAction.Download -> viewModel.download(playlist)

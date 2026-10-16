@@ -12,9 +12,6 @@
     <string name="feature_queue_scroll_to_current">Scroll to current track</string>
     <string name="feature_queue_save_as_playlist">Save as playlist</string>
     <string name="feature_queue_clear">Clear queue</string>
-    <string name="feature_queue_repeat_off">Repeat off</string>
-    <string name="feature_queue_repeat_all">Repeat all</string>
-    <string name="feature_queue_repeat_one">Repeat one</string>
     <string name="feature_queue_reorder">Reorder</string>
     <string name="feature_queue_move_album">Move album</string>
     <string name="feature_queue_play_next">Play next</string>

@@ -5,7 +5,7 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayActions
@@ -33,10 +33,10 @@ class ArtistViewModelTest {
     private val albums = FakeAlbumRepository()
     private val stars = FakeStarRatingRepository()
     private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-    private val shuffledAlbums = mutableListOf<AlbumShuffleSource>()
+    private val shuffledAlbums = mutableListOf<AlbumSource>()
     private val playActions = PlayActions(
         onPlaySongs = { songs, start, shuffle -> played += Triple(songs, start, shuffle) },
-        onShuffleAlbums = { shuffledAlbums += it },
+        onPlayAlbums = { shuffledAlbums += it.source },
         onPlayNext = {},
         onAddToQueue = {},
         onStartInstantMix = {},
@@ -121,7 +121,7 @@ class ArtistViewModelTest {
             Triple(listOf("t1", "t2"), 0, true),
             Triple(listOf("t1", "t2"), 1, false),
         ).inOrder()
-        assertThat(shuffledAlbums).containsExactly(AlbumShuffleSource.Artist("artist-1"))
+        assertThat(shuffledAlbums).containsExactly(AlbumSource.Artist("artist-1"))
     }
 
     @Test

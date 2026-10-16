@@ -67,15 +67,3 @@ sealed interface SleepTimer {
     /** Pause when the next track in play order belongs to another album, or the queue ends. */
     data object EndOfAlbum : SleepTimer
 }
-
-/** Where "Shuffle albums" draws its albums from. */
-sealed interface AlbumShuffleSource {
-    data object Library : AlbumShuffleSource
-
-    data class Artist(val artistId: String) : AlbumShuffleSource
-
-    data class Genre(val name: String) : AlbumShuffleSource
-
-    /** The playlist's tracks grouped by album; only tracks on the playlist are queued. */
-    data class Playlist(val playlistId: String) : AlbumShuffleSource
-}

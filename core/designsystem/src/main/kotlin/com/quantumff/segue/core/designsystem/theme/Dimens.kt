@@ -102,7 +102,6 @@ object SegueSizes {
     val nowPlayingArtMax = 400.dp
     val loginMaxWidth = 400.dp
     val primaryPlayButton = 56.dp
-    val shuffleControl = 40.dp
 
     val albumCard = 144.dp
     val albumCardSmall = 112.dp

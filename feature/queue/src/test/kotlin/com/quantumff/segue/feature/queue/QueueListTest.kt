@@ -77,6 +77,30 @@ class QueueListTest {
     }
 
     @Test
+    fun `album headers show only while album shuffle is on`() {
+        assertThat(QueueList.showsAlbumHeaders(ShuffleMode.Albums)).isTrue()
+        assertThat(QueueList.showsAlbumHeaders(ShuffleMode.Tracks)).isFalse()
+        assertThat(QueueList.showsAlbumHeaders(ShuffleMode.Off)).isFalse()
+
+        for (mode in ShuffleMode.entries) {
+            val rows = QueueList.build(albumShuffled, 0, mode, isPlaying = false, historyExpanded = false)
+            val hasHeaders = rows.any { it is QueueListItem.AlbumHeader }
+            assertThat(hasHeaders).isEqualTo(mode == ShuffleMode.Albums)
+        }
+    }
+
+    @Test
+    fun `an album header counts the tracks of its whole block, history included`() {
+        val rows = QueueList.build(albumShuffled, 3, ShuffleMode.Albums, isPlaying = false, historyExpanded = false)
+        val headers = rows.filterIsInstance<QueueListItem.AlbumHeader>()
+
+        // Album a's first track is in the collapsed history; the header still says 2 tracks.
+        assertThat(headers.map { it.title to it.trackCount })
+            .containsExactly("Album a" to 2, "Album c" to 1)
+            .inOrder()
+    }
+
+    @Test
     fun `an album that comes back later in the queue is a second block`() {
         val queue = listOf(item("a1", "a", 0), item("b1", "b", 1), item("a2", "a", 2))
         val rows = QueueList.build(queue, 0, ShuffleMode.Albums, isPlaying = false, historyExpanded = false)

@@ -6,14 +6,17 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumFilter
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
@@ -232,8 +235,8 @@ class LibraryViewModelTest {
         viewModel.onArtistAction(TestData.artist("x"), MediaAction.ShuffleAlbums, play.actions)
 
         assertThat(play.shuffledAlbums).containsExactly(
-            AlbumShuffleSource.Artist("artist-1"),
-            AlbumShuffleSource.Artist("x"),
+            AlbumSource.Artist("artist-1"),
+            AlbumSource.Artist("x"),
         ).inOrder()
     }
 
@@ -251,6 +254,33 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun playAlbumsQueuesTheAlbumsViewAsSortedAndFiltered() = runTest {
+        viewModel.setSort(AlbumSortOrder.Name)
+        viewModel.toggleFavoritesFilter()
+        viewModel.setGenreFilter("Rock")
+
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.Replace, play.actions)
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End, play.actions)
+
+        val view = AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starredOnly = true, genre = "Rock"))
+        assertThat(play.albumRequests).containsExactly(
+            AlbumPlayRequest(view, AlbumOrder.InOrder, QueuePlacement.Replace),
+            AlbumPlayRequest(view, AlbumOrder.Shuffled, QueuePlacement.End),
+        ).inOrder()
+    }
+
+    @Test
+    fun playAlbumsOfflineIsLimitedToDownloadedAlbumsLikeTheView() = runTest {
+        offlineMode.isOffline.value = true
+
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.Next, play.actions)
+
+        val source = play.albumRequests.single().source as AlbumSource.Albums
+        assertThat(source.sort).isEqualTo(AlbumSortOrder.RecentlyAdded)
+        assertThat(source.filter).isEqualTo(AlbumFilter(downloadedOnly = true))
+    }
+
+    @Test
     fun refreshRequestsAnIncrementalSync() = runTest {
         viewModel.refresh()
 
@@ -261,14 +291,18 @@ class LibraryViewModelTest {
 /** Records every play intent as song IDs. */
 internal class RecordingPlayActions {
     val played = mutableListOf<Triple<List<String>, Int, Boolean>>()
-    val shuffledAlbums = mutableListOf<AlbumShuffleSource>()
+    val shuffledAlbums = mutableListOf<AlbumSource>()
+    val albumRequests = mutableListOf<AlbumPlayRequest>()
     val playedNext = mutableListOf<List<String>>()
     val queued = mutableListOf<List<String>>()
     val mixes = mutableListOf<String>()
 
     val actions = PlayActions(
         onPlaySongs = { songs, start, shuffle -> played += Triple(songs.ids(), start, shuffle) },
-        onShuffleAlbums = { shuffledAlbums += it },
+        onPlayAlbums = {
+            albumRequests += it
+            shuffledAlbums += it.source
+        },
         onPlayNext = { playedNext += it.ids() },
         onAddToQueue = { queued += it.ids() },
         onStartInstantMix = { mixes += it.id },

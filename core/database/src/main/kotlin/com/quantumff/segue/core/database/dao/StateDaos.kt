@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import com.quantumff.segue.core.database.model.AlbumEntity
+import com.quantumff.segue.core.database.model.AlbumFeedEntity
 import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
@@ -62,6 +63,15 @@ abstract class QueueDao {
 
     @Upsert
     protected abstract suspend fun upsertSyncState(state: QueueSyncStateEntity)
+
+    @Query("SELECT * FROM album_feed WHERE serverId = :serverId")
+    abstract suspend fun albumFeed(serverId: String): AlbumFeedEntity?
+
+    @Upsert
+    abstract suspend fun upsertAlbumFeed(feed: AlbumFeedEntity)
+
+    @Query("DELETE FROM album_feed WHERE serverId = :serverId")
+    abstract suspend fun deleteAlbumFeed(serverId: String)
 }
 
 @Dao
@@ -374,6 +384,7 @@ abstract class ServerDataDao {
         deleteAlbumLists(serverId)
         deleteQueueItems(serverId)
         deleteQueueState(serverId)
+        deleteAlbumFeed(serverId)
         deleteScrobbles(serverId)
         deleteDownloads(serverId)
         deletePins(serverId)
@@ -410,6 +421,9 @@ abstract class ServerDataDao {
 
     @Query("DELETE FROM queue_state WHERE serverId = :serverId")
     protected abstract suspend fun deleteQueueState(serverId: String)
+
+    @Query("DELETE FROM album_feed WHERE serverId = :serverId")
+    protected abstract suspend fun deleteAlbumFeed(serverId: String)
 
     @Query("DELETE FROM pending_scrobbles WHERE serverId = :serverId")
     protected abstract suspend fun deleteScrobbles(serverId: String)

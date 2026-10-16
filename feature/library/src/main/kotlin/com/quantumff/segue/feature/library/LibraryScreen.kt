@@ -40,6 +40,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -54,6 +55,8 @@ import androidx.paging.compose.itemKey
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.EmptyState
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtons
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsInset
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.designsystem.component.MediaActions
@@ -65,6 +68,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
+import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -77,14 +81,16 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import java.text.NumberFormat
@@ -113,7 +119,7 @@ internal sealed interface LibraryEvent {
 
     data object ShuffleAll : LibraryEvent
 
-    data object ShuffleLibraryAlbums : LibraryEvent
+    data class PlayAlbums(val order: AlbumOrder, val placement: QueuePlacement) : LibraryEvent
 
     data class ShuffleGenreAlbums(val genre: String) : LibraryEvent
 
@@ -187,9 +193,9 @@ fun LibraryScreen(
 
                 LibraryEvent.ShuffleAll -> viewModel.shuffleAll(playActions)
 
-                LibraryEvent.ShuffleLibraryAlbums -> playActions.onShuffleAlbums(AlbumShuffleSource.Library)
+                is LibraryEvent.PlayAlbums -> viewModel.playAlbums(event.order, event.placement, playActions)
 
-                is LibraryEvent.ShuffleGenreAlbums -> playActions.onShuffleAlbums(AlbumShuffleSource.Genre(event.genre))
+                is LibraryEvent.ShuffleGenreAlbums -> playActions.shuffleAlbums(AlbumSource.Genre(event.genre))
 
                 LibraryEvent.OpenAccount -> onAccountClick()
 
@@ -261,6 +267,7 @@ internal fun LibraryContent(
         }
     }
 
+    val collapse = rememberCollapseOnScrollState()
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             LibraryTopBar(state, onEvent, onSortClick = { picker = LibraryPicker.Sort })
@@ -277,7 +284,8 @@ internal fun LibraryContent(
                     onRefresh = { onEvent(LibraryEvent.Refresh) },
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .nestedScroll(collapse.connection),
                 ) {
                     TabContent(
                         state = state,
@@ -290,6 +298,11 @@ internal fun LibraryContent(
                 }
             }
         }
+        FloatingAlbumPlayButtons(
+            visible = state.tab == LibraryTab.Albums && (state.albumCount ?: 0) > 0,
+            expanded = collapse.expanded,
+            onPlay = { order, placement -> onEvent(LibraryEvent.PlayAlbums(order, placement)) },
+        )
         SegueSnackbarHost(hostState = snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
@@ -426,11 +439,6 @@ private fun RowScope.AlbumFilterChips(
         selected = state.filter.genre != null,
         onClick = { onPickerClick(LibraryPicker.Genre) },
     )
-    ActionChip(
-        label = stringResource(R.string.feature_library_shuffle_albums),
-        icon = SegueIcons.ShuffleAlbums,
-        onClick = { onEvent(LibraryEvent.ShuffleLibraryAlbums) },
-    )
 }
 
 /** A one-shot action in the filter row ("Shuffle all"), shaped like the filter chips. */
@@ -506,6 +514,14 @@ private fun TabContent(
         bottom = bottom + SegueSpacing.lg,
     )
     val listPadding = PaddingValues(bottom = bottom)
+    // The Albums tab keeps its last items clear of the floating Play / Shuffle albums buttons.
+    val albumGridPadding = PaddingValues(
+        start = SegueSpacing.lg,
+        end = SegueSpacing.lg,
+        top = SegueSpacing.sm,
+        bottom = bottom + FloatingAlbumPlayButtonsInset,
+    )
+    val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
     when (state.tab) {
         LibraryTab.Albums -> when {
             state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
@@ -526,12 +542,12 @@ private fun TabContent(
                 albums = albums,
                 onAlbumClick = { onEvent(LibraryEvent.OpenAlbum(it.id)) },
                 onAlbumLongClick = { onMenu(MenuTarget.ForAlbum(it)) },
-                contentPadding = gridPadding,
+                contentPadding = albumGridPadding,
                 modifier = Modifier.fillMaxSize(),
                 downloads = state.pinnedAlbums,
             )
 
-            else -> LazyColumn(contentPadding = listPadding, modifier = Modifier.fillMaxSize()) {
+            else -> LazyColumn(contentPadding = albumListPadding, modifier = Modifier.fillMaxSize()) {
                 items(
                     count = albums.itemCount,
                     key = albums.itemKey { it.id },

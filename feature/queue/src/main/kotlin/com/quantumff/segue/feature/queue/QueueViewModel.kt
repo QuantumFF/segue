@@ -7,7 +7,6 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RemoteQueueOffer
-import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,7 +39,6 @@ data class QueueUiState(
     val currentKey: String? = null,
     val trackCount: Int = 0,
     val shuffleMode: ShuffleMode = ShuffleMode.Off,
-    val repeatMode: RepeatMode = RepeatMode.Off,
     /** A newer queue saved by another device: the "Continue from" banner. */
     val remoteOffer: RemoteQueueOffer? = null,
     /** True until the player state first arrives, so the empty state does not flash. */
@@ -50,7 +48,8 @@ data class QueueUiState(
 
 /**
  * The play queue in effective play order (DESIGN.md §4.8): reorder, play next, remove with undo,
- * shuffle mode, clear, save as playlist, and the "Continue from <device>" banner.
+ * clear, save as playlist, and the "Continue from <device>" banner. Shuffle and repeat live on the
+ * Now Playing transport, not here: a running queue is not reshuffled from the queue screen.
  */
 @HiltViewModel
 class QueueViewModel @Inject constructor(
@@ -79,14 +78,6 @@ class QueueViewModel @Inject constructor(
     }
 
     fun undoRemove() = playback.undoRemove()
-
-    fun setShuffleMode(mode: ShuffleMode) = playback.setShuffleMode(mode)
-
-    /** Off → All → One → Off. */
-    fun cycleRepeatMode() {
-        val modes = RepeatMode.entries
-        playback.setRepeatMode(modes[(uiState.value.repeatMode.ordinal + 1) % modes.size])
-    }
 
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }
 
@@ -122,7 +113,6 @@ class QueueViewModel @Inject constructor(
             currentKey = items.firstOrNull { it is QueueListItem.Track && it.row.isCurrent }?.key,
             trackCount = queue.size,
             shuffleMode = shuffleMode,
-            repeatMode = repeatMode,
             remoteOffer = remoteQueue,
             isLoading = false,
             message = local.message,

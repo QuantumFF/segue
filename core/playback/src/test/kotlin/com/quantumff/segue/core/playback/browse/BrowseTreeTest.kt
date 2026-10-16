@@ -6,7 +6,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.ShuffleMode
@@ -22,9 +22,9 @@ import org.robolectric.RobolectricTestRunner
 class BrowseTreeTest {
     private val repo = FakeMediaBrowseRepository()
     private val shuffle = object : AlbumShuffleRepository {
-        override suspend fun albumIds(source: AlbumShuffleSource) = repo.albums.map { it.id }
+        override suspend fun albumIds(source: AlbumSource) = repo.albums.map { it.id }
 
-        override suspend fun songs(source: AlbumShuffleSource, albumIds: List<String>): List<Song> =
+        override suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song> =
             repo.songs.filter { it.albumId in albumIds }
     }
     private var offlineLibrary: DownloadedLibrary? = null

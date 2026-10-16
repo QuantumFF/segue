@@ -19,6 +19,7 @@ import com.quantumff.segue.core.database.dao.SongDao
 import com.quantumff.segue.core.database.dao.SyncMetadataDao
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumEntity
+import com.quantumff.segue.core.database.model.AlbumFeedEntity
 import com.quantumff.segue.core.database.model.AlbumFtsEntity
 import com.quantumff.segue.core.database.model.AlbumListEntryEntity
 import com.quantumff.segue.core.database.model.ArtistEntity
@@ -65,8 +66,9 @@ import com.quantumff.segue.core.database.util.Converters
         PinEntity::class,
         SyncMetadataEntity::class,
         ServerCapabilitiesEntity::class,
+        AlbumFeedEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

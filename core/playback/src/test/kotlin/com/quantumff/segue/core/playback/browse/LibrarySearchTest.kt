@@ -6,7 +6,7 @@ import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.ShuffleMode
@@ -26,9 +26,9 @@ class LibrarySearchTest {
     private val tree = BrowseTree(
         repository = repo,
         albumShuffle = object : AlbumShuffleRepository {
-            override suspend fun albumIds(source: AlbumShuffleSource) = repo.albums.map { it.id }
+            override suspend fun albumIds(source: AlbumSource) = repo.albums.map { it.id }
 
-            override suspend fun songs(source: AlbumShuffleSource, albumIds: List<String>): List<Song> =
+            override suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song> =
                 repo.songs.filter { it.albumId in albumIds }
         },
         labels = BrowseLabels("H", "L", "D", "S", "RP", "RA", "St", "Al", "Ar", "Pl", "G"),

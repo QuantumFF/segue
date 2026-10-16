@@ -1,0 +1,117 @@
+package com.quantumff.segue.core.playback.feed
+
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.playback.shuffle.AlbumPicker
+import kotlin.math.min
+
+/** Window sizes and the edit check of an album feed (docs/PLAN.md, "Album shuffle"). */
+object AlbumFeedPolicy {
+    /** Tracks the first window queues: enough for a long session, small enough to queue at once. */
+    const val WINDOW_TRACKS = 200
+
+    /** Tracks each later window appends. */
+    const val EXTENSION_TRACKS = 100
+
+    /** The feed appends a window once fewer than this many tracks are left after the current one. */
+    const val LOW_WATER_TRACKS = 30
+
+    fun shouldExtend(remaining: Int): Boolean = remaining < LOW_WATER_TRACKS
+
+    /**
+     * Identifies a queue by its song IDs in play order (FNV-1a over the IDs and their lengths). The
+     * feed records it after each of its own changes; a different value means someone else edited
+     * the queue. Cheap enough to compute on every queue event.
+     */
+    fun fingerprint(songIdsInPlayOrder: List<String>): Long {
+        var hash = FNV_OFFSET
+        fun mix(value: Int) {
+            hash = (hash xor value.toLong()) * FNV_PRIME
+        }
+        mix(songIdsInPlayOrder.size)
+        for (id in songIdsInPlayOrder) {
+            mix(id.length)
+            for (char in id) mix(char.code)
+        }
+        return hash
+    }
+
+    private const val FNV_OFFSET = -0x340d631b7bdddcdbL // 0xcbf29ce484222325
+    private const val FNV_PRIME = 0x100000001b3L
+}
+
+/** The order a feed queues albums in. */
+object AlbumFeedOrder {
+    /**
+     * [albumIds] (duplicates dropped) as [order] has them: unchanged, or shuffled by [seed]. The
+     * shuffle sorts by a hash of the seed and each album ID, so the same seed always gives the same
+     * order, whatever order the IDs come in, and albums added to the library later slot in without
+     * reshuffling the rest. A persisted feed can therefore rebuild its order instead of storing it.
+     */
+    fun order(albumIds: List<String>, order: AlbumOrder, seed: Long): List<String> = when (order) {
+        AlbumOrder.InOrder -> albumIds.distinct()
+        AlbumOrder.Shuffled -> albumIds.distinct().sortedWith(compareBy<String> { shuffleKey(seed, it) }.thenBy { it })
+    }
+
+    private fun shuffleKey(seed: Long, albumId: String): Long {
+        var hash = FNV_OFFSET
+        for (char in albumId) hash = (hash xor char.code.toLong()) * FNV_PRIME
+        return splitMix(seed xor hash)
+    }
+
+    /** SplitMix64's finalizer: spreads nearby inputs over the whole range. */
+    private fun splitMix(value: Long): Long {
+        var z = value + GOLDEN_GAMMA
+        z = (z xor (z ushr SHIFT_1)) * MIX_1
+        z = (z xor (z ushr SHIFT_2)) * MIX_2
+        return z xor (z ushr SHIFT_3)
+    }
+
+    private const val FNV_OFFSET = -0x340d631b7bdddcdbL
+    private const val FNV_PRIME = 0x100000001b3L
+    private const val GOLDEN_GAMMA = -0x61c8864680b583ebL // 0x9e3779b97f4a7c15
+    private const val MIX_1 = -0x40a7b892e31b1a47L // 0xbf58476d1ce4e5b9
+    private const val MIX_2 = -0x6b2fb644ecceee15L // 0x94d049bb133111eb
+    private const val SHIFT_1 = 30
+    private const val SHIFT_2 = 27
+    private const val SHIFT_3 = 31
+}
+
+/**
+ * Cuts an album order into windows of whole albums. [songsOf] reads the playable songs of some
+ * albums (any order); it is called for a few albums at a time, so a window never reads more of
+ * the library than it queues.
+ */
+class AlbumFeedWindows(private val songsOf: suspend (albumIds: List<String>) -> List<Song>) {
+    /**
+     * Songs to queue, album after album, each in disc and track order. [cursor] is the next unused
+     * position in the album order; [exhausted] is true once every album is used up.
+     */
+    data class Window(val songs: List<Song>, val cursor: Int, val exhausted: Boolean)
+
+    /**
+     * Whole albums of [order] from [cursor] until the window holds at least [minTracks] tracks or
+     * the order runs out. Albums in [skip] (already queued) and albums with nothing to play are
+     * passed over, but still used up.
+     */
+    suspend fun next(order: List<String>, cursor: Int, minTracks: Int, skip: Set<String> = emptySet()): Window {
+        val songs = ArrayList<Song>()
+        var next = cursor.coerceIn(0, order.size)
+        while (next < order.size && songs.size < minTracks) {
+            val batch = order.subList(next, min(next + BATCH_ALBUMS, order.size)).toList()
+            val wanted = batch.filterNot { it in skip }
+            val loaded = if (wanted.isEmpty()) emptyMap() else songsOf(wanted).groupBy { it.albumId }
+            for (albumId in batch) {
+                next++
+                if (albumId !in skip) songs += AlbumPicker.queueInAlbumOrder(loaded[albumId].orEmpty(), listOf(albumId))
+                if (songs.size >= minTracks) break
+            }
+        }
+        return Window(songs, next, exhausted = next >= order.size)
+    }
+
+    companion object {
+        /** Albums read per query: a typical album has about ten tracks. */
+        const val BATCH_ALBUMS = 8
+    }
+}

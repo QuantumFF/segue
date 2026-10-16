@@ -21,5 +21,17 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2)
+    /** 2 → 3: the album feed ("Play albums" / "Shuffle albums" queued in windows). Starts empty. */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `album_feed` (`serverId` TEXT NOT NULL, `sourceKind` TEXT NOT NULL, " +
+                    "`sourceId` TEXT, `sort` TEXT, `starredOnly` INTEGER NOT NULL, `genre` TEXT, `year` INTEGER, " +
+                    "`downloadedOnly` INTEGER NOT NULL, `albumOrder` TEXT NOT NULL, `seed` INTEGER NOT NULL, " +
+                    "`cursor` INTEGER NOT NULL, `queueFingerprint` INTEGER NOT NULL, PRIMARY KEY(`serverId`))",
+            )
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

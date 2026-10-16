@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
-import com.quantumff.segue.core.data.download.downloadedWhileOffline
 import com.quantumff.segue.core.model.OfflinePlayback
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
@@ -84,11 +83,10 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         },
-        onShuffleAlbums = { source ->
+        // Offline, the service queues downloaded songs only (DESIGN.md §1, offline is first-class).
+        onPlayAlbums = { request ->
             viewModelScope.launch {
-                // Offline: downloaded albums only (DESIGN.md §1, offline is first-class).
-                val offline = offlineMode.downloadedWhileOffline(downloads).first()
-                if (!playback.shuffleAlbums(source, offline)) messageChannel.send(PlayerMessage.NothingToPlay)
+                if (!playback.playAlbums(request)) messageChannel.send(PlayerMessage.NothingToPlay)
             }
         },
         onPlayNext = { songs -> withQueueable(songs, playback::playNext) },

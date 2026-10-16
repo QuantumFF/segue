@@ -8,7 +8,7 @@ import androidx.media3.session.MediaConstants
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
@@ -184,12 +184,12 @@ class BrowseTree(
     private suspend fun shuffleAlbums(): PlayRequest {
         val offline = downloadedWhileOffline()
         val picked = AlbumPicker.pick(
-            OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(AlbumShuffleSource.Library), offline),
+            OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(AlbumSource.Library), offline),
             AlbumPicker.DEFAULT_ALBUM_COUNT,
             random,
         )
         val songs = AlbumPicker.queueInAlbumOrder(
-            OfflineLibrary.shuffleSongs(albumShuffle.songs(AlbumShuffleSource.Library, picked), offline),
+            OfflineLibrary.shuffleSongs(albumShuffle.songs(AlbumSource.Library, picked), offline),
             picked,
         )
         return PlayRequest(songs, startIndex = 0, shuffleMode = ShuffleMode.Off)

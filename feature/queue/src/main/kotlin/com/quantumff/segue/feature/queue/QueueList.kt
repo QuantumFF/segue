@@ -17,8 +17,11 @@ sealed interface QueueListItem {
         override val key: String get() = HISTORY_KEY
     }
 
-    /** Albums shuffle: the header that starts the album block [blockKey]. */
-    data class AlbumHeader(val blockKey: String, val title: String, val artist: String?, val coverArtId: String?) :
+    /**
+     * Albums shuffle: the divider that starts the album block [blockKey]. [trackCount] counts the
+     * whole block, including tracks hidden in the collapsed history.
+     */
+    data class AlbumHeader(val blockKey: String, val title: String, val artist: String?, val trackCount: Int) :
         QueueListItem {
         override val key: String get() = "header:$blockKey"
     }
@@ -44,9 +47,15 @@ data class QueueMove(val from: Int, val to: Int, val count: Int = 1)
 
 object QueueList {
     /**
+     * Album block headers belong to album shuffle: only there do album blocks move as a unit.
+     * In plain or track-shuffled queues every row names its own album instead.
+     */
+    fun showsAlbumHeaders(mode: ShuffleMode): Boolean = mode == ShuffleMode.Albums
+
+    /**
      * The rows for [queue] (in play order) with the current track at [currentPosition]: the
-     * history row, then the tracks; in [ShuffleMode.Albums], each album block (a run of tracks of
-     * one album) starts with a header.
+     * history row, then the tracks; when [showsAlbumHeaders], each album block (a run of tracks
+     * of one album) starts with a header.
      */
     fun build(
         queue: List<QueueItem>,
@@ -57,7 +66,8 @@ object QueueList {
     ): ImmutableList<QueueListItem> {
         if (queue.isEmpty()) return emptyList<QueueListItem>().toImmutableList()
         val current = currentPosition.coerceIn(queue.indices)
-        val blocks = if (mode == ShuffleMode.Albums) blockKeys(queue) else null
+        val blocks = if (showsAlbumHeaders(mode)) blockKeys(queue) else null
+        val blockSizes = blocks?.groupingBy { it }?.eachCount()
         val keys = trackKeys(queue)
         val rows = ArrayList<QueueListItem>(queue.size + 1)
         if (current > 0) rows += QueueListItem.History(current, historyExpanded)
@@ -71,7 +81,7 @@ object QueueList {
                     blockKey = block,
                     title = item.album.orEmpty(),
                     artist = item.artist,
-                    coverArtId = item.coverArtId,
+                    trackCount = blockSizes?.get(block) ?: 1,
                 )
             }
             rows += QueueListItem.Track(

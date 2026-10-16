@@ -76,6 +76,9 @@ object SegueIcons {
     val AddToQueue by lazy { lucide("list-end", LucidePaths.ListEnd) }
     val AddToPlaylist by lazy { lucide("list-plus", LucidePaths.ListPlus) }
     val DragHandle by lazy { lucide("grip-vertical", LucidePaths.GripVertical) }
+
+    /** Drags a whole album block in the queue; distinct from a track's [DragHandle]. */
+    val BlockDragHandle by lazy { lucide("grip-horizontal", LucidePaths.GripHorizontal) }
     val Remove by lazy { lucide("trash", LucidePaths.Trash) }
     val ScrollToCurrent by lazy { lucide("locate-fixed", LucidePaths.LocateFixed) }
 

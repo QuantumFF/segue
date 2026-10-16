@@ -90,7 +90,7 @@ abstract class ArtistDao {
 
 @Dao
 abstract class AlbumDao {
-    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY sortName")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY sortName, id")
     abstract fun pagingSourceByName(
         serverId: String,
         starredOnly: Boolean,
@@ -98,7 +98,7 @@ abstract class AlbumDao {
         year: Int?,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName, id")
     abstract fun pagingSourceByArtist(
         serverId: String,
         starredOnly: Boolean,
@@ -106,7 +106,7 @@ abstract class AlbumDao {
         year: Int?,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY createdAt DESC, sortName")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY createdAt DESC, sortName, id")
     abstract fun pagingSourceByRecentlyAdded(
         serverId: String,
         starredOnly: Boolean,
@@ -114,7 +114,7 @@ abstract class AlbumDao {
         year: Int?,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY year DESC, sortName")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER ORDER BY year DESC, sortName, id")
     abstract fun pagingSourceByYear(
         serverId: String,
         starredOnly: Boolean,
@@ -127,7 +127,7 @@ abstract class AlbumDao {
 
     // The same four orders limited to albums with a downloaded song (the "Downloaded" chip, offline mode).
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY sortName")
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY sortName, id")
     abstract fun downloadedPagingSourceByName(
         serverId: String,
         starredOnly: Boolean,
@@ -135,7 +135,7 @@ abstract class AlbumDao {
         year: Int?,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName")
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY artist COLLATE NOCASE, year, sortName, id")
     abstract fun downloadedPagingSourceByArtist(
         serverId: String,
         starredOnly: Boolean,
@@ -143,7 +143,7 @@ abstract class AlbumDao {
         year: Int?,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY createdAt DESC, sortName")
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY createdAt DESC, sortName, id")
     abstract fun downloadedPagingSourceByRecentlyAdded(
         serverId: String,
         starredOnly: Boolean,
@@ -151,7 +151,7 @@ abstract class AlbumDao {
         year: Int?,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY year DESC, sortName")
+    @Query("SELECT * FROM albums WHERE $DOWNLOADED_ALBUM_FILTER ORDER BY year DESC, sortName, id")
     abstract fun downloadedPagingSourceByYear(
         serverId: String,
         starredOnly: Boolean,
@@ -161,6 +161,31 @@ abstract class AlbumDao {
 
     @Query("SELECT COUNT(*) FROM albums WHERE $DOWNLOADED_ALBUM_FILTER")
     abstract fun observeDownloadedCount(serverId: String, starredOnly: Boolean, genre: String?, year: Int?): Flow<Int>
+
+    /**
+     * The IDs of the albums the paged Library list shows for this sort and filter, in the same
+     * order ("Play albums"). [sort] is an `AlbumSortOrder` name; each branch mirrors the matching
+     * paging query above, ties broken by ID.
+     */
+    @Query(
+        """
+        SELECT id FROM albums WHERE $ALBUM_FILTER AND (:downloadedOnly = 0 OR $DOWNLOADED_ALBUM)
+        ORDER BY
+            CASE WHEN :sort = 'Artist' THEN artist END COLLATE NOCASE,
+            CASE WHEN :sort = 'Artist' THEN year END,
+            CASE WHEN :sort = 'RecentlyAdded' THEN createdAt END DESC,
+            CASE WHEN :sort = 'Year' THEN year END DESC,
+            sortName, id
+        """,
+    )
+    abstract suspend fun idsInViewOrder(
+        serverId: String,
+        sort: String,
+        starredOnly: Boolean,
+        genre: String?,
+        year: Int?,
+        downloadedOnly: Boolean,
+    ): List<String>
 
     /** Release years present in the library, newest first. */
     @Query(

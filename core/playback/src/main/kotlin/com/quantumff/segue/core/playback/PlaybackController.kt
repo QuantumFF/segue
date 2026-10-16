@@ -15,12 +15,9 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
-import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
-import com.quantumff.segue.core.model.DownloadedLibrary
-import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemotePlayQueue
@@ -32,7 +29,6 @@ import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.media.toQueueItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
-import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
@@ -84,7 +80,6 @@ import kotlinx.coroutines.withContext
 class PlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val queueSync: QueueSyncEngine,
-    private val albumShuffle: AlbumShuffleRepository,
     private val artists: ArtistRepository,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
 ) {
@@ -330,24 +325,26 @@ class PlaybackController @Inject constructor(
     // --- Generated queues ----------------------------------------------------------------------------
 
     /**
-     * "Shuffle albums": random albums from [source], each queued whole in disc and track order, in
-     * plain (unshuffled) play order. A library or genre picks [AlbumPicker.DEFAULT_ALBUM_COUNT]
-     * albums; an artist or playlist uses all of its albums. Reads Room only. With [offline] (what is
-     * downloaded, passed while offline) only downloaded albums are picked and only their
-     * downloaded songs queued. False if there is nothing to play.
+     * "Play albums" / "Shuffle albums" ([request]): whole albums in disc and track order, the
+     * albums in the source's order or a fresh seeded shuffle, replacing the queue or placed in it.
+     * The service queues a first window and appends more as playback nears its end (see
+     * [com.quantumff.segue.core.playback.feed.AlbumFeedController]). Reads Room only; offline only
+     * downloaded songs are queued. False if there is nothing to play.
      */
-    suspend fun shuffleAlbums(source: AlbumShuffleSource, offline: DownloadedLibrary? = null): Boolean {
-        val albumIds = OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(source), offline)
-        val count = when (source) {
-            AlbumShuffleSource.Library, is AlbumShuffleSource.Genre -> AlbumPicker.DEFAULT_ALBUM_COUNT
-            is AlbumShuffleSource.Artist, is AlbumShuffleSource.Playlist -> albumIds.size
+    suspend fun playAlbums(request: AlbumPlayRequest): Boolean = withContext(mainDispatcher) {
+        try {
+            val result = controller().sendCustomCommand(
+                SegueSessionCommands.command(SegueSessionCommands.PLAY_ALBUMS),
+                SegueSessionCommands.playAlbumsArgs(request, seed = random.nextLong()),
+            ).await()
+            result.resultCode == SessionResult.RESULT_SUCCESS &&
+                result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.w(TAG, "Could not play albums", e)
+            false
         }
-        val picked = AlbumPicker.pick(albumIds, count, random)
-        val songs = OfflineLibrary.shuffleSongs(albumShuffle.songs(source, picked), offline)
-        val queue = AlbumPicker.queueInAlbumOrder(songs, picked)
-        if (queue.isEmpty()) return false
-        play(queue, startIndex = 0, shuffle = false)
-        return true
     }
 
     /**

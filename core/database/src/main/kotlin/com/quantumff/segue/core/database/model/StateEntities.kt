@@ -36,6 +36,29 @@ data class QueueItemEntity(val serverId: String, val position: Int, val songId: 
 @Entity(tableName = "queue_sync_state")
 data class QueueSyncStateEntity(@PrimaryKey val serverId: String, val seenRemoteChangedAt: Long)
 
+/**
+ * The running album feed of a server's queue ("Play albums" / "Shuffle albums" queued in windows),
+ * at most one. The source is flattened: [sourceKind] names the
+ * [com.quantumff.segue.core.model.AlbumSource] variant, [sourceId] holds its artist ID, genre or
+ * playlist ID, and the sort and filter columns hold an `Albums` source's view. Enums are stored by
+ * name and read back leniently by the repository.
+ */
+@Entity(tableName = "album_feed")
+data class AlbumFeedEntity(
+    @PrimaryKey val serverId: String,
+    val sourceKind: String,
+    val sourceId: String? = null,
+    val sort: String? = null,
+    val starredOnly: Boolean = false,
+    val genre: String? = null,
+    val year: Int? = null,
+    val downloadedOnly: Boolean = false,
+    val albumOrder: String,
+    val seed: Long,
+    val cursor: Int,
+    val queueFingerprint: Long,
+)
+
 /** A list of indices, stored as comma-separated text. */
 data class IndexList(val items: List<Int> = emptyList())
 

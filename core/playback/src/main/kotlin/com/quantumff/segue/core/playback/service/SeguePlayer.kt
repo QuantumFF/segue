@@ -122,6 +122,34 @@ class SeguePlayer(
         }
     }
 
+    /**
+     * Appends [items] so they play last and in this order, whatever the shuffle: Media3's track
+     * shuffle would scatter them, which would break up the albums an album feed appends. (Album
+     * shuffle already plays appended albums last, each whole.)
+     */
+    fun appendInPlayOrder(items: List<MediaItem>) {
+        val from = exo.mediaItemCount
+        addMediaItems(from, items)
+        if (shuffleMode != ShuffleMode.Tracks || from == 0) return
+        val inserted = from until from + items.size
+        val order = playOrder().filterNot { it in inserted } + inserted
+        exo.setShuffleOrder(ShuffleOrders.withPlayOrder(exo.shuffleOrder, order, random))
+    }
+
+    /**
+     * Inserts [items] right after the current item so they play next, in this order: in track
+     * shuffle too, even when the current item is the last in the queue (which [addMediaItems]
+     * treats as an append). Album shuffle plays them after the current album.
+     */
+    fun insertNextInPlayOrder(items: List<MediaItem>) {
+        val index = exo.currentMediaItemIndex + 1
+        addMediaItems(index, items)
+        if (shuffleMode != ShuffleMode.Tracks) return
+        exo.setShuffleOrder(
+            ShuffleOrders.playInsertedNext(exo.shuffleOrder, index, items.size, exo.currentMediaItemIndex, random),
+        )
+    }
+
     /** Queue indices in the order they play. */
     fun playOrder(): List<Int> = ShuffleOrders.effectivePlayOrder(shuffleMode, exo.shuffleOrder)
 

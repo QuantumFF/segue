@@ -3,7 +3,7 @@ package com.quantumff.segue.feature.playlist
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
@@ -101,20 +101,20 @@ class PlaylistsViewModelTest {
         val songs = listOf(TestData.song("s1"), TestData.song("s2"))
         playlists.songsByPlaylist.value = mapOf("p1" to songs)
         val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-        val shuffled = mutableListOf<AlbumShuffleSource>()
+        val shuffled = mutableListOf<AlbumSource>()
         val actions = PlayActions(
             onPlaySongs = { s, index, shuffle -> played += Triple(s, index, shuffle) },
-            onShuffleAlbums = { shuffled += it },
+            onPlayAlbums = { shuffled += it.source },
             onPlayNext = {},
             onAddToQueue = {},
             onStartInstantMix = {},
         )
 
         viewModel().loadSongs("p1") { actions.onPlaySongs(it, 0, true) }
-        actions.onShuffleAlbums(AlbumShuffleSource.Playlist("p1"))
+        actions.shuffleAlbums(AlbumSource.Playlist("p1"))
 
         assertThat(played).containsExactly(Triple(songs, 0, true))
-        assertThat(shuffled).containsExactly(AlbumShuffleSource.Playlist("p1"))
+        assertThat(shuffled).containsExactly(AlbumSource.Playlist("p1"))
         assertThat(playlists.refreshed).isEmpty()
     }
 

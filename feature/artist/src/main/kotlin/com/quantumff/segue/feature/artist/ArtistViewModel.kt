@@ -11,7 +11,7 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.DownloadState
@@ -132,7 +132,7 @@ class ArtistViewModel @Inject constructor(
         if (index in songs.indices) playActions.onPlaySongs(songs, index, false)
     }
 
-    fun shuffleAlbums(playActions: PlayActions) = playActions.onShuffleAlbums(AlbumShuffleSource.Artist(artistId))
+    fun shuffleAlbums(playActions: PlayActions) = playActions.shuffleAlbums(AlbumSource.Artist(artistId))
 
     /** Plays songs similar to the artist (`getSimilarSongs2`). */
     fun startInstantMix(playActions: PlayActions) {

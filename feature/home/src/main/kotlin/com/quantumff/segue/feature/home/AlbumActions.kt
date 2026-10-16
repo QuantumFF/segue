@@ -2,7 +2,7 @@ package com.quantumff.segue.feature.home
 
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 
@@ -32,7 +32,7 @@ internal fun dispatchAlbumAction(
         MediaAction.AddToPlaylist -> withSongs(album) { songs -> onAddToPlaylist(songs.map { it.id }) }
 
         MediaAction.ShuffleArtistAlbums ->
-            album.artistId?.let { playActions.onShuffleAlbums(AlbumShuffleSource.Artist(it)) }
+            album.artistId?.let { playActions.shuffleAlbums(AlbumSource.Artist(it)) }
 
         MediaAction.Favorite, MediaAction.Unfavorite -> onToggleFavorite(album)
 

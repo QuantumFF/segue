@@ -1,34 +1,36 @@
 package com.quantumff.segue.feature.library
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.PagingData
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtons
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsInset
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SubScreenTopBar
-import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.QueuePlacement
 import java.text.NumberFormat
 import kotlinx.coroutines.flow.flowOf
 
-/** One genre's albums: a secondary top bar with "Shuffle albums", then the album grid. */
+/** One genre's albums: a secondary top bar, the album grid, and the floating Play / Shuffle albums buttons. */
 @Composable
 fun GenreScreen(
     onBackClick: () -> Unit,
@@ -43,7 +45,7 @@ fun GenreScreen(
         albums = viewModel.albums.collectAsLazyPagingItems(),
         onBackClick = onBackClick,
         onAlbumClick = onAlbumClick,
-        onShuffleAlbumsClick = { playActions.onShuffleAlbums(AlbumShuffleSource.Genre(state.genre)) },
+        onPlayAlbums = { order, placement -> viewModel.playAlbums(order, placement, playActions) },
         modifier = modifier,
     )
 }
@@ -54,32 +56,35 @@ internal fun GenreContent(
     albums: LazyPagingItems<Album>,
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
-    onShuffleAlbumsClick: () -> Unit,
+    onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val count = state.albumCount?.let {
         pluralStringResource(R.plurals.feature_library_album_count, it, NumberFormat.getIntegerInstance().format(it))
     }
-    Column(modifier.fillMaxSize()) {
-        SubScreenTopBar(title = state.genre, subtitle = count, onBackClick = onBackClick) {
-            SegueIconButton(
-                icon = SegueIcons.ShuffleAlbums,
-                contentDescription = stringResource(R.string.feature_library_shuffle_albums),
-                onClick = onShuffleAlbumsClick,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    val collapse = rememberCollapseOnScrollState()
+    Box(modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            SubScreenTopBar(title = state.genre, subtitle = count, onBackClick = onBackClick)
+            val bottom = LocalShellContentPadding.current.calculateBottomPadding()
+            PagedAlbumGrid(
+                albums = albums,
+                onAlbumClick = { onAlbumClick(it.id) },
+                contentPadding = PaddingValues(
+                    start = SegueSpacing.lg,
+                    end = SegueSpacing.lg,
+                    top = SegueSpacing.sm,
+                    bottom = bottom + FloatingAlbumPlayButtonsInset,
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .nestedScroll(collapse.connection),
             )
         }
-        val bottom = LocalShellContentPadding.current.calculateBottomPadding()
-        PagedAlbumGrid(
-            albums = albums,
-            onAlbumClick = { onAlbumClick(it.id) },
-            contentPadding = PaddingValues(
-                start = SegueSpacing.lg,
-                end = SegueSpacing.lg,
-                top = SegueSpacing.sm,
-                bottom = bottom + SegueSpacing.lg,
-            ),
-            modifier = Modifier.weight(1f),
+        FloatingAlbumPlayButtons(
+            visible = (state.albumCount ?: 0) > 0,
+            expanded = collapse.expanded,
+            onPlay = onPlayAlbums,
         )
     }
 }
@@ -93,7 +98,7 @@ private fun GenreContentPreview() {
             albums = remember { flowOf(PagingData.empty<Album>()) }.collectAsLazyPagingItems(),
             onBackClick = {},
             onAlbumClick = {},
-            onShuffleAlbumsClick = {},
+            onPlayAlbums = { _, _ -> },
         )
     }
 }

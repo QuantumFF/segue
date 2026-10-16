@@ -25,6 +25,7 @@ import com.quantumff.segue.core.playback.browse.SessionLibrary
 import com.quantumff.segue.core.playback.browse.launchFuture
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.megabytes
+import com.quantumff.segue.core.playback.feed.AlbumFeedController
 import com.quantumff.segue.core.playback.media.coverArtId
 import com.quantumff.segue.core.playback.media.isStarred
 import com.quantumff.segue.core.playback.media.replayGain
@@ -76,6 +77,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var sleepTimer: SleepTimerController
     private lateinit var prefetcher: NextTrackPrefetcher
     private lateinit var library: SessionLibrary
+    private lateinit var albumFeed: AlbumFeedController
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
     private var idleStop: Job? = null
@@ -87,8 +89,16 @@ class SeguePlaybackService : MediaLibraryService() {
         player = SeguePlayer(exoPlayer) {
             updateSessionState()
             queueSyncListener.onShuffleModeChanged()
+            albumFeed.onQueueChanged()
         }
         queueSyncListener = QueueSyncListener(player, components.queueSync)
+        albumFeed = AlbumFeedController(
+            player,
+            components.albumShuffle,
+            components.albumFeeds,
+            scope,
+            offline = components::downloadedWhileOffline,
+        )
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
@@ -109,6 +119,7 @@ class SeguePlaybackService : MediaLibraryService() {
         exoPlayer.addListener(PlayerEvents())
         exoPlayer.addListener(LoadingWifiLock(exoPlayer))
         exoPlayer.addListener(queueSyncListener)
+        exoPlayer.addListener(albumFeed)
         exoPlayer.addListener(sleepTimer)
         exoPlayer.addListener(Scrobbler(player, components.scrobbles, scope, components.appScope))
         components.bridge.player = player
@@ -122,7 +133,10 @@ class SeguePlaybackService : MediaLibraryService() {
             }
         }
         scope.launch { components.networkType.drop(1).collect { updatePrefetch() } }
-        scope.launch { restoreSnapshot() }
+        scope.launch {
+            restoreSnapshot()
+            albumFeed.restore()
+        }
         updateSessionState()
     }
 
@@ -351,6 +365,15 @@ class SeguePlaybackService : MediaLibraryService() {
                 )
 
                 SegueSessionCommands.UNDO_ADOPTION -> scope.launch { undoAdoption() }
+
+                SegueSessionCommands.PLAY_ALBUMS -> {
+                    val (request, seed) = SegueSessionCommands.playAlbums(args)
+                        ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    return scope.launchFuture {
+                        val started = albumFeed.start(request, seed)
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(started))
+                    }
+                }
 
                 SegueSessionCommands.REINSERT -> SegueSessionCommands.reinsertArgs(
                     args,
