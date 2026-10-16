@@ -2,6 +2,7 @@ package com.quantumff.segue.feature.playlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.model.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,7 +50,7 @@ class AddToPlaylistViewModel @Inject constructor(private val playlistRepository:
         if (local.value.isSaving) return
         local.update { it.copy(isSaving = true, failed = false) }
         viewModelScope.launch {
-            val failed = runRemote(block)
+            val failed = remoteOutcome { block() }.isFailure
             local.update { it.copy(isSaving = false, failed = failed, isDone = !failed) }
         }
     }

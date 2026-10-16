@@ -3,7 +3,9 @@ package com.quantumff.segue.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
@@ -161,10 +163,10 @@ class HomeViewModel @Inject constructor(
             val results = REFRESHED_LISTS.map { type ->
                 async {
                     val size = if (type == AlbumListType.Random) RANDOM_SIZE else AlbumRepository.DEFAULT_LIST_SIZE
-                    runCatchingRemote { albumRepository.refreshAlbumList(type, size) }
+                    remoteOutcome { albumRepository.refreshAlbumList(type, size) }
                 }
             }.awaitAll()
-            val offline = results.any { it is RemoteException.Unreachable }
+            val offline = results.any { it is RemoteOutcome.Unreachable }
             status.update { it.copy(isRefreshing = false, isOffline = offline) }
         }
     }
@@ -174,12 +176,12 @@ class HomeViewModel @Inject constructor(
         if (offlineView.isOffline.value) return
         uiState.value.featured.takeIf { it.isNotEmpty() }?.let { pinnedFeatured.value = it }
         viewModelScope.launch {
-            runCatchingRemote { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
+            remoteOutcome { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
         }
     }
 
     fun retrySync() {
-        viewModelScope.launch { runCatchingRemote { syncRepository.requestSync() } }
+        viewModelScope.launch { remoteOutcome { syncRepository.requestSync() } }
     }
 
     /** Loads [album]'s songs (fetching them if needed) and hands them to [onLoaded], usually a play intent. */
@@ -210,14 +212,6 @@ class HomeViewModel @Inject constructor(
 
     private fun showMessage(message: HomeMessage) {
         status.update { it.copy(message = message) }
-    }
-
-    /** Runs [block]; returns the [RemoteException] it threw, or null. */
-    private suspend fun runCatchingRemote(block: suspend () -> Unit): RemoteException? = try {
-        block()
-        null
-    } catch (e: RemoteException) {
-        e
     }
 
     private companion object {

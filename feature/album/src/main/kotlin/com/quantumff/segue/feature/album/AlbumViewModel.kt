@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
@@ -48,7 +50,8 @@ class AlbumViewModel @Inject constructor(
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
 
-    private val refresh = MutableStateFlow(RefreshState.Running)
+    /** The last refresh's outcome; null while one runs. */
+    private val refresh = MutableStateFlow<RemoteOutcome<Unit>?>(null)
     private val message = MutableStateFlow<AlbumMessage?>(null)
 
     private val album = albumRepository.album(albumId)
@@ -75,15 +78,15 @@ class AlbumViewModel @Inject constructor(
                 songs = songs,
                 discs = groupDiscs(album, songs),
                 moreByArtist = more,
-                isOffline = refresh == RefreshState.Failed,
+                isOffline = refresh is RemoteOutcome.Failed,
                 message = message,
                 download = download,
                 availability = availability,
             )
 
-            refresh == RefreshState.Running -> AlbumUiState.Loading
+            refresh == null -> AlbumUiState.Loading
 
-            refresh == RefreshState.NotFound -> AlbumUiState.NotFound
+            refresh is RemoteOutcome.NotFound -> AlbumUiState.NotFound
 
             else -> AlbumUiState.Error
         }
@@ -95,17 +98,8 @@ class AlbumViewModel @Inject constructor(
 
     /** Refetches the album; the cached copy stays on screen meanwhile. */
     fun refresh() {
-        refresh.value = RefreshState.Running
-        viewModelScope.launch {
-            refresh.value = try {
-                albumRepository.refreshAlbum(albumId)
-                RefreshState.Done
-            } catch (_: RemoteException.NotFound) {
-                RefreshState.NotFound
-            } catch (_: RemoteException) {
-                RefreshState.Failed
-            }
-        }
+        refresh.value = null
+        viewModelScope.launch { refresh.value = remoteOutcome { albumRepository.refreshAlbum(albumId) } }
     }
 
     /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. */
@@ -177,8 +171,6 @@ class AlbumViewModel @Inject constructor(
             }
         }
     }
-
-    private enum class RefreshState { Running, Done, Failed, NotFound }
 
     companion object {
         /** The [com.quantumff.segue.feature.album.navigation.AlbumRoute] argument. */

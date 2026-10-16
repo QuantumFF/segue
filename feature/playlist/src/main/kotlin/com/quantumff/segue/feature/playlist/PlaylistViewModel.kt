@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.DownloadStatus
@@ -104,7 +105,8 @@ class PlaylistViewModel @Inject constructor(
     fun refresh() {
         local.update { it.copy(refreshing = true, refreshFailed = false) }
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.refreshPlaylist(playlistId) }
+            // Any failure, not found included, shows the offline chip (see RemoteOutcome).
+            val failed = remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }.isFailure
             local.update { it.copy(refreshing = false, refreshFailed = failed) }
         }
     }
@@ -138,7 +140,9 @@ class PlaylistViewModel @Inject constructor(
         if (local.value.saving) return
         local.update { it.copy(saving = true) }
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.replaceSongs(playlistId, working.map { it.song.id }) }
+            val failed = remoteOutcome {
+                playlistRepository.replaceSongs(playlistId, working.map { it.song.id })
+            }.isFailure
             local.update {
                 if (failed) {
                     it.copy(saving = false, message = PlaylistMessage.SaveFailed)
@@ -156,7 +160,7 @@ class PlaylistViewModel @Inject constructor(
 
     fun delete() {
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.deletePlaylist(playlistId) }
+            val failed = remoteOutcome { playlistRepository.deletePlaylist(playlistId) }.isFailure
             local.update { if (failed) it.copy(message = PlaylistMessage.Failed) else it.copy(deleted = true) }
         }
     }
@@ -181,7 +185,7 @@ class PlaylistViewModel @Inject constructor(
 
     private fun write(block: suspend () -> Unit) {
         viewModelScope.launch {
-            if (runRemote(block)) local.update { it.copy(message = PlaylistMessage.Failed) }
+            if (remoteOutcome { block() }.isFailure) local.update { it.copy(message = PlaylistMessage.Failed) }
         }
     }
 

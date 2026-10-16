@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.RemoteOutcome
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
@@ -55,13 +57,8 @@ class AlbumListViewModel @Inject constructor(
         if (status.value.isRefreshing) return
         status.update { it.copy(isRefreshing = true) }
         viewModelScope.launch {
-            val offline = try {
-                albumRepository.refreshAlbumList(type, SEE_ALL_SIZE)
-                false
-            } catch (e: RemoteException) {
-                e is RemoteException.Unreachable
-            }
-            status.update { it.copy(isRefreshing = false, isOffline = offline) }
+            val outcome = remoteOutcome { albumRepository.refreshAlbumList(type, SEE_ALL_SIZE) }
+            status.update { it.copy(isRefreshing = false, isOffline = outcome is RemoteOutcome.Unreachable) }
         }
     }
 

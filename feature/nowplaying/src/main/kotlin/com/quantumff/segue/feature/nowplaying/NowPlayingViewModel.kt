@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.exceptionOrNull
+import com.quantumff.segue.core.data.getOrNull
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
@@ -16,7 +19,6 @@ import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
 import com.quantumff.segue.feature.nowplaying.lyrics.PlaybackSample
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -208,14 +210,9 @@ class NowPlayingViewModel @Inject constructor(
         emit(if (songs == null) RelatedUiState.Error else RelatedUiState.Loaded(songs.toImmutableList()))
     }
 
-    private suspend fun <T> loadOrNull(what: String, block: suspend () -> T): T? = try {
-        block()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: RemoteException) {
-        Log.w(TAG, "Could not load $what", e)
-        null
-    }
+    private inline fun <T> loadOrNull(what: String, block: () -> T): T? = remoteOutcome(block)
+        .also { outcome -> outcome.exceptionOrNull()?.let { Log.w(TAG, "Could not load $what", it) } }
+        .getOrNull()
 
     private inline fun <reified E : Enum<E>> E.cycled(): E = enumValues<E>().let { it[(ordinal + 1) % it.size] }
 
