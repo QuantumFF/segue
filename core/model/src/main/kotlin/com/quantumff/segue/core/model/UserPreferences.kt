@@ -1,5 +1,7 @@
 package com.quantumff.segue.core.model
 
+import kotlin.math.abs
+
 /** App settings. See docs/DESIGN.md, "Settings". */
 data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.System,
@@ -11,8 +13,13 @@ data class UserPreferences(
     /** Adopt a newer server play queue without asking. See PLAN.md, "Server queue sync". */
     val adoptRemoteQueueAutomatically: Boolean = false,
     val replayGainMode: ReplayGainMode = ReplayGainMode.Track,
-    /** Added to the ReplayGain adjustment, in dB. Range [REPLAY_GAIN_PREAMP_RANGE]. Only applies when [replayGainMode] is not Off. */
-    val replayGainPreampDb: Float = 0f,
+    /** The loudness ReplayGain levels to. Only applies when [replayGainMode] is not Off. */
+    val replayGainTarget: ReplayGainTarget = ReplayGainTarget.ReplayGain2,
+    /**
+     * Lets ReplayGain amplify quiet tracks. That takes an audio processor, so audio offload stays
+     * off while this is on. Off: ReplayGain only attenuates, through player volume.
+     */
+    val replayGainBoost: Boolean = false,
     /**
      * Upper bound of the on-disk stream cache, in MB. One of [STREAM_CACHE_SIZES_MB]. Least
      * recently played tracks are evicted first.
@@ -22,7 +29,6 @@ data class UserPreferences(
     val stopWhenPausedMinutes: Int = DEFAULT_STOP_WHEN_PAUSED_MINUTES,
 ) {
     companion object {
-        val REPLAY_GAIN_PREAMP_RANGE = -15f..15f
         const val DEFAULT_STREAM_CACHE_MB = 1024
         val STREAM_CACHE_SIZES_MB = listOf(256, 512, 1024, 2048, 4096)
         const val DEFAULT_STOP_WHEN_PAUSED_MINUTES = 10
@@ -35,6 +41,31 @@ enum class ReplayGainMode {
     Off,
     Track,
     Album,
+}
+
+/**
+ * ReplayGain normalisation, after Symfonium's setting of the same name: the loudness every track is
+ * levelled to. Navidrome reports all gains against the ReplayGain 2.0 reference of -18 LUFS (it
+ * converts Opus R128 gains, which use -23 LUFS, by adding 5 dB), so each target is a fixed offset.
+ */
+enum class ReplayGainTarget(val lufs: Int) {
+    /** -18 LUFS, the ReplayGain 2.0 reference: gains as Navidrome reports them. */
+    ReplayGain2(lufs = -18),
+
+    /** -23 LUFS, the EBU R128 broadcast target: 5 dB quieter, with more headroom. */
+    Ebu(lufs = -23),
+    ;
+
+    /** dB added to every reported gain. */
+    val offsetDb: Float get() = (lufs - REFERENCE_LUFS).toFloat()
+
+    companion object {
+        /** The loudness Navidrome's gains are referenced to. */
+        const val REFERENCE_LUFS = -18
+
+        /** The target closest to a preamp of [preampDb], from the setting this one replaced. */
+        fun nearestTo(preampDb: Float): ReplayGainTarget = entries.minBy { abs(it.offsetDb - preampDb) }
+    }
 }
 
 enum class ThemeMode {

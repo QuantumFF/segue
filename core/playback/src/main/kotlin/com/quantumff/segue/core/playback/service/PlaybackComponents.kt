@@ -11,7 +11,10 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.CacheBitmapLoader
 import com.quantumff.segue.core.common.ApplicationScope
@@ -36,6 +39,7 @@ import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.SegueUriResolver
 import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingPublisher
+import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -87,12 +91,25 @@ class PlaybackComponents @Inject constructor(
      * seconds, so the current track arrives in a few long bursts rather than a steady trickle.
      * Dynamic scheduling lets the playback thread sleep between renders, which pays off most with
      * offload.
+     *
+     * [replayGain] runs in the audio sink for ReplayGain boost; it is skipped while offloaded.
      */
     // Dynamic scheduling lets the playback thread sleep between renders (battery, PLAN.md).
     @OptIn(ExperimentalApi::class)
-    fun createExoPlayer(context: Context): ExoPlayer {
+    fun createExoPlayer(context: Context, replayGain: ReplayGainProcessor): ExoPlayer {
         val dataSourceFactory = playbackDataSourceFactory(context, cacheDataSourceFactory, resolver)
-        return ExoPlayer.Builder(context)
+        val renderers = object : DefaultRenderersFactory(context) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioOutputPlaybackParams: Boolean,
+            ): AudioSink = DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
+                .setAudioProcessors(arrayOf(replayGain))
+                .build()
+        }
+        return ExoPlayer.Builder(context, renderers)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()

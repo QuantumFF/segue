@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.ReplayGainMode
+import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -41,7 +42,8 @@ class UserPreferencesDataSourceTest {
         source.setQueueSyncEnabled(false)
         source.setAdoptRemoteQueueAutomatically(true)
         source.setReplayGainMode(ReplayGainMode.Album)
-        source.setReplayGainPreampDb(-3f)
+        source.setReplayGainTarget(ReplayGainTarget.Ebu)
+        source.setReplayGainBoost(true)
         source.setStreamCacheSizeMb(256)
         source.setStopWhenPausedMinutes(30)
 
@@ -55,7 +57,8 @@ class UserPreferencesDataSourceTest {
                 queueSyncEnabled = false,
                 adoptRemoteQueueAutomatically = true,
                 replayGainMode = ReplayGainMode.Album,
-                replayGainPreampDb = -3f,
+                replayGainTarget = ReplayGainTarget.Ebu,
+                replayGainBoost = true,
                 streamCacheSizeMb = 256,
                 stopWhenPausedMinutes = 30,
             ),
