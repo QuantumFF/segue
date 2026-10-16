@@ -57,10 +57,16 @@ class FakeServerRepository : ServerRepository {
     }
 }
 
-class FakeServerCapabilitiesRepository : ServerCapabilitiesRepository {
-    override val capabilities = MutableStateFlow(ServerCapabilities.Unknown)
+/** Capabilities per server id; [ServerCapabilities.Unknown] for servers not in [byServer]. */
+class FakeServerCapabilitiesRepository(val byServer: MutableMap<String, ServerCapabilities> = mutableMapOf()) :
+    ServerCapabilitiesRepository {
+    override suspend fun forServer(serverId: String) = byServer[serverId] ?: ServerCapabilities.Unknown
 
-    override suspend fun refresh() = Unit
+    override suspend fun store(serverId: String, capabilities: ServerCapabilities) {
+        byServer[serverId] = capabilities
+    }
+
+    override suspend fun refresh(serverId: String) = Unit
 }
 
 class FakePlaylistRepository : PlaylistRepository {

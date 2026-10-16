@@ -4,7 +4,6 @@ import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.remote
 import com.quantumff.segue.core.data.session.SubsonicClientProvider
-import com.quantumff.segue.core.data.session.requireActiveServerId
 import com.quantumff.segue.core.data.util.Clock
 import com.quantumff.segue.core.database.dao.ServerCapabilitiesDao
 import com.quantumff.segue.core.database.model.ExtensionMap
@@ -13,20 +12,21 @@ import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.ServerCapabilities
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-/** What the active server supports. Detected at sign-in and on app start, then cached in Room. */
+/**
+ * What each server supports. Detected at sign-in and on app start, then cached in Room; repositories
+ * ask [forServer] before choosing between API variants.
+ */
 interface ServerCapabilitiesRepository {
-    /** [ServerCapabilities.Unknown] until detection has run, or when signed out. */
-    val capabilities: Flow<ServerCapabilities>
+    /** Cached capabilities, detecting them first if this server has none yet. Throws RemoteException. */
+    suspend fun forServer(serverId: String): ServerCapabilities
 
-    /** Detects capabilities of the active server again. Throws RemoteException; the cache stays. */
-    suspend fun refresh()
+    /** Caches [capabilities] detected elsewhere, e.g. while signing in. */
+    suspend fun store(serverId: String, capabilities: ServerCapabilities)
+
+    /** Detects capabilities of [serverId] again. Throws RemoteException; the cache stays. */
+    suspend fun refresh(serverId: String)
 }
 
 internal class CachedServerCapabilitiesRepository @Inject constructor(
@@ -35,28 +35,15 @@ internal class CachedServerCapabilitiesRepository @Inject constructor(
     private val clock: Clock,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : ServerCapabilitiesRepository {
-    @OptIn(ExperimentalCoroutinesApi::class)
-    override val capabilities: Flow<ServerCapabilities> = clients.activeServerId.flatMapLatest { serverId ->
-        if (serverId == null) {
-            flowOf(ServerCapabilities.Unknown)
-        } else {
-            dao.observe(serverId).map { it?.asExternalModel() ?: ServerCapabilities.Unknown }
-        }
+    override suspend fun forServer(serverId: String): ServerCapabilities = withContext(ioDispatcher) {
+        dao.get(serverId)?.asExternalModel() ?: detect(serverId).also { store(serverId, it) }
     }
 
-    override suspend fun refresh() {
-        val serverId = clients.requireActiveServerId()
-        val detected = withContext(ioDispatcher) { remote { clients.client(serverId).detectCapabilities() } }
-        store(serverId, detected)
+    override suspend fun refresh(serverId: String) {
+        store(serverId, withContext(ioDispatcher) { detect(serverId) })
     }
 
-    /** Cached capabilities, detecting them first if this server has none yet. */
-    suspend fun forServer(serverId: String): ServerCapabilities = withContext(ioDispatcher) {
-        dao.get(serverId)?.asExternalModel()
-            ?: remote { clients.client(serverId).detectCapabilities() }.also { store(serverId, it) }
-    }
-
-    suspend fun store(serverId: String, capabilities: ServerCapabilities) {
+    override suspend fun store(serverId: String, capabilities: ServerCapabilities) {
         dao.upsert(
             ServerCapabilitiesEntity(
                 serverId = serverId,
@@ -69,4 +56,6 @@ internal class CachedServerCapabilitiesRepository @Inject constructor(
             ),
         )
     }
+
+    private suspend fun detect(serverId: String) = remote { clients.client(serverId).detectCapabilities() }
 }

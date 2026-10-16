@@ -329,9 +329,6 @@ interface SyncMetadataDao {
 @Dao
 interface ServerCapabilitiesDao {
     @Query("SELECT * FROM server_capabilities WHERE serverId = :serverId")
-    fun observe(serverId: String): Flow<ServerCapabilitiesEntity?>
-
-    @Query("SELECT * FROM server_capabilities WHERE serverId = :serverId")
     suspend fun get(serverId: String): ServerCapabilitiesEntity?
 
     @Upsert

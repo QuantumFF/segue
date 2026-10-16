@@ -56,7 +56,7 @@ internal class PreferencesDeviceClientName @Inject constructor(private val prefe
 
 internal class SubsonicPlayQueueRemoteRepository @Inject constructor(
     private val clients: SubsonicClientProvider,
-    private val capabilities: CachedServerCapabilitiesRepository,
+    private val capabilities: ServerCapabilitiesRepository,
     private val deviceClientName: DeviceClientName,
     private val writer: LibraryWriter,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
