@@ -32,9 +32,9 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  * docs/PLAN.md, "Server queue sync".
  *
  * - **Upload** is event-driven: the player reports [QueueEvent]s (track change, queue edit, pause,
- *   seek), which are debounced for [DEBOUNCE_MILLIS] and then saved in effective play order.
+ *   seek), which are debounced for [DEBOUNCE_MILLIS] and then saved in queue order.
  *   Going to the background flushes at once. Nothing is uploaded while playback simply runs.
- * - **Snapshot**: the same events save the queue to Room with its shuffle, so a cold start can
+ * - **Snapshot**: the same events save the queue to Room, so a cold start can
  *   restore it exactly, offline. An empty queue is saved and uploaded only through
  *   [onQueueCleared], because an empty player is also what the service looks like before it
  *   restores the snapshot.
@@ -74,7 +74,7 @@ class QueueSyncEngine @Inject constructor(
     override fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
         if (state.songIds.isEmpty()) return
         snapshotWriter.submit(state)
-        uploader.submit(state.inPlayOrder())
+        uploader.submit(state)
     }
 
     /** The user emptied a queue that had songs: clear the snapshot and the server's saved queue. */
@@ -88,7 +88,7 @@ class QueueSyncEngine @Inject constructor(
     fun onAppBackground(state: QueueState?) {
         if (state != null && state.songIds.isEmpty()) return
         snapshotWriter.flush(state)
-        uploader.flush(state?.inPlayOrder())
+        uploader.flush(state)
     }
 
     /**
@@ -174,12 +174,12 @@ class QueueSyncEngine @Inject constructor(
     /** The player was restored from the local snapshot: that state is already saved everywhere. */
     fun markRestored(state: QueueState) {
         snapshotWriter.markWritten(state)
-        uploader.markWritten(state.inPlayOrder())
+        uploader.markWritten(state)
     }
 
     /** The player adopted a remote queue: do not upload it straight back. The snapshot still saves it. */
     fun markAdopted(state: QueueState) {
-        uploader.markWritten(state.inPlayOrder())
+        uploader.markWritten(state)
     }
 
     private fun clearOffer(handled: RemotePlayQueue) {
@@ -210,7 +210,7 @@ class QueueSyncEngine @Inject constructor(
     }
 
     private suspend fun saveSnapshot(state: QueueState): Boolean = try {
-        snapshots.save(state.songIds, state.currentIndex, state.positionMillis, state.shuffleMode, state.playOrder)
+        snapshots.save(state.songIds, state.currentIndex, state.positionMillis)
         true
     } catch (_: RemoteException) {
         false // Signed out: there is no server to file the snapshot under.

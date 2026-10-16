@@ -9,7 +9,6 @@ import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
 import kotlin.random.Random
@@ -250,7 +249,6 @@ class BrowseTreeTest {
 
         assertThat(request.songs.map { it.id }).containsExactly("a", "b", "c").inOrder()
         assertThat(request.startIndex).isEqualTo(1)
-        assertThat(request.shuffleMode).isNull()
     }
 
     @Test
@@ -309,7 +307,6 @@ class BrowseTreeTest {
         val ids = request.songs.map { it.id }
         assertThat(ids).containsExactly("x1", "x2", "y1")
         assertThat(ids.indexOf("x2")).isEqualTo(ids.indexOf("x1") + 1)
-        assertThat(request.shuffleMode).isEqualTo(ShuffleMode.Off)
     }
 
     @Test

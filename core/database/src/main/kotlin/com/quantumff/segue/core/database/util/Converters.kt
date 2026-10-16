@@ -4,10 +4,8 @@ import androidx.room.TypeConverter
 import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
 import com.quantumff.segue.core.database.model.ExtensionMap
-import com.quantumff.segue.core.database.model.IndexList
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.ShuffleMode
 
 /** Small structured values are stored as JSON text. The JSON lives in [JsonColumns]. */
 internal class Converters {
@@ -41,18 +39,4 @@ internal class Converters {
 
     @TypeConverter
     fun nameToPinKind(value: String): PinKind = PinKind.entries.firstOrNull { it.name == value } ?: PinKind.Song
-
-    @TypeConverter
-    fun shuffleModeToName(value: ShuffleMode): String = value.name
-
-    @TypeConverter
-    fun nameToShuffleMode(value: String): ShuffleMode =
-        ShuffleMode.entries.firstOrNull { it.name == value } ?: ShuffleMode.Off
-
-    @TypeConverter
-    fun indexListToText(value: IndexList): String = value.items.joinToString(",")
-
-    @TypeConverter
-    fun textToIndexList(value: String): IndexList =
-        IndexList(if (value.isEmpty()) emptyList() else value.split(',').map(String::toInt))
 }

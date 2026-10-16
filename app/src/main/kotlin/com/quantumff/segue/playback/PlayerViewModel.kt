@@ -125,7 +125,6 @@ class PlayerViewModel @Inject constructor(
         onNext = playback::skipToNext,
         onPrevious = playback::skipToPrevious,
         onSkipTo = playback::skipTo,
-        onCycleShuffle = ::cycleShuffleMode,
         onCycleRepeat = ::cycleRepeatMode,
         onContinueRemote = playback::adoptRemoteQueue,
         onDismissRemote = playback::dismissRemoteQueue,
@@ -133,9 +132,6 @@ class PlayerViewModel @Inject constructor(
 
     /** The "Continued from" snackbar's Undo: the local queue comes back. */
     fun undoAutoAdoption() = playback.undoAutoAdoption()
-
-    /** Off → Tracks → Albums → Off (DESIGN.md §4.7). */
-    fun cycleShuffleMode() = playback.setShuffleMode(player.value.shuffleMode.cycled())
 
     /** Off → All → One → Off. */
     fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.cycled())

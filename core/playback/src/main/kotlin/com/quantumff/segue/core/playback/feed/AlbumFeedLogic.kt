@@ -19,13 +19,13 @@ object AlbumFeedPolicy {
     fun shouldExtend(remaining: Int): Boolean = remaining < LOW_WATER_TRACKS
 
     /**
-     * Identifies a queue by its song IDs in play order (FNV-1a over the IDs and their lengths). The
+     * Identifies a queue by its song IDs in order (FNV-1a over the IDs and their lengths). The
      * feed records it after each of its own changes; a different value means someone else edited
      * the queue. Cheap enough to compute on every queue event.
      */
-    fun fingerprint(songIdsInPlayOrder: List<String>): Long {
-        var hash = Fnv1a.mix(Fnv1a.OFFSET, songIdsInPlayOrder.size)
-        for (id in songIdsInPlayOrder) hash = Fnv1a.mix(Fnv1a.mix(hash, id.length), id)
+    fun fingerprint(songIds: List<String>): Long {
+        var hash = Fnv1a.mix(Fnv1a.OFFSET, songIds.size)
+        for (id in songIds) hash = Fnv1a.mix(Fnv1a.mix(hash, id.length), id)
         return hash
     }
 }

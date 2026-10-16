@@ -5,7 +5,6 @@ data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.System,
     val accentSource: AccentSource = AccentSource.Fixed,
     val accentPreset: AccentPreset = AccentPreset.Blue,
-    val defaultShuffleMode: ShuffleMode = ShuffleMode.Off,
     val wifiStreamingQuality: StreamingQuality = StreamingQuality.Original,
     val cellularStreamingQuality: StreamingQuality = StreamingQuality.Original,
     val queueSyncEnabled: Boolean = true,

@@ -9,7 +9,6 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.SearchResult
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeSearchRepository
@@ -87,7 +86,7 @@ class LibrarySearchTest {
     }
 
     @Test
-    fun `play an artist queues their albums with track shuffle`() = runTest {
+    fun `play an artist queues their albums in shuffled track order`() = runTest {
         repo.artists = listOf(radiohead)
         repo.albums = listOf(inRainbows)
         repo.songs = listOf(nude, reckoner)
@@ -96,7 +95,6 @@ class LibrarySearchTest {
         val request = search.playRequest("radiohead", focusExtras("vnd.android.cursor.item/artist"))!!
 
         assertThat(request.songs.map { it.id }).containsExactly("so-1", "so-2")
-        assertThat(request.shuffleMode).isEqualTo(ShuffleMode.Tracks)
     }
 
     @Test
@@ -111,7 +109,6 @@ class LibrarySearchTest {
 
         assertThat(searchRepository.queries).containsExactly("in rainbows")
         assertThat(request.songs.map { it.id }).containsExactly("so-1", "so-2").inOrder()
-        assertThat(request.shuffleMode).isNull()
     }
 
     @Test
@@ -132,7 +129,6 @@ class LibrarySearchTest {
         val request = search.playRequest("", Bundle.EMPTY)!!
 
         assertThat(request.songs.map { it.id }).containsExactly("so-1")
-        assertThat(request.shuffleMode).isEqualTo(ShuffleMode.Off)
     }
 
     @Test

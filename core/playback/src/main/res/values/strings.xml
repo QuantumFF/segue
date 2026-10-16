@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="playback_shuffle_off">Shuffle off</string>
-    <string name="playback_shuffle_tracks">Shuffle tracks</string>
-    <string name="playback_shuffle_albums">Shuffle albums</string>
     <string name="playback_favorite">Add to favorites</string>
     <string name="playback_unfavorite">Remove from favorites</string>
 </resources>

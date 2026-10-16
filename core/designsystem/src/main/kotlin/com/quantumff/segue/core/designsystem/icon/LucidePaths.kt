@@ -88,16 +88,6 @@ internal object LucidePaths {
         "M11 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
     )
 
-    /** lucide:grip-horizontal */
-    val GripHorizontal: List<String> = listOf(
-        "M11 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
-        "M18 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
-        "M4 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
-        "M11 15a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
-        "M18 15a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
-        "M4 15a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
-    )
-
     /** lucide:grip-vertical */
     val GripVertical: List<String> = listOf(
         "M8 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",

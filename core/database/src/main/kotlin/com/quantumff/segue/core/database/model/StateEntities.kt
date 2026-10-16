@@ -1,16 +1,14 @@
 package com.quantumff.segue.core.database.model
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.ShuffleMode
 
 /**
  * The local play queue snapshot: where playback was, so it can resume offline. [currentIndex]
- * points into the queue items in queue (unshuffled) order; [playOrder] holds the shuffle.
+ * points into the queue items, which are in play order (queues are never shuffled in place).
  */
 @Entity(tableName = "queue_state")
 data class QueueStateEntity(
@@ -18,9 +16,6 @@ data class QueueStateEntity(
     val currentIndex: Int,
     val positionMillis: Long,
     val updatedAt: Long,
-    @ColumnInfo(defaultValue = "Off") val shuffleMode: ShuffleMode = ShuffleMode.Off,
-    /** Queue item positions in play order while shuffled; null when shuffle is off. */
-    val playOrder: IndexList? = null,
 )
 
 /** The snapshot's tracks by position. The same song may appear more than once. */
@@ -58,9 +53,6 @@ data class AlbumFeedEntity(
     val cursor: Int,
     val queueFingerprint: Long,
 )
-
-/** A list of indices, stored as comma-separated text. */
-data class IndexList(val items: List<Int> = emptyList())
 
 /** A play not yet sent to the server. Sent in batches with one `scrobble` call. */
 @Entity(tableName = "pending_scrobbles", indices = [Index("serverId", "playedAt")])

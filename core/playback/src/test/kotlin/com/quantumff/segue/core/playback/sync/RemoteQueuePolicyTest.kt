@@ -3,7 +3,6 @@ package com.quantumff.segue.core.playback.sync
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.RemotePlayQueue
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.sync.RemoteQueueDecision.Adopt
 import com.quantumff.segue.core.playback.sync.RemoteQueueDecision.Ignore
@@ -92,20 +91,6 @@ class RemoteQueuePolicyTest {
     @Test
     fun `the same queue at the same track is not offered again`() {
         val decision = decide(remote(ids = listOf("9"), index = 0, changedAt = 5_000))
-        assertThat(decision).isEqualTo(Ignore(IgnoreReason.SameQueue))
-    }
-
-    @Test
-    fun `sameness is judged in play order for a shuffled local queue`() {
-        val shuffled = QueueSnapshot(
-            songIds = persistentListOf("a", "b", "c"),
-            currentIndex = 2,
-            positionMillis = 0,
-            updatedAt = 0,
-            shuffleMode = ShuffleMode.Tracks,
-            playOrder = persistentListOf(2, 0, 1),
-        )
-        val decision = decide(remote(ids = listOf("c", "a", "b"), index = 0, changedAt = 5_000), local = shuffled)
         assertThat(decision).isEqualTo(Ignore(IgnoreReason.SameQueue))
     }
 

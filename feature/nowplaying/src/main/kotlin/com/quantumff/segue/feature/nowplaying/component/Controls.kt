@@ -1,8 +1,5 @@
 package com.quantumff.segue.feature.nowplaying.component
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.selectable
@@ -24,11 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,27 +28,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.feature.nowplaying.NowPlayingPanel
 import com.quantumff.segue.feature.nowplaying.R
-import kotlinx.coroutines.delay
 
 /**
- * Transport row (DESIGN.md §4.7): shuffle mode · previous · play/pause (72 white circle) · next ·
- * repeat. A label naming the new shuffle mode shows above the row for 1.5s after it changes.
+ * Transport row (DESIGN.md §4.7): previous · play/pause (72 white circle) · next · repeat. There is
+ * no shuffle button: music is shuffled when it is queued, never once it plays. An empty slot on
+ * the left balances repeat, so play/pause stays centered.
  */
 @Composable
 internal fun TransportRow(
     isPlaying: Boolean,
-    shuffleMode: ShuffleMode,
     repeatMode: RepeatMode,
-    onShuffleClick: () -> Unit,
     onPreviousClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -70,12 +57,7 @@ internal fun TransportRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ModeButton(
-                icon = if (shuffleMode == ShuffleMode.Albums) SegueIcons.ShuffleAlbums else SegueIcons.Shuffle,
-                active = shuffleMode != ShuffleMode.Off,
-                contentDescription = stringResource(shuffleMode.label),
-                onClick = onShuffleClick,
-            )
+            Spacer(Modifier.size(SegueSizes.touchTarget))
             TransportButton(
                 icon = SegueIcons.SkipPrevious,
                 contentDescription = stringResource(R.string.feature_nowplaying_previous),
@@ -110,42 +92,6 @@ internal fun TransportRow(
                 onClick = onRepeatClick,
             )
         }
-        ShuffleModeLabel(
-            shuffleMode = shuffleMode,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(y = -SegueSpacing.xl),
-        )
-    }
-}
-
-/** "Shuffle albums" for 1.5s after the mode changes; nothing on first show (DESIGN.md §4.7). */
-@Composable
-private fun ShuffleModeLabel(shuffleMode: ShuffleMode, modifier: Modifier = Modifier) {
-    var shown by remember { mutableStateOf<ShuffleMode?>(null) }
-    var previous by remember { mutableStateOf(shuffleMode) }
-    LaunchedEffect(shuffleMode) {
-        if (shuffleMode == previous) return@LaunchedEffect
-        previous = shuffleMode
-        shown = shuffleMode
-        delay(LABEL_MILLIS)
-        shown = null
-    }
-    AnimatedVisibility(
-        visible = shown != null,
-        enter = fadeIn(SegueMotion.medium()),
-        exit = fadeOut(SegueMotion.medium()),
-        modifier = modifier,
-    ) {
-        val mode = shown ?: shuffleMode
-        Text(
-            text = stringResource(mode.label),
-            style = MaterialTheme.typography.labelMedium,
-            color = SegueTheme.colors.onArt,
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = LABEL_BACKGROUND_ALPHA), SegueShapes.full)
-                .padding(horizontal = SegueSpacing.sm, vertical = SegueSpacing.xxs),
-        )
     }
 }
 
@@ -162,7 +108,7 @@ private fun TransportButton(icon: ImageVector, contentDescription: String, onCli
     }
 }
 
-/** Shuffle and repeat: white 50% when off; white with a 4dp dot under the icon when on. */
+/** Repeat: white 50% when off; white with a 4dp dot under the icon when on. */
 @Composable
 private fun ModeButton(icon: ImageVector, active: Boolean, contentDescription: String, onClick: () -> Unit) {
     val onArt = SegueTheme.colors.onArt
@@ -277,13 +223,6 @@ internal val NowPlayingPanel.icon: ImageVector
         NowPlayingPanel.Related -> SegueIcons.Related
     }
 
-private val ShuffleMode.label: Int
-    get() = when (this) {
-        ShuffleMode.Off -> R.string.feature_nowplaying_shuffle_off
-        ShuffleMode.Tracks -> R.string.feature_nowplaying_shuffle_tracks
-        ShuffleMode.Albums -> R.string.feature_nowplaying_shuffle_albums
-    }
-
 private val RepeatMode.label: Int
     get() = when (this) {
         RepeatMode.Off -> R.string.feature_nowplaying_repeat_off
@@ -298,5 +237,3 @@ private val DOT_OFFSET = 8.dp
 private val PANEL_ITEM_WIDTH = 72.dp
 private val PANEL_ITEM_HEIGHT = 56.dp
 private const val OFF_ALPHA = 0.5f
-private const val LABEL_MILLIS = 1_500L
-private const val LABEL_BACKGROUND_ALPHA = 0.5f

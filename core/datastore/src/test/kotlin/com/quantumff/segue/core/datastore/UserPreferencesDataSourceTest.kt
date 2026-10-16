@@ -5,7 +5,6 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.ReplayGainMode
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -37,7 +36,6 @@ class UserPreferencesDataSourceTest {
         source.setThemeMode(ThemeMode.Black)
         source.setAccentSource(AccentSource.AlbumArt)
         source.setAccentPreset(AccentPreset.Teal)
-        source.setDefaultShuffleMode(ShuffleMode.Albums)
         source.setWifiStreamingQuality(StreamingQuality(maxBitRateKbps = 0, format = "raw"))
         source.setCellularStreamingQuality(StreamingQuality(maxBitRateKbps = 128, format = "opus"))
         source.setQueueSyncEnabled(false)
@@ -52,7 +50,6 @@ class UserPreferencesDataSourceTest {
                 themeMode = ThemeMode.Black,
                 accentSource = AccentSource.AlbumArt,
                 accentPreset = AccentPreset.Teal,
-                defaultShuffleMode = ShuffleMode.Albums,
                 wifiStreamingQuality = StreamingQuality(maxBitRateKbps = 0, format = "raw"),
                 cellularStreamingQuality = StreamingQuality(maxBitRateKbps = 128, format = "opus"),
                 queueSyncEnabled = false,

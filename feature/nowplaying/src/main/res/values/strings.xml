@@ -13,9 +13,6 @@
     <string name="feature_nowplaying_seek">Seek</string>
     <string name="feature_nowplaying_show_remaining">Show remaining time</string>
     <string name="feature_nowplaying_show_total">Show total time</string>
-    <string name="feature_nowplaying_shuffle_off">Shuffle off</string>
-    <string name="feature_nowplaying_shuffle_tracks">Shuffle tracks</string>
-    <string name="feature_nowplaying_shuffle_albums">Shuffle albums</string>
     <string name="feature_nowplaying_repeat_off">Repeat off</string>
     <string name="feature_nowplaying_repeat_all">Repeat all</string>
     <string name="feature_nowplaying_repeat_one">Repeat one</string>

@@ -13,7 +13,6 @@ class NowPlayingActions(
     /** Skips to a queue item by timeline index (an art swipe). */
     val onSkipTo: (Int) -> Unit,
     val onSeek: (Long) -> Unit,
-    val onCycleShuffle: () -> Unit,
     val onCycleRepeat: () -> Unit,
     val onToggleFavorite: () -> Unit,
     val onStartSleepTimer: (SleepTimerChoice) -> Unit,
@@ -40,7 +39,6 @@ class NowPlayingActions(
             onNext = {},
             onSkipTo = {},
             onSeek = {},
-            onCycleShuffle = {},
             onCycleRepeat = {},
             onToggleFavorite = {},
             onStartSleepTimer = {},

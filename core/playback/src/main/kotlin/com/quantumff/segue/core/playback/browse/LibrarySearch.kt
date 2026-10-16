@@ -6,7 +6,6 @@ import androidx.media3.session.MediaConstants
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.model.SearchResult
-import com.quantumff.segue.core.model.ShuffleMode
 import kotlin.random.Random
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -62,14 +61,12 @@ class LibrarySearch(
         return request?.takeIf { it.songs.isNotEmpty() }
     }
 
-    /** The artist's albums, newest first, shuffled by track. */
+    /** The artist's albums, newest first, queued in shuffled track order. */
     private suspend fun artistRequest(artistId: String): PlayRequest {
         val songs = repository.artistAlbums(artistId)
             .take(MAX_ARTIST_ALBUMS)
             .flatMap { repository.albumSongsForPlayback(it.id) }
-        // Track shuffle starts with the start item, so pick it at random too.
-        val start = if (songs.isEmpty()) 0 else random.nextInt(songs.size)
-        return PlayRequest(songs, startIndex = start, shuffleMode = ShuffleMode.Tracks)
+        return PlayRequest(songs.shuffled(random))
     }
 
     private suspend fun find(query: String): SearchResult {

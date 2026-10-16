@@ -6,7 +6,6 @@ import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 
 /**
  * What the shell's player surfaces (mini player, player bar) show. Excludes the position, so the
@@ -23,7 +22,6 @@ data class ShellPlayerState(
     /** The track a swipe left reveals and skips to. */
     val next: AdjacentTrack? = null,
     val durationMillis: Long = 0,
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
     val repeatMode: RepeatMode = RepeatMode.Off,
     /** A newer queue from another device: the "Continue from <device>" bar. Independent of [current]. */
     val remoteOffer: RemoteQueueOffer? = null,
@@ -41,7 +39,6 @@ class ShellPlayerActions(
     val onPrevious: () -> Unit,
     /** Skips to a queue item by timeline index (a mini player swipe). */
     val onSkipTo: (Int) -> Unit,
-    val onCycleShuffle: () -> Unit,
     val onCycleRepeat: () -> Unit,
     /** "Continue" on the remote queue bar: adopt the other device's queue. */
     val onContinueRemote: () -> Unit,
@@ -49,7 +46,7 @@ class ShellPlayerActions(
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */
-        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {}, {})
+        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {})
     }
 }
 
@@ -61,7 +58,6 @@ internal fun PlayerUiState.toShellPlayerState(): ShellPlayerState {
         previous = neighbor(-1),
         next = neighbor(+1),
         durationMillis = durationMillis,
-        shuffleMode = shuffleMode,
         repeatMode = repeatMode,
         remoteOffer = remoteQueue,
     )

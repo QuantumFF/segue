@@ -68,7 +68,7 @@ import com.quantumff.segue.core.database.util.Converters
         ServerCapabilitiesEntity::class,
         AlbumFeedEntity::class,
     ],
-    version = 3,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

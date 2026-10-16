@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,10 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -42,10 +39,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowState
@@ -87,49 +80,6 @@ internal fun QueueTrackRow(
     }
 }
 
-/**
- * Albums shuffle: the divider that starts an album block (DESIGN.md §4.8). It reads as a section
- * label, not a track: a hairline rule on top, then "Album · Artist · N tracks" as an overline,
- * with no art and no duration. Its `grip-horizontal` handle (tracks use `grip-vertical`) drags
- * the whole block.
- */
-@Composable
-internal fun AlbumBlockHeader(
-    header: QueueListItem.AlbumHeader,
-    isDragging: Boolean,
-    modifier: Modifier = Modifier,
-    handleModifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    val tracks = pluralStringResource(R.plurals.feature_queue_subtitle, header.trackCount, header.trackCount)
-    val label = remember(header, tracks, colors.onSurface) {
-        buildAnnotatedString {
-            withStyle(SpanStyle(color = colors.onSurface)) { append(header.title) }
-            header.artist?.let { append(SEPARATOR + it) }
-            append(SEPARATOR + tracks)
-        }
-    }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(AlbumHeaderHeight)
-            .background(if (isDragging) colors.surfaceContainerHighest else Color.Transparent)
-            .drawBehind { drawRect(colors.outlineVariant, size = Size(size.width, SegueSizes.hairline.toPx())) }
-            .padding(start = SegueSpacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = colors.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        DragHandle(stringResource(R.string.feature_queue_move_album), handleModifier, SegueIcons.BlockDragHandle)
-    }
-}
-
 /** "N played": the collapsed history at the top of the queue. Tap to expand or collapse. */
 @Composable
 internal fun HistoryRow(history: QueueListItem.History, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -166,13 +116,13 @@ internal fun HistoryRow(history: QueueListItem.History, onClick: () -> Unit, mod
 }
 
 @Composable
-private fun DragHandle(label: String, modifier: Modifier = Modifier, icon: ImageVector = SegueIcons.DragHandle) {
+private fun DragHandle(label: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier.size(SegueSizes.touchTarget),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = icon,
+            imageVector = SegueIcons.DragHandle,
             contentDescription = label,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(SegueSizes.iconSmall),
@@ -285,8 +235,6 @@ private fun SwipeBackground(offset: () -> Float, modifier: Modifier = Modifier) 
     }
 }
 
-private val AlbumHeaderHeight = 40.dp
-private const val SEPARATOR = " · "
 private const val SWIPE_THRESHOLD = 0.4f
 private const val HALF_TURN = 180f
 private const val REMOVE_CONFIRM_TIMEOUT_MILLIS = 1_500L

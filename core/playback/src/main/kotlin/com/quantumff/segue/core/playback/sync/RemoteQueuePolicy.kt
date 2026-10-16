@@ -69,7 +69,7 @@ object RemoteQueuePolicy {
     fun seenKey(remote: RemotePlayQueue): Long = remote.changedAt ?: 0L
 
     private fun QueueSnapshot.isSameAs(remote: RemotePlayQueue): Boolean =
-        currentIndexInPlayOrder == remote.currentIndex && songIdsInPlayOrder == remote.songs.map { it.id }
+        currentIndex == remote.currentIndex && songIds == remote.songs.map { it.id }
 
     private fun ignore(reason: RemoteQueueDecision.IgnoreReason) = RemoteQueueDecision.Ignore(reason)
 }

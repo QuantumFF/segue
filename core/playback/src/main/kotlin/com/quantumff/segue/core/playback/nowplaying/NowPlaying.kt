@@ -1,6 +1,5 @@
 package com.quantumff.segue.core.playback.nowplaying
 
-import com.quantumff.segue.core.model.ShuffleMode
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -16,7 +15,6 @@ data class NowPlayingSnapshot(
     val coverArtId: String? = null,
     /** The user's intent (play when ready), so buffering does not flicker the play button. */
     val isPlaying: Boolean = false,
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
 ) {
     val hasTrack: Boolean get() = songId != null
 

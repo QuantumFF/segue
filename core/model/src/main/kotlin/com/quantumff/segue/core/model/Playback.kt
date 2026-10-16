@@ -13,9 +13,8 @@ data class PlayerUiState(
     /** Updated about twice a second while the UI observes this state and playback runs; otherwise on events. */
     val positionMillis: Long = 0,
     val durationMillis: Long = 0,
-    /** The queue in play order: shuffled when shuffle is on. */
+    /** The queue, in the order it plays. */
     val queue: ImmutableList<QueueItem> = persistentListOf(),
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
     val repeatMode: RepeatMode = RepeatMode.Off,
     /** A newer queue saved by another device, to offer as "Continue from <device>". */
     val remoteQueue: RemoteQueueOffer? = null,
@@ -28,7 +27,7 @@ data class PlayerUiState(
  */
 data class QueueItem(
     val songId: String,
-    /** Position in the unshuffled queue. Commands that edit the queue take this index. */
+    /** Position in the queue. Commands that edit the queue take this index. */
     val timelineIndex: Int,
     val title: String,
     val artist: String?,

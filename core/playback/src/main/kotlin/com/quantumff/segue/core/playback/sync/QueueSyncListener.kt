@@ -16,16 +16,13 @@ interface QueueSyncSink {
 
 /**
  * Turns player events into queue sync events (docs/PLAN.md, "Server queue sync"): track change,
- * queue edit (including any shuffle change), pause (also a transient one such as a call, and the
- * end of the queue), and seek. App backgrounding is reported by the app, not the player.
+ * queue edit, pause (also a transient one such as a call, and the end of the queue), and seek. App
+ * backgrounding is reported by the app, not the player.
  *
  * Playback that simply runs raises none of these, so nothing is saved periodically.
  */
 class QueueSyncListener(private val player: SeguePlayer, private val sink: QueueSyncSink) : Player.Listener {
     private var hadItems = false
-
-    /** [SeguePlayer]'s mode callback: Tracks ↔ Albums keeps shuffle enabled, so no player event reports it. */
-    fun onShuffleModeChanged() = event(QueueEvent.QueueEdit)
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = event(QueueEvent.TrackTransition)
 
@@ -37,8 +34,6 @@ class QueueSyncListener(private val player: SeguePlayer, private val sink: Queue
         hadItems = hasItems
         event(QueueEvent.QueueEdit)
     }
-
-    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = event(QueueEvent.QueueEdit)
 
     override fun onPositionDiscontinuity(
         oldPosition: Player.PositionInfo,

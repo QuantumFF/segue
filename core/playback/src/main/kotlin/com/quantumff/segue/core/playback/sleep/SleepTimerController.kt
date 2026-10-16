@@ -45,8 +45,6 @@ class SleepTimerController(
 
     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) = updatePauseAtEnd()
 
-    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = updatePauseAtEnd()
-
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
         if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM && timer != null) {
             set(null)

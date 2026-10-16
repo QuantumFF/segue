@@ -153,9 +153,6 @@ class NowPlayingViewModel @Inject constructor(
 
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
 
-    /** Off → Tracks → Albums → Off (DESIGN.md §4.7). */
-    fun cycleShuffleMode() = playback.setShuffleMode(uiState.value.shuffleMode.cycled())
-
     /** Off → All → One → Off. */
     fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.cycled())
 

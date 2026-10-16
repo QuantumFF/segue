@@ -26,10 +26,11 @@ and Symfonium.
   Segue adopts the queue automatically (with Undo) if you turn that on. It uses OpenSubsonic's
   index-based queue when the server supports it. Conflict detection uses the server's own
   timestamps, so a skewed phone clock doesn't matter.
-- **Album shuffle.** Shuffle has three modes: *Off*, *Tracks* and *Albums*. *Albums* shuffles
-  whole albums and keeps each album's tracks in order, with the current album first. It's a custom
-  Media3 `ShuffleOrder`, so turning shuffle off restores the original order exactly. *Shuffle albums*
-  is also available for your whole library, an artist, a genre, or a playlist.
+- **Album shuffle.** Shuffling happens when music is queued, never to a running queue. *Play albums*
+  and *Shuffle albums* sit above the mini player in the Library's Albums view. They queue the albums
+  you see, in that order or shuffled, each album whole and in track order. Tap to play now, or
+  long-press to play next or add to your queue. Big libraries are queued a window at a time as you
+  listen. *Shuffle albums* is also available for an artist, a genre, or a playlist.
 
 ## Features
 
@@ -92,7 +93,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/DESIGN.md](docs/
 | `core:data` | Repositories, incremental library sync, downloads |
 | `core:datastore` | Settings and Keystore-encrypted server accounts |
 | `core:designsystem` | Theme, tokens, Inter + Lucide, shared components |
-| `core:playback` | Media3 `MediaLibraryService`, album shuffle, queue sync, scrobbling, Android Auto |
+| `core:playback` | Media3 `MediaLibraryService`, album feeds, queue sync, scrobbling, Android Auto |
 | `core:testing` | Shared test utilities |
 | `feature:*` | Screens: home, library, album, artist, playlist, search, nowplaying, queue, downloads, settings, login, widget |
 | `baselineprofile` | Baseline Profile generator and startup/scroll Macrobenchmarks |

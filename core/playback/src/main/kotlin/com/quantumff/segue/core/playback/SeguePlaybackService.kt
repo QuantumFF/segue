@@ -19,7 +19,6 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.QueueSnapshot
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.browse.SessionLibrary
 import com.quantumff.segue.core.playback.browse.launchFuture
@@ -86,11 +85,7 @@ class SeguePlaybackService : MediaLibraryService() {
         super.onCreate()
         scope = CoroutineScope(SupervisorJob() + components.mainDispatcher)
         exoPlayer = components.createExoPlayer(this)
-        player = SeguePlayer(exoPlayer) {
-            updateSessionState()
-            queueSyncListener.onShuffleModeChanged()
-            albumFeed.onQueueChanged()
-        }
+        player = SeguePlayer(exoPlayer)
         queueSyncListener = QueueSyncListener(player, components.queueSync)
         albumFeed = AlbumFeedController(
             player,
@@ -127,7 +122,6 @@ class SeguePlaybackService : MediaLibraryService() {
         scope.launch {
             components.preferences.preferences.collect { prefs ->
                 preferences = prefs
-                player.preferredShuffleMode = prefs.defaultShuffleMode
                 components.cacheEvictor.maxBytes = megabytes(prefs.streamCacheSizeMb)
                 applyReplayGain()
             }
@@ -174,8 +168,6 @@ class SeguePlaybackService : MediaLibraryService() {
             updateSessionState()
         }
 
-        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = updatePrefetch()
-
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) updatePrefetch()
             updateIdleStop()
@@ -221,10 +213,10 @@ class SeguePlaybackService : MediaLibraryService() {
 
     private data class Restored(val items: List<MediaItem>, val state: QueueState)
 
-    /** The local snapshot as playable items with its shuffle, from Room only, so it works offline. */
+    /** The local snapshot as playable items, from Room only, so it works offline. */
     private suspend fun loadSnapshot(): Restored? = components.snapshots.snapshot.first()?.let { load(it) }
 
-    /** [snapshot] as playable items with its shuffle, from Room only. */
+    /** [snapshot] as playable items, from Room only. */
     private suspend fun load(snapshot: QueueSnapshot): Restored? {
         // In queue order with duplicates; songs missing from the library are dropped (see QueueRestore).
         val songs = components.library.songsByIds(snapshot.songIds)
@@ -240,8 +232,8 @@ class SeguePlaybackService : MediaLibraryService() {
     }
 
     /**
-     * Undo of an automatic remote adoption: the replaced local queue comes back, paused, shuffle
-     * and all. The queue edit is then saved and uploaded like any other.
+     * Undo of an automatic remote adoption: the replaced local queue comes back, paused. The queue
+     * edit is then saved and uploaded like any other.
      */
     private suspend fun undoAdoption() {
         val previous = components.queueSync.takeAdoptionUndo() ?: return
@@ -254,12 +246,12 @@ class SeguePlaybackService : MediaLibraryService() {
 
     private fun updateSessionState() {
         val session = session ?: return
-        session.sessionExtras = SegueSessionCommands.extras(player.shuffleMode, sleepTimer.timer)
+        session.sessionExtras = SegueSessionCommands.extras(sleepTimer.timer)
         session.setMediaButtonPreferences(mediaButtons())
         publishNowPlaying()
     }
 
-    /** Widgets follow player events: track, play/pause, shuffle mode. Unchanged snapshots are dropped. */
+    /** Widgets follow player events: track and play/pause. Unchanged snapshots are dropped. */
     private fun publishNowPlaying() = components.nowPlaying.publish(nowPlaying())
 
     private fun nowPlaying(): NowPlayingSnapshot {
@@ -270,7 +262,6 @@ class SeguePlaybackService : MediaLibraryService() {
             artist = item.mediaMetadata.artist?.toString(),
             coverArtId = item.coverArtId,
             isPlaying = exoPlayer.playWhenReady && exoPlayer.playbackState != Player.STATE_ENDED,
-            shuffleMode = player.shuffleMode,
         )
     }
 
@@ -285,17 +276,8 @@ class SeguePlaybackService : MediaLibraryService() {
             // forward and overflow buttons as custom actions, and drops secondary-only ones.
             .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build()
-        val (icon, label) = when (player.shuffleMode) {
-            ShuffleMode.Off -> CommandButton.ICON_SHUFFLE_OFF to R.string.playback_shuffle_off
-            ShuffleMode.Tracks -> CommandButton.ICON_SHUFFLE_ON to R.string.playback_shuffle_tracks
-            ShuffleMode.Albums -> CommandButton.ICON_SHUFFLE_STAR to R.string.playback_shuffle_albums
-        }
-        val shuffle = CommandButton.Builder(icon)
-            .setDisplayName(getString(label))
-            .setSessionCommand(SegueSessionCommands.command(SegueSessionCommands.CYCLE_SHUFFLE))
-            .setSlots(CommandButton.SLOT_FORWARD_SECONDARY, CommandButton.SLOT_OVERFLOW)
-            .build()
-        return listOf(favorite, shuffle)
+        // No shuffle button: Segue shuffles only when music is queued, never a running queue.
+        return listOf(favorite)
     }
 
     private fun toggleFavorite() {
@@ -350,19 +332,9 @@ class SeguePlaybackService : MediaLibraryService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             when (customCommand.customAction) {
-                SegueSessionCommands.CYCLE_SHUFFLE -> player.cycleShuffleMode()
-
-                SegueSessionCommands.SET_SHUFFLE -> SegueSessionCommands.shuffleMode(args)?.let(player::setShuffleMode)
-
                 SegueSessionCommands.TOGGLE_FAVORITE -> toggleFavorite()
 
                 SegueSessionCommands.SET_SLEEP_TIMER -> sleepTimer.set(SegueSessionCommands.sleepTimer(args))
-
-                SegueSessionCommands.MOVE_IN_PLAY_ORDER -> player.moveInPlayOrder(
-                    args.getInt(SegueSessionCommands.ARG_FROM),
-                    args.getInt(SegueSessionCommands.ARG_TO),
-                    args.getInt(SegueSessionCommands.ARG_COUNT, 1),
-                )
 
                 SegueSessionCommands.UNDO_ADOPTION -> scope.launch { undoAdoption() }
 
@@ -373,12 +345,6 @@ class SeguePlaybackService : MediaLibraryService() {
                         val started = albumFeed.start(request, seed)
                         SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(started))
                     }
-                }
-
-                SegueSessionCommands.REINSERT -> SegueSessionCommands.reinsertArgs(
-                    args,
-                )?.let { (item, index, position) ->
-                    player.reinsert(item.withPlayableUri(), index, position)
                 }
 
                 else -> return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
@@ -423,7 +389,6 @@ class SeguePlaybackService : MediaLibraryService() {
                 }
                 val request = library.playRequest(item)
                     ?: throw UnsupportedOperationException("Nothing to play for ${item.mediaId}")
-                request.shuffleMode?.let(player::setShuffleMode)
                 MediaSession.MediaItemsWithStartPosition(request.songs.map { it.toMediaItem() }, request.startIndex, 0)
             }
         }
@@ -479,8 +444,6 @@ class SeguePlaybackService : MediaLibraryService() {
                 if (restored == null) {
                     result.setException(UnsupportedOperationException("Nothing to resume"))
                 } else {
-                    // The session sets these items itself; the player then reapplies the saved shuffle.
-                    player.expectRestore(restored.state)
                     components.queueSync.markRestored(restored.state)
                     result.set(
                         MediaSession.MediaItemsWithStartPosition(

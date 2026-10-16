@@ -1,7 +1,6 @@
 package com.quantumff.segue.core.playback.nowplaying
 
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.model.ShuffleMode
 import org.junit.Test
 
 class NowPlayingPublisherTest {
@@ -14,7 +13,6 @@ class NowPlayingPublisherTest {
         artist = "Radiohead",
         coverArtId = "al-1",
         isPlaying = true,
-        shuffleMode = ShuffleMode.Off,
     )
 
     @Test

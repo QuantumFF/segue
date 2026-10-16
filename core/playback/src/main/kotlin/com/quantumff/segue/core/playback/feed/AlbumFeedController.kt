@@ -13,7 +13,6 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.QueuePlacement
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.media.albumKey
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.SeguePlayer
@@ -34,11 +33,10 @@ import kotlinx.coroutines.sync.withLock
  * death ([restore]). Queue sync needs nothing special: it uploads whatever is queued.
  *
  * The feed only ever extends a queue it built. Any other change of what plays or in what order
- * (an added, removed or moved track, a replaced or cleared queue, a shuffle change) ends it for
+ * (an added, removed or moved track, a replaced or cleared queue) ends it for
  * good; only metadata updates such as a favorite toggle leave the order as it was.
  *
- * Runs on the player's thread. Register it as a player listener, and call [onQueueChanged] when
- * [SeguePlayer]'s shuffle mode changes (Tracks ↔ Albums raises no player event).
+ * Runs on the player's thread. Register it as a player listener.
  */
 class AlbumFeedController(
     private val player: SeguePlayer,
@@ -73,7 +71,6 @@ class AlbumFeedController(
         ownEdit {
             when {
                 request.placement == QueuePlacement.Replace -> {
-                    player.setShuffleMode(ShuffleMode.Off)
                     player.setMediaItems(items, 0, 0)
                     player.prepare()
                     player.play()
@@ -86,17 +83,17 @@ class AlbumFeedController(
 
                 request.placement == QueuePlacement.Next -> {
                     first = player.currentMediaItemIndex + 1
-                    player.insertNextInPlayOrder(items)
+                    player.insertNext(items)
                 }
 
                 else -> {
                     first = player.mediaItemCount
-                    player.appendInPlayOrder(items)
+                    player.addMediaItems(items)
                 }
             }
         }
         // Only a feed whose albums end the queue may grow; "play next" before other tracks stays one window.
-        val endsQueue = player.playOrder().takeLast(items.size) == (first until first + items.size).toList()
+        val endsQueue = first + items.size == player.mediaItemCount
         if (endsQueue && !window.exhausted) {
             current = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint())
             persist()
@@ -117,7 +114,7 @@ class AlbumFeedController(
         }
     }
 
-    /** The queue or its play order may have changed: a change the feed did not make ends it. */
+    /** The queue may have changed: a change the feed did not make ends it. */
     fun onQueueChanged() {
         val feed = current ?: return
         if (editing || feed.queueFingerprint == fingerprint()) return
@@ -127,8 +124,6 @@ class AlbumFeedController(
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
         if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) onQueueChanged()
     }
-
-    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = onQueueChanged()
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = extendIfNeeded()
 
@@ -164,7 +159,7 @@ class AlbumFeedController(
             .next(order, feed.cursor, AlbumFeedPolicy.EXTENSION_TRACKS, skip = queued)
         // The queue may have been edited while the songs were read.
         if (current !== feed || feed.queueFingerprint != fingerprint()) return
-        if (window.songs.isNotEmpty()) ownEdit { player.appendInPlayOrder(window.songs.map { it.toMediaItem() }) }
+        if (window.songs.isNotEmpty()) ownEdit { player.addMediaItems(window.songs.map { it.toMediaItem() }) }
         if (window.exhausted) {
             stop()
         } else {
@@ -209,15 +204,10 @@ class AlbumFeedController(
         OfflineLibrary.shuffleSongs(albums.songs(source, ids), downloaded)
     }
 
-    /** Tracks after the current one, in play order. */
-    private fun remaining(): Int {
-        val order = player.playOrder()
-        val position = order.indexOf(player.currentMediaItemIndex)
-        return if (position < 0) order.size else order.size - 1 - position
-    }
+    /** Tracks after the current one. */
+    private fun remaining(): Int = player.mediaItemCount - 1 - player.currentMediaItemIndex
 
-    private fun fingerprint(): Long =
-        AlbumFeedPolicy.fingerprint(player.playOrder().map { player.getMediaItemAt(it).mediaId })
+    private fun fingerprint(): Long = AlbumFeedPolicy.fingerprint(player.queueState().songIds)
 
     private companion object {
         const val TAG = "AlbumFeed"

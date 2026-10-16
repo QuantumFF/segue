@@ -13,11 +13,9 @@ import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.SeguePlayer
-import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -33,7 +31,7 @@ import org.robolectric.RobolectricTestRunner
 class AlbumFeedControllerTest {
     private val exo = ExoPlayer.Builder(ApplicationProvider.getApplicationContext<Context>()).build()
     private var controller: AlbumFeedController? = null
-    private val player = SeguePlayer(exo, Random(3)) { controller?.onQueueChanged() }
+    private val player = SeguePlayer(exo)
 
     /** 60 albums `al1`..`al60` of 10 tracks each; the view lists them `al1` first. */
     private val albumIds = (1..60).map { "al$it" }
@@ -56,9 +54,7 @@ class AlbumFeedControllerTest {
 
     private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
 
-    private fun playOrderIds() = player.playOrder().map { exo.getMediaItemAt(it).mediaId }
-
-    private fun albumsInPlayOrder() = playOrderIds().map { it.substringBefore("-") }.distinct()
+    private fun albumsInQueue() = queueIds().map { it.substringBefore("-") }.distinct()
 
     private fun request(order: AlbumOrder, placement: QueuePlacement = QueuePlacement.Replace) =
         AlbumPlayRequest(view, order, placement)
@@ -67,18 +63,16 @@ class AlbumFeedControllerTest {
     fun `play albums replaces the queue with the first window, in view order, and starts playing`() =
         runTest(UnconfinedTestDispatcher()) {
             player.setMediaItems(listOf(song("x", null).toMediaItem()))
-            player.setShuffleMode(ShuffleMode.Tracks)
             val feed = controller()
 
             assertThat(feed.start(request(AlbumOrder.InOrder), seed = 1)).isTrue()
 
-            assertThat(player.shuffleMode).isEqualTo(ShuffleMode.Off)
             assertThat(exo.playWhenReady).isTrue()
             assertThat(exo.mediaItemCount).isEqualTo(AlbumFeedPolicy.WINDOW_TRACKS)
-            assertThat(albumsInPlayOrder()).isEqualTo(albumIds.take(20))
+            assertThat(albumsInQueue()).isEqualTo(albumIds.take(20))
             assertThat(queueIds().take(11)).isEqualTo((1..10).map { "al1-t$it" } + "al2-t1")
             assertThat(feeds.stored?.cursor).isEqualTo(20)
-            assertThat(feeds.stored?.queueFingerprint).isEqualTo(AlbumFeedPolicy.fingerprint(playOrderIds()))
+            assertThat(feeds.stored?.queueFingerprint).isEqualTo(AlbumFeedPolicy.fingerprint(queueIds()))
         }
 
     @Test
@@ -86,7 +80,7 @@ class AlbumFeedControllerTest {
         controller().start(request(AlbumOrder.Shuffled), seed = 99)
 
         val expected = AlbumFeedOrder.order(albumIds, AlbumOrder.Shuffled, 99).take(20)
-        assertThat(albumsInPlayOrder()).isEqualTo(expected)
+        assertThat(albumsInQueue()).isEqualTo(expected)
         assertThat(queueIds().take(10)).isEqualTo((1..10).map { "${expected.first()}-t$it" })
         assertThat(feeds.stored?.seed).isEqualTo(99)
     }
@@ -100,9 +94,9 @@ class AlbumFeedControllerTest {
             advanceUntilIdle()
 
             assertThat(exo.mediaItemCount).isEqualTo(AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
-            assertThat(albumsInPlayOrder()).isEqualTo(albumIds.take(30))
+            assertThat(albumsInQueue()).isEqualTo(albumIds.take(30))
             assertThat(feeds.stored?.cursor).isEqualTo(30)
-            assertThat(feeds.stored?.queueFingerprint).isEqualTo(AlbumFeedPolicy.fingerprint(playOrderIds()))
+            assertThat(feeds.stored?.queueFingerprint).isEqualTo(AlbumFeedPolicy.fingerprint(queueIds()))
         }
 
     @Test
@@ -132,30 +126,28 @@ class AlbumFeedControllerTest {
     }
 
     @Test
-    fun `a shuffle change stops the feed, a favorite toggle does not`() = runTest(UnconfinedTestDispatcher()) {
+    fun `a move stops the feed, a favorite toggle does not`() = runTest(UnconfinedTestDispatcher()) {
         val feed = controller()
         feed.start(request(AlbumOrder.InOrder), seed = 1)
 
         player.replaceMediaItem(0, exo.getMediaItemAt(0))
         assertThat(feed.current).isNotNull()
 
-        player.setShuffleMode(ShuffleMode.Tracks)
+        player.moveMediaItem(5, 1)
         assertThat(feed.current).isNull()
     }
 
     @Test
-    fun `add to queue appends whole albums after the queue, in order, even in track shuffle`() =
+    fun `add to queue appends whole shuffled albums after the queue, each in track order`() =
         runTest(UnconfinedTestDispatcher()) {
             player.setMediaItems(listOf("x1", "x2", "x3").map { song(it, "x").toMediaItem() })
-            player.setShuffleMode(ShuffleMode.Tracks)
 
             controller().start(request(AlbumOrder.Shuffled, QueuePlacement.End), seed = 5)
 
             val expected = AlbumFeedOrder.order(albumIds, AlbumOrder.Shuffled, 5).take(20)
-            assertThat(playOrderIds().take(3)).containsExactly("x1", "x2", "x3")
-            assertThat(playOrderIds().drop(3).map { it.substringBefore("-") }.distinct()).isEqualTo(expected)
-            assertThat(playOrderIds().drop(3).take(10)).isEqualTo((1..10).map { "${expected.first()}-t$it" })
-            assertThat(player.shuffleMode).isEqualTo(ShuffleMode.Tracks)
+            assertThat(queueIds().take(3)).containsExactly("x1", "x2", "x3")
+            assertThat(queueIds().drop(3).map { it.substringBefore("-") }.distinct()).isEqualTo(expected)
+            assertThat(queueIds().drop(3).take(10)).isEqualTo((1..10).map { "${expected.first()}-t$it" })
             // The appended part is the end of the queue, so the feed keeps going.
             assertThat(feeds.stored).isNotNull()
         }
@@ -197,7 +189,7 @@ class AlbumFeedControllerTest {
         assertThat(restored.current).isEqualTo(saved)
         player.seekTo(190, 0)
         advanceUntilIdle()
-        assertThat(albumsInPlayOrder()).isEqualTo(albumIds.take(30))
+        assertThat(albumsInQueue()).isEqualTo(albumIds.take(30))
 
         // A queue that differs (a song went missing on restore) drops the feed.
         feeds.stored = saved

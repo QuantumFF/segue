@@ -14,7 +14,6 @@ import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.Playlist
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import kotlin.random.Random
@@ -43,8 +42,8 @@ interface BrowseArtwork {
     fun icon(icon: BrowseIcon): Uri?
 }
 
-/** What to queue for a playable node: [songs] from [startIndex], with [shuffleMode] set first (null keeps the mode). */
-data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0, val shuffleMode: ShuffleMode? = null)
+/** What to queue for a playable node: [songs], already in play order, from [startIndex]. */
+data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0)
 
 /**
  * The media browse tree for Android Auto and other media browsers, read from Room.
@@ -180,7 +179,7 @@ class BrowseTree(
         return repository.song(id.songId)?.let { PlayRequest(listOf(it)) }
     }
 
-    /** Same as the app's "Shuffle albums" for the library: random whole albums in plain order. */
+    /** Like the app's "Shuffle albums" for the library: random whole albums, queued in shuffled order. */
     private suspend fun shuffleAlbums(): PlayRequest {
         val offline = downloadedWhileOffline()
         val picked = AlbumPicker.pick(
@@ -192,7 +191,7 @@ class BrowseTree(
             OfflineLibrary.shuffleSongs(albumShuffle.songs(AlbumSource.Library, picked), offline),
             picked,
         )
-        return PlayRequest(songs, startIndex = 0, shuffleMode = ShuffleMode.Off)
+        return PlayRequest(songs, startIndex = 0)
     }
 
     // --- Items -----------------------------------------------------------------------------------

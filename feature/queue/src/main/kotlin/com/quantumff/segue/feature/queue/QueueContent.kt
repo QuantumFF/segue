@@ -50,7 +50,6 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.RemoteQueueOffer
-import com.quantumff.segue.core.model.ShuffleMode
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
@@ -201,14 +200,6 @@ private fun ReorderableQueueList(
                     modifier = Modifier.animateItem(),
                 )
 
-                is QueueListItem.AlbumHeader -> ReorderableItem(reorderState, key = row.key) { isDragging ->
-                    AlbumBlockHeader(
-                        header = row,
-                        isDragging = isDragging,
-                        handleModifier = dragModifier(row.key),
-                    )
-                }
-
                 is QueueListItem.Track -> ReorderableItem(reorderState, key = row.key) { isDragging ->
                     QueueSwipeBox(
                         onPlayNext = { actions.onPlayNext(row) },
@@ -230,10 +221,9 @@ private fun ReorderableQueueList(
 }
 
 /**
- * Keeps the current track in view, with the row above it (its album header in Albums shuffle):
- * on first show, on a shuffle mode change, and when the track changes while the previous current
- * track was on screen (so browsing further down is not interrupted). A newly offered queue from
- * another device scrolls its banner into view.
+ * Keeps the current track in view, with the row above it: on first show, and when the track
+ * changes while the previous current track was on screen (so browsing further down is not
+ * interrupted). A newly offered queue from another device scrolls its banner into view.
  */
 @Composable
 private fun AutoScrollToCurrent(
@@ -245,7 +235,7 @@ private fun AutoScrollToCurrent(
 ) {
     var previousKey by remember { mutableStateOf<String?>(null) }
     val latestRows by rememberUpdatedState(rows)
-    LaunchedEffect(state.currentKey, state.shuffleMode) {
+    LaunchedEffect(state.currentKey) {
         val key = state.currentKey ?: return@LaunchedEffect
         val previous = previousKey
         previousKey = key
@@ -337,33 +327,24 @@ private const val MILLIS_PER_SECOND = 1_000L
 internal val PreviewQueue = QueueUiState(
     items = persistentListOf(
         QueueListItem.History(count = 3, expanded = false),
-        QueueListItem.AlbumHeader("a#1", "In Rainbows", "Radiohead", trackCount = 2),
         QueueListItem.Track(
             key = "s1#1",
-            playPosition = 3,
-            timelineIndex = 5,
-            row = TrackRowState("s1#1", "Nude", "Radiohead", null, 255, isCurrent = true, isPlaying = true),
-            blockKey = "a#1",
+            position = 3,
+            row = TrackRowState("s1#1", "Nude", "Radiohead", "In Rainbows", 255, isCurrent = true, isPlaying = true),
         ),
         QueueListItem.Track(
             key = "s2#1",
-            playPosition = 4,
-            timelineIndex = 6,
-            row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", null, 318),
-            blockKey = "a#1",
+            position = 4,
+            row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", "In Rainbows", 318),
         ),
-        QueueListItem.AlbumHeader("b#1", "Kid A", "Radiohead", trackCount = 1),
         QueueListItem.Track(
             key = "s3#1",
-            playPosition = 5,
-            timelineIndex = 0,
-            row = TrackRowState("s3#1", "Everything in Its Right Place", "Radiohead", null, 251),
-            blockKey = "b#1",
+            position = 5,
+            row = TrackRowState("s3#1", "Everything in Its Right Place", "Radiohead", "Kid A", 251),
         ),
     ),
     currentKey = "s1#1",
     trackCount = 6,
-    shuffleMode = ShuffleMode.Albums,
     remoteOffer = RemoteQueueOffer("Feishin", 12, "Nude", positionMillis = 151_000, changedAt = null),
     isLoading = false,
 )
