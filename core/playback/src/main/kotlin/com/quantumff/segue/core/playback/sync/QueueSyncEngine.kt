@@ -211,13 +211,12 @@ class QueueSyncEngine @Inject constructor(
     }
 
     /**
-     * "Upload queue": saves [state] to the server now, whatever the queue sync setting. The
-     * server then holds this device's queue, so an offered queue counts as declined. Throws
-     * RemoteException.
+     * "Upload queue": saves [state] to the server now, after an upload in flight, whatever the
+     * queue sync setting. The server then holds this device's queue, so an offered queue counts
+     * as declined. Call from the player's thread. Throws RemoteException.
      */
     suspend fun uploadNow(state: QueueState) {
-        remote.save(state.songIds, state.currentIndex, state.positionMillis)
-        uploader.markWritten(state)
+        uploader.writeNow(state) { remote.save(it.songIds, it.currentIndex, it.positionMillis) }
         offeredQueue.value?.let(::clearOffer)
     }
 

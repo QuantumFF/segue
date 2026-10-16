@@ -117,10 +117,9 @@ class QueueViewModel @Inject constructor(
     }
 
     /** Saves the queue to the server now, whatever the queue sync setting. */
-    fun uploadQueue() = transfer {
+    fun uploadQueue() = runTransfer {
         try {
-            playback.uploadQueue()
-            QueueMessage.Uploaded
+            if (playback.uploadQueue()) QueueMessage.Uploaded else QueueMessage.UploadFailed
         } catch (_: RemoteException) {
             QueueMessage.UploadFailed
         }
@@ -130,11 +129,11 @@ class QueueViewModel @Inject constructor(
      * Fetches the server's saved queue. It replaces an empty queue at once; a queue with tracks
      * asks first, through [QueueUiState.downloadConfirmation].
      */
-    fun downloadQueue() = transfer {
+    fun downloadQueue() = runTransfer {
         val queue = try {
             playback.fetchRemoteQueue()
         } catch (_: RemoteException) {
-            return@transfer QueueMessage.DownloadFailed
+            return@runTransfer QueueMessage.DownloadFailed
         }
         when {
             queue == null -> QueueMessage.NothingToDownload
@@ -151,7 +150,7 @@ class QueueViewModel @Inject constructor(
     fun confirmDownload() {
         val queue = local.value.pendingDownload ?: return
         local.update { it.copy(pendingDownload = null) }
-        transfer { adoptDownloaded(queue) }
+        runTransfer { adoptDownloaded(queue) }
     }
 
     fun cancelDownload() = local.update { it.copy(pendingDownload = null) }
@@ -164,7 +163,7 @@ class QueueViewModel @Inject constructor(
         }
 
     /** Runs one upload or download at a time, then shows its message, if any. */
-    private fun transfer(block: suspend () -> QueueMessage?) {
+    private fun runTransfer(block: suspend () -> QueueMessage?) {
         if (local.value.isTransferring) return
         local.update { it.copy(isTransferring = true) }
         viewModelScope.launch {

@@ -73,7 +73,7 @@ fun QueueRoute(onBackClick: () -> Unit, modifier: Modifier = Modifier, viewModel
     )
 }
 
-/** The menu's "Upload queue" and "Download queue", and the download's confirmation. */
+/** The top bar's "Upload queue" and "Download queue" buttons, and the download's confirmation. */
 @Immutable
 data class QueueTransferActions(
     val onUpload: () -> Unit = {},
@@ -116,11 +116,20 @@ fun QueueScreen(
                         },
                     )
                 }
+                SegueIconButton(
+                    icon = SegueIcons.UploadQueue,
+                    contentDescription = stringResource(R.string.feature_queue_upload),
+                    onClick = transfer.onUpload,
+                    enabled = state.trackCount > 0 && !state.isTransferring,
+                )
+                SegueIconButton(
+                    icon = SegueIcons.DownloadQueue,
+                    contentDescription = stringResource(R.string.feature_queue_download),
+                    onClick = transfer.onDownload,
+                    enabled = !state.isTransferring,
+                )
                 QueueMenu(
-                    hasTracks = state.trackCount > 0,
-                    isTransferring = state.isTransferring,
-                    onUploadClick = transfer.onUpload,
-                    onDownloadClick = transfer.onDownload,
+                    enabled = state.trackCount > 0,
                     onSaveClick = { dialog = QueueDialog.Save },
                     onClearClick = { dialog = QueueDialog.Clear },
                 )
@@ -172,47 +181,20 @@ private enum class QueueDialog {
     Save,
 }
 
-@Suppress("LongParameterList")
 @Composable
-private fun QueueMenu(
-    hasTracks: Boolean,
-    isTransferring: Boolean,
-    onUploadClick: () -> Unit,
-    onDownloadClick: () -> Unit,
-    onSaveClick: () -> Unit,
-    onClearClick: () -> Unit,
-) {
+private fun QueueMenu(enabled: Boolean, onSaveClick: () -> Unit, onClearClick: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        // Enabled on an empty queue too: Download can fill it.
         SegueIconButton(
             icon = SegueIcons.MoreVertical,
             contentDescription = stringResource(com.quantumff.segue.core.designsystem.R.string.ds_more_options),
             onClick = { expanded = true },
+            enabled = enabled,
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = SegueShapes.lg) {
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.feature_queue_upload)) },
-                leadingIcon = { Icon(SegueIcons.UploadQueue, contentDescription = null) },
-                enabled = hasTracks && !isTransferring,
-                onClick = {
-                    expanded = false
-                    onUploadClick()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.feature_queue_download)) },
-                leadingIcon = { Icon(SegueIcons.DownloadQueue, contentDescription = null) },
-                enabled = !isTransferring,
-                onClick = {
-                    expanded = false
-                    onDownloadClick()
-                },
-            )
-            DropdownMenuItem(
                 text = { Text(stringResource(R.string.feature_queue_save_as_playlist)) },
                 leadingIcon = { Icon(SegueIcons.AddToPlaylist, contentDescription = null) },
-                enabled = hasTracks,
                 onClick = {
                     expanded = false
                     onSaveClick()
@@ -223,7 +205,6 @@ private fun QueueMenu(
                 leadingIcon = {
                     Icon(SegueIcons.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                 },
-                enabled = hasTracks,
                 onClick = {
                     expanded = false
                     onClearClick()

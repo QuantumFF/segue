@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.playback.sync
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -44,6 +45,45 @@ class DebouncedQueueWriterTest {
         writer.submit(state(2))
         advanceTimeBy(3_000)
         assertThat(written.map { it.second }).containsExactly(state(1), state(2)).inOrder()
+    }
+
+    @Test
+    fun `writeNow writes at once, even an unchanged state, and drops the pending write`() = runTest {
+        val writer = writer()
+        writer.flush(state(1))
+        runCurrent()
+        writer.submit(state(2))
+        val now = mutableListOf<QueueState>()
+        writer.writeNow(state(1)) { now += it }
+        assertThat(now).containsExactly(state(1))
+
+        advanceTimeBy(10_000)
+        assertThat(written.map { it.second }).containsExactly(state(1))
+    }
+
+    @Test
+    fun `writeNow waits for a write in flight`() = runTest {
+        val order = mutableListOf<String>()
+        val writer = DebouncedQueueWriter(backgroundScope, debounceMillis = 2_000) {
+            delay(1_000)
+            order += "debounced"
+            true
+        }
+        writer.flush(state(1))
+        runCurrent()
+        writer.writeNow(state(2)) { order += "now" }
+        assertThat(order).containsExactly("debounced", "now").inOrder()
+    }
+
+    @Test
+    fun `a failed writeNow throws and leaves the state to be written again`() = runTest {
+        val writer = writer()
+        val error = runCatching { writer.writeNow(state(1)) { error("offline") } }.exceptionOrNull()
+        assertThat(error).isInstanceOf(IllegalStateException::class.java)
+
+        writer.flush(state(1))
+        runCurrent()
+        assertThat(written.map { it.second }).containsExactly(state(1))
     }
 
     @Test

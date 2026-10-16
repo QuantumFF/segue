@@ -258,17 +258,27 @@ class PlaybackController @Inject constructor(
         controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
     }
 
-    /** "Upload queue": saves the queue to the server now; nothing if it is empty. Throws RemoteException. */
-    suspend fun uploadQueue() {
-        val state = withContext(mainDispatcher) {
+    /**
+     * "Upload queue": saves the queue to the server now. False if the queue is empty or the player
+     * could not be reached. Throws RemoteException.
+     */
+    suspend fun uploadQueue(): Boolean = withContext(mainDispatcher) {
+        val state = try {
             val controller = controller()
             QueueState(
                 songIds = List(controller.mediaItemCount) { controller.getMediaItemAt(it).mediaId },
                 currentIndex = controller.currentMediaItemIndex,
                 positionMillis = controller.currentPosition,
             )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.w(TAG, "Could not read the queue to upload", e)
+            null
         }
-        if (state.songIds.isNotEmpty()) queueSync.uploadNow(state)
+        if (state == null || state.songIds.isEmpty()) return@withContext false
+        queueSync.uploadNow(state)
+        true
     }
 
     /**

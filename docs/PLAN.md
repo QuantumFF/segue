@@ -31,7 +31,7 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 - Upload is event-driven and debounced. It runs on track change, queue edit, pause, seek, and app backgrounding. There is never periodic polling during playback.
 - Download happens on app start and when the app returns to the foreground. Compare the server's `changed`/`changedBy` with local state. If another client saved a newer queue, offer "Continue from <device>", or adopt it automatically if the user enabled that setting.
 - Upload the queue as it is: the queue order is the play order (shuffling happens only when music is queued), so other clients see what is actually playing.
-- The queue screen's ⋮ also has manual "Upload queue" and "Download queue". They skip the debounce, the newer-than checks and the queue sync setting. A manual upload declines any offered queue. A manual download takes whatever the server holds, this device's own save included, and the result counts as accounted for, so it is not offered again.
+- The queue screen's top bar also has manual "Upload queue" and "Download queue" buttons. They skip the debounce, the newer-than checks and the queue sync setting. A manual upload waits for an upload in flight, so it is the last save, and declines any offered queue. A manual download takes whatever the server holds, this device's own save included, and the result counts as accounted for, so it is not offered again.
 
 ### Album shuffle (at enqueue time)
 - Shuffling happens only when music is added to the queue, never to a running queue.

@@ -308,7 +308,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ```
 
 ### 4.8 Queue (Up next)
-- Header: "Up next" in `titleMedium`, plus "Playing from <source>" muted. On the right: a scroll-to-current icon (shown only when the current track is off-screen) and ⋮ (Upload queue, Download queue, Save as playlist, Clear queue). Upload and Download save to or take the server's queue at once, whatever the queue sync setting; Download over a queue with tracks asks "Replace the queue?" first.
+- Header: "Up next" in `titleMedium`, plus "Playing from <source>" muted. On the right: a scroll-to-current icon (shown only when the current track is off-screen), Upload queue and Download queue (cloud icons), and ⋮ (Save as playlist, Clear queue). Upload and Download save to or take the server's queue at once, whatever the queue sync setting; Download over a queue with tracks asks "Replace the queue?" first.
 - No shuffle or repeat controls here. A queue is never reshuffled; the queue order is the play order. Repeat lives on the Now Playing transport (§4.7) and the player bar. To add shuffled albums to a queue, use "Shuffle albums → Add to queue" (§5.9).
 - **Continue from another device** banner, shown when the server queue is newer and `changedBy` is a different client:
   - Card: radius `lg`, `surfaceContainerHighest`, 16 padding, Lucide `monitor-smartphone` icon.

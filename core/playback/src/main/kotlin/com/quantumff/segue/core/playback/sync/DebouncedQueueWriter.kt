@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
  * leaves the state dirty so the next event retries it. Nothing runs between events, so there is
  * no periodic write.
  *
- * Call [submit], [flush], and [markWritten] from one thread (the player's).
+ * Call [submit], [flush], [writeNow], and [markWritten] from one thread (the player's).
  */
 class DebouncedQueueWriter(
     private val scope: CoroutineScope,
@@ -47,6 +47,20 @@ class DebouncedQueueWriter(
         pending?.cancel()
         pending = null
         scope.launch { writeIfChanged(target) }
+    }
+
+    /**
+     * Writes [state] with [write] now, after any write in flight and instead of a pending one,
+     * even if it equals the last state written. [write]'s exception reaches the caller.
+     */
+    suspend fun writeNow(state: QueueState, write: suspend (QueueState) -> Unit) {
+        latest = state
+        pending?.cancel()
+        pending = null
+        mutex.withLock {
+            write(state)
+            lastWritten = state
+        }
     }
 
     /** Records [state] as already written, for a queue restored from or adopted into storage. */
