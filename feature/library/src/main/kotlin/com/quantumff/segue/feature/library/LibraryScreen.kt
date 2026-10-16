@@ -55,6 +55,7 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.EmptyState
@@ -84,14 +85,12 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumSortOrder
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
@@ -161,13 +160,15 @@ fun LibraryScreen(
     onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onDownloadsClick: () -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onAlbumClick, onArtistClick, onAddToPlaylist) {
+        MediaActionHost(onAlbumClick = onAlbumClick, onArtistClick = onArtistClick, onAddToPlaylist = onAddToPlaylist)
+    }
     val albums = viewModel.albums.collectAsLazyPagingItems()
     val artists = viewModel.artists.collectAsLazyPagingItems()
     val songs = viewModel.songs.collectAsLazyPagingItems()
@@ -179,51 +180,27 @@ fun LibraryScreen(
         onEvent = { event ->
             when (event) {
                 is LibraryEvent.SelectTab -> viewModel.selectTab(event.tab)
-
                 is LibraryEvent.SetSort -> viewModel.setSort(event.sort)
-
                 LibraryEvent.ToggleViewMode -> viewModel.toggleViewMode()
-
                 LibraryEvent.ToggleFavorites -> viewModel.toggleFavoritesFilter()
-
                 is LibraryEvent.SetGenreFilter -> viewModel.setGenreFilter(event.genre)
-
                 is LibraryEvent.SetYearFilter -> viewModel.setYearFilter(event.year)
-
                 LibraryEvent.ClearFilters -> viewModel.clearFilters()
-
                 LibraryEvent.Refresh -> viewModel.refresh()
-
-                LibraryEvent.ShuffleAll -> viewModel.shuffleAll(playActions)
-
-                is LibraryEvent.PlayAlbums -> viewModel.playAlbums(event.order, event.placement, playActions)
-
-                is LibraryEvent.ShuffleGenreAlbums -> playActions.shuffleAlbums(AlbumSource.Genre(event.genre))
-
+                LibraryEvent.ShuffleAll -> viewModel.shuffleAll()
+                is LibraryEvent.PlayAlbums -> viewModel.playAlbums(event.order, event.placement)
+                is LibraryEvent.ShuffleGenreAlbums -> viewModel.shuffleGenreAlbums(event.genre)
                 LibraryEvent.OpenAccount -> onAccountClick()
-
                 LibraryEvent.OpenDownloads -> onDownloadsClick()
-
                 is LibraryEvent.OpenAlbum -> onAlbumClick(event.id)
-
                 is LibraryEvent.OpenArtist -> onArtistClick(event.id)
-
                 is LibraryEvent.OpenPlaylist -> onPlaylistClick(event.id)
-
                 is LibraryEvent.OpenGenre -> onGenreClick(event.name)
-
-                is LibraryEvent.PlaySong -> playActions.onPlaySongs(listOf(event.song), 0, false)
-
-                is LibraryEvent.AlbumMenu ->
-                    viewModel.onAlbumAction(event.album, event.action, playActions, onAddToPlaylist)
-
-                is LibraryEvent.ArtistMenu -> viewModel.onArtistAction(event.artist, event.action, playActions)
-
-                is LibraryEvent.SongMenu ->
-                    viewModel.onSongAction(event.song, event.action, playActions, onAddToPlaylist)
-
+                is LibraryEvent.PlaySong -> viewModel.playSong(event.song)
+                is LibraryEvent.AlbumMenu -> viewModel.onAlbumAction(event.album, event.action, menuHost)
+                is LibraryEvent.ArtistMenu -> viewModel.onArtistAction(event.artist, event.action, menuHost)
+                is LibraryEvent.SongMenu -> viewModel.onSongAction(event.song, event.action, menuHost)
                 LibraryEvent.MessageShown -> viewModel.onMessageDismiss()
-
                 LibraryEvent.ToggleDownloaded -> viewModel.toggleDownloadedFilter()
             }
         },
@@ -850,12 +827,7 @@ private fun LibraryMenu(
                     hasArtist = album.artistId != null,
                     isDownloaded = album.id in state.pinnedAlbums,
                 ),
-                onAction = { action ->
-                    when (action) {
-                        MediaAction.GoToArtist -> album.artistId?.let { onEvent(LibraryEvent.OpenArtist(it)) }
-                        else -> onEvent(LibraryEvent.AlbumMenu(album, action))
-                    }
-                },
+                onAction = { onEvent(LibraryEvent.AlbumMenu(album, it)) },
                 onDismissRequest = onDismissRequest,
             )
         }
@@ -879,13 +851,7 @@ private fun LibraryMenu(
                     hasAlbum = song.albumId != null,
                     hasArtist = song.artistId != null,
                 ),
-                onAction = { action ->
-                    when (action) {
-                        MediaAction.GoToAlbum -> song.albumId?.let { onEvent(LibraryEvent.OpenAlbum(it)) }
-                        MediaAction.GoToArtist -> song.artistId?.let { onEvent(LibraryEvent.OpenArtist(it)) }
-                        else -> onEvent(LibraryEvent.SongMenu(song, action))
-                    }
-                },
+                onAction = { onEvent(LibraryEvent.SongMenu(song, it)) },
                 onDismissRequest = onDismissRequest,
             )
         }
@@ -970,7 +936,7 @@ private val LibraryMessage.text: Int
         LibraryMessage.LoadFailed -> R.string.feature_library_error_load
         LibraryMessage.FavoriteFailed -> R.string.feature_library_error_favorite
         LibraryMessage.RefreshFailed -> R.string.feature_library_error_refresh
-        LibraryMessage.NothingToPlay -> R.string.feature_library_error_nothing_to_play
+        LibraryMessage.DownloadFailed -> R.string.feature_library_error_download
     }
 
 private val PreviewAlbums = List(6) { index ->

@@ -19,6 +19,7 @@
     <string name="feature_home_refresh">Refresh</string>
     <string name="feature_home_playback_failed">Could not load the album\'s songs</string>
     <string name="feature_home_favorite_failed">Could not update favorites</string>
+    <string name="feature_home_download_failed">Could not start the download</string>
     <plurals name="feature_home_track_count">
         <item quantity="one">%d track</item>
         <item quantity="other">%d tracks</item>

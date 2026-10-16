@@ -5,7 +5,6 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.home.AlbumListScreen
 import com.quantumff.segue.feature.home.HomeScreen
 import kotlinx.serialization.Serializable
@@ -28,7 +27,6 @@ fun NavGraphBuilder.homeScreen(
     onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onSeeAllClick: (AlbumListType) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
 ) {
     composable<HomeRoute> {
@@ -39,7 +37,6 @@ fun NavGraphBuilder.homeScreen(
             onPlaylistClick = onPlaylistClick,
             onGenreClick = onGenreClick,
             onSeeAllClick = onSeeAllClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
     }
@@ -49,7 +46,6 @@ fun NavGraphBuilder.albumListScreen(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
 ) {
     composable<AlbumListRoute> {
@@ -57,7 +53,6 @@ fun NavGraphBuilder.albumListScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
     }

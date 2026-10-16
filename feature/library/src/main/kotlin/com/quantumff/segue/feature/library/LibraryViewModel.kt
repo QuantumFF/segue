@@ -8,13 +8,14 @@ import androidx.paging.cachedIn
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
-import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.play.MediaActionFailure
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.repository.AlbumRepository
-import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
@@ -25,9 +26,8 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
-import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
@@ -71,7 +71,7 @@ enum class LibraryMessage {
     LoadFailed,
     FavoriteFailed,
     RefreshFailed,
-    NothingToPlay,
+    DownloadFailed,
 }
 
 data class LibraryUiState(
@@ -108,13 +108,13 @@ data class LibraryUiState(
 class LibraryViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val albumRepository: AlbumRepository,
-    private val artistRepository: ArtistRepository,
     private val libraryRepository: LibraryRepository,
     private val syncRepository: LibrarySyncRepository,
-    private val starRatingRepository: StarRatingRepository,
     serverRepository: ServerRepository,
-    private val downloadRepository: DownloadRepository,
+    downloadRepository: DownloadRepository,
     private val offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
 
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
@@ -258,7 +258,7 @@ class LibraryViewModel @Inject constructor(
     }
 
     /** Random songs from the whole library, played in the server's random order. */
-    fun shuffleAll(playActions: PlayActions) {
+    fun shuffleAll() {
         viewModelScope.launch {
             val songs = try {
                 libraryRepository.randomSongs()
@@ -266,11 +266,7 @@ class LibraryViewModel @Inject constructor(
                 message.value = LibraryMessage.LoadFailed
                 return@launch
             }
-            if (songs.isEmpty()) {
-                message.value = LibraryMessage.NothingToPlay
-            } else {
-                playActions.onPlaySongs(songs, 0, false)
-            }
+            playIntents.play(PlayTarget.Songs(songs))
         }
     }
 
@@ -278,133 +274,39 @@ class LibraryViewModel @Inject constructor(
      * "Play albums" ([AlbumOrder.InOrder]) or "Shuffle albums" of exactly what the Albums tab
      * shows: its sort and filters, limited to downloaded albums while offline.
      */
-    fun playAlbums(order: AlbumOrder, placement: QueuePlacement, playActions: PlayActions) {
+    fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
         val stored = AlbumFilter(starredOnly.value, genreFilter.value, yearFilter.value, downloadedOnly.value)
         val view = AlbumSource.Albums(sort.value, offlineView.albumFilter(stored))
-        playActions.onPlayAlbums(AlbumPlayRequest(view, order, placement))
+        viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(view, order, placement)) }
     }
 
-    /** Handles the album menu actions that need data; navigation actions stay with the screen. */
-    fun onAlbumAction(
-        album: Album,
-        action: MediaAction,
-        playActions: PlayActions,
-        onAddToPlaylist: (List<String>) -> Unit,
-    ) {
-        when (action) {
-            MediaAction.Play, MediaAction.Shuffle, MediaAction.PlayNext, MediaAction.AddToQueue,
-            MediaAction.AddToPlaylist,
-            -> viewModelScope.launch {
-                val songs = loadSongs { albumRepository.songsForPlayback(album.id) } ?: return@launch
-                dispatch(songs, action, playActions, onAddToPlaylist)
-            }
-
-            MediaAction.ShuffleArtistAlbums ->
-                album.artistId?.let { playActions.shuffleAlbums(AlbumSource.Artist(it)) }
-
-            MediaAction.Favorite, MediaAction.Unfavorite ->
-                setStarred(MediaKind.Album, album.id, starred = action == MediaAction.Favorite)
-
-            MediaAction.Download -> pin(PinTarget(PinKind.Album, album.id, album.name, album.coverArtId))
-
-            MediaAction.RemoveDownload -> unpin(PinKind.Album, album.id)
-
-            else -> Unit
-        }
+    /** A genre's "Shuffle albums". */
+    fun shuffleGenreAlbums(genre: String) {
+        val request = AlbumPlayRequest(AlbumSource.Genre(genre), AlbumOrder.Shuffled)
+        viewModelScope.launch { playIntents.playAlbums(request) }
     }
 
-    /** Artists play their top songs; "Shuffle albums" shuffles every album of theirs. */
-    fun onArtistAction(artist: Artist, action: MediaAction, playActions: PlayActions) {
-        when (action) {
-            MediaAction.Play, MediaAction.Shuffle -> viewModelScope.launch {
-                val songs = loadSongs { artistRepository.topSongs(artist.id) } ?: return@launch
-                playActions.onPlaySongs(songs, 0, action == MediaAction.Shuffle)
-            }
-
-            MediaAction.ShuffleAlbums -> playActions.shuffleAlbums(AlbumSource.Artist(artist.id))
-
-            MediaAction.Favorite, MediaAction.Unfavorite ->
-                setStarred(MediaKind.Artist, artist.id, starred = action == MediaAction.Favorite)
-
-            MediaAction.Download -> pin(PinTarget(PinKind.Artist, artist.id, artist.name, artist.coverArtId))
-
-            MediaAction.RemoveDownload -> unpin(PinKind.Artist, artist.id)
-
-            else -> Unit
-        }
+    /** A tap on a song row plays that song alone. */
+    fun playSong(song: Song) {
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(listOf(song))) }
     }
 
-    fun onSongAction(
-        song: Song,
-        action: MediaAction,
-        playActions: PlayActions,
-        onAddToPlaylist: (List<String>) -> Unit,
-    ) {
-        when (action) {
-            MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
+    fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) =
+        menuAction { mediaActions.album(album, action, host) }
 
-            MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
+    fun onArtistAction(artist: Artist, action: MediaAction, host: MediaActionHost) =
+        menuAction { mediaActions.artist(artist, action, host) }
 
-            MediaAction.InstantMix -> playActions.onStartInstantMix(song)
+    fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) =
+        menuAction { mediaActions.song(song, action, host) }
 
-            MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-
-            MediaAction.Favorite, MediaAction.Unfavorite ->
-                setStarred(MediaKind.Song, song.id, starred = action == MediaAction.Favorite)
-
-            MediaAction.Download -> pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId))
-
-            else -> Unit
-        }
-    }
-
-    private suspend fun loadSongs(load: suspend () -> List<Song>): List<Song>? {
-        val songs = try {
-            load()
-        } catch (_: RemoteException) {
-            message.value = LibraryMessage.LoadFailed
-            return null
-        }
-        if (songs.isEmpty()) message.value = LibraryMessage.NothingToPlay
-        return songs.takeIf { it.isNotEmpty() }
-    }
-
-    private fun dispatch(
-        songs: List<Song>,
-        action: MediaAction,
-        playActions: PlayActions,
-        onAddToPlaylist: (List<String>) -> Unit,
-    ) {
-        when (action) {
-            MediaAction.Play -> playActions.onPlaySongs(songs, 0, false)
-            MediaAction.Shuffle -> playActions.onPlaySongs(songs, 0, true)
-            MediaAction.PlayNext -> playActions.onPlayNext(songs)
-            MediaAction.AddToQueue -> playActions.onAddToQueue(songs)
-            MediaAction.AddToPlaylist -> onAddToPlaylist(songs.map { it.id })
-            else -> Unit
-        }
-    }
-
-    private fun pin(target: PinTarget) {
+    private fun menuAction(run: suspend () -> MediaActionFailure?) {
         viewModelScope.launch {
-            try {
-                downloadRepository.pin(target)
-            } catch (_: RemoteException) {
-                message.value = LibraryMessage.LoadFailed
-            }
-        }
-    }
-
-    private fun unpin(kind: PinKind, id: String) {
-        viewModelScope.launch { downloadRepository.unpin(kind, id) }
-    }
-
-    private fun setStarred(kind: MediaKind, id: String, starred: Boolean) {
-        viewModelScope.launch {
-            try {
-                starRatingRepository.setStarred(kind, id, starred)
-            } catch (_: RemoteException) {
-                message.value = LibraryMessage.FavoriteFailed
+            message.value = when (run()) {
+                null -> return@launch
+                MediaActionFailure.LoadFailed -> LibraryMessage.LoadFailed
+                MediaActionFailure.FavoriteFailed -> LibraryMessage.FavoriteFailed
+                MediaActionFailure.DownloadFailed -> LibraryMessage.DownloadFailed
             }
         }
     }

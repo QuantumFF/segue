@@ -4,7 +4,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
-import com.quantumff.segue.core.model.PlayActions
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -28,16 +27,13 @@ class AlbumScreenScreenshotTest {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         AlbumScreen(
                             state = PreviewAlbumState,
-                            playActions = PlayActions.None,
                             onBackClick = {},
                             onAlbumClick = {},
                             onArtistClick = {},
                             onGenreClick = {},
-                            onAddToPlaylist = {},
                             onPlay = { _, _ -> },
                             onShuffleAlbums = {},
                             onToggleStar = {},
-                            onToggleSongStar = {},
                             onRatingChange = {},
                             onRetry = {},
                             onMessageDismiss = {},

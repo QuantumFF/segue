@@ -30,7 +30,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -60,7 +59,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
-import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -112,15 +110,6 @@ fun NowPlayingScreen(
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val activeLyricLine = viewModel.activeLyricLine.collectAsStateWithLifecycle()
     val related by viewModel.related.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val instantMixFailed = stringResource(R.string.feature_nowplaying_instant_mix_failed)
-    LaunchedEffect(viewModel) {
-        viewModel.messages.collect { message ->
-            when (message) {
-                NowPlayingMessage.InstantMixFailed -> snackbarHostState.showSnackbar(instantMixFailed)
-            }
-        }
-    }
     val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist, onOpenQueue) {
         NowPlayingActions(
             onCollapse = onCollapse,
@@ -154,7 +143,6 @@ fun NowPlayingScreen(
         related = related,
         actions = actions,
         queueContent = queueContent,
-        snackbarHostState = snackbarHostState,
         modifier = modifier,
     )
 }
@@ -181,7 +169,6 @@ internal fun NowPlayingScreen(
     actions: NowPlayingActions,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
@@ -225,12 +212,6 @@ internal fun NowPlayingScreen(
                 onMenuClick = { sheet = NowPlayingSheet.Menu },
             )
         }
-        SegueSnackbarHost(
-            snackbarHostState,
-            Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding(),
-        )
         if (track != null && !twoPane) {
             LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
         }

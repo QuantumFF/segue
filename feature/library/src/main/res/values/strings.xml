@@ -67,7 +67,7 @@
     <string name="feature_library_error_load">Couldn\'t load the songs. Check your connection.</string>
     <string name="feature_library_error_favorite">Couldn\'t update favorites</string>
     <string name="feature_library_error_refresh">Couldn\'t start a library sync</string>
-    <string name="feature_library_error_nothing_to_play">Nothing to play</string>
+    <string name="feature_library_error_download">Couldn\'t start the download</string>
     <string name="feature_library_filter_downloaded">Downloaded</string>
     <string name="feature_library_offline_empty_title">You\'re offline</string>
     <string name="feature_library_offline_empty_message">Downloaded music shows here. Pin albums or playlists to listen offline.</string>

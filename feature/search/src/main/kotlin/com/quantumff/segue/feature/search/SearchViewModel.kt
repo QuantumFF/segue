@@ -4,14 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.play.MediaActionFailure
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.OfflineLibrary
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -77,6 +81,7 @@ data class SearchUiState(
 
 enum class SearchMessage {
     FavoriteFailed,
+    DownloadFailed,
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,9 +89,10 @@ enum class SearchMessage {
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val preferences: UserPreferencesRepository,
-    private val starRating: StarRatingRepository,
     libraryRepository: LibraryRepository,
     offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val queryState = MutableStateFlow("")
 
@@ -152,15 +158,31 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch { preferences.removeRecentSearch(query) }
     }
 
-    fun onToggleFavorite(song: Song) {
-        val starred = !song.isStarred
-        starOverrides.update { it + (song.id to starred) }
+    /** A song result's tap: plays the results' songs from that one. */
+    fun onSongClick(index: Int) {
+        saveRecentSearch()
+        val songs = uiState.value.songs
+        if (index in songs.indices) viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index)) }
+    }
+
+    /**
+     * A song's ⋮ menu ([MediaActionHandler]). Favorite shows at once, since the results are a
+     * snapshot, and is undone if the server refuses it.
+     */
+    fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {
+        val starring = action == MediaAction.Favorite || action == MediaAction.Unfavorite
+        if (starring) starOverrides.update { it + (song.id to (action == MediaAction.Favorite)) }
         viewModelScope.launch {
-            try {
-                starRating.setStarred(MediaKind.Song, song.id, starred)
-            } catch (_: RemoteException) {
-                starOverrides.update { it + (song.id to !starred) }
-                message.value = SearchMessage.FavoriteFailed
+            message.value = when (mediaActions.song(song, action, host)) {
+                null -> return@launch
+
+                MediaActionFailure.FavoriteFailed -> {
+                    starOverrides.update { it + (song.id to song.isStarred) }
+                    SearchMessage.FavoriteFailed
+                }
+
+                // A song's actions load nothing; only Download can fail besides Favorite.
+                MediaActionFailure.LoadFailed, MediaActionFailure.DownloadFailed -> SearchMessage.DownloadFailed
             }
         }
     }

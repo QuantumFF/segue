@@ -2,22 +2,24 @@ package com.quantumff.segue.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.play.MediaActionFailure
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.OfflineLibrary
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
-import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -36,9 +38,16 @@ import kotlinx.coroutines.launch
 
 /** Transient messages shown in a snackbar. */
 enum class HomeMessage {
-    /** Could not load an album's songs to play it. */
-    PlaybackLoadFailed,
+    /** Could not load an album's songs to add them to a playlist. */
+    LoadFailed,
     FavoriteFailed,
+    DownloadFailed,
+}
+
+internal fun MediaActionFailure.toHomeMessage() = when (this) {
+    MediaActionFailure.LoadFailed -> HomeMessage.LoadFailed
+    MediaActionFailure.FavoriteFailed -> HomeMessage.FavoriteFailed
+    MediaActionFailure.DownloadFailed -> HomeMessage.DownloadFailed
 }
 
 /** The Home screen (DESIGN.md §4.1). Lists come from Room; the server refreshes them in the background. */
@@ -89,8 +98,9 @@ class HomeViewModel @Inject constructor(
     libraryRepository: LibraryRepository,
     serverRepository: ServerRepository,
     private val syncRepository: LibrarySyncRepository,
-    private val starRatingRepository: StarRatingRepository,
     private val offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val status = MutableStateFlow(Status(isRefreshing = false, isOffline = false, message = null))
 
@@ -184,26 +194,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { remoteOutcome { syncRepository.requestSync() } }
     }
 
-    /** Loads [album]'s songs (fetching them if needed) and hands them to [onLoaded], usually a play intent. */
-    fun withAlbumSongs(album: Album, onLoaded: (List<Song>) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val songs = albumRepository.songsForPlayback(album.id)
-                if (songs.isNotEmpty()) onLoaded(songs) else showMessage(HomeMessage.PlaybackLoadFailed)
-            } catch (_: RemoteException) {
-                showMessage(HomeMessage.PlaybackLoadFailed)
-            }
-        }
+    /** A card's play button. */
+    fun playAlbum(album: Album) {
+        viewModelScope.launch { playIntents.play(PlayTarget.Album(album.id)) }
     }
 
-    fun toggleFavorite(album: Album) {
-        viewModelScope.launch {
-            try {
-                starRatingRepository.setStarred(MediaKind.Album, album.id, !album.isStarred)
-            } catch (_: RemoteException) {
-                showMessage(HomeMessage.FavoriteFailed)
-            }
-        }
+    fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {
+        viewModelScope.launch { mediaActions.album(album, action, host)?.let { showMessage(it.toHomeMessage()) } }
     }
 
     fun messageShown() {

@@ -3,15 +3,14 @@ package com.quantumff.segue.feature.home
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.RemoteOutcome
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.MediaKind
-import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.MediaAction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -38,7 +37,7 @@ data class AlbumListUiState(
 class AlbumListViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val albumRepository: AlbumRepository,
-    private val starRatingRepository: StarRatingRepository,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val type: AlbumListType =
         AlbumListType.valueOf(checkNotNull(savedStateHandle.get<String>(KEY_LIST_TYPE)) { "Missing list type" })
@@ -62,25 +61,8 @@ class AlbumListViewModel @Inject constructor(
         }
     }
 
-    fun withAlbumSongs(album: Album, onLoaded: (List<Song>) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val songs = albumRepository.songsForPlayback(album.id)
-                if (songs.isNotEmpty()) onLoaded(songs) else showMessage(HomeMessage.PlaybackLoadFailed)
-            } catch (_: RemoteException) {
-                showMessage(HomeMessage.PlaybackLoadFailed)
-            }
-        }
-    }
-
-    fun toggleFavorite(album: Album) {
-        viewModelScope.launch {
-            try {
-                starRatingRepository.setStarred(MediaKind.Album, album.id, !album.isStarred)
-            } catch (_: RemoteException) {
-                showMessage(HomeMessage.FavoriteFailed)
-            }
-        }
+    fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {
+        viewModelScope.launch { mediaActions.album(album, action, host)?.let { showMessage(it.toHomeMessage()) } }
     }
 
     fun messageShown() {
