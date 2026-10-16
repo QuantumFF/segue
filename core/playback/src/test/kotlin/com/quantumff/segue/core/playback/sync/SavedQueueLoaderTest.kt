@@ -74,7 +74,7 @@ class SavedQueueLoaderTest {
     /** The quiet period passes, then the app leaves the foreground: everything due is written. */
     private fun TestScope.settle() {
         advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
-        queueSync.onAppBackground(player.queueState())
+        queueSync.flush(player.queueState())
         runCurrent()
     }
 

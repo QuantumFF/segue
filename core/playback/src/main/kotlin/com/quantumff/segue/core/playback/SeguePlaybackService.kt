@@ -114,7 +114,7 @@ class SeguePlaybackService : MediaLibraryService() {
                 pauseAllPlayersAndStopSelf()
             },
         )
-        components.bridge.player = player
+        components.bridge.attach(player)
 
         scope.launch {
             components.preferences.preferences.collect { prefs ->
@@ -134,8 +134,8 @@ class SeguePlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onDestroy() {
-        if (components.bridge.player === player) components.bridge.player = null
-        if (player.mediaItemCount > 0) components.queueSync.onAppBackground(player.queueState())
+        components.bridge.detach(player)
+        if (player.mediaItemCount > 0) components.queueSync.flush(player.queueState())
         // Widgets keep showing the track, paused: the next tap restarts the service.
         components.nowPlaying.publish(NowPlayingSnapshot.of(player).copy(isPlaying = false))
         offload.stop()
@@ -181,7 +181,7 @@ class SeguePlaybackService : MediaLibraryService() {
 
     private fun updateSessionState() {
         val session = session ?: return
-        session.sessionExtras = SegueSessionCommands.extras(sleepTimer.timer)
+        session.sessionExtras = SegueSessionCommands.sleepArgs(sleepTimer.timer)
         session.setMediaButtonPreferences(mediaButtons())
         publishNowPlaying()
     }

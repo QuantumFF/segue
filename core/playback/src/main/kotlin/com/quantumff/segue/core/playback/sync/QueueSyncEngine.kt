@@ -34,7 +34,8 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  *
  * - **Upload** is event-driven: the player reports [QueueEvent]s (track change, queue edit, pause,
  *   seek), which are debounced for [DEBOUNCE_MILLIS] and then saved in queue order.
- *   Going to the background flushes at once. Nothing is uploaded while playback simply runs.
+ *   Going to the background, or the service stopping, [flush]es at once. Nothing is uploaded
+ *   while playback simply runs.
  * - **Snapshot**: the same events save the queue to Room, so a cold start can
  *   restore it exactly, offline. An empty queue is saved and uploaded only through
  *   [onQueueCleared], because an empty player is also what the service looks like before it
@@ -94,8 +95,11 @@ class QueueSyncEngine @Inject constructor(
         uploader.submit(cleared)
     }
 
-    /** The app left the foreground: save now. [state] is the current queue, or null to flush the latest event's. */
-    fun onAppBackground(state: QueueState?) {
+    /**
+     * Saves and uploads now instead of after the quiet period: the app left the foreground, or the
+     * service is going away. [state] is the current queue, or null to flush the latest event's.
+     */
+    fun flush(state: QueueState?) {
         if (state != null && state.songIds.isEmpty()) return
         snapshotWriter.flush(state)
         uploader.flush(state)

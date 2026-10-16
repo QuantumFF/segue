@@ -66,6 +66,10 @@ internal object SegueSessionCommands {
 
     fun command(action: String) = SessionCommand(action, Bundle.EMPTY)
 
+    /**
+     * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state
+     * cannot carry. [sleepTimer] reads either back.
+     */
     fun sleepArgs(timer: SleepTimer?) = Bundle().apply {
         when (timer) {
             is SleepTimer.AtTime -> {
@@ -151,7 +155,4 @@ internal object SegueSessionCommands {
 
     private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =
         enumValues<E>().firstOrNull { it.name == name }
-
-    /** Session extras: the sleep timer, which Media3's player state cannot carry. */
-    fun extras(timer: SleepTimer?) = sleepArgs(timer)
 }

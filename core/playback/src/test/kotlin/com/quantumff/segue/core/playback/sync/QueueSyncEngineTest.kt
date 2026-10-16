@@ -55,7 +55,7 @@ class QueueSyncEngineTest {
     fun `going to the background flushes at once`() = runTest {
         val engine = engine()
         engine.onQueueEvent(QueueEvent.Pause, state.copy(positionMillis = 1))
-        engine.onAppBackground(state)
+        engine.flush(state)
         runCurrent()
 
         assertThat(remote.saves).containsExactly(state)
@@ -85,7 +85,7 @@ class QueueSyncEngineTest {
         assertThat(remote.saves).isEmpty()
 
         remote.saveError = null
-        engine.onAppBackground(state)
+        engine.flush(state)
         runCurrent()
         assertThat(remote.saves).containsExactly(state)
     }
@@ -94,7 +94,7 @@ class QueueSyncEngineTest {
     fun `an empty queue is neither saved nor uploaded`() = runTest {
         val engine = engine()
         engine.onQueueEvent(QueueEvent.QueueEdit, QueueState(emptyList(), -1, 0))
-        engine.onAppBackground(null)
+        engine.flush(null)
         advanceTimeBy(10_000)
         assertThat(snapshots.saves).isEmpty()
         assertThat(remote.saves).isEmpty()
