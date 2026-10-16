@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -34,6 +36,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -522,6 +525,11 @@ private fun TabContent(
         bottom = bottom + FloatingAlbumPlayButtonsInset,
     )
     val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
+    // A new sort or filter starts at the top, where "Play albums" starts too; otherwise the list
+    // would stay anchored on whichever album was first before.
+    val albumView = Triple(state.sort, state.filter, state.isOffline)
+    val albumGridState = key(albumView) { rememberLazyGridState() }
+    val albumListState = key(albumView) { rememberLazyListState() }
     when (state.tab) {
         LibraryTab.Albums -> when {
             state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
@@ -545,9 +553,14 @@ private fun TabContent(
                 contentPadding = albumGridPadding,
                 modifier = Modifier.fillMaxSize(),
                 downloads = state.pinnedAlbums,
+                state = albumGridState,
             )
 
-            else -> LazyColumn(contentPadding = albumListPadding, modifier = Modifier.fillMaxSize()) {
+            else -> LazyColumn(
+                state = albumListState,
+                contentPadding = albumListPadding,
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 items(
                     count = albums.itemCount,
                     key = albums.itemKey { it.id },

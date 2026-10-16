@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -76,9 +78,11 @@ internal fun PagedAlbumGrid(
     modifier: Modifier = Modifier,
     onAlbumLongClick: ((Album) -> Unit)? = null,
     downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
+    state: LazyGridState = rememberLazyGridState(),
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(SegueSizes.albumGridCell),
+        state = state,
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
         verticalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
