@@ -70,6 +70,9 @@ abstract class QueueDao {
     @Upsert
     abstract suspend fun upsertAlbumFeed(feed: AlbumFeedEntity)
 
+    @Query("DELETE FROM queue_sync_state WHERE serverId = :serverId")
+    protected abstract suspend fun deleteQueueSyncState(serverId: String)
+
     @Query("DELETE FROM album_feed WHERE serverId = :serverId")
     abstract suspend fun deleteAlbumFeed(serverId: String)
 }
@@ -119,6 +122,9 @@ private const val PIN_MEMBERSHIP = """
 /**
  * Pins and the per-song download rows they produce. Which songs should be on the device is
  * always derived from the pins ([pinMembership]); the download engine reconciles the rows to it.
+ *
+ * Queries here, in BrowseDao and in LibraryDaos name DownloadState and PinKind values as SQL
+ * literals ('Completed', 'Song'); DownloadDaoTest pins those enum names.
  */
 @Dao
 abstract class DownloadDao {
@@ -366,7 +372,10 @@ interface SearchDao {
     suspend fun artists(serverId: String, match: String, limit: Int): List<ArtistEntity>
 }
 
-/** Removes everything stored for a server, for when its account is deleted. */
+/**
+ * Removes everything stored for a server, for when its account is deleted. ServerDataDaoTest fails
+ * when a table with a serverId column is missing here.
+ */
 @Dao
 abstract class ServerDataDao {
     @Transaction
@@ -381,6 +390,7 @@ abstract class ServerDataDao {
         deleteAlbumLists(serverId)
         deleteQueueItems(serverId)
         deleteQueueState(serverId)
+        deleteQueueSyncState(serverId)
         deleteAlbumFeed(serverId)
         deleteScrobbles(serverId)
         deleteDownloads(serverId)
@@ -418,6 +428,9 @@ abstract class ServerDataDao {
 
     @Query("DELETE FROM queue_state WHERE serverId = :serverId")
     protected abstract suspend fun deleteQueueState(serverId: String)
+
+    @Query("DELETE FROM queue_sync_state WHERE serverId = :serverId")
+    protected abstract suspend fun deleteQueueSyncState(serverId: String)
 
     @Query("DELETE FROM album_feed WHERE serverId = :serverId")
     protected abstract suspend fun deleteAlbumFeed(serverId: String)
