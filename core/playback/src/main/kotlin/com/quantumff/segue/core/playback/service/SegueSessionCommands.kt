@@ -1,7 +1,10 @@
 package com.quantumff.segue.core.playback.service
 
 import android.os.Bundle
+import androidx.media3.common.BundleListRetriever
+import androidx.media3.common.MediaItem
 import androidx.media3.session.SessionCommand
+import com.google.common.collect.ImmutableList
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
@@ -23,6 +26,9 @@ internal object SegueSessionCommands {
     /** "Play albums" / "Shuffle albums": starts an album feed (see AlbumFeedController). Answers [ARG_STARTED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
+    /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_STARTED]. */
+    const val QUEUE_SONGS = PREFIX + "QUEUE_SONGS"
+
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
@@ -35,6 +41,9 @@ internal object SegueSessionCommands {
     private const val ARG_DOWNLOADED = "downloadedOnly"
     private const val ARG_ALBUM_ORDER = "albumOrder"
     private const val ARG_PLACEMENT = "placement"
+    private const val ARG_ITEMS = "items"
+    private const val ARG_START_INDEX = "startIndex"
+    private const val ARG_SHUFFLE = "shuffle"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -46,6 +55,7 @@ internal object SegueSessionCommands {
             SET_SLEEP_TIMER,
             UNDO_ADOPTION,
             PLAY_ALBUMS,
+            QUEUE_SONGS,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
@@ -125,7 +135,36 @@ internal object SegueSessionCommands {
         return AlbumPlayRequest(source, order, placement)
     }
 
-    /** The answer to [PLAY_ALBUMS]: whether anything was queued. */
+    /** A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. */
+    data class QueueSongs(
+        val items: List<MediaItem>,
+        val placement: QueuePlacement,
+        val startIndex: Int,
+        val shuffle: Boolean,
+    )
+
+    fun queueSongsArgs(request: QueueSongs) = Bundle().apply {
+        // Read in chunks through a binder, as Media3 sends setMediaItems: a long list would not fit
+        // in one transaction.
+        putBinder(ARG_ITEMS, BundleListRetriever(ImmutableList.copyOf(request.items.map { it.toBundle() })))
+        putString(ARG_PLACEMENT, request.placement.name)
+        putInt(ARG_START_INDEX, request.startIndex)
+        putBoolean(ARG_SHUFFLE, request.shuffle)
+    }
+
+    /** The request of [queueSongsArgs], or null if [bundle] does not hold one. */
+    fun queueSongs(bundle: Bundle): QueueSongs? {
+        val items = bundle.getBinder(ARG_ITEMS) ?: return null
+        val placement = enumOrNull<QueuePlacement>(bundle.getString(ARG_PLACEMENT)) ?: return null
+        return QueueSongs(
+            BundleListRetriever.getList(items).map(MediaItem::fromBundle),
+            placement,
+            bundle.getInt(ARG_START_INDEX),
+            bundle.getBoolean(ARG_SHUFFLE),
+        )
+    }
+
+    /** The answer to [PLAY_ALBUMS] and [QUEUE_SONGS]: whether anything was queued. */
     fun startedResult(started: Boolean) = Bundle().apply { putBoolean(ARG_STARTED, started) }
 
     private fun Bundle.putSource(kind: String, id: String) {

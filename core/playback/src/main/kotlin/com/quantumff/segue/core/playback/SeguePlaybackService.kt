@@ -361,6 +361,16 @@ class SeguePlaybackService : MediaLibraryService() {
                     }
                 }
 
+                SegueSessionCommands.QUEUE_SONGS -> {
+                    val songs = SegueSessionCommands.queueSongs(args)
+                        ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    albumFeed.cancelPending()
+                    return scope.launchFuture {
+                        val queued = queueEditor.queue(songs.items, songs.placement, songs.startIndex, songs.shuffle)
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(queued))
+                    }
+                }
+
                 else -> return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
             }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
