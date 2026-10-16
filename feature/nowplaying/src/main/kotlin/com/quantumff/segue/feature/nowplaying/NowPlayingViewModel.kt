@@ -155,8 +155,7 @@ class NowPlayingViewModel @Inject constructor(
 
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
 
-    /** Off → All → One → Off. */
-    fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.cycled())
+    fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.next())
 
     fun toggleFavorite() = playback.toggleFavorite()
 
@@ -217,8 +216,6 @@ class NowPlayingViewModel @Inject constructor(
     private inline fun <T> loadOrNull(what: String, block: () -> T): T? = remoteOutcome(block)
         .also { outcome -> outcome.exceptionOrNull()?.let { Log.w(TAG, "Could not load $what", it) } }
         .getOrNull()
-
-    private inline fun <reified E : Enum<E>> E.cycled(): E = enumValues<E>().let { it[(ordinal + 1) % it.size] }
 
     private companion object {
         const val TAG = "NowPlayingViewModel"

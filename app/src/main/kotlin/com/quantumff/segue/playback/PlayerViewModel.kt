@@ -106,10 +106,7 @@ class PlayerViewModel @Inject constructor(
     /** The "Continued from" snackbar's Undo: the local queue comes back. */
     fun undoAutoAdoption() = playback.undoAutoAdoption()
 
-    /** Off → All → One → Off. */
-    fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.cycled())
-
-    private inline fun <reified E : Enum<E>> E.cycled(): E = enumValues<E>().let { it[(ordinal + 1) % it.size] }
+    fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.next())
 
     private companion object {
         const val TAG = "PlayerViewModel"
