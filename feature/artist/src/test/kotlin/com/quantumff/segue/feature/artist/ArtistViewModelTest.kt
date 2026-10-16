@@ -36,14 +36,10 @@ class ArtistViewModelTest {
     private val albums = FakeAlbumRepository()
     private val stars = FakeStarRatingRepository()
     private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-    private val shuffledAlbums = mutableListOf<AlbumSource>()
     private val albumRequests = mutableListOf<AlbumPlayRequest>()
     private val playActions = PlayActions(
         onPlaySongs = { songs, start, shuffle -> played += Triple(songs, start, shuffle) },
-        onPlayAlbums = {
-            shuffledAlbums += it.source
-            albumRequests += it
-        },
+        onPlayAlbums = { albumRequests += it },
         onPlayNext = {},
         onAddToQueue = {},
         onStartInstantMix = {},
@@ -144,7 +140,7 @@ class ArtistViewModelTest {
             Triple(listOf("t1", "t2"), 0, true),
             Triple(listOf("t1", "t2"), 1, false),
         ).inOrder()
-        assertThat(shuffledAlbums).containsExactly(AlbumSource.Artist("artist-1"))
+        assertThat(albumRequests).containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
     }
 
     @Test

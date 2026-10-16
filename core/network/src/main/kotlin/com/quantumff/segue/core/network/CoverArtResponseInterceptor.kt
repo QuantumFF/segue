@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.network
 
+import java.io.IOException
 import okhttp3.Interceptor
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -31,7 +32,7 @@ internal class CoverArtResponseInterceptor(private val sleep: (Long) -> Unit = T
             if (transient && attempt < MAX_ATTEMPTS && !chain.call().isCanceled()) {
                 val wait = backoffMillis(response, attempt)
                 response.close()
-                sleep(wait)
+                waitUnlessCanceled(chain, wait)
                 attempt++
                 continue
             }
@@ -45,6 +46,20 @@ internal class CoverArtResponseInterceptor(private val sleep: (Long) -> Unit = T
                 .body(ByteArray(0).toResponseBody(null))
                 .build()
         }
+    }
+
+    /**
+     * Waits [millis] in short steps, so a request cancelled meanwhile (a row scrolled away) frees
+     * its thread at once and is not sent again.
+     */
+    private fun waitUnlessCanceled(chain: Interceptor.Chain, millis: Long) {
+        var left = millis
+        while (left > 0 && !chain.call().isCanceled()) {
+            val step = minOf(left, WAIT_STEP_MILLIS)
+            sleep(step)
+            left -= step
+        }
+        if (chain.call().isCanceled()) throw IOException("Canceled")
     }
 
     private class ErrorDocument(val code: Int?, val message: String)
@@ -75,6 +90,7 @@ internal class CoverArtResponseInterceptor(private val sleep: (Long) -> Unit = T
         const val MAX_BACKOFF_MILLIS = 2_000L
 
         private const val BASE_BACKOFF_MILLIS = 500L
+        private const val WAIT_STEP_MILLIS = 100L
         private const val MILLIS_PER_SECOND = 1_000L
         private const val PEEK_BYTES = 4_096L
         private const val HTTP_BAD_GATEWAY = 502

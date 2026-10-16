@@ -136,7 +136,8 @@ class ArtistViewModel @Inject constructor(
         if (index in songs.indices) playActions.onPlaySongs(songs, index, false)
     }
 
-    fun shuffleAlbums(playActions: PlayActions) = playActions.shuffleAlbums(AlbumSource.Artist(artistId))
+    /** The hero's "Shuffle albums": the floating Shuffle pill's tap. */
+    fun shuffleAlbums(playActions: PlayActions) = playAlbums(AlbumOrder.Shuffled, QueuePlacement.Replace, playActions)
 
     /**
      * "Play albums" or "Shuffle albums" of the artist's albums, in the order the page shows them:

@@ -1,12 +1,16 @@
 package com.quantumff.segue.core.network
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.network.di.NetworkModule
+import java.io.IOException
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.Buffer
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
@@ -50,7 +54,7 @@ class CoverArtResponseInterceptorTest {
         assertThat(response.code).isEqualTo(200)
         assertThat(response.bytes).isEqualTo(JPEG)
         assertThat(server.requestCount).isEqualTo(2)
-        assertThat(sleeps).hasSize(1)
+        assertThat(sleeps.sum()).isEqualTo(500L)
     }
 
     @Test
@@ -98,7 +102,27 @@ class CoverArtResponseInterceptorTest {
         val response = get("/rest/getCoverArt.view?id=mf-1&size=128")
 
         assertThat(response.code).isEqualTo(200)
-        assertThat(sleeps).containsExactly(1_000L, CoverArtResponseInterceptor.MAX_BACKOFF_MILLIS).inOrder()
+        assertThat(sleeps.sum()).isEqualTo(1_000L + CoverArtResponseInterceptor.MAX_BACKOFF_MILLIS)
+    }
+
+    @Test
+    fun `a request cancelled while it waits is not sent again`() {
+        server.enqueue(MockResponse.Builder().code(429).addHeader("Retry-After", "2").build())
+        server.enqueue(image())
+        lateinit var call: Call
+        val cancelling = OkHttpClient.Builder()
+            .addInterceptor(CoverArtResponseInterceptor(sleep = { call.cancel() }))
+            .build()
+        call = cancelling.newCall(Request.Builder().url(server.url("/rest/getCoverArt.view?id=mf-1")).build())
+
+        assertThrows(IOException::class.java) { call.execute() }
+        assertThat(server.requestCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `the app's one HTTP client, which every cover art consumer uses, carries the interceptor`() {
+        assertThat(NetworkModule.okHttpClient().interceptors.filterIsInstance<CoverArtResponseInterceptor>())
+            .hasSize(1)
     }
 
     @Test
