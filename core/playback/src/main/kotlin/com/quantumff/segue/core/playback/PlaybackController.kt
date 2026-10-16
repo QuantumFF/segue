@@ -298,7 +298,7 @@ class PlaybackController @Inject constructor(
         try {
             val result = controller().sendCustomCommand(
                 SegueSessionCommands.command(SegueSessionCommands.PLAY_ALBUMS),
-                SegueSessionCommands.playAlbumsArgs(request, seed = random.nextLong()),
+                SegueSessionCommands.playAlbumsArgs(request),
             ).await()
             result.resultCode == SessionResult.RESULT_SUCCESS &&
                 result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)

@@ -35,7 +35,6 @@ internal object SegueSessionCommands {
     private const val ARG_DOWNLOADED = "downloadedOnly"
     private const val ARG_ALBUM_ORDER = "albumOrder"
     private const val ARG_PLACEMENT = "placement"
-    private const val ARG_SEED = "seed"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -74,10 +73,9 @@ internal object SegueSessionCommands {
         else -> null
     }
 
-    fun playAlbumsArgs(request: AlbumPlayRequest, seed: Long) = Bundle().apply {
+    fun playAlbumsArgs(request: AlbumPlayRequest) = Bundle().apply {
         putString(ARG_ALBUM_ORDER, request.order.name)
         putString(ARG_PLACEMENT, request.placement.name)
-        putLong(ARG_SEED, seed)
         when (val source = request.source) {
             AlbumSource.Library -> putString(ARG_SOURCE_KIND, KIND_LIBRARY)
 
@@ -98,8 +96,8 @@ internal object SegueSessionCommands {
         }
     }
 
-    /** The request and seed of [playAlbumsArgs], or null if [bundle] does not hold one. */
-    fun playAlbums(bundle: Bundle): Pair<AlbumPlayRequest, Long>? {
+    /** The request of [playAlbumsArgs], or null if [bundle] does not hold one. */
+    fun playAlbums(bundle: Bundle): AlbumPlayRequest? {
         val id = bundle.getString(ARG_SOURCE_ID)
         val source = when (bundle.getString(ARG_SOURCE_KIND)) {
             KIND_LIBRARY -> AlbumSource.Library
@@ -124,7 +122,7 @@ internal object SegueSessionCommands {
         }
         val order = enumOrNull<AlbumOrder>(bundle.getString(ARG_ALBUM_ORDER)) ?: return null
         val placement = enumOrNull<QueuePlacement>(bundle.getString(ARG_PLACEMENT)) ?: return null
-        return AlbumPlayRequest(source, order, placement) to bundle.getLong(ARG_SEED)
+        return AlbumPlayRequest(source, order, placement)
     }
 
     /** The answer to [PLAY_ALBUMS]: whether anything was queued. */

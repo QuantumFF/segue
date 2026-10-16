@@ -17,6 +17,7 @@ import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -47,6 +48,8 @@ class AlbumFeedController(
     private val scope: CoroutineScope,
     /** What is downloaded, while offline; null online. Only downloaded songs can play offline. */
     private val offline: suspend () -> DownloadedLibrary?,
+    /** A fresh seed per started feed: shuffled feeds rebuild their album order from it. */
+    private val newSeed: () -> Long = Random.Default::nextLong,
 ) : Player.Listener {
     /** The running feed, or null when the queue is not (or no longer) an album feed's. */
     var current: AlbumFeed? = null
@@ -70,8 +73,9 @@ class AlbumFeedController(
      * Queues the first window of [request] and, when its albums end the queue, keeps the feed
      * running. False if there is nothing to play (the queue is then left alone).
      */
-    suspend fun start(request: AlbumPlayRequest, seed: Long): Boolean = starting.withLock {
+    suspend fun start(request: AlbumPlayRequest): Boolean = starting.withLock {
         // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
+        val seed = newSeed()
         val window = firstWindow(request, seed)
         if (window.songs.isEmpty()) return@withLock false
         stop()
@@ -96,7 +100,8 @@ class AlbumFeedController(
      * queued them. Until then it waits, unless the session's next set or add request comes first
      * ([cancelPending]). Empty if there is nothing to play.
      */
-    suspend fun firstWindowForSession(request: AlbumPlayRequest, seed: Long): List<MediaItem> = starting.withLock {
+    suspend fun firstWindowForSession(request: AlbumPlayRequest): List<MediaItem> = starting.withLock {
+        val seed = newSeed()
         val window = firstWindow(request, seed)
         val items = window.songs.map { it.toMediaItem() }
         pending = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint(items))

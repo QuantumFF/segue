@@ -48,19 +48,29 @@ class AlbumFeedControllerTest {
     private fun song(id: String, album: String?, track: Int = 1) =
         Song(id = id, title = id, albumId = album, album = album, artist = null, artistId = null, track = track)
 
+    /** The seed the next started feed gets. */
+    private var nextSeed = 0L
+
     private fun TestScope.controller(offline: DownloadedLibrary? = null) = AlbumFeedController(
         player,
-        QueueEditor(player, offline = {
-            offline
-        }),
+        QueueEditor(player, offline = { offline }),
         albums,
         feeds,
         this,
         offline = { offline },
+        newSeed = { nextSeed },
     ).also {
         controller = it
         exo.addListener(it)
     }
+
+    private suspend fun AlbumFeedController.start(request: AlbumPlayRequest, seed: Long): Boolean {
+        nextSeed = seed
+        return start(request)
+    }
+
+    private suspend fun AlbumFeedController.firstWindowForSession(request: AlbumPlayRequest, seed: Long) =
+        also { nextSeed = seed }.firstWindowForSession(request)
 
     private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
 

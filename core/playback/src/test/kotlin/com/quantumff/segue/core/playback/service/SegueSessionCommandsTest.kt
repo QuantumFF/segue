@@ -29,8 +29,8 @@ class SegueSessionCommandsTest {
             AlbumPlayRequest(AlbumSource.Playlist("p1"), AlbumOrder.InOrder),
         )
         for (request in requests) {
-            val args = SegueSessionCommands.playAlbumsArgs(request, seed = -42)
-            assertThat(SegueSessionCommands.playAlbums(args)).isEqualTo(request to -42L)
+            val args = SegueSessionCommands.playAlbumsArgs(request)
+            assertThat(SegueSessionCommands.playAlbums(args)).isEqualTo(request)
         }
         assertThat(SegueSessionCommands.playAlbums(Bundle.EMPTY)).isNull()
     }

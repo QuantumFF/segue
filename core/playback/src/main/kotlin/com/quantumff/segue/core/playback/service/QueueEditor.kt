@@ -10,8 +10,8 @@ import com.quantumff.segue.core.playback.media.withPlayableUri
 import kotlin.random.Random
 
 /**
- * Turns a play intent into a queue edit, in the playback service. Every way music enters the queue
- * goes through here, so these rules hold for every controller (the app, Android Auto, Bluetooth):
+ * Turns a play intent into a queue edit, in the playback service. Every play intent that reaches the
+ * session goes through here, so these rules hold for every controller (the app, Android Auto, Bluetooth):
  *
  * - **Offline:** only downloaded songs are queued, since nothing else can play (DESIGN.md §1). The
  *   start moves to the requested song if it is downloaded, else to the next downloaded song after
