@@ -329,6 +329,11 @@ private fun OnArtContent(content: @Composable () -> Unit) {
             // Tonal buttons (Play all, Retry, Open queue): a light veil instead of the accent tint.
             secondaryContainer = colors.onArt.copy(alpha = TONAL_ON_ART_ALPHA),
             onSecondaryContainer = colors.onArt,
+            // The accent doesn't hold contrast on every backdrop, so on-art highlights are light too: the
+            // current queue row is a light veil with light text, marked by its equalizer bars.
+            primary = colors.onArt,
+            primaryContainer = colors.onArt.copy(alpha = TONAL_ON_ART_ALPHA),
+            onPrimaryContainer = colors.onArt,
             outline = colors.onArt.copy(alpha = OUTLINE_ON_ART_ALPHA),
         ),
         typography = MaterialTheme.typography,
