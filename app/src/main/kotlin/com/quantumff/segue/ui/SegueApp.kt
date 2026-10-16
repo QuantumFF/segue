@@ -417,7 +417,6 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     val barState = PlayerBarState(
         track = track,
         durationSeconds = state.durationMillis / MILLIS_PER_SECOND,
-        shuffleMode = state.shuffleMode,
         repeatMode = state.repeatMode,
         volume = 1f,
     )
@@ -429,7 +428,6 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
             onPlayPauseClick = actions.onPlayPause,
             onPreviousClick = actions.onPrevious,
             onNextClick = actions.onNext,
-            onShuffleClick = actions.onCycleShuffle,
             onRepeatClick = actions.onCycleRepeat,
             onLyricsClick = player.onOpenNowPlaying,
             onQueueClick = player.onOpenQueue,

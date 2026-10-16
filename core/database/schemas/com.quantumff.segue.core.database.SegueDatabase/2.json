@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "6e4ecb72ae77d22f9dc126a9bae27afd",
+    "identityHash": "39f3648c346d5447848958d3217fb11f",
     "entities": [
       {
         "tableName": "artists",
@@ -855,7 +855,7 @@
       },
       {
         "tableName": "queue_state",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `currentIndex` INTEGER NOT NULL, `positionMillis` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `shuffleMode` TEXT NOT NULL DEFAULT 'Off', `playOrder` TEXT, PRIMARY KEY(`serverId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `currentIndex` INTEGER NOT NULL, `positionMillis` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`serverId`))",
         "fields": [
           {
             "fieldPath": "serverId",
@@ -880,18 +880,6 @@
             "columnName": "updatedAt",
             "affinity": "INTEGER",
             "notNull": true
-          },
-          {
-            "fieldPath": "shuffleMode",
-            "columnName": "shuffleMode",
-            "affinity": "TEXT",
-            "notNull": true,
-            "defaultValue": "'Off'"
-          },
-          {
-            "fieldPath": "playOrder",
-            "columnName": "playOrder",
-            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1223,11 +1211,91 @@
             "serverId"
           ]
         }
+      },
+      {
+        "tableName": "album_feed",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `sourceKind` TEXT NOT NULL, `sourceId` TEXT, `sort` TEXT, `starredOnly` INTEGER NOT NULL, `genre` TEXT, `year` INTEGER, `downloadedOnly` INTEGER NOT NULL, `albumOrder` TEXT NOT NULL, `seed` INTEGER NOT NULL, `cursor` INTEGER NOT NULL, `queueFingerprint` INTEGER NOT NULL, PRIMARY KEY(`serverId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "sourceKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sort",
+            "columnName": "sort",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "starredOnly",
+            "columnName": "starredOnly",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genre",
+            "columnName": "genre",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "downloadedOnly",
+            "columnName": "downloadedOnly",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "albumOrder",
+            "columnName": "albumOrder",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seed",
+            "columnName": "seed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cursor",
+            "columnName": "cursor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queueFingerprint",
+            "columnName": "queueFingerprint",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6e4ecb72ae77d22f9dc126a9bae27afd')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '39f3648c346d5447848958d3217fb11f')"
     ]
   }
 }

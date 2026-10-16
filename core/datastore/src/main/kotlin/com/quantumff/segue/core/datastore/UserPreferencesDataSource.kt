@@ -12,7 +12,6 @@ import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ReplayGainTarget
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -29,7 +28,6 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             themeMode = prefs.enum(Keys.ThemeMode, defaults.themeMode),
             accentSource = prefs.enum(Keys.AccentSource, defaults.accentSource),
             accentPreset = prefs.enum(Keys.AccentPreset, defaults.accentPreset),
-            defaultShuffleMode = prefs.enum(Keys.DefaultShuffleMode, defaults.defaultShuffleMode),
             wifiStreamingQuality = StreamingQuality(
                 maxBitRateKbps = prefs[Keys.WifiMaxBitRate] ?: defaults.wifiStreamingQuality.maxBitRateKbps,
                 format = prefs[Keys.WifiFormat] ?: defaults.wifiStreamingQuality.format,
@@ -58,8 +56,6 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     suspend fun setAccentSource(source: AccentSource) = set(Keys.AccentSource, source.name)
 
     suspend fun setAccentPreset(preset: AccentPreset) = set(Keys.AccentPreset, preset.name)
-
-    suspend fun setDefaultShuffleMode(mode: ShuffleMode) = set(Keys.DefaultShuffleMode, mode.name)
 
     suspend fun setWifiStreamingQuality(quality: StreamingQuality) {
         dataStore.edit { it.putQuality(Keys.WifiMaxBitRate, Keys.WifiFormat, quality) }
@@ -136,7 +132,6 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val ThemeMode = stringPreferencesKey("theme_mode")
         val AccentSource = stringPreferencesKey("accent_source")
         val AccentPreset = stringPreferencesKey("accent_preset")
-        val DefaultShuffleMode = stringPreferencesKey("default_shuffle_mode")
         val WifiMaxBitRate = intPreferencesKey("wifi_max_bit_rate_kbps")
         val WifiFormat = stringPreferencesKey("wifi_format")
         val CellularMaxBitRate = intPreferencesKey("cellular_max_bit_rate_kbps")

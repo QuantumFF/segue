@@ -8,7 +8,11 @@ import com.quantumff.segue.core.data.testing.SERVER_ID
 import com.quantumff.segue.core.data.testing.inMemoryDatabase
 import com.quantumff.segue.core.data.testing.libraryWriter
 import com.quantumff.segue.core.data.testing.networkAlbum
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumFeed
+import com.quantumff.segue.core.model.AlbumFilter
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.network.SubsonicException
 import java.io.IOException
@@ -113,11 +117,62 @@ class PlaybackRepositoriesTest {
             StandardTestDispatcher(testScheduler),
         )
 
-        assertThat(repository.albumIds(AlbumShuffleSource.Library)).containsExactly("a1", "a2")
-        assertThat(repository.albumIds(AlbumShuffleSource.Artist("ar2"))).containsExactly("a2")
-        assertThat(repository.songs(AlbumShuffleSource.Library, listOf("a1")).map { it.id })
+        assertThat(repository.albumIds(AlbumSource.Library)).containsExactly("a1", "a2")
+        assertThat(repository.albumIds(AlbumSource.Artist("ar2"))).containsExactly("a2")
+        assertThat(repository.songs(AlbumSource.Library, listOf("a1")).map { it.id })
             .containsExactly("a1-s1", "a1-s2", "a1-s3")
             .inOrder()
+    }
+
+    @Test
+    fun `the Library albums view source lists albums in the order the view shows them`() = runTest {
+        libraryWriter(db).writeAlbums(
+            SERVER_ID,
+            listOf(
+                networkAlbum("a1", name = "Zebra", songs = 1),
+                networkAlbum("a2", name = "Apple", songs = 2),
+                networkAlbum("a3", name = "Mango", songs = 1),
+            ),
+        )
+        val repository = RoomAlbumShuffleRepository(
+            clients,
+            db.albumDao(),
+            db.songDao(),
+            db.playlistDao(),
+            StandardTestDispatcher(testScheduler),
+        )
+        val byName = AlbumSource.Albums(AlbumSortOrder.Name)
+
+        assertThat(repository.albumIds(byName)).containsExactly("a2", "a3", "a1").inOrder()
+        assertThat(repository.albumIds(AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starredOnly = true))))
+            .isEmpty()
+        assertThat(repository.songs(byName, listOf("a2")).map { it.id }).containsExactly("a2-s1", "a2-s2").inOrder()
+    }
+
+    @Test
+    fun `an album feed round-trips per server and clears`() = runTest {
+        val repository = RoomAlbumFeedRepository(clients, db.queueDao())
+        val feeds = listOf(
+            AlbumFeed(
+                source = AlbumSource.Albums(AlbumSortOrder.Year, AlbumFilter(true, "Rock", 1999, true)),
+                order = AlbumOrder.InOrder,
+                seed = 7,
+                cursor = 12,
+                queueFingerprint = -3,
+            ),
+            AlbumFeed(AlbumSource.Library, AlbumOrder.Shuffled, seed = 1, cursor = 0, queueFingerprint = 9),
+            AlbumFeed(AlbumSource.Artist("ar1"), AlbumOrder.Shuffled, seed = 2, cursor = 1, queueFingerprint = 9),
+            AlbumFeed(AlbumSource.Genre("Jazz"), AlbumOrder.Shuffled, seed = 3, cursor = 2, queueFingerprint = 9),
+            AlbumFeed(AlbumSource.Playlist("p1"), AlbumOrder.InOrder, seed = 4, cursor = 3, queueFingerprint = 9),
+        )
+
+        assertThat(repository.feed()).isNull()
+        for (feed in feeds) {
+            repository.save(feed)
+            assertThat(repository.feed()).isEqualTo(feed)
+        }
+        repository.clear()
+        assertThat(repository.feed()).isNull()
     }
 
     @Test

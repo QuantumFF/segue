@@ -70,7 +70,6 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.feature.nowplaying.component.ArtPager
 import com.quantumff.segue.feature.nowplaying.component.CompactTrackHeader
 import com.quantumff.segue.feature.nowplaying.component.NowPlayingBackground
@@ -130,7 +129,6 @@ fun NowPlayingScreen(
             onNext = viewModel::skipToNext,
             onSkipTo = viewModel::skipTo,
             onSeek = viewModel::seekTo,
-            onCycleShuffle = viewModel::cycleShuffleMode,
             onCycleRepeat = viewModel::cycleRepeatMode,
             onToggleFavorite = viewModel::toggleFavorite,
             onStartSleepTimer = viewModel::setSleepTimer,
@@ -524,9 +522,7 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
         )
         TransportRow(
             isPlaying = state.isPlaying,
-            shuffleMode = state.shuffleMode,
             repeatMode = state.repeatMode,
-            onShuffleClick = actions.onCycleShuffle,
             onPreviousClick = actions.onPrevious,
             onPlayPauseClick = actions.onPlayPause,
             onNextClick = actions.onNext,
@@ -697,7 +693,6 @@ internal val PreviewState = NowPlayingUiState(
     ),
     isPlaying = true,
     durationMillis = 255_000,
-    shuffleMode = ShuffleMode.Albums,
     repeatMode = RepeatMode.All,
     quality = "FLAC · 16/44.1",
 )

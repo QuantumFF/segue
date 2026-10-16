@@ -22,7 +22,7 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 - `core:data`: repositories, library sync
 - `core:datastore`: settings
 - `core:designsystem`: theme, tokens, shared components
-- `core:playback`: `MediaLibraryService`, player setup, `AlbumShuffleOrder`, queue sync, scrobbling
+- `core:playback`: `MediaLibraryService`, player setup, album feeds (enqueue-time album shuffle), queue sync, scrobbling
 - `feature:*`: home, library (albums/artists/songs/genres), album, artist, playlist, search, nowplaying, queue, settings, login, downloads
 
 ## Signature features
@@ -30,13 +30,26 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 - Uses `savePlayQueue` / `getPlayQueue`. When the server advertises the OpenSubsonic `indexBasedQueue` extension, use the index-based variants instead, because they handle duplicate tracks in the queue correctly.
 - Upload is event-driven and debounced. It runs on track change, queue edit, pause, seek, and app backgrounding. There is never periodic polling during playback.
 - Download happens on app start and when the app returns to the foreground. Compare the server's `changed`/`changedBy` with local state. If another client saved a newer queue, offer "Continue from <device>", or adopt it automatically if the user enabled that setting.
-- Upload the queue in its effective play order, so other clients see what is actually playing.
+- Upload the queue as it is: the queue order is the play order (shuffling happens only when music is queued), so other clients see what is actually playing.
 
-### Album shuffle
-- Shuffle modes: Off / Tracks / Albums.
-- Albums mode groups the queue into album blocks, keyed by album ID. The album blocks are shuffled with Fisher-Yates. Tracks inside each block keep disc and track order. The current album stays first.
-- Implemented as a custom Media3 `ShuffleOrder`, so the underlying queue is never reordered and unshuffle is lossless. Inserting and removing tracks must keep album blocks together.
-- There is also a "Shuffle albums" entry point for the whole library, an artist, a genre, or a playlist.
+### Album shuffle (at enqueue time)
+- Shuffling happens only when music is added to the queue, never to a running queue.
+  - Every "Shuffle" action writes its songs into the queue already shuffled. **Tracks** shuffle means a shuffled track order. **Albums** shuffle means a shuffled album order, with each album's tracks in disc and track order.
+  - The player has no shuffle mode. There is no shuffle button in Now Playing, the player bar, the notification, Android Auto or the widgets. There is no "default shuffle mode" setting.
+- Why: users start a queue and then listen to it; they do not want it reshuffled underneath them. They do want to add shuffled albums to it ("Shuffle albums → Add to queue"). Because the queue order is always the play order:
+  - The snapshot and server queue sync store and upload the plain queue.
+  - The queue screen edits exactly what plays.
+  - There is no in-place shuffle state to persist, restore or map between orders.
+- This replaces the earlier Off / Tracks / Albums player modes and the custom Media3 `ShuffleOrder` (album blocks, play-order mapping, shuffle persistence in the snapshot, album-block queue headers), which are deleted.
+- "Play albums" and "Shuffle albums" queue whole albums from a source: the Library albums view as sorted and filtered, a genre's album grid, an artist, a genre, a playlist, or the whole library.
+  - Ordered keeps the source order; shuffled uses a seeded album order. Each album keeps disc and track order.
+  - Placement is replace (play now), play next, or add to queue (DESIGN.md §5.9).
+- Large libraries are queued lazily as an **album feed**, run by the playback service:
+  - The first window is whole albums totalling about 200 tracks. When fewer than 30 tracks remain after the current one, the feed appends about 100 more. Album IDs are cheap to list. Songs are read 8 albums at a time, so only what is queued is ever loaded.
+  - The shuffle sorts albums by a hash of the seed and the album ID. The order can therefore be rebuilt from the seed instead of being stored, and new albums slot in without reshuffling the rest. Albums already in the queue are skipped.
+  - The feed is persisted in Room (`album_feed`: source, order, seed, cursor, and a fingerprint of the queue's song IDs), so it survives process death. On restore it resumes only if the restored queue still matches its fingerprint.
+  - Any change the feed did not make ends it for good: add, remove, move, replace or clear. A "Play next" that lands before other upcoming tracks queues one window and does not extend.
+  - Queue sync needs nothing special: it uploads what is actually queued.
 
 ## Performance
 - Baseline Profiles, R8 full mode, Compose stability (immutable UI models, stable lambdas)

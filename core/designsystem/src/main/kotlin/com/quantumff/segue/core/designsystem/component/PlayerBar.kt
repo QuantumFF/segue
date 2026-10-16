@@ -41,14 +41,12 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 
 /** Player bar state (expanded width). Position comes separately, as a lambda. */
 @Immutable
 data class PlayerBarState(
     val track: MiniPlayerState,
     val durationSeconds: Long,
-    val shuffleMode: ShuffleMode,
     val repeatMode: RepeatMode,
     val volume: Float,
 )
@@ -60,7 +58,6 @@ data class PlayerBarActions(
     val onPlayPauseClick: () -> Unit,
     val onPreviousClick: () -> Unit,
     val onNextClick: () -> Unit,
-    val onShuffleClick: () -> Unit,
     val onRepeatClick: () -> Unit,
     val onLyricsClick: () -> Unit,
     val onQueueClick: () -> Unit,
@@ -168,7 +165,6 @@ private fun TransportAndSeek(
             horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ShuffleIconButton(mode = state.shuffleMode, onClick = actions.onShuffleClick)
             SegueIconButton(
                 icon = SegueIcons.SkipPrevious,
                 contentDescription = stringResource(R.string.ds_previous),
@@ -234,24 +230,6 @@ private fun ElapsedText(positionSeconds: () -> Long) {
     )
 }
 
-/** Shuffle toggle for transport rows: muted when off, accent for tracks, album icon for albums. */
-@Composable
-fun ShuffleIconButton(mode: ShuffleMode, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    SegueIconButton(
-        icon = if (mode == ShuffleMode.Albums) SegueIcons.ShuffleAlbums else SegueIcons.Shuffle,
-        contentDescription = stringResource(R.string.ds_shuffle),
-        onClick = onClick,
-        tint = if (mode ==
-            ShuffleMode.Off
-        ) {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        } else {
-            MaterialTheme.colorScheme.primary
-        },
-        modifier = modifier,
-    )
-}
-
 @PreviewSegueThemes
 @Composable
 private fun PlayerBarPreview() {
@@ -260,7 +238,6 @@ private fun PlayerBarPreview() {
             state = PlayerBarState(
                 track = PreviewData.miniPlayer,
                 durationSeconds = PREVIEW_DURATION,
-                shuffleMode = ShuffleMode.Albums,
                 repeatMode = RepeatMode.All,
                 volume = PREVIEW_VOLUME,
             ),
@@ -270,7 +247,6 @@ private fun PlayerBarPreview() {
                 onPlayPauseClick = {},
                 onPreviousClick = {},
                 onNextClick = {},
-                onShuffleClick = {},
                 onRepeatClick = {},
                 onLyricsClick = {},
                 onQueueClick = {},

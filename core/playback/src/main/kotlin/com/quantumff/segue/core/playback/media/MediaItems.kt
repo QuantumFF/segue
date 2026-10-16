@@ -47,7 +47,7 @@ private const val MILLIS_PER_SECOND = 1_000L
 
 /**
  * A playable item for [this] song. Metadata extras carry what the player needs later: the album ID
- * for album shuffle and "end of album", ReplayGain values, and the starred state.
+ * for album feeds and "end of album", ReplayGain values, and the starred state.
  */
 fun Song.toMediaItem(): MediaItem {
     val extras = Bundle().apply {
@@ -91,7 +91,7 @@ fun Song.toMediaItem(): MediaItem {
 fun MediaItem.withPlayableUri(): MediaItem =
     if (localConfiguration != null) this else buildUpon().setUri(SegueUris.song(mediaId)).build()
 
-/** Album identity for album shuffle; null for a track without an album. */
+/** The item's album ID; null for a track without an album. */
 val MediaItem.albumKey: String? get() = mediaMetadata.extras?.getString(Extras.ALBUM_ID)
 
 val MediaItem.coverArtId: String? get() = mediaMetadata.extras?.getString(Extras.COVER_ART_ID)

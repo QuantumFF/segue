@@ -5,7 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaKind
@@ -185,7 +185,7 @@ class HomeViewModelTest {
         val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
         val actions = PlayActions(
             onPlaySongs = { s, i, shuffle -> played += Triple(s, i, shuffle) },
-            onShuffleAlbums = {},
+            onPlayAlbums = {},
             onPlayNext = {},
             onAddToQueue = {},
             onStartInstantMix = {},
@@ -200,10 +200,10 @@ class HomeViewModelTest {
 
     @Test
     fun shuffleArtistAlbumsUsesTheArtistSource() = runTest {
-        val sources = mutableListOf<AlbumShuffleSource>()
+        val sources = mutableListOf<AlbumSource>()
         val actions = PlayActions(
             onPlaySongs = { _, _, _ -> },
-            onShuffleAlbums = { sources += it },
+            onPlayAlbums = { sources += it.source },
             onPlayNext = {},
             onAddToQueue = {},
             onStartInstantMix = {},
@@ -220,7 +220,7 @@ class HomeViewModelTest {
             {},
         )
 
-        assertThat(sources.single()).isEqualTo(AlbumShuffleSource.Artist("ar1"))
+        assertThat(sources.single()).isEqualTo(AlbumSource.Artist("ar1"))
     }
 
     @Test

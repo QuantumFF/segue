@@ -32,7 +32,7 @@ interface PlayQueueRemoteRepository {
      */
     suspend fun fetch(): RemotePlayQueue?
 
-    /** Saves [songIds] in effective play order. Empty [songIds] clears the saved queue. Throws RemoteException. */
+    /** Saves [songIds] in play order. Empty [songIds] clears the saved queue. Throws RemoteException. */
     suspend fun save(songIds: List<String>, currentIndex: Int, positionMillis: Long)
 
     /** The `changedBy` this device saves with. A remote queue with another value came from elsewhere. */

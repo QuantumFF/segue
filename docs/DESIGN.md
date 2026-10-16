@@ -190,6 +190,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab.
 - Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
 - **Albums:** grid `GridCells.Adaptive(150)` with album cards, or a list of 64-tall rows with 48 art. Paging 3.
+  - **Play / Shuffle albums** (§5.9) float at the bottom start, just above the mini player, whenever the tab has albums. They queue exactly the albums shown: current sort, all filters, downloaded only while offline. The list adds the buttons' height plus margins to its bottom padding, so the last row scrolls clear of them.
+  - The genre album grid (Genres → a genre) gets the same buttons for its albums, sorted by name.
 - **Artists:** list rows with a 48 circular image, name, and "N albums". The grid toggle switches to circular cards.
 - **Songs:** track rows (§5.2), paged, with a "Shuffle all" button in the filter row.
 - **Playlists:** 64-tall rows with 48 art, name, and "N tracks · 1 h 12 m". A "+" in the top bar creates a playlist.
@@ -198,7 +200,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.3 Album detail (Feishin hero)
 - Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
-- Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle long-press opens "Shuffle albums" options where relevant.
+- Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle replaces the queue with the tracks in a fresh shuffled order, as does every "Shuffle" action (there is no player shuffle mode, §4.7). Shuffle long-press opens "Shuffle albums" options where relevant.
 - Genre pills below the actions (§5.6).
 - Track list: rows in album mode (number column, no art). For multi-disc albums, add a sticky "Disc N · subtitle" header (`labelLarge`, 40 tall).
 - Footer: "Released 3 Oct 2019 · 12 tracks, 48:21" in `bodySmall` muted, then a "More by <artist>" carousel.
@@ -261,13 +263,10 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Art: square, width = screen − 48, radius `lg`, shadow.
   - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
   - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill such as "FLAC · 16/44.1". In transcoding mode it reads "OPUS 128".
-  - Transport row: shuffle mode · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One).
+  - Transport row: an empty 48 slot · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One). The empty slot balances repeat, so play/pause stays centered.
   - Bottom row of 4 icon buttons, each 48 tall with a label, spread evenly: Lyrics · Up next · Related · ⋮ (Sleep timer, Speed, Add to playlist, Go to album or artist, Info). The sleep timer shows a dot badge on ⋮ while it is active.
-- **Shuffle control** cycles Off → Tracks → Albums:
-  - Off: Lucide `shuffle`, white @ 50%.
-  - Tracks: `shuffle` in white with a 4dp dot under it.
-  - Albums: a custom `shuffle` icon with a small disc badge, plus the dot.
-  - A toast-free tooltip label ("Shuffle albums") shows for 1.5s on change.
+- **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either.
+- **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
 - **Panels:** Lyrics, Up next and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
   - Swiping horizontally inside a panel moves between panels.
   - Tapping the active bottom button, or the compact header, returns to the art.
@@ -301,7 +300,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 │  Radiohead · In Rainbows         │
 │  ━━━━━━━━━━●──────────────────   │
 │  1:52     FLAC 16/44.1     4:15  │
-│   ⤨     ⏮     ( ▶ )     ⏭    ↻   │
+│         ⏮     ( ▶ )     ⏭    ↻   │
 │                                  │
 │  ♪ Lyrics  ≡ Up next  ✦ Related ⋮│
 └──────────────────────────────────┘
@@ -309,7 +308,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.8 Queue (Up next)
 - Header: "Up next" in `titleMedium`, plus "Playing from <source>" muted. On the right: a scroll-to-current icon (shown only when the current track is off-screen) and ⋮ (Save as playlist, Clear queue).
-- **Shuffle control:** an M3 `SingleChoiceSegmentedButtonRow`, 40 tall, full width: `Off | Tracks | Albums`, with the shuffle-album icon on Albums. A repeat toggle sits to its right. Changes apply instantly and keep the current track.
+- No shuffle or repeat controls here. A queue is never reshuffled; the queue order is the play order. Repeat lives on the Now Playing transport (§4.7) and the player bar. To add shuffled albums to a queue, use "Shuffle albums → Add to queue" (§5.9).
 - **Continue from another device** banner, shown when the server queue is newer and `changedBy` is a different client:
   - Card: radius `lg`, `surfaceContainerHighest`, 16 padding, Lucide `monitor-smartphone` icon.
   - Text: "Continue from **Feishin**" in `titleSmall`, then "Nude · 2:31 · 5 min ago" in `bodySmall` muted.
@@ -318,10 +317,9 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - List:
   - Collapsed history row at the top: "N played", tap to expand.
   - The current track: `primaryContainer` background, animated 3-bar equalizer over its art (paused = static bars).
-  - Then the upcoming tracks.
-  - In **Albums** shuffle mode, each album block starts with a 40-tall header: 32 art, album title in `labelLarge`, artist muted. Tracks inside a block keep disc and track order.
+  - Then the upcoming tracks, each naming its album ("Artist · Album").
 - Row actions:
-  - Drag handle (Lucide `grip-vertical`) on the right to reorder. Long-press anywhere on a row also starts a drag. In Albums mode a drag moves the whole block when started on a block header.
+  - Drag handle (Lucide `grip-vertical`) on the right to reorder. Long-press anywhere on a row also starts a drag.
   - Swipe right: play next (icon `list-start`, `primary`).
   - Swipe left: remove (icon `trash`, `error`), with an "Undo" snackbar.
   - Both swipes trigger at 40% of the width with haptic feedback.
@@ -400,7 +398,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Long-press: track context sheet.
 - **Player bar:** 80 tall, `surfaceContainer`, top border `outlineVariant`. Grid 1fr : 2fr : 1fr (Feishin).
   - Left: 56 art, title, artists.
-  - Center: transport (shuffle, prev, 40 play circle, next, repeat) above a seekbar with times.
+  - Center: transport (prev, 40 play circle, next, repeat; no shuffle, see §4.7) above a seekbar with times.
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
 
 ### 5.6 Chips and pills
@@ -426,6 +424,26 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Room has data: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
   - Image load failure: keep the placeholder. Never show a broken-image icon.
+
+### 5.9 Play / Shuffle albums buttons
+- Two split pills in a row with an 8 gap, floating at the bottom start of an album list. Bottom offset: shell chrome (mini player + navigation bar + system bar, `LocalShellContentPadding`) + 16. Side margin: 16 on compact width, 24 on medium and wider. On expanded width they sit at the bottom start of the content area, above the player bar.
+- Each pill: 48 tall, radius `full`, no shadow (flat tonal, §2.4).
+  - Main part: 16 start padding, a 20 icon, 8 gap, a `labelLarge` label, 12 end padding.
+  - Then a 1 × 20 divider in the content color at 24%.
+  - Then a chevron part: a 20 `chevron-down`, 8 start padding, 12 end padding.
+- **Play** (filled `play` icon): `primary` fill, `onPrimary` content. **Shuffle** (shuffle-albums icon): `surfaceContainerHighest` fill, `onSurface` content, 1dp `outlineVariant` border. The visible labels are "Play" and "Shuffle"; content descriptions are "Play albums" and "Shuffle albums".
+- Tap: play now. The queue is replaced and playback starts. Play keeps the albums in the order shown; Shuffle queues them in a fresh seeded album order. Either way the albums are written into the queue in that order (no player shuffle mode), each whole, in disc and track order.
+- Long-press (with a haptic), or tap the chevron: a `DropdownMenu` anchored to the pill (radius `lg`, `surfaceContainerHigh`) with 48-tall rows: **Play next** (`list-start`) and **Add to queue** (`list-end`).
+- While the list scrolls down, the labels collapse so only icons and chevrons show. They come back on scroll up. The label animates with expand/shrink + fade (`medium`), or a plain fade with reduce motion.
+- Hidden while the keyboard is up and when the list is empty. Fades in and out with `medium`.
+
+```
+│ ┌────┐ ┌────┐ ┌────┐            │
+│ └────┘ └────┘ └────┘            │
+│ (▶ Play │⌄)  (⤨ Shuffle │⌄)     │
+├──────────────────────────────────┤
+│[▣] Song title          (▶)  ⏭   │ ← mini player
+```
 
 ## 6. Performance constraints that shape the design
 

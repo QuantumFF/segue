@@ -6,7 +6,6 @@ import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ReplayGain
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
@@ -55,7 +54,6 @@ data class NowPlayingUiState(
     val next: AdjacentArt? = null,
     val isPlaying: Boolean = false,
     val durationMillis: Long = 0,
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
     val repeatMode: RepeatMode = RepeatMode.Off,
     val sleepTimer: SleepTimer? = null,
     /** "FLAC · 16/44.1" or "MP3 · 320"; null when the format is unknown. */
@@ -136,7 +134,6 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         next = neighbor(+1),
         isPlaying = isPlaying,
         durationMillis = durationMillis,
-        shuffleMode = shuffleMode,
         repeatMode = repeatMode,
         sleepTimer = sleepTimer,
         quality = librarySong?.let { qualityLabel(it.suffix, it.bitRate, file?.samplingRate, file?.bitDepth) },

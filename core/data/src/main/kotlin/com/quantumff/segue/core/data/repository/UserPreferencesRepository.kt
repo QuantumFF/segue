@@ -5,7 +5,6 @@ import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ReplayGainTarget
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -24,8 +23,6 @@ interface UserPreferencesRepository {
     suspend fun setAccentSource(source: AccentSource)
 
     suspend fun setAccentPreset(preset: AccentPreset)
-
-    suspend fun setDefaultShuffleMode(mode: ShuffleMode)
 
     suspend fun setWifiStreamingQuality(quality: StreamingQuality)
 
@@ -62,8 +59,6 @@ internal class DataStoreUserPreferencesRepository @Inject constructor(private va
     override suspend fun setAccentSource(source: AccentSource) = this.source.setAccentSource(source)
 
     override suspend fun setAccentPreset(preset: AccentPreset) = source.setAccentPreset(preset)
-
-    override suspend fun setDefaultShuffleMode(mode: ShuffleMode) = source.setDefaultShuffleMode(mode)
 
     override suspend fun setWifiStreamingQuality(quality: StreamingQuality) = source.setWifiStreamingQuality(quality)
 

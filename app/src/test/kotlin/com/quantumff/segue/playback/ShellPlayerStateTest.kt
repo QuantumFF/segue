@@ -22,8 +22,7 @@ class ShellPlayerStateTest {
     )
 
     private fun state(count: Int, current: Int, repeat: RepeatMode = RepeatMode.Off): PlayerUiState {
-        // Play order differs from timeline order, as it does with shuffle on.
-        val queue = (0 until count).map { item(it, timelineIndex = count - 1 - it) }.toImmutableList()
+        val queue = (0 until count).map { item(it, timelineIndex = it) }.toImmutableList()
         return PlayerUiState(
             currentItem = queue.getOrNull(current),
             currentQueueIndex = current,
@@ -57,14 +56,14 @@ class ShellPlayerStateTest {
     }
 
     @Test
-    fun `adjacent tracks follow play order and carry their timeline index`() {
+    fun `adjacent tracks are the neighbors in the queue and carry their index`() {
         val player = state(count = 3, current = 1).toShellPlayerState()
 
         assertThat(player.currentTimelineIndex).isEqualTo(1)
         assertThat(player.previous?.track?.title).isEqualTo("Song 0")
-        assertThat(player.previous?.timelineIndex).isEqualTo(2)
+        assertThat(player.previous?.timelineIndex).isEqualTo(0)
         assertThat(player.next?.track?.title).isEqualTo("Song 2")
-        assertThat(player.next?.timelineIndex).isEqualTo(0)
+        assertThat(player.next?.timelineIndex).isEqualTo(2)
     }
 
     @Test

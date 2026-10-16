@@ -56,7 +56,6 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.quantumff.segue.core.designsystem.theme.segueColorScheme
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 
 /** 4x1: art, title and artist, play/pause, next. */
@@ -72,7 +71,7 @@ class NowPlayingStripWidget : GlanceAppWidget() {
     }
 }
 
-/** 4x2, resizable: larger art, previous/play/next, and the shuffle mode. */
+/** 4x2, resizable: larger art and previous/play/next. */
 class NowPlayingCardWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
@@ -164,7 +163,6 @@ private fun Card(state: NowPlayingSnapshot, art: Bitmap?, colors: WidgetColors) 
                 Spacer(GlanceModifier.defaultWeight())
                 if (state.hasTrack) {
                     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        ShuffleIndicator(state.shuffleMode, colors)
                         Spacer(GlanceModifier.defaultWeight())
                         ControlButton(
                             R.drawable.widget_skip_back,
@@ -290,38 +288,6 @@ private fun ControlButton(@DrawableRes icon: Int, @StringRes label: Int, onClick
             colorFilter = ColorFilter.tint(tint),
             modifier = GlanceModifier.size(22.dp),
         )
-    }
-}
-
-/** Off: muted shuffle. Tracks: accent shuffle. Albums: accent shuffle with a disc badge. Tap to cycle. */
-@Composable
-private fun ShuffleIndicator(mode: ShuffleMode, colors: WidgetColors) {
-    val context = LocalContext.current
-    val tint = if (mode == ShuffleMode.Off) colors.onSurfaceVariant else colors.primary
-    val label = when (mode) {
-        ShuffleMode.Off -> R.string.widget_shuffle_off
-        ShuffleMode.Tracks -> R.string.widget_shuffle_tracks
-        ShuffleMode.Albums -> R.string.widget_shuffle_albums
-    }
-    Row(
-        modifier = GlanceModifier.height(44.dp).padding(horizontal = 4.dp).cornerRadius(22.dp)
-            .clickable(actionRunCallback<CycleShuffleAction>()),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Image(
-            provider = ImageProvider(R.drawable.widget_shuffle),
-            contentDescription = context.getString(label),
-            colorFilter = ColorFilter.tint(tint),
-            modifier = GlanceModifier.size(20.dp),
-        )
-        if (mode == ShuffleMode.Albums) {
-            Image(
-                provider = ImageProvider(R.drawable.widget_disc),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(tint),
-                modifier = GlanceModifier.size(14.dp),
-            )
-        }
     }
 }
 

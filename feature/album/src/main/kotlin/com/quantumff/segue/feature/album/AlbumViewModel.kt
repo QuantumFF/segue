@@ -11,7 +11,7 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
@@ -155,7 +155,7 @@ class AlbumViewModel @Inject constructor(
     }
 
     fun shuffleAlbums(playActions: PlayActions, option: ShuffleAlbumsOption) {
-        playActions.onShuffleAlbums(option.source)
+        playActions.shuffleAlbums(option.source)
     }
 
     fun toggleAlbumStar() {
@@ -254,14 +254,14 @@ data class Disc(val number: Int, val title: String?, val tracks: ImmutableList<I
 data class IndexedSong(val index: Int, val song: Song)
 
 sealed interface ShuffleAlbumsOption {
-    val source: AlbumShuffleSource
+    val source: AlbumSource
 
     data class ByArtist(val artistId: String, val artistName: String) : ShuffleAlbumsOption {
-        override val source get() = AlbumShuffleSource.Artist(artistId)
+        override val source get() = AlbumSource.Artist(artistId)
     }
 
     data class ByGenre(val genre: String) : ShuffleAlbumsOption {
-        override val source get() = AlbumShuffleSource.Genre(genre)
+        override val source get() = AlbumSource.Genre(genre)
     }
 }
 

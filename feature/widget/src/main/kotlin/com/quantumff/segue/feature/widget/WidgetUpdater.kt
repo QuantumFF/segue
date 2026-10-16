@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 /**
- * Redraws the widgets when the playback service publishes a change (track, play/pause, shuffle).
+ * Redraws the widgets when the playback service publishes a change (track, play/pause).
  * There is no periodic update: the widget providers declare `updatePeriodMillis="0"`. Bursts of
  * events collapse into one redraw, and nothing is drawn when no widget is placed.
  */

@@ -3,6 +3,12 @@ package com.quantumff.segue.feature.library
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.model.AlbumFilter
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
+import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
@@ -30,6 +36,23 @@ class GenreViewModelTest {
             assertThat(state.genre).isEqualTo("Jazz")
             assertThat(state.albumCount).isEqualTo(2)
         }
+    }
+
+    @Test
+    fun playAlbumsQueuesTheGenreGridInItsOrder() {
+        val viewModel =
+            GenreViewModel(SavedStateHandle(mapOf(GenreViewModel.KEY_GENRE to "Jazz")), FakeAlbumRepository())
+        val play = RecordingPlayActions()
+
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End, play.actions)
+
+        assertThat(play.albumRequests).containsExactly(
+            AlbumPlayRequest(
+                AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(genre = "Jazz")),
+                AlbumOrder.Shuffled,
+                QueuePlacement.End,
+            ),
+        )
     }
 
     @Test

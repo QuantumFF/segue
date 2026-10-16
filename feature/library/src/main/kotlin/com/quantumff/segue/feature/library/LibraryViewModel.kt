@@ -19,8 +19,10 @@ import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
@@ -28,6 +30,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.SyncProgress
@@ -123,19 +126,16 @@ class LibraryViewModel @Inject constructor(
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
     private val sort = savedStateHandle.getStateFlow(KEY_SORT, AlbumSortOrder.RecentlyAdded)
     private val viewMode = savedStateHandle.getStateFlow(KEY_VIEW_MODE, LibraryViewMode.Grid)
-    private val filter: Flow<AlbumFilter> = combine(
-        savedStateHandle.getStateFlow(KEY_STARRED, false),
-        savedStateHandle.getStateFlow<String?>(KEY_GENRE, null),
-        savedStateHandle.getStateFlow<Int?>(KEY_YEAR, null),
-        savedStateHandle.getStateFlow(KEY_DOWNLOADED, false),
-    ) { starred, genre, year, downloaded ->
-        AlbumFilter(starredOnly = starred, genre = genre, year = year, downloadedOnly = downloaded)
-    }.distinctUntilChanged()
+    private val starredOnly = savedStateHandle.getStateFlow(KEY_STARRED, false)
+    private val genreFilter = savedStateHandle.getStateFlow<String?>(KEY_GENRE, null)
+    private val yearFilter = savedStateHandle.getStateFlow<Int?>(KEY_YEAR, null)
+    private val downloadedOnly = savedStateHandle.getStateFlow(KEY_DOWNLOADED, false)
 
-    /** [filter], limited to downloaded albums while offline. */
-    private val effectiveFilter: Flow<AlbumFilter> = combine(filter, isOffline) { filter, offline ->
-        if (offline) filter.copy(downloadedOnly = true) else filter
-    }.distinctUntilChanged()
+    private val filter: Flow<AlbumFilter> = combine(starredOnly, genreFilter, yearFilter, downloadedOnly, ::AlbumFilter)
+        .distinctUntilChanged()
+
+    /** [filter], limited to downloaded albums while offline: what the Albums tab shows. */
+    private val effectiveFilter: Flow<AlbumFilter> = combine(filter, isOffline, ::shownFilter).distinctUntilChanged()
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<LibraryMessage?>(null)
 
@@ -292,6 +292,19 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * "Play albums" ([AlbumOrder.InOrder]) or "Shuffle albums" of exactly what the Albums tab
+     * shows: its sort and filters, limited to downloaded albums while offline.
+     */
+    fun playAlbums(order: AlbumOrder, placement: QueuePlacement, playActions: PlayActions) {
+        val stored = AlbumFilter(starredOnly.value, genreFilter.value, yearFilter.value, downloadedOnly.value)
+        val view = AlbumSource.Albums(sort.value, shownFilter(stored, isOffline.value))
+        playActions.onPlayAlbums(AlbumPlayRequest(view, order, placement))
+    }
+
+    private fun shownFilter(filter: AlbumFilter, offline: Boolean): AlbumFilter =
+        if (offline) filter.copy(downloadedOnly = true) else filter
+
     /** Handles the album menu actions that need data; navigation actions stay with the screen. */
     fun onAlbumAction(
         album: Album,
@@ -308,7 +321,7 @@ class LibraryViewModel @Inject constructor(
             }
 
             MediaAction.ShuffleArtistAlbums ->
-                album.artistId?.let { playActions.onShuffleAlbums(AlbumShuffleSource.Artist(it)) }
+                album.artistId?.let { playActions.shuffleAlbums(AlbumSource.Artist(it)) }
 
             MediaAction.Favorite, MediaAction.Unfavorite ->
                 setStarred(MediaKind.Album, album.id, starred = action == MediaAction.Favorite)
@@ -329,7 +342,7 @@ class LibraryViewModel @Inject constructor(
                 playActions.onPlaySongs(songs, 0, action == MediaAction.Shuffle)
             }
 
-            MediaAction.ShuffleAlbums -> playActions.onShuffleAlbums(AlbumShuffleSource.Artist(artist.id))
+            MediaAction.ShuffleAlbums -> playActions.shuffleAlbums(AlbumSource.Artist(artist.id))
 
             MediaAction.Favorite, MediaAction.Unfavorite ->
                 setStarred(MediaKind.Artist, artist.id, starred = action == MediaAction.Favorite)

@@ -8,10 +8,12 @@ package com.quantumff.segue.core.model
 class PlayActions(
     /**
      * Replaces the queue with [songs] and starts at the song at index `startIndex`. With `shuffle`,
-     * `startIndex` is ignored and the queue plays in track-shuffle order from a random song.
+     * `startIndex` is ignored and the songs are queued in a fresh shuffled order, from the first. A
+     * running queue is never reshuffled.
      */
     val onPlaySongs: (songs: List<Song>, startIndex: Int, shuffle: Boolean) -> Unit,
-    val onShuffleAlbums: (source: AlbumShuffleSource) -> Unit,
+    /** "Play albums" / "Shuffle albums": whole albums of a source, in order or shuffled, placed in the queue. */
+    val onPlayAlbums: (request: AlbumPlayRequest) -> Unit,
     /** Inserts the songs right after the current track. */
     val onPlayNext: (songs: List<Song>) -> Unit,
     /** Appends the songs to the end of the queue. */
@@ -19,11 +21,14 @@ class PlayActions(
     /** Starts the seed song, then songs similar to it (`getSimilarSongs2`). */
     val onStartInstantMix: (seed: Song) -> Unit,
 ) {
+    /** "Shuffle albums" of [source], replacing the queue. */
+    fun shuffleAlbums(source: AlbumSource) = onPlayAlbums(AlbumPlayRequest(source, AlbumOrder.Shuffled))
+
     companion object {
         /** Ignores every intent. For previews and tests. */
         val None = PlayActions(
             onPlaySongs = { _, _, _ -> },
-            onShuffleAlbums = {},
+            onPlayAlbums = {},
             onPlayNext = {},
             onAddToQueue = {},
             onStartInstantMix = {},

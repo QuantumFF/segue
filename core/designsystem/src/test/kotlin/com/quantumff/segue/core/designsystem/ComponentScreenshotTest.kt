@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.quantumff.segue.core.designsystem.component.AlbumCard
+import com.quantumff.segue.core.designsystem.component.AlbumPlayButtons
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.ContextMenuContent
 import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
@@ -26,7 +27,6 @@ import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
-import com.quantumff.segue.core.designsystem.component.ShuffleModeControl
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
@@ -35,7 +35,6 @@ import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
-import com.quantumff.segue.core.model.ShuffleMode
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -99,9 +98,8 @@ class ComponentScreenshotTest {
                 onPlayPauseClick = {},
                 onNextClick = {},
             )
-            ShuffleModeControl(
-                selected = ShuffleMode.Albums,
-                onSelect = {},
+            AlbumPlayButtons(
+                onPlay = { _, _ -> },
                 modifier = Modifier.padding(horizontal = SegueSpacing.lg),
             )
             ContinueFromDeviceBanner(

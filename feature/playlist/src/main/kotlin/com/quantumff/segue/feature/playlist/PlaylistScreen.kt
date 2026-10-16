@@ -67,7 +67,7 @@ import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
@@ -96,7 +96,7 @@ fun PlaylistScreen(
         uiState = uiState,
         onBackClick = onBackClick,
         onPlayClick = { shuffle -> playActions.onPlaySongs(uiState.songs, 0, shuffle) },
-        onShuffleAlbumsClick = { playlistId?.let { playActions.onShuffleAlbums(AlbumShuffleSource.Playlist(it)) } },
+        onShuffleAlbumsClick = { playlistId?.let { playActions.shuffleAlbums(AlbumSource.Playlist(it)) } },
         onTrackClick = { index -> playActions.onPlaySongs(uiState.songs, index, false) },
         onTrackAction = { index, song, action ->
             when (action) {

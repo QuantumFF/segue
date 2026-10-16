@@ -5,11 +5,9 @@ import android.os.Looper
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.SeguePlayer
-import kotlin.random.Random
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -23,7 +21,7 @@ class QueueSyncListenerTest {
     private val exo = ExoPlayer.Builder(ApplicationProvider.getApplicationContext<Context>()).build()
     private val sink = RecordingSink()
     private lateinit var listener: QueueSyncListener
-    private val player = SeguePlayer(exo, Random(3)) { listener.onShuffleModeChanged() }
+    private val player = SeguePlayer(exo)
 
     private val songs = listOf("a1" to "a", "a2" to "a", "b1" to "b", "b2" to "b").map { (id, album) ->
         Song(id = id, title = id, albumId = album, album = album, artist = null, artistId = null).toMediaItem()
@@ -84,19 +82,6 @@ class QueueSyncListenerTest {
                 it.first
             },
         ).containsExactly(QueueEvent.QueueEdit, QueueEvent.QueueEdit, QueueEvent.QueueEdit)
-    }
-
-    @Test
-    fun `every shuffle mode change is reported, including tracks to albums`() {
-        player.setShuffleMode(ShuffleMode.Tracks)
-        idle()
-        sink.events.clear()
-
-        player.setShuffleMode(ShuffleMode.Albums)
-        idle()
-
-        assertThat(sink.events).isNotEmpty()
-        assertThat(sink.events.last().second.shuffleMode).isEqualTo(ShuffleMode.Albums)
     }
 
     @Test

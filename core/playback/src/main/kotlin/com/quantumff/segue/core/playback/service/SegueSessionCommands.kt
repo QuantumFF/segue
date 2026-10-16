@@ -1,34 +1,41 @@
 package com.quantumff.segue.core.playback.service
 
 import android.os.Bundle
-import androidx.media3.common.MediaItem
 import androidx.media3.session.SessionCommand
-import com.quantumff.segue.core.model.ShuffleMode
+import com.quantumff.segue.core.model.AlbumFilter
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
+import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SleepTimer
 
 /** Custom session commands and session extras shared by the service and [com.quantumff.segue.core.playback.PlaybackController]. */
 internal object SegueSessionCommands {
     private const val PREFIX = "com.quantumff.segue.playback."
 
-    const val CYCLE_SHUFFLE = PREFIX + "CYCLE_SHUFFLE"
-    const val SET_SHUFFLE = PREFIX + "SET_SHUFFLE"
     const val TOGGLE_FAVORITE = PREFIX + "TOGGLE_FAVORITE"
     const val SET_SLEEP_TIMER = PREFIX + "SET_SLEEP_TIMER"
-    const val MOVE_IN_PLAY_ORDER = PREFIX + "MOVE_IN_PLAY_ORDER"
-    const val REINSERT = PREFIX + "REINSERT"
 
     /** Restores the local queue an automatic remote adoption replaced (see QueueSyncEngine.takeAdoptionUndo). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
 
-    const val ARG_SHUFFLE_MODE = "shuffleMode"
+    /** "Play albums" / "Shuffle albums": starts an album feed (see AlbumFeedController). Answers [ARG_STARTED]. */
+    const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
+
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
-    const val ARG_FROM = "from"
-    const val ARG_TO = "to"
-    const val ARG_COUNT = "count"
-    const val ARG_ITEM = "item"
-    const val ARG_TIMELINE_INDEX = "timelineIndex"
-    const val ARG_PLAY_POSITION = "playPosition"
+    const val ARG_STARTED = "started"
+    private const val ARG_SOURCE_KIND = "sourceKind"
+    private const val ARG_SOURCE_ID = "sourceId"
+    private const val ARG_SORT = "sort"
+    private const val ARG_STARRED = "starredOnly"
+    private const val ARG_GENRE = "genre"
+    private const val ARG_YEAR = "year"
+    private const val ARG_DOWNLOADED = "downloadedOnly"
+    private const val ARG_ALBUM_ORDER = "albumOrder"
+    private const val ARG_PLACEMENT = "placement"
+    private const val ARG_SEED = "seed"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -36,22 +43,14 @@ internal object SegueSessionCommands {
 
     val all: List<SessionCommand> =
         listOf(
-            CYCLE_SHUFFLE,
-            SET_SHUFFLE,
             TOGGLE_FAVORITE,
             SET_SLEEP_TIMER,
-            MOVE_IN_PLAY_ORDER,
-            REINSERT,
             UNDO_ADOPTION,
+            PLAY_ALBUMS,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
     fun command(action: String) = SessionCommand(action, Bundle.EMPTY)
-
-    fun shuffleArgs(mode: ShuffleMode) = Bundle().apply { putString(ARG_SHUFFLE_MODE, mode.name) }
-
-    fun shuffleMode(bundle: Bundle): ShuffleMode? =
-        bundle.getString(ARG_SHUFFLE_MODE)?.let { name -> ShuffleMode.entries.firstOrNull { it.name == name } }
 
     fun sleepArgs(timer: SleepTimer?) = Bundle().apply {
         when (timer) {
@@ -75,26 +74,76 @@ internal object SegueSessionCommands {
         else -> null
     }
 
-    fun moveArgs(from: Int, to: Int, count: Int = 1) = Bundle().apply {
-        putInt(ARG_FROM, from)
-        putInt(ARG_TO, to)
-        putInt(ARG_COUNT, count)
+    fun playAlbumsArgs(request: AlbumPlayRequest, seed: Long) = Bundle().apply {
+        putString(ARG_ALBUM_ORDER, request.order.name)
+        putString(ARG_PLACEMENT, request.placement.name)
+        putLong(ARG_SEED, seed)
+        when (val source = request.source) {
+            AlbumSource.Library -> putString(ARG_SOURCE_KIND, KIND_LIBRARY)
+
+            is AlbumSource.Albums -> {
+                putString(ARG_SOURCE_KIND, KIND_ALBUMS)
+                putString(ARG_SORT, source.sort.name)
+                putBoolean(ARG_STARRED, source.filter.starredOnly)
+                putString(ARG_GENRE, source.filter.genre)
+                source.filter.year?.let { putInt(ARG_YEAR, it) }
+                putBoolean(ARG_DOWNLOADED, source.filter.downloadedOnly)
+            }
+
+            is AlbumSource.Artist -> putSource(KIND_ARTIST, source.artistId)
+
+            is AlbumSource.Genre -> putSource(KIND_GENRE, source.name)
+
+            is AlbumSource.Playlist -> putSource(KIND_PLAYLIST, source.playlistId)
+        }
     }
 
-    /** Puts [item] back at queue index [timelineIndex] and play position [playPosition] (undo of a removal). */
-    fun reinsertArgs(item: MediaItem, timelineIndex: Int, playPosition: Int) = Bundle().apply {
-        putBundle(ARG_ITEM, item.toBundle())
-        putInt(ARG_TIMELINE_INDEX, timelineIndex)
-        putInt(ARG_PLAY_POSITION, playPosition)
+    /** The request and seed of [playAlbumsArgs], or null if [bundle] does not hold one. */
+    fun playAlbums(bundle: Bundle): Pair<AlbumPlayRequest, Long>? {
+        val id = bundle.getString(ARG_SOURCE_ID)
+        val source = when (bundle.getString(ARG_SOURCE_KIND)) {
+            KIND_LIBRARY -> AlbumSource.Library
+
+            KIND_ALBUMS -> AlbumSource.Albums(
+                sort = enumOrNull<AlbumSortOrder>(bundle.getString(ARG_SORT)) ?: return null,
+                filter = AlbumFilter(
+                    starredOnly = bundle.getBoolean(ARG_STARRED),
+                    genre = bundle.getString(ARG_GENRE),
+                    year = if (bundle.containsKey(ARG_YEAR)) bundle.getInt(ARG_YEAR) else null,
+                    downloadedOnly = bundle.getBoolean(ARG_DOWNLOADED),
+                ),
+            )
+
+            KIND_ARTIST -> AlbumSource.Artist(id ?: return null)
+
+            KIND_GENRE -> AlbumSource.Genre(id ?: return null)
+
+            KIND_PLAYLIST -> AlbumSource.Playlist(id ?: return null)
+
+            else -> return null
+        }
+        val order = enumOrNull<AlbumOrder>(bundle.getString(ARG_ALBUM_ORDER)) ?: return null
+        val placement = enumOrNull<QueuePlacement>(bundle.getString(ARG_PLACEMENT)) ?: return null
+        return AlbumPlayRequest(source, order, placement) to bundle.getLong(ARG_SEED)
     }
 
-    fun reinsertArgs(bundle: Bundle): Triple<MediaItem, Int, Int>? {
-        val item = bundle.getBundle(ARG_ITEM)?.let(MediaItem::fromBundle) ?: return null
-        return Triple(item, bundle.getInt(ARG_TIMELINE_INDEX), bundle.getInt(ARG_PLAY_POSITION))
+    /** The answer to [PLAY_ALBUMS]: whether anything was queued. */
+    fun startedResult(started: Boolean) = Bundle().apply { putBoolean(ARG_STARTED, started) }
+
+    private fun Bundle.putSource(kind: String, id: String) {
+        putString(ARG_SOURCE_KIND, kind)
+        putString(ARG_SOURCE_ID, id)
     }
 
-    /** Session extras: the three-way shuffle mode and the sleep timer, which Media3's player state cannot carry. */
-    fun extras(mode: ShuffleMode, timer: SleepTimer?) = Bundle(sleepArgs(timer)).apply {
-        putString(ARG_SHUFFLE_MODE, mode.name)
-    }
+    private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =
+        enumValues<E>().firstOrNull { it.name == name }
+
+    private const val KIND_LIBRARY = "library"
+    private const val KIND_ALBUMS = "albums"
+    private const val KIND_ARTIST = "artist"
+    private const val KIND_GENRE = "genre"
+    private const val KIND_PLAYLIST = "playlist"
+
+    /** Session extras: the sleep timer, which Media3's player state cannot carry. */
+    fun extras(timer: SleepTimer?) = sleepArgs(timer)
 }

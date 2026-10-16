@@ -7,8 +7,6 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RemoteQueueOffer
-import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -39,8 +37,6 @@ data class QueueUiState(
     /** The current track's row key, for highlighting and scrolling to it. */
     val currentKey: String? = null,
     val trackCount: Int = 0,
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
-    val repeatMode: RepeatMode = RepeatMode.Off,
     /** A newer queue saved by another device: the "Continue from" banner. */
     val remoteOffer: RemoteQueueOffer? = null,
     /** True until the player state first arrives, so the empty state does not flash. */
@@ -49,8 +45,9 @@ data class QueueUiState(
 )
 
 /**
- * The play queue in effective play order (DESIGN.md §4.8): reorder, play next, remove with undo,
- * shuffle mode, clear, save as playlist, and the "Continue from <device>" banner.
+ * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, clear, save as playlist,
+ * and the "Continue from <device>" banner. Queues are shuffled only when music is added, never in
+ * place, so the queue order is the play order.
  */
 @HiltViewModel
 class QueueViewModel @Inject constructor(
@@ -63,30 +60,21 @@ class QueueViewModel @Inject constructor(
         player.toUiState(local)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), QueueUiState())
 
-    fun skipTo(track: QueueListItem.Track) = playback.skipTo(track.timelineIndex)
+    fun skipTo(track: QueueListItem.Track) = playback.skipTo(track.position)
 
-    fun move(move: QueueMove) = playback.move(move.from, move.to, move.count)
+    fun move(move: QueueMove) = playback.move(move.from, move.to)
 
     fun playNext(track: QueueListItem.Track) {
         val player = playback.eventState.value
-        QueueList.playNextMove(player.queue, player.currentQueueIndex, track.playPosition, player.shuffleMode)
-            ?.let(::move)
+        QueueList.playNextMove(player.queue.size, player.currentQueueIndex, track.position)?.let(::move)
     }
 
     fun remove(track: QueueListItem.Track) {
-        playback.remove(track.timelineIndex)
+        playback.remove(track.position)
         local.update { it.copy(message = QueueMessage.Removed(track.row.title)) }
     }
 
     fun undoRemove() = playback.undoRemove()
-
-    fun setShuffleMode(mode: ShuffleMode) = playback.setShuffleMode(mode)
-
-    /** Off → All → One → Off. */
-    fun cycleRepeatMode() {
-        val modes = RepeatMode.entries
-        playback.setRepeatMode(modes[(uiState.value.repeatMode.ordinal + 1) % modes.size])
-    }
 
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }
 
@@ -116,13 +104,11 @@ class QueueViewModel @Inject constructor(
     private data class LocalState(val historyExpanded: Boolean = false, val message: QueueMessage? = null)
 
     private fun PlayerUiState.toUiState(local: LocalState): QueueUiState {
-        val items = QueueList.build(queue, currentQueueIndex, shuffleMode, isPlaying, local.historyExpanded)
+        val items = QueueList.build(queue, currentQueueIndex, isPlaying, local.historyExpanded)
         return QueueUiState(
             items = items,
             currentKey = items.firstOrNull { it is QueueListItem.Track && it.row.isCurrent }?.key,
             trackCount = queue.size,
-            shuffleMode = shuffleMode,
-            repeatMode = repeatMode,
             remoteOffer = remoteQueue,
             isLoading = false,
             message = local.message,

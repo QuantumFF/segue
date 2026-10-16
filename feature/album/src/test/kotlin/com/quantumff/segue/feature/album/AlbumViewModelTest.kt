@@ -5,7 +5,7 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
@@ -40,11 +40,11 @@ class AlbumViewModelTest {
     private val downloads = FakeDownloadRepository()
     private val offlineMode = FakeOfflineModeRepository()
     private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-    private val shuffledAlbums = mutableListOf<AlbumShuffleSource>()
+    private val shuffledAlbums = mutableListOf<AlbumSource>()
     private val instantMixes = mutableListOf<String>()
     private val playActions = PlayActions(
         onPlaySongs = { songs, start, shuffle -> played += Triple(songs, start, shuffle) },
-        onShuffleAlbums = { shuffledAlbums += it },
+        onPlayAlbums = { shuffledAlbums += it.source },
         onPlayNext = {},
         onAddToQueue = {},
         onStartInstantMix = { instantMixes += it.id },
@@ -100,8 +100,8 @@ class AlbumViewModelTest {
             assertThat(state.trackCount).isEqualTo(3)
             assertThat(state.durationSeconds).isEqualTo(600)
             assertThat(state.shuffleOptions.map { it.source }).containsExactly(
-                AlbumShuffleSource.Artist("artist-1"),
-                AlbumShuffleSource.Genre("Rock"),
+                AlbumSource.Artist("artist-1"),
+                AlbumSource.Genre("Rock"),
             ).inOrder()
         }
     }
@@ -151,7 +151,7 @@ class AlbumViewModelTest {
     fun shuffleAlbumsByArtist() = runTest {
         viewModel().shuffleAlbums(playActions, ShuffleAlbumsOption.ByArtist("artist-1", "Artist 1"))
 
-        assertThat(shuffledAlbums).containsExactly(AlbumShuffleSource.Artist("artist-1"))
+        assertThat(shuffledAlbums).containsExactly(AlbumSource.Artist("artist-1"))
     }
 
     @Test
@@ -186,7 +186,7 @@ class AlbumViewModelTest {
         handleSongAction(MediaAction.InstantMix, songs[1], playActions, {}, {}, {}, {})
         handleSongAction(MediaAction.AddToPlaylist, songs[1], playActions, {}, {}, { addedToPlaylist += it }, {})
 
-        assertThat(shuffledAlbums).containsExactly(AlbumShuffleSource.Artist("artist-1"))
+        assertThat(shuffledAlbums).containsExactly(AlbumSource.Artist("artist-1"))
         assertThat(instantMixes).containsExactly("s2")
         assertThat(addedToPlaylist).containsExactly(listOf("s2"))
     }

@@ -15,24 +15,19 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
-import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
-import com.quantumff.segue.core.model.DownloadedLibrary
-import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.media.toQueueItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
-import com.quantumff.segue.core.playback.shuffle.AlbumPicker
 import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
@@ -77,14 +72,13 @@ import kotlinx.coroutines.withContext
  * [SeguePlaybackService], connected on first use, and exposes [state] for the UI.
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
- * commands take [QueueItem.timelineIndex]; [move] takes positions in play order, as the queue
- * screen shows them.
+ * commands take queue positions ([QueueItem.timelineIndex]). The queue order is the play order:
+ * Segue shuffles only when songs are queued, never a running queue.
  */
 @Singleton
 class PlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val queueSync: QueueSyncEngine,
-    private val albumShuffle: AlbumShuffleRepository,
     private val artists: ArtistRepository,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
 ) {
@@ -97,7 +91,7 @@ class PlaybackController @Inject constructor(
     private val connected = MutableStateFlow<MediaController?>(null)
     private val queueCache = QueueCache()
 
-    private class Removal(val item: MediaItem, val timelineIndex: Int, val playPosition: Int)
+    private class Removal(val item: MediaItem, val timelineIndex: Int)
 
     private var lastRemoval: Removal? = null
 
@@ -150,23 +144,20 @@ class PlaybackController @Inject constructor(
     // --- Queue -------------------------------------------------------------------------------------
 
     /**
-     * An explicit "Play" or "Shuffle" of [songs]: in order from [startIndex] with shuffle Off, or
-     * with [shuffle] in track-shuffle order from a random song.
+     * An explicit "Play" or "Shuffle" of [songs], replacing the queue: in order from [startIndex],
+     * or with [shuffle] queued in a fresh shuffled order from its first song. Shuffling happens
+     * here, when songs are queued; a running queue is never reshuffled.
      */
     fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean) = command { controller ->
         if (songs.isEmpty()) return@command
-        val start = if (shuffle) random.nextInt(songs.size) else startIndex.coerceIn(songs.indices)
-        // Before the new items, so the fresh track shuffle starts with the start item.
-        controller.sendCustomCommand(
-            SegueSessionCommands.command(SegueSessionCommands.SET_SHUFFLE),
-            SegueSessionCommands.shuffleArgs(if (shuffle) ShuffleMode.Tracks else ShuffleMode.Off),
-        )
-        controller.setMediaItems(songs.map { it.toMediaItem() }, start, 0)
+        val queue = if (shuffle) songs.shuffled(random) else songs
+        val start = if (shuffle) 0 else startIndex.coerceIn(songs.indices)
+        controller.setMediaItems(queue.map { it.toMediaItem() }, start, 0)
         controller.prepare()
         controller.play()
     }
 
-    /** Inserts [songs] right after the current track (after the current album in album shuffle). */
+    /** Inserts [songs] right after the current track. */
     fun playNext(songs: List<Song>) = command { controller ->
         if (controller.mediaItemCount == 0) {
             controller.setMediaItems(songs.map { it.toMediaItem() })
@@ -186,38 +177,22 @@ class PlaybackController @Inject constructor(
         }
     }
 
-    /**
-     * Moves [count] items at play position [from] so the first lands at play position [to] (an
-     * album block when [count] > 1). With shuffle on, only the play order changes.
-     */
-    fun move(from: Int, to: Int, count: Int = 1) = command { controller ->
-        if (controller.shuffleModeEnabled) {
-            controller.sendCustomCommand(
-                SegueSessionCommands.command(SegueSessionCommands.MOVE_IN_PLAY_ORDER),
-                SegueSessionCommands.moveArgs(from, to, count),
-            )
-        } else {
-            controller.moveMediaItems(from, from + count, to)
-        }
-    }
+    /** Moves the item at queue position [from] to position [to]. */
+    fun move(from: Int, to: Int) = command { controller -> controller.moveMediaItem(from, to) }
 
     /** Removes the item at [timelineIndex]. [undoRemove] puts the last removed item back. */
     fun remove(timelineIndex: Int) = command { controller ->
         if (timelineIndex !in 0 until controller.mediaItemCount) return@command
-        val (order, _) = queueCache.get(controller)
-        lastRemoval = Removal(controller.getMediaItemAt(timelineIndex), timelineIndex, order.indexOf(timelineIndex))
+        lastRemoval = Removal(controller.getMediaItemAt(timelineIndex), timelineIndex)
         controller.removeMediaItem(timelineIndex)
     }
 
-    /** Puts the last removed item back where it was, in the queue and in play order. */
+    /** Puts the last removed item back where it was. */
     fun undoRemove() = command { controller ->
         val removal = lastRemoval ?: return@command
         lastRemoval = null
-        val result = controller.sendCustomCommand(
-            SegueSessionCommands.command(SegueSessionCommands.REINSERT),
-            SegueSessionCommands.reinsertArgs(removal.item, removal.timelineIndex, removal.playPosition),
-        ).await()
-        if (result.resultCode != SessionResult.RESULT_SUCCESS) Log.w(TAG, "Undo failed: ${result.resultCode}")
+        // The service gives the item back its playable URI (onAddMediaItems).
+        controller.addMediaItem(removal.timelineIndex.coerceAtMost(controller.mediaItemCount), removal.item)
     }
 
     fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
@@ -247,18 +222,6 @@ class PlaybackController @Inject constructor(
     fun skipToNext() = command { it.seekToNext() }
 
     fun skipToPrevious() = command { it.seekToPrevious() }
-
-    fun setShuffleMode(mode: ShuffleMode) = command { controller ->
-        controller.sendCustomCommand(
-            SegueSessionCommands.command(SegueSessionCommands.SET_SHUFFLE),
-            SegueSessionCommands.shuffleArgs(mode),
-        )
-    }
-
-    /** Off → Tracks → Albums → Off, from the service's current mode (for widgets, which may show a stale one). */
-    fun cycleShuffleMode() = command { controller ->
-        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.CYCLE_SHUFFLE), Bundle.EMPTY)
-    }
 
     fun setRepeatMode(mode: RepeatMode) = command { controller ->
         controller.repeatMode = when (mode) {
@@ -310,11 +273,6 @@ class PlaybackController @Inject constructor(
         try {
             val controller = controller()
             controller.pause()
-            // The server's queue is already in play order.
-            controller.sendCustomCommand(
-                SegueSessionCommands.command(SegueSessionCommands.SET_SHUFFLE),
-                SegueSessionCommands.shuffleArgs(ShuffleMode.Off),
-            )
             val index = queue.currentIndex.coerceIn(queue.songs.indices)
             controller.setMediaItems(queue.songs.map { it.toMediaItem() }, index, queue.positionMillis)
             queueSync.markAdopted(QueueState(queue.songs.map { it.id }, index, queue.positionMillis))
@@ -330,24 +288,26 @@ class PlaybackController @Inject constructor(
     // --- Generated queues ----------------------------------------------------------------------------
 
     /**
-     * "Shuffle albums": random albums from [source], each queued whole in disc and track order, in
-     * plain (unshuffled) play order. A library or genre picks [AlbumPicker.DEFAULT_ALBUM_COUNT]
-     * albums; an artist or playlist uses all of its albums. Reads Room only. With [offline] (what is
-     * downloaded, passed while offline) only downloaded albums are picked and only their
-     * downloaded songs queued. False if there is nothing to play.
+     * "Play albums" / "Shuffle albums" ([request]): whole albums in disc and track order, the
+     * albums in the source's order or a fresh seeded shuffle, replacing the queue or placed in it.
+     * The service queues a first window and appends more as playback nears its end (see
+     * [com.quantumff.segue.core.playback.feed.AlbumFeedController]). Reads Room only; offline only
+     * downloaded songs are queued. False if there is nothing to play.
      */
-    suspend fun shuffleAlbums(source: AlbumShuffleSource, offline: DownloadedLibrary? = null): Boolean {
-        val albumIds = OfflineLibrary.shuffleAlbumIds(albumShuffle.albumIds(source), offline)
-        val count = when (source) {
-            AlbumShuffleSource.Library, is AlbumShuffleSource.Genre -> AlbumPicker.DEFAULT_ALBUM_COUNT
-            is AlbumShuffleSource.Artist, is AlbumShuffleSource.Playlist -> albumIds.size
+    suspend fun playAlbums(request: AlbumPlayRequest): Boolean = withContext(mainDispatcher) {
+        try {
+            val result = controller().sendCustomCommand(
+                SegueSessionCommands.command(SegueSessionCommands.PLAY_ALBUMS),
+                SegueSessionCommands.playAlbumsArgs(request, seed = random.nextLong()),
+            ).await()
+            result.resultCode == SessionResult.RESULT_SUCCESS &&
+                result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.w(TAG, "Could not play albums", e)
+            false
         }
-        val picked = AlbumPicker.pick(albumIds, count, random)
-        val songs = OfflineLibrary.shuffleSongs(albumShuffle.songs(source, picked), offline)
-        val queue = AlbumPicker.queueInAlbumOrder(songs, picked)
-        if (queue.isEmpty()) return false
-        play(queue, startIndex = 0, shuffle = false)
-        return true
     }
 
     /**
@@ -434,8 +394,8 @@ class PlaybackController @Inject constructor(
     }
 
     private fun snapshot(controller: MediaController, extras: Bundle): PlayerUiState {
-        val (order, queue) = queueCache.get(controller)
-        val queueIndex = order.indexOf(controller.currentMediaItemIndex)
+        val queue = queueCache.get(controller)
+        val queueIndex = controller.currentMediaItemIndex.takeIf { it in queue.indices } ?: -1
         val current = queue.getOrNull(queueIndex)
         return PlayerUiState(
             currentItem = current,
@@ -445,8 +405,6 @@ class PlaybackController @Inject constructor(
             positionMillis = controller.currentPosition,
             durationMillis = controller.duration.takeIf { it != C.TIME_UNSET } ?: current?.durationMillis ?: 0,
             queue = queue,
-            shuffleMode = SegueSessionCommands.shuffleMode(extras)
-                ?: if (controller.shuffleModeEnabled) ShuffleMode.Tracks else ShuffleMode.Off,
             repeatMode = when (controller.repeatMode) {
                 Player.REPEAT_MODE_ONE -> RepeatMode.One
                 Player.REPEAT_MODE_ALL -> RepeatMode.All
@@ -456,32 +414,19 @@ class PlaybackController @Inject constructor(
         )
     }
 
-    /** Rebuilds the queue only when the timeline or shuffle changes, not on every position tick. */
+    /** Rebuilds the queue only when the timeline changes, not on every position tick. */
     private class QueueCache {
         private var timeline: Timeline? = null
-        private var shuffle = false
-        private var order: List<Int> = emptyList()
         private var queue: ImmutableList<QueueItem> = persistentListOf()
 
-        fun get(controller: MediaController): Pair<List<Int>, ImmutableList<QueueItem>> {
+        fun get(controller: MediaController): ImmutableList<QueueItem> {
             val current = controller.currentTimeline
-            if (current != timeline || controller.shuffleModeEnabled != shuffle) {
+            if (current != timeline) {
                 timeline = current
-                shuffle = controller.shuffleModeEnabled
-                order = playOrder(current, shuffle)
-                queue = order.map { index -> controller.getMediaItemAt(index).toQueueItem(index) }.toImmutableList()
+                queue = List(controller.mediaItemCount) { controller.getMediaItemAt(it).toQueueItem(it) }
+                    .toImmutableList()
             }
-            return order to queue
-        }
-
-        private fun playOrder(timeline: Timeline, shuffle: Boolean): List<Int> {
-            val order = ArrayList<Int>(timeline.windowCount)
-            var index = timeline.getFirstWindowIndex(shuffle)
-            while (index != C.INDEX_UNSET) {
-                order += index
-                index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, shuffle)
-            }
-            return order
+            return queue
         }
     }
 

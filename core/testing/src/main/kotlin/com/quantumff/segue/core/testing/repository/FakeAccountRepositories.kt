@@ -12,7 +12,6 @@ import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.ServerCapabilities
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
@@ -151,9 +150,6 @@ class FakeUserPreferencesRepository : UserPreferencesRepository {
     override suspend fun setAccentSource(source: AccentSource) = preferences.update { it.copy(accentSource = source) }
 
     override suspend fun setAccentPreset(preset: AccentPreset) = preferences.update { it.copy(accentPreset = preset) }
-
-    override suspend fun setDefaultShuffleMode(mode: ShuffleMode) =
-        preferences.update { it.copy(defaultShuffleMode = mode) }
 
     override suspend fun setWifiStreamingQuality(quality: StreamingQuality) =
         preferences.update { it.copy(wifiStreamingQuality = quality) }

@@ -23,6 +23,7 @@ import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.download.downloadedWhileOffline
+import com.quantumff.segue.core.data.repository.AlbumFeedRepository
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
@@ -60,6 +61,8 @@ class PlaybackComponents @Inject constructor(
     /** Android Auto browsing and search. */
     val mediaBrowse: MediaBrowseRepository,
     val albumShuffle: AlbumShuffleRepository,
+    /** "Play albums" / "Shuffle albums" feeds, persisted with the queue. */
+    val albumFeeds: AlbumFeedRepository,
     val search: SearchRepository,
     private val offlineMode: OfflineModeRepository,
     private val downloads: DownloadRepository,

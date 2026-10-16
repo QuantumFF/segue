@@ -42,7 +42,6 @@ import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
-import com.quantumff.segue.core.designsystem.component.ShuffleModeControl
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -51,8 +50,6 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.RemoteQueueOffer
-import com.quantumff.segue.core.model.RepeatMode
-import com.quantumff.segue.core.model.ShuffleMode
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
@@ -67,8 +64,6 @@ data class QueueActions(
     val onMove: (QueueMove) -> Unit = {},
     val onPlayNext: (QueueListItem.Track) -> Unit = {},
     val onRemove: (QueueListItem.Track) -> Unit = {},
-    val onShuffleModeSelect: (ShuffleMode) -> Unit = {},
-    val onRepeatClick: () -> Unit = {},
     val onHistoryClick: () -> Unit = {},
     val onContinueFromDevice: () -> Unit = {},
     val onDismissDevice: () -> Unit = {},
@@ -79,15 +74,13 @@ internal fun QueueViewModel.actions() = QueueActions(
     onMove = ::move,
     onPlayNext = ::playNext,
     onRemove = ::remove,
-    onShuffleModeSelect = ::setShuffleMode,
-    onRepeatClick = ::cycleRepeatMode,
     onHistoryClick = ::toggleHistory,
     onContinueFromDevice = ::continueFromOtherDevice,
     onDismissDevice = ::dismissOtherDevice,
 )
 
 /**
- * The queue, ready to embed (for example in Now Playing's Up next panel): shuffle control, the
+ * The queue, ready to embed (for example in Now Playing's Up next panel): the
  * "Continue from <device>" banner, and the reorderable list, with its own undo snackbar unless
  * [snackbarHostState] is given (then the host shows it). Clear and Save as playlist live in the
  * full-screen queue's menu.
@@ -119,7 +112,6 @@ fun QueueContent(
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     Column(modifier.fillMaxSize()) {
-        QueueControls(state.shuffleMode, state.repeatMode, actions)
         if (state.items.isEmpty() && state.remoteOffer == null) {
             if (!state.isLoading && rememberDelayedVisibility()) {
                 EmptyState(
@@ -132,40 +124,6 @@ fun QueueContent(
         } else {
             ReorderableQueueList(state, actions, listState, contentPadding)
         }
-    }
-}
-
-/** The shuffle segmented control (Off | Tracks | Albums) with the repeat toggle to its right. */
-@Composable
-private fun QueueControls(shuffleMode: ShuffleMode, repeatMode: RepeatMode, actions: QueueActions) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = SegueSpacing.lg, end = SegueSpacing.xs, top = SegueSpacing.sm, bottom = SegueSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ShuffleModeControl(
-            selected = shuffleMode,
-            onSelect = actions.onShuffleModeSelect,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(SegueSpacing.xs))
-        SegueIconButton(
-            icon = if (repeatMode == RepeatMode.One) SegueIcons.RepeatOne else SegueIcons.Repeat,
-            contentDescription = stringResource(
-                when (repeatMode) {
-                    RepeatMode.Off -> R.string.feature_queue_repeat_off
-                    RepeatMode.All -> R.string.feature_queue_repeat_all
-                    RepeatMode.One -> R.string.feature_queue_repeat_one
-                },
-            ),
-            onClick = actions.onRepeatClick,
-            tint = if (repeatMode == RepeatMode.Off) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.primary
-            },
-        )
     }
 }
 
@@ -242,14 +200,6 @@ private fun ReorderableQueueList(
                     modifier = Modifier.animateItem(),
                 )
 
-                is QueueListItem.AlbumHeader -> ReorderableItem(reorderState, key = row.key) { isDragging ->
-                    AlbumBlockHeader(
-                        header = row,
-                        isDragging = isDragging,
-                        handleModifier = dragModifier(row.key),
-                    )
-                }
-
                 is QueueListItem.Track -> ReorderableItem(reorderState, key = row.key) { isDragging ->
                     QueueSwipeBox(
                         onPlayNext = { actions.onPlayNext(row) },
@@ -271,10 +221,9 @@ private fun ReorderableQueueList(
 }
 
 /**
- * Keeps the current track in view, with the row above it (its album header in Albums shuffle):
- * on first show, on a shuffle mode change, and when the track changes while the previous current
- * track was on screen (so browsing further down is not interrupted). A newly offered queue from
- * another device scrolls its banner into view.
+ * Keeps the current track in view, with the row above it: on first show, and when the track
+ * changes while the previous current track was on screen (so browsing further down is not
+ * interrupted). A newly offered queue from another device scrolls its banner into view.
  */
 @Composable
 private fun AutoScrollToCurrent(
@@ -286,7 +235,7 @@ private fun AutoScrollToCurrent(
 ) {
     var previousKey by remember { mutableStateOf<String?>(null) }
     val latestRows by rememberUpdatedState(rows)
-    LaunchedEffect(state.currentKey, state.shuffleMode) {
+    LaunchedEffect(state.currentKey) {
         val key = state.currentKey ?: return@LaunchedEffect
         val previous = previousKey
         previousKey = key
@@ -378,33 +327,24 @@ private const val MILLIS_PER_SECOND = 1_000L
 internal val PreviewQueue = QueueUiState(
     items = persistentListOf(
         QueueListItem.History(count = 3, expanded = false),
-        QueueListItem.AlbumHeader("a#1", "In Rainbows", "Radiohead", null),
         QueueListItem.Track(
             key = "s1#1",
-            playPosition = 3,
-            timelineIndex = 5,
-            row = TrackRowState("s1#1", "Nude", "Radiohead", null, 255, isCurrent = true, isPlaying = true),
-            blockKey = "a#1",
+            position = 3,
+            row = TrackRowState("s1#1", "Nude", "Radiohead", "In Rainbows", 255, isCurrent = true, isPlaying = true),
         ),
         QueueListItem.Track(
             key = "s2#1",
-            playPosition = 4,
-            timelineIndex = 6,
-            row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", null, 318),
-            blockKey = "a#1",
+            position = 4,
+            row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", "In Rainbows", 318),
         ),
-        QueueListItem.AlbumHeader("b#1", "Kid A", "Radiohead", null),
         QueueListItem.Track(
             key = "s3#1",
-            playPosition = 5,
-            timelineIndex = 0,
-            row = TrackRowState("s3#1", "Everything in Its Right Place", "Radiohead", null, 251),
-            blockKey = "b#1",
+            position = 5,
+            row = TrackRowState("s3#1", "Everything in Its Right Place", "Radiohead", "Kid A", 251),
         ),
     ),
     currentKey = "s1#1",
     trackCount = 6,
-    shuffleMode = ShuffleMode.Albums,
     remoteOffer = RemoteQueueOffer("Feishin", 12, "Nude", positionMillis = 151_000, changedAt = null),
     isLoading = false,
 )

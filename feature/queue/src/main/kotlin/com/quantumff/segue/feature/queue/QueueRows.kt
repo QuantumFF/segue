@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,14 +39,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
-import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import kotlin.math.abs
@@ -81,52 +77,6 @@ internal fun QueueTrackRow(
     ) {
         TrackRow(state = state, onClick = onClick, modifier = Modifier.weight(1f))
         DragHandle(stringResource(R.string.feature_queue_reorder), handleModifier)
-    }
-}
-
-/** Albums shuffle: the 40-tall header that starts an album block (32 art, title, artist). */
-@Composable
-internal fun AlbumBlockHeader(
-    header: QueueListItem.AlbumHeader,
-    isDragging: Boolean,
-    modifier: Modifier = Modifier,
-    handleModifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(AlbumHeaderHeight)
-            .background(if (isDragging) colors.surfaceContainerHighest else Color.Transparent)
-            .padding(start = SegueSpacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CoverArt(
-            coverArtId = header.coverArtId,
-            displaySize = AlbumHeaderArt,
-            shape = SegueShapes.sm,
-            modifier = Modifier.size(AlbumHeaderArt),
-        )
-        Spacer(Modifier.width(SegueSpacing.md))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = header.title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            header.artist?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        DragHandle(stringResource(R.string.feature_queue_move_album), handleModifier)
     }
 }
 
@@ -285,8 +235,6 @@ private fun SwipeBackground(offset: () -> Float, modifier: Modifier = Modifier) 
     }
 }
 
-private val AlbumHeaderHeight = 40.dp
-private val AlbumHeaderArt = 32.dp
 private const val SWIPE_THRESHOLD = 0.4f
 private const val HALF_TURN = 180f
 private const val REMOVE_CONFIRM_TIMEOUT_MILLIS = 1_500L

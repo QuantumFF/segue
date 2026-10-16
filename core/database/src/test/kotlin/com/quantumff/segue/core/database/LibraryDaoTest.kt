@@ -1,13 +1,17 @@
 package com.quantumff.segue.core.database
 
+import androidx.paging.PagingSource
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
+import com.quantumff.segue.core.database.model.AlbumEntity
 import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
+import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.PlaylistEntity
 import com.quantumff.segue.core.database.model.ReplayGainEntity
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.DiscTitle
+import com.quantumff.segue.core.model.DownloadState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -139,6 +143,54 @@ class LibraryDaoTest {
         assertThat(db.songDao().observe("s2", "a").first()).isNotNull()
         assertThat(db.albumDao().ids("s2")).containsExactly("al")
         assertThat(db.playlistDao().observeAll("s1").first()).isEmpty()
+    }
+
+    @Test
+    fun `album IDs in view order match the paged Library albums for every sort`() = runTest {
+        val dao = db.albumDao()
+        dao.upsertAll(
+            listOf(
+                album("a1", name = "Greatest Hits", artist = "queen").copy(year = 1981, createdAt = 5, genre = "Rock"),
+                album("a2", name = "Greatest Hits", artist = "ABBA").copy(year = 1975, createdAt = 5, genre = "Pop"),
+                album("a3", name = "Kid A", artist = "Radiohead").copy(year = 2000, createdAt = 9, genre = "Rock"),
+                album("a4", name = "Amnesiac", artist = "radiohead").copy(year = 2001, createdAt = null),
+                album("a5", name = "Blue", artist = null).copy(year = null, createdAt = 1, starredAt = 3),
+                album("a0", name = "Greatest Hits", artist = "Queen").copy(year = 1981, createdAt = 5, genre = "Rock"),
+            ),
+        )
+
+        suspend fun ids(sort: String, genre: String? = null, starred: Boolean = false) =
+            dao.idsInViewOrder("s1", sort, starred, genre, null, downloadedOnly = false)
+
+        assertThat(ids("Name")).isEqualTo(dao.pagingSourceByName("s1", false, null, null).loadAllIds())
+        assertThat(ids("Artist")).isEqualTo(dao.pagingSourceByArtist("s1", false, null, null).loadAllIds())
+        assertThat(ids("RecentlyAdded"))
+            .isEqualTo(dao.pagingSourceByRecentlyAdded("s1", false, null, null).loadAllIds())
+        assertThat(ids("Year")).isEqualTo(dao.pagingSourceByYear("s1", false, null, null).loadAllIds())
+        // Duplicate names fall back to the album ID, so both lists agree on ties too.
+        assertThat(ids("Name").take(3)).containsExactly("a4", "a5", "a0").inOrder()
+        assertThat(ids("Year", genre = "Rock")).containsExactly("a3", "a0", "a1").inOrder()
+        assertThat(ids("Name", starred = true)).containsExactly("a5")
+    }
+
+    @Test
+    fun `album IDs in view order honour the downloaded filter`() = runTest {
+        db.albumDao().upsertAll(listOf(album("al1", name = "B"), album("al2", name = "A")))
+        db.songDao().upsertAll(listOf(song("a", albumId = "al1"), song("b", albumId = "al2")))
+        db.downloadDao().insertAll(
+            listOf(DownloadEntity(serverId = "s1", songId = "a", state = DownloadState.Completed, updatedAt = 0)),
+        )
+
+        assertThat(db.albumDao().idsInViewOrder("s1", "Name", false, null, null, downloadedOnly = true))
+            .containsExactly("al1")
+        assertThat(db.albumDao().idsInViewOrder("s1", "Name", false, null, null, downloadedOnly = false))
+            .containsExactly("al2", "al1")
+            .inOrder()
+    }
+
+    private suspend fun PagingSource<Int, AlbumEntity>.loadAllIds(): List<String> {
+        val result = load(PagingSource.LoadParams.Refresh(key = null, loadSize = 100, placeholdersEnabled = false))
+        return (result as PagingSource.LoadResult.Page).data.map { it.id }
     }
 
     private fun playlist(id: String) = PlaylistEntity(serverId = "s1", id = id, name = id)

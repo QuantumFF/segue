@@ -5,7 +5,6 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.testing.FakePlayQueueRemoteRepository
 import com.quantumff.segue.core.playback.testing.FakeQueueSnapshotRepository
@@ -170,7 +169,7 @@ class QueueSyncEngineTest {
     @Test
     fun `auto adopt keeps the previous local queue for undo, once`() = runTest {
         preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
-        snapshots.save(listOf("x", "y"), 1, 9_000, ShuffleMode.Tracks, listOf(1, 0))
+        snapshots.save(listOf("x", "y"), 1, 9_000)
         remote.queue = remoteQueue()
         val engine = engine()
         engine.adoptions.test {
@@ -181,7 +180,6 @@ class QueueSyncEngineTest {
         val undo = engine.takeAdoptionUndo()
         assertThat(undo?.songIds).containsExactly("x", "y").inOrder()
         assertThat(undo?.positionMillis).isEqualTo(9_000)
-        assertThat(undo?.playOrder).containsExactly(1, 0).inOrder()
         assertThat(engine.takeAdoptionUndo()).isNull()
     }
 
@@ -279,49 +277,6 @@ class QueueSyncEngineTest {
         engine.checkRemote(isPlayingLocally = false)
         assertThat(engine.remoteOffer.value).isNull()
         assertThat(remote.fetches).isEqualTo(0)
-    }
-
-    // --- Shuffle -----------------------------------------------------------------------------
-
-    @Test
-    fun `a shuffled queue is snapshotted with its shuffle and uploaded in play order`() = runTest {
-        val shuffled = QueueState(
-            songIds = listOf("a1", "a2", "b1", "b2"),
-            currentIndex = 2,
-            positionMillis = 7_000,
-            shuffleMode = ShuffleMode.Albums,
-            playOrder = listOf(2, 3, 0, 1),
-        )
-        val engine = engine()
-        engine.onQueueEvent(QueueEvent.QueueEdit, shuffled)
-        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
-
-        assertThat(snapshots.saves).containsExactly(shuffled)
-        assertThat(remote.saves).containsExactly(QueueState(listOf("b1", "b2", "a1", "a2"), 0, 7_000))
-    }
-
-    @Test
-    fun `a reshuffle that keeps the play order uploads nothing new`() = runTest {
-        val tracks = QueueState(listOf("a", "b"), 0, 0, ShuffleMode.Tracks, listOf(0, 1))
-        val engine = engine()
-        engine.onQueueEvent(QueueEvent.QueueEdit, tracks)
-        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
-        engine.onQueueEvent(QueueEvent.QueueEdit, tracks.copy(shuffleMode = ShuffleMode.Off, playOrder = null))
-        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
-
-        assertThat(remote.saves).hasSize(1)
-        assertThat(snapshots.saves).hasSize(2)
-    }
-
-    @Test
-    fun `a restored shuffled queue is not uploaded again`() = runTest {
-        val shuffled = QueueState(listOf("a", "b", "c"), 1, 0, ShuffleMode.Tracks, listOf(1, 2, 0))
-        val engine = engine()
-        engine.markRestored(shuffled)
-        engine.onAppBackground(shuffled)
-        advanceTimeBy(10_000)
-        assertThat(remote.saves).isEmpty()
-        assertThat(snapshots.saves).isEmpty()
     }
 
     // --- Clock skew ---------------------------------------------------------------------------

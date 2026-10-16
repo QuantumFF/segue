@@ -9,7 +9,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
-import com.quantumff.segue.core.model.ShuffleMode
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -45,7 +44,6 @@ internal object NowPlayingPreferences {
     val ARTIST = stringPreferencesKey("artist")
     val COVER_ART_ID = stringPreferencesKey("coverArtId")
     val PLAYING = booleanPreferencesKey("playing")
-    val SHUFFLE = stringPreferencesKey("shuffle")
 
     fun read(prefs: Preferences) = NowPlayingSnapshot(
         songId = prefs[SONG_ID],
@@ -53,7 +51,6 @@ internal object NowPlayingPreferences {
         artist = prefs[ARTIST],
         coverArtId = prefs[COVER_ART_ID],
         isPlaying = prefs[PLAYING] ?: false,
-        shuffleMode = ShuffleMode.entries.firstOrNull { it.name == prefs[SHUFFLE] } ?: ShuffleMode.Off,
     )
 
     fun write(prefs: MutablePreferences, snapshot: NowPlayingSnapshot) {
@@ -62,7 +59,6 @@ internal object NowPlayingPreferences {
         prefs.set(ARTIST, snapshot.artist)
         prefs.set(COVER_ART_ID, snapshot.coverArtId)
         prefs[PLAYING] = snapshot.isPlaying
-        prefs[SHUFFLE] = snapshot.shuffleMode.name
     }
 
     private fun <T> MutablePreferences.set(key: Preferences.Key<T>, value: T?) {

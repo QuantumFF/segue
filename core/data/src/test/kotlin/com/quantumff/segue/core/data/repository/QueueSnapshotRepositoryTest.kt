@@ -6,7 +6,6 @@ import com.quantumff.segue.core.data.testing.FakeClock
 import com.quantumff.segue.core.data.testing.FakeSubsonicClient
 import com.quantumff.segue.core.data.testing.inMemoryDatabase
 import com.quantumff.segue.core.model.QueueSnapshot
-import com.quantumff.segue.core.model.ShuffleMode
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -25,32 +24,17 @@ class QueueSnapshotRepositoryTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `a shuffled snapshot keeps its mode and play order`() = runTest {
-        repository.save(listOf("a", "b", "c"), 1, 500, ShuffleMode.Albums, listOf(1, 2, 0))
+    fun `a snapshot keeps the queue in order with duplicates, and where playback was`() = runTest {
+        repository.save(listOf("b", "a", "b"), 1, 500)
 
-        val snapshot = repository.snapshot.first()!!
-        assertThat(snapshot).isEqualTo(
+        assertThat(repository.snapshot.first()).isEqualTo(
             QueueSnapshot(
-                songIds = persistentListOf("a", "b", "c"),
+                songIds = persistentListOf("b", "a", "b"),
                 currentIndex = 1,
                 positionMillis = 500,
                 updatedAt = clock.nowMillis(),
-                shuffleMode = ShuffleMode.Albums,
-                playOrder = persistentListOf(1, 2, 0),
             ),
         )
-        assertThat(snapshot.songIdsInPlayOrder).containsExactly("b", "c", "a").inOrder()
-        assertThat(snapshot.currentIndexInPlayOrder).isEqualTo(0)
-    }
-
-    @Test
-    fun `an unshuffled snapshot has no play order`() = runTest {
-        repository.save(listOf("a", "b"), 1, 0)
-
-        val snapshot = repository.snapshot.first()!!
-        assertThat(snapshot.shuffleMode).isEqualTo(ShuffleMode.Off)
-        assertThat(snapshot.playOrder).isNull()
-        assertThat(snapshot.songIdsInPlayOrder).containsExactly("a", "b").inOrder()
     }
 
     @Test

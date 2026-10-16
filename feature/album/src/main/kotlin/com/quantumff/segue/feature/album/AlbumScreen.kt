@@ -73,7 +73,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumShuffleSource
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.PlayActions
@@ -571,7 +571,7 @@ internal fun handleAlbumAction(
         MediaAction.Shuffle -> onPlay(0, true)
 
         MediaAction.ShuffleArtistAlbums, MediaAction.ShuffleAlbums ->
-            artistId?.let { playActions.onShuffleAlbums(AlbumShuffleSource.Artist(it)) }
+            artistId?.let { playActions.shuffleAlbums(AlbumSource.Artist(it)) }
 
         MediaAction.PlayNext -> if (state.songs.isNotEmpty()) playActions.onPlayNext(state.songs)
 

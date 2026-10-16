@@ -25,9 +25,6 @@
     <string name="ds_download_paused">Download paused</string>
     <string name="ds_download_failed">Download failed</string>
     <string name="ds_now_playing">Now playing</string>
-    <string name="ds_shuffle_off">Off</string>
-    <string name="ds_shuffle_tracks">Tracks</string>
-    <string name="ds_shuffle_albums">Albums</string>
     <string name="ds_continue_from">Continue from %1$s</string>
     <string name="ds_continue">Continue</string>
     <string name="ds_dismiss">Dismiss</string>
@@ -36,6 +33,8 @@
     <string name="ds_playing_from">Playing from %1$s</string>
     <string name="ds_overline_album">Album</string>
     <string name="ds_action_shuffle_albums">Shuffle albums</string>
+    <string name="ds_play_albums">Play albums</string>
+    <string name="ds_queue_options">%1$s: queue options</string>
     <string name="ds_action_shuffle_artist_albums">Shuffle albums by artist</string>
     <string name="ds_action_play_next">Play next</string>
     <string name="ds_action_add_to_queue">Add to queue</string>
