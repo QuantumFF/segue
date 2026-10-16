@@ -4,10 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
@@ -19,13 +17,11 @@ import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
-import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
-import com.quantumff.segue.core.playback.media.toQueueItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
@@ -38,9 +34,6 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -87,7 +80,7 @@ class PlaybackController @Inject constructor(
 
     /** The connected controller, or null while disconnected (for example after the service stopped). */
     private val connected = MutableStateFlow<MediaController?>(null)
-    private val queueCache = QueueCache()
+    private val projection = PlayerUiStateProjection()
 
     private class Removal(val item: MediaItem, val timelineIndex: Int)
 
@@ -119,7 +112,7 @@ class PlaybackController @Inject constructor(
                     flowOf(PlayerUiState())
                 } else {
                     controller.events()
-                        .combine(sessionExtras) { _, extras -> snapshot(controller, extras) }
+                        .combine(sessionExtras) { _, extras -> projection.project(controller, extras) }
                 }
             },
         )
@@ -214,13 +207,7 @@ class PlaybackController @Inject constructor(
 
     fun skipToPrevious() = command { it.seekToPrevious() }
 
-    fun setRepeatMode(mode: RepeatMode) = command { controller ->
-        controller.repeatMode = when (mode) {
-            RepeatMode.Off -> Player.REPEAT_MODE_OFF
-            RepeatMode.All -> Player.REPEAT_MODE_ALL
-            RepeatMode.One -> Player.REPEAT_MODE_ONE
-        }
-    }
+    fun setRepeatMode(mode: RepeatMode) = command { it.repeatMode = mode.playerRepeatMode }
 
     /** Starts, replaces, or (with null) cancels the sleep timer. */
     fun setSleepTimer(timer: SleepTimer?) = command { controller ->
@@ -363,43 +350,6 @@ class PlaybackController @Inject constructor(
         while (true) {
             emit(snapshot.copy(positionMillis = controller.currentPosition))
             delay(POSITION_TICK_MILLIS)
-        }
-    }
-
-    private fun snapshot(controller: MediaController, extras: Bundle): PlayerUiState {
-        val queue = queueCache.get(controller)
-        val queueIndex = controller.currentMediaItemIndex.takeIf { it in queue.indices } ?: -1
-        val current = queue.getOrNull(queueIndex)
-        return PlayerUiState(
-            currentItem = current,
-            currentQueueIndex = queueIndex,
-            isPlaying = controller.isPlaying,
-            isBuffering = controller.playbackState == Player.STATE_BUFFERING,
-            positionMillis = controller.currentPosition,
-            durationMillis = controller.duration.takeIf { it != C.TIME_UNSET } ?: current?.durationMillis ?: 0,
-            queue = queue,
-            repeatMode = when (controller.repeatMode) {
-                Player.REPEAT_MODE_ONE -> RepeatMode.One
-                Player.REPEAT_MODE_ALL -> RepeatMode.All
-                else -> RepeatMode.Off
-            },
-            sleepTimer = SegueSessionCommands.sleepTimer(extras),
-        )
-    }
-
-    /** Rebuilds the queue only when the timeline changes, not on every position tick. */
-    private class QueueCache {
-        private var timeline: Timeline? = null
-        private var queue: ImmutableList<QueueItem> = persistentListOf()
-
-        fun get(controller: MediaController): ImmutableList<QueueItem> {
-            val current = controller.currentTimeline
-            if (current != timeline) {
-                timeline = current
-                queue = List(controller.mediaItemCount) { controller.getMediaItemAt(it).toQueueItem(it) }
-                    .toImmutableList()
-            }
-            return queue
         }
     }
 
