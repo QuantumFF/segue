@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
@@ -17,20 +17,17 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistAlbums
 import com.quantumff.segue.core.model.ArtistInfo
-import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,7 +48,7 @@ class ArtistViewModel @Inject constructor(
     private val albumRepository: AlbumRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val artistId: String = checkNotNull(savedStateHandle[ARTIST_ID_KEY]) { "Missing $ARTIST_ID_KEY" }
 
@@ -65,13 +62,8 @@ class ArtistViewModel @Inject constructor(
         artistRepository.artistAlbums(artistId),
         combine(remote, refresh, ::Pair),
         combine(message, busy, ::Pair),
-        combine(
-            downloadRepository.pinStatus(PinKind.Artist, artistId),
-            downloadRepository.songDownloads,
-            offlineModeRepository.isOffline,
-            ::Triple,
-        ),
-    ) { artist, albums, (remote, refresh), (message, busy), (download, songDownloads, offline) ->
+        combine(downloadRepository.pinStatus(PinKind.Artist, artistId), offlineView.songAvailability, ::Pair),
+    ) { artist, albums, (remote, refresh), (message, busy), (download, availability) ->
         when {
             artist != null -> {
                 val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
@@ -87,8 +79,7 @@ class ArtistViewModel @Inject constructor(
                     isPreparingPlayback = busy,
                     message = message,
                     download = download,
-                    songDownloads = songDownloads,
-                    isOfflineMode = offline,
+                    availability = availability,
                 )
             }
 
@@ -261,13 +252,9 @@ sealed interface ArtistUiState {
         val message: ArtistMessage? = null,
         /** The artist's pin status; null when it is not pinned for offline. */
         val download: DownloadStatus? = null,
-        val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
-        /** Offline mode: top songs that are not downloaded are dimmed and do not play. */
-        val isOfflineMode: Boolean = false,
+        /** Row badges; offline, top songs that are not downloaded are dimmed and do not play. */
+        val availability: SongAvailability = SongAvailability(),
     ) : ArtistUiState {
-        fun isAvailable(song: Song): Boolean =
-            !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
-
         val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
     }
 }

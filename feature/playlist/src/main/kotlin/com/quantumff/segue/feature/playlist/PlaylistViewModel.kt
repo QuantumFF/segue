@@ -4,23 +4,20 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
-import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,13 +50,9 @@ data class PlaylistUiState(
     val message: PlaylistMessage? = null,
     /** The playlist's pin status; null when it is not pinned for offline. */
     val download: DownloadStatus? = null,
-    /** Downloads by song ID, for row badges. */
-    val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
-    /** Offline mode: rows of songs that are not downloaded are dimmed and do not play. */
-    val isOfflineMode: Boolean = false,
+    /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
+    val availability: SongAvailability = SongAvailability(),
 ) {
-    fun isAvailable(song: Song): Boolean = !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
-
     /** Only the owner's playlists can be edited, renamed or deleted. */
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
 
@@ -76,7 +69,7 @@ class PlaylistViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
     private val local = MutableStateFlow(LocalState())
@@ -85,17 +78,11 @@ class PlaylistViewModel @Inject constructor(
         playlistRepository.playlist(playlistId),
         playlistRepository.playlistSongs(playlistId),
         local,
-        combine(
-            downloadRepository.pinStatus(PinKind.Playlist, playlistId),
-            downloadRepository.songDownloads,
-            offlineModeRepository.isOffline,
-            ::Triple,
-        ),
-    ) { playlist, songs, local, (download, songDownloads, offline) ->
+        combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
+    ) { playlist, songs, local, (download, availability) ->
         PlaylistUiState(
             download = download,
-            songDownloads = songDownloads,
-            isOfflineMode = offline,
+            availability = availability,
             playlist = playlist,
             entries = local.working ?: songs.toEntries(),
             loadState = when {

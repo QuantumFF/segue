@@ -3,9 +3,7 @@ package com.quantumff.segue.feature.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
-import com.quantumff.segue.core.data.download.downloadedWhileOffline
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
@@ -88,8 +86,7 @@ class SearchViewModel @Inject constructor(
     private val preferences: UserPreferencesRepository,
     private val starRating: StarRatingRepository,
     libraryRepository: LibraryRepository,
-    private val downloadRepository: DownloadRepository,
-    private val offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val queryState = MutableStateFlow("")
 
@@ -104,7 +101,7 @@ class SearchViewModel @Inject constructor(
 
     private val results: Flow<SearchResults> = combine(
         queryState.map { it.trim() }.distinctUntilChanged(),
-        offlineModeRepository.downloadedWhileOffline(downloadRepository),
+        offlineView.downloadedWhileOffline,
         ::Pair,
     )
         // Every keystroke searches Room at once; the server is asked after a 300ms pause (see search()).

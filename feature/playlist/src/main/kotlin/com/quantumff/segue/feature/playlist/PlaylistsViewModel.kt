@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
@@ -18,8 +18,6 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -58,21 +56,19 @@ class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     serverRepository: ServerRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
     val uiState: StateFlow<PlaylistsUiState> = combine(
-        playlistRepository.playlists,
+        offlineView.playlists,
         serverRepository.activeServer,
         local,
-        downloadRepository.overview.map { overview ->
-            overview.pins.filter { it.kind == PinKind.Playlist }.associate { it.id to it.status }.toImmutableMap()
-        },
-        offlineModeRepository.isOffline,
+        offlineView.pinStatuses.map { it[PinKind.Playlist] },
+        offlineView.isOffline,
     ) { playlists, server, local, downloads, offline ->
         PlaylistsUiState(
-            playlists = if (offline) playlists.filter { it.id in downloads }.toImmutableList() else playlists,
+            playlists = playlists,
             downloads = downloads,
             isOffline = offline,
             serverName = server?.name,

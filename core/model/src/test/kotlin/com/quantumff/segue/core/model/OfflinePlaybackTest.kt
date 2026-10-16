@@ -43,11 +43,9 @@ class OfflinePlaybackTest {
     }
 
     @Test
-    fun `queueing and row availability follow the downloaded set only when offline`() {
+    fun `queueing follows the downloaded set only when offline`() {
         assertThat(OfflinePlayback.queueable(songs, isOffline = true, downloaded = setOf("b")).map { it.id })
             .containsExactly("b")
         assertThat(OfflinePlayback.queueable(songs, isOffline = false, downloaded = emptySet())).hasSize(4)
-        assertThat(OfflinePlayback.isAvailable("a", isOffline = true, downloaded = emptySet())).isFalse()
-        assertThat(OfflinePlayback.isAvailable("a", isOffline = false, downloaded = emptySet())).isTrue()
     }
 }

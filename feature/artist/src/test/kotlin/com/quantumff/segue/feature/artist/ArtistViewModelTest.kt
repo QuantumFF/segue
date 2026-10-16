@@ -20,6 +20,7 @@ import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
@@ -54,7 +55,7 @@ class ArtistViewModelTest {
         albumRepository = albums,
         starRatingRepository = stars,
         downloadRepository = downloads,
-        offlineModeRepository = offlineMode,
+        offlineView = offlineLibraryView(offlineMode, downloads),
     )
 
     private val downloads = FakeDownloadRepository()

@@ -1,5 +1,8 @@
 package com.quantumff.segue.core.model
 
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentMapOf
+
 /** A play request narrowed to what can play: the songs and where to start among them. */
 data class PlayableSelection(val songs: List<Song>, val startIndex: Int)
 
@@ -22,8 +25,16 @@ object OfflinePlayback {
     /** Songs to queue (play next, add to queue): the downloaded ones when offline. */
     fun queueable(songs: List<Song>, isOffline: Boolean, downloaded: Set<String>): List<Song> =
         if (isOffline) songs.filter { it.id in downloaded } else songs
+}
 
-    /** Whether a track row is enabled: always online, only when downloaded offline (DESIGN.md §5.2). */
-    fun isAvailable(songId: String, isOffline: Boolean, downloaded: Set<String>): Boolean =
-        !isOffline || songId in downloaded
+/**
+ * Which track rows are enabled, with the downloads behind their badges. Online every row is;
+ * offline only rows of fully downloaded songs (DESIGN.md §5.2).
+ */
+data class SongAvailability(
+    val isOffline: Boolean = false,
+    /** Downloads by song ID, for row badges. */
+    val downloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
+) {
+    fun isAvailable(song: Song): Boolean = !isOffline || downloads[song.id]?.state == DownloadState.Completed
 }

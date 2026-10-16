@@ -268,8 +268,8 @@ fun PlaylistScreenContent(
                     key = { _, entry -> entry.key },
                     contentType = { _, _ -> "track" },
                 ) { index, entry ->
-                    val download = uiState.songDownloads[entry.song.id]
-                    val available = uiState.isAvailable(entry.song)
+                    val download = uiState.availability.downloads[entry.song.id]
+                    val available = uiState.availability.isAvailable(entry.song)
                     TrackRow(
                         state = remember(entry, download, available) {
                             entry.song.toTrackRowState(
