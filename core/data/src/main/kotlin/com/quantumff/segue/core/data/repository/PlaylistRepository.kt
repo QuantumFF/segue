@@ -18,6 +18,7 @@ import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -29,6 +30,12 @@ interface PlaylistRepository {
 
     /** In playlist order; a song added twice appears twice. */
     fun playlistSongs(id: String): Flow<ImmutableList<Song>>
+
+    /**
+     * The playlist's songs in playlist order, for playing it from a card or menu: from Room, or
+     * fetched first when the playlist's songs have not been synced yet. Throws RemoteException.
+     */
+    suspend fun songsForPlayback(id: String): ImmutableList<Song>
 
     /** Refetches playlists whose `changed` moved and drops those deleted on the server. */
     suspend fun refreshPlaylists()
@@ -70,6 +77,11 @@ internal class OfflineFirstPlaylistRepository @Inject constructor(
 
     override fun playlistSongs(id: String): Flow<ImmutableList<Song>> =
         clients.listForActiveServer({ serverId -> playlistDao.observeSongs(serverId, id) }, SongEntity::asExternalModel)
+
+    override suspend fun songsForPlayback(id: String): ImmutableList<Song> = playlistSongs(id).first().ifEmpty {
+        refreshPlaylist(id)
+        playlistSongs(id).first()
+    }
 
     override suspend fun refreshPlaylists() {
         val serverId = clients.requireActiveServerId()

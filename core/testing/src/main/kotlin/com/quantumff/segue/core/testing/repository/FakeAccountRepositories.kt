@@ -88,6 +88,13 @@ class FakePlaylistRepository : PlaylistRepository {
     override fun playlistSongs(id: String): Flow<ImmutableList<Song>> =
         songsByPlaylist.map { it[id].orEmpty().toImmutableList() }
 
+    /** Cached songs, or a refresh first (recorded in [refreshed], throwing [error]) when there are none. */
+    override suspend fun songsForPlayback(id: String): ImmutableList<Song> =
+        songsByPlaylist.value[id].orEmpty().ifEmpty {
+            refreshPlaylist(id)
+            songsByPlaylist.value[id].orEmpty()
+        }.toImmutableList()
+
     override suspend fun refreshPlaylists() {
         refreshAllCount++
         error?.let { throw it }
