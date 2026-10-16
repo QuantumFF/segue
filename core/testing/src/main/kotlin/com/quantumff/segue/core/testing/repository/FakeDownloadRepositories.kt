@@ -1,8 +1,12 @@
 package com.quantumff.segue.core.testing.repository
 
 import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.repository.ArtistRepository
+import com.quantumff.segue.core.data.repository.LibraryRepository
+import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.DownloadStatus
@@ -83,3 +87,12 @@ class FakeDownloadRepository : DownloadRepository {
 class FakeOfflineModeRepository(offline: Boolean = false) : OfflineModeRepository {
     override val isOffline = MutableStateFlow(offline)
 }
+
+/** The real [OfflineLibraryView] over fakes; pass the ones a test drives. */
+fun offlineLibraryView(
+    offlineMode: OfflineModeRepository = FakeOfflineModeRepository(),
+    downloads: DownloadRepository = FakeDownloadRepository(),
+    artists: ArtistRepository = FakeArtistRepository(),
+    library: LibraryRepository = FakeLibraryRepository(),
+    playlists: PlaylistRepository = FakePlaylistRepository(),
+) = OfflineLibraryView(offlineMode, downloads, artists, library, playlists)

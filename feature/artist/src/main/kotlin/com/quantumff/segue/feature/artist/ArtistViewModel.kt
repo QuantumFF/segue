@@ -4,9 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.getOrNull
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
@@ -17,20 +20,17 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistAlbums
 import com.quantumff.segue.core.model.ArtistInfo
-import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,11 +51,12 @@ class ArtistViewModel @Inject constructor(
     private val albumRepository: AlbumRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val artistId: String = checkNotNull(savedStateHandle[ARTIST_ID_KEY]) { "Missing $ARTIST_ID_KEY" }
 
-    private val refresh = MutableStateFlow(RefreshState.Running)
+    /** The last refresh's outcome; null while one runs. */
+    private val refresh = MutableStateFlow<RemoteOutcome<Unit>?>(null)
     private val remote = MutableStateFlow(RemoteSections())
     private val message = MutableStateFlow<ArtistMessage?>(null)
     private val busy = MutableStateFlow(false)
@@ -65,13 +66,8 @@ class ArtistViewModel @Inject constructor(
         artistRepository.artistAlbums(artistId),
         combine(remote, refresh, ::Pair),
         combine(message, busy, ::Pair),
-        combine(
-            downloadRepository.pinStatus(PinKind.Artist, artistId),
-            downloadRepository.songDownloads,
-            offlineModeRepository.isOffline,
-            ::Triple,
-        ),
-    ) { artist, albums, (remote, refresh), (message, busy), (download, songDownloads, offline) ->
+        combine(downloadRepository.pinStatus(PinKind.Artist, artistId), offlineView.songAvailability, ::Pair),
+    ) { artist, albums, (remote, refresh), (message, busy), (download, availability) ->
         when {
             artist != null -> {
                 val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
@@ -83,18 +79,17 @@ class ArtistViewModel @Inject constructor(
                     similarArtists = remote.info?.similarArtists ?: persistentListOf(),
                     biography = remote.info?.biography,
                     trackCount = albums.sumOf { it.songCount },
-                    isOffline = refresh == RefreshState.Failed,
+                    isOffline = refresh is RemoteOutcome.Failed,
                     isPreparingPlayback = busy,
                     message = message,
                     download = download,
-                    songDownloads = songDownloads,
-                    isOfflineMode = offline,
+                    availability = availability,
                 )
             }
 
-            refresh == RefreshState.Running -> ArtistUiState.Loading
+            refresh == null -> ArtistUiState.Loading
 
-            refresh == RefreshState.NotFound -> ArtistUiState.NotFound
+            refresh is RemoteOutcome.NotFound -> ArtistUiState.NotFound
 
             else -> ArtistUiState.Error
         }
@@ -105,22 +100,15 @@ class ArtistViewModel @Inject constructor(
     }
 
     fun refresh() {
-        refresh.value = RefreshState.Running
+        refresh.value = null
         viewModelScope.launch {
             launch {
-                val info = runCatchingRemote { artistRepository.artistInfo(artistId) }
+                val info = remoteOutcome { artistRepository.artistInfo(artistId) }.getOrNull()
                 remote.update { it.copy(info = info) }
             }
-            refresh.value = try {
-                artistRepository.refreshArtist(artistId)
-                RefreshState.Done
-            } catch (_: RemoteException.NotFound) {
-                RefreshState.NotFound
-            } catch (_: RemoteException) {
-                RefreshState.Failed
-            }
+            refresh.value = remoteOutcome { artistRepository.refreshArtist(artistId) }
             // getTopSongs needs the artist's name, which the refresh stores on a first visit.
-            val top = runCatchingRemote { artistRepository.topSongs(artistId) }
+            val top = remoteOutcome { artistRepository.topSongs(artistId) }.getOrNull()
             remote.update { it.copy(topSongs = top ?: persistentListOf()) }
         }
     }
@@ -150,7 +138,7 @@ class ArtistViewModel @Inject constructor(
     fun startInstantMix(playActions: PlayActions) {
         busy.value = true
         viewModelScope.launch {
-            val songs = runCatchingRemote { artistRepository.similarSongs(artistId) }
+            val songs = remoteOutcome { artistRepository.similarSongs(artistId) }.getOrNull()
             busy.value = false
             when {
                 songs == null -> message.value = ArtistMessage.LoadFailed
@@ -169,9 +157,10 @@ class ArtistViewModel @Inject constructor(
     fun download() {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
         viewModelScope.launch {
-            runCatchingRemote {
+            val outcome = remoteOutcome {
                 downloadRepository.pin(PinTarget(PinKind.Artist, artist.id, artist.name, artist.coverArtId))
-            } ?: run { message.value = ArtistMessage.DownloadFailed }
+            }
+            if (outcome.isFailure) message.value = ArtistMessage.DownloadFailed
         }
     }
 
@@ -181,8 +170,9 @@ class ArtistViewModel @Inject constructor(
 
     fun downloadSong(song: Song) {
         viewModelScope.launch {
-            runCatchingRemote { downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId)) }
-                ?: run { message.value = ArtistMessage.DownloadFailed }
+            val outcome =
+                remoteOutcome { downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId)) }
+            if (outcome.isFailure) message.value = ArtistMessage.DownloadFailed
         }
     }
 
@@ -202,7 +192,7 @@ class ArtistViewModel @Inject constructor(
         if (albums.isEmpty()) return
         busy.value = true
         viewModelScope.launch {
-            val songs = runCatchingRemote { albums.flatMap { albumRepository.songsForPlayback(it.id) } }
+            val songs = remoteOutcome { albums.flatMap { albumRepository.songsForPlayback(it.id) } }.getOrNull()
             busy.value = false
             if (songs == null) message.value = ArtistMessage.LoadFailed else block(songs)
         }
@@ -218,18 +208,10 @@ class ArtistViewModel @Inject constructor(
         }
     }
 
-    private inline fun <T> runCatchingRemote(block: () -> T): T? = try {
-        block()
-    } catch (_: RemoteException) {
-        null
-    }
-
     private data class RemoteSections(
         val topSongs: ImmutableList<Song> = persistentListOf(),
         val info: ArtistInfo? = null,
     )
-
-    private enum class RefreshState { Running, Done, Failed, NotFound }
 
     companion object {
         /** The [com.quantumff.segue.feature.artist.navigation.ArtistRoute] argument. */
@@ -261,13 +243,9 @@ sealed interface ArtistUiState {
         val message: ArtistMessage? = null,
         /** The artist's pin status; null when it is not pinned for offline. */
         val download: DownloadStatus? = null,
-        val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
-        /** Offline mode: top songs that are not downloaded are dimmed and do not play. */
-        val isOfflineMode: Boolean = false,
+        /** Row badges; offline, top songs that are not downloaded are dimmed and do not play. */
+        val availability: SongAvailability = SongAvailability(),
     ) : ArtistUiState {
-        fun isAvailable(song: Song): Boolean =
-            !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
-
         val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
     }
 }

@@ -13,6 +13,7 @@ import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,7 +55,8 @@ class SearchViewModelTest {
     )
 
     private fun TestScope.viewModel(): SearchViewModel {
-        val viewModel = SearchViewModel(search, preferences, starRating, library, downloads, offline)
+        val viewModel =
+            SearchViewModel(search, preferences, starRating, library, offlineLibraryView(offline, downloads))
         backgroundScope.launch { viewModel.uiState.collect {} }
         return viewModel
     }

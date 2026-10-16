@@ -10,6 +10,7 @@ import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -37,7 +38,7 @@ class PlaylistViewModelTest {
             playlists,
             stars,
             downloads,
-            offlineMode,
+            offlineLibraryView(offlineMode, downloads, playlists = playlists),
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flowOf
 /**
  * What is downloaded while offline, and null while online: what browse lists narrow to (see
  * [com.quantumff.segue.core.model.OfflineLibrary]). The downloads are observed only while offline.
+ * Screens read it through [OfflineLibraryView.downloadedWhileOffline].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun OfflineModeRepository.downloadedWhileOffline(downloads: DownloadRepository): Flow<DownloadedLibrary?> =

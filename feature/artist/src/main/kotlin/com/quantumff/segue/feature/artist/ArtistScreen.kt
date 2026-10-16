@@ -319,8 +319,8 @@ private fun ArtistContent(
                     index,
                     song,
                 ->
-                val download = state.songDownloads[song.id]
-                val available = state.isAvailable(song)
+                val download = state.availability.downloads[song.id]
+                val available = state.availability.isAvailable(song)
                 val row = remember(song, download, available) {
                     song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
                 }

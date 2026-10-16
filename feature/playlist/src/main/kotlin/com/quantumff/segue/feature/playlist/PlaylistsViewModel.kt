@@ -2,10 +2,10 @@ package com.quantumff.segue.feature.playlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.model.DownloadStatus
@@ -18,8 +18,6 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -58,21 +56,19 @@ class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     serverRepository: ServerRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
     val uiState: StateFlow<PlaylistsUiState> = combine(
-        playlistRepository.playlists,
+        offlineView.playlists,
         serverRepository.activeServer,
         local,
-        downloadRepository.overview.map { overview ->
-            overview.pins.filter { it.kind == PinKind.Playlist }.associate { it.id to it.status }.toImmutableMap()
-        },
-        offlineModeRepository.isOffline,
+        offlineView.pinStatuses.map { it[PinKind.Playlist] },
+        offlineView.isOffline,
     ) { playlists, server, local, downloads, offline ->
         PlaylistsUiState(
-            playlists = if (offline) playlists.filter { it.id in downloads }.toImmutableList() else playlists,
+            playlists = playlists,
             downloads = downloads,
             isOffline = offline,
             serverName = server?.name,
@@ -84,7 +80,7 @@ class PlaylistsViewModel @Inject constructor(
 
     init {
         // On entry a failure stays silent: the cached list is shown (offline is first-class).
-        viewModelScope.launch { runRemote { playlistRepository.refreshPlaylists() } }
+        viewModelScope.launch { remoteOutcome { playlistRepository.refreshPlaylists() } }
     }
 
     /** Pull-to-refresh. Reports a failure, since the user asked for it. */
@@ -92,7 +88,7 @@ class PlaylistsViewModel @Inject constructor(
         if (local.value.refreshing) return
         local.update { it.copy(refreshing = true) }
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.refreshPlaylists() }
+            val failed = remoteOutcome { playlistRepository.refreshPlaylists() }.isFailure
             local.update { it.copy(refreshing = false, message = if (failed) PlaylistMessage.Failed else it.message) }
         }
     }
@@ -114,7 +110,7 @@ class PlaylistsViewModel @Inject constructor(
         viewModelScope.launch {
             val cached = playlistRepository.playlistSongs(playlistId).first()
             val songs = cached.ifEmpty {
-                if (runRemote { playlistRepository.refreshPlaylist(playlistId) }) {
+                if (remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }.isFailure) {
                     local.update { it.copy(message = PlaylistMessage.Failed) }
                     return@launch
                 }
@@ -128,19 +124,11 @@ class PlaylistsViewModel @Inject constructor(
 
     private fun write(block: suspend () -> Unit) {
         viewModelScope.launch {
-            if (runRemote(block)) local.update { it.copy(message = PlaylistMessage.Failed) }
+            if (remoteOutcome { block() }.isFailure) local.update { it.copy(message = PlaylistMessage.Failed) }
         }
     }
 
     private data class LocalState(val refreshing: Boolean = false, val message: PlaylistMessage? = null)
-}
-
-/** Runs a server call; returns true when it failed with a [RemoteException]. */
-internal suspend fun runRemote(block: suspend () -> Unit): Boolean = try {
-    block()
-    false
-} catch (_: RemoteException) {
-    true
 }
 
 internal const val STOP_TIMEOUT_MS = 5_000L

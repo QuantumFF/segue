@@ -369,8 +369,8 @@ private fun LazyListScope.trackItems(state: AlbumUiState.Success, onPlay: (Int) 
             }
         }
         items(items = disc.tracks, key = { "track-${it.index}-${it.song.id}" }, contentType = { "track" }) { entry ->
-            val download = state.songDownloads[entry.song.id]
-            val available = state.isAvailable(entry.song)
+            val download = state.availability.downloads[entry.song.id]
+            val available = state.availability.isAvailable(entry.song)
             val row = remember(entry.song, download, available) {
                 entry.song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
             }

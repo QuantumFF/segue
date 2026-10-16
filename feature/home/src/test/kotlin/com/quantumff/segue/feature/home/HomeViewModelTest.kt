@@ -25,6 +25,7 @@ import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
@@ -44,7 +45,14 @@ class HomeViewModelTest {
     private val downloads = FakeDownloadRepository()
     private val offline = FakeOfflineModeRepository()
 
-    private fun viewModel() = HomeViewModel(albums, playlists, library, servers, sync, stars, downloads, offline)
+    private fun viewModel() = HomeViewModel(
+        albums,
+        library,
+        servers,
+        sync,
+        stars,
+        offlineLibraryView(offline, downloads, playlists = playlists),
+    )
 
     @Test
     fun refreshesEveryServerListOnEntry() = runTest {
