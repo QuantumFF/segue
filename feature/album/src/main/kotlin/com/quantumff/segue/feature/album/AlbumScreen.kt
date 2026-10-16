@@ -47,8 +47,6 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.PlayButton
@@ -76,6 +74,8 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.ExplicitStatus
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList

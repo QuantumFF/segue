@@ -3,11 +3,11 @@ package com.quantumff.segue.feature.home
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload

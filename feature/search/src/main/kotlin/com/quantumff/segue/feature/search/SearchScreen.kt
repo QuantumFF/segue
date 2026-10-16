@@ -48,8 +48,6 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.Pill
@@ -70,6 +68,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song

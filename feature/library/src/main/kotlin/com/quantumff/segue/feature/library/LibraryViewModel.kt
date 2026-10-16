@@ -15,7 +15,6 @@ import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
-import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
@@ -25,6 +24,7 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayActions

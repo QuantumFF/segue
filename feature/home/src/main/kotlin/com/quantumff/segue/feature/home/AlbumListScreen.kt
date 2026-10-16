@@ -28,8 +28,6 @@ import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.AlbumCardSkeleton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.SkeletonPulse
@@ -45,6 +43,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import kotlinx.collections.immutable.ImmutableList
 

@@ -61,8 +61,6 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtons
 import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsInset
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
@@ -91,6 +89,8 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement

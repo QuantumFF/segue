@@ -50,8 +50,6 @@ import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -68,6 +66,8 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song

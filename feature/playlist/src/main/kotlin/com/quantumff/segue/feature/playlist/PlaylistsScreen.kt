@@ -25,8 +25,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -39,6 +37,8 @@ import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import kotlinx.collections.immutable.ImmutableList

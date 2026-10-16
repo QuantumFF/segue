@@ -1,8 +1,8 @@
 package com.quantumff.segue.feature.home
 
-import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Song
 

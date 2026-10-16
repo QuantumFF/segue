@@ -35,8 +35,6 @@ import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.SectionHeader
@@ -55,6 +53,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.SyncPhase

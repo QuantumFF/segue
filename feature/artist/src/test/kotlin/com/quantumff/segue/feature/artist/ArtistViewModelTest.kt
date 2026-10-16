@@ -4,11 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.QueuePlacement

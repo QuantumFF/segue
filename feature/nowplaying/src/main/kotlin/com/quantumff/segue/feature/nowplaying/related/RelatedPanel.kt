@@ -25,12 +25,12 @@ import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
-import com.quantumff.segue.core.designsystem.component.MediaAction
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.feature.nowplaying.R
 import com.quantumff.segue.feature.nowplaying.RelatedUiState

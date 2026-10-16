@@ -13,12 +13,16 @@ import com.quantumff.segue.core.database.dao.DownloadDao
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.PinEntity
 import com.quantumff.segue.core.datastore.DownloadPreferencesDataSource
+import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
@@ -45,7 +49,17 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Something to pin: what it is, plus the name and art to show if it later leaves the library. */
-data class PinTarget(val kind: PinKind, val id: String, val name: String, val coverArtId: String?)
+data class PinTarget(val kind: PinKind, val id: String, val name: String, val coverArtId: String?) {
+    companion object {
+        fun of(album: Album) = PinTarget(PinKind.Album, album.id, album.name, album.coverArtId)
+
+        fun of(song: Song) = PinTarget(PinKind.Song, song.id, song.title, song.coverArtId)
+
+        fun of(artist: Artist) = PinTarget(PinKind.Artist, artist.id, artist.name, artist.coverArtId)
+
+        fun of(playlist: Playlist) = PinTarget(PinKind.Playlist, playlist.id, playlist.name, playlist.coverArtId)
+    }
+}
 
 /**
  * Offline downloads. Pin an album, playlist, artist or song and its songs are downloaded; unpin
