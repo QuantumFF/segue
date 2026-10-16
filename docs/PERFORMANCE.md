@@ -14,14 +14,15 @@ server. An emulator is not a phone: compare the numbers with each other, not wit
 |-----|-------|-----------:|-----------------:|
 | Macrobenchmark, loaded host, before the startup fixes (10 iterations) | Cold | 839 ms | 634 ms (−24%) |
 | | Warm | 93 ms | 97 ms |
-| Macrobenchmark, idle host, final code (10 iterations, two runs) | Cold | 291 / 368 ms | 463 / 442 ms |
-| | Warm | 66 ms | 48 ms |
+| Macrobenchmark, idle host, final code (10 iterations, three runs) | Cold | 291 / 368 / 378 ms | 463 / 442 / 447 ms |
+| | Warm | 66 / 77 ms | 48 / 79 ms |
 | `am start -W`, idle host, final code, modes interleaved (16 starts each) | Cold | 303 ms | 262 ms (−14%) |
 
 The emulator is noisy: with the host busy (other emulators and Gradle builds) interpretation is
-expensive and the profile cuts cold start by a quarter; on an idle host the sequential
-Macrobenchmark runs disagree with each other, while the interleaved run (which cancels drift
-between the two modes) shows −14%. Measure on a phone before trusting any of these.
+expensive and the profile cuts cold start by a quarter. On an idle host the Macrobenchmark
+profile runs came out consistently slower than no profile (three runs), while plain `am start`
+cold starts with the modes interleaved (which cancels drift between them) show −14%. The
+emulator cannot settle this; measure on a phone before trusting any of these.
 
 Startup fixes found with StrictMode (below): the `OkHttpClient` (TLS setup, about 50 ms) was
 built on the main thread while Hilt injected the `Application`; the downloads directory and the
@@ -110,7 +111,7 @@ were needed.
 | APK | Size |
 |-----|-----:|
 | Release before | 8,687,234 B (8.3 MiB) |
-| Release with Baseline Profile and startup DEX layout | 9,113,276 B (8.7 MiB) |
+| Release with Baseline Profile and startup DEX layout (final) | 9,129,660 B (8.7 MiB) |
 
 The extra 0.4 MiB is the profile (`assets/dexopt/baseline.prof`) and the startup-ordered second
 DEX file.
