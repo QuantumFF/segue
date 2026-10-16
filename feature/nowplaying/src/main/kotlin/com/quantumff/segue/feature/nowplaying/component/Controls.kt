@@ -133,7 +133,7 @@ private fun ModeButton(icon: ImageVector, active: Boolean, contentDescription: S
 }
 
 /**
- * Bottom row of the phone layout: Lyrics · Up next · Related · ⋮, each 48 tall with a label.
+ * Bottom row of the phone layout: Lyrics · Queue · Related · ⋮, each 48 tall with a label.
  * The open panel's button is full white; tapping it again closes the panel. ⋮ shows a dot while
  * the sleep timer runs.
  */
@@ -212,14 +212,14 @@ private fun PanelBarItem(
 internal val NowPlayingPanel.label: Int
     get() = when (this) {
         NowPlayingPanel.Lyrics -> R.string.feature_nowplaying_panel_lyrics
-        NowPlayingPanel.UpNext -> R.string.feature_nowplaying_panel_up_next
+        NowPlayingPanel.Queue -> R.string.feature_nowplaying_panel_queue
         NowPlayingPanel.Related -> R.string.feature_nowplaying_panel_related
     }
 
 internal val NowPlayingPanel.icon: ImageVector
     get() = when (this) {
         NowPlayingPanel.Lyrics -> SegueIcons.Lyrics
-        NowPlayingPanel.UpNext -> SegueIcons.UpNext
+        NowPlayingPanel.Queue -> SegueIcons.UpNext
         NowPlayingPanel.Related -> SegueIcons.Related
     }
 

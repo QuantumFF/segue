@@ -92,7 +92,7 @@ import kotlinx.coroutines.launch
 /**
  * Now Playing (DESIGN.md §4.7).
  *
- * @param queueContent the Up next panel; the app fills it with the queue screen's list.
+ * @param queueContent the Queue panel; the app fills it with the queue feature's content.
  */
 @Composable
 fun NowPlayingScreen(
@@ -100,7 +100,6 @@ fun NowPlayingScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
-    onOpenQueue: () -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NowPlayingViewModel = hiltViewModel(),
@@ -110,7 +109,7 @@ fun NowPlayingScreen(
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val activeLyricLine = viewModel.activeLyricLine.collectAsStateWithLifecycle()
     val related by viewModel.related.collectAsStateWithLifecycle()
-    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist, onOpenQueue) {
+    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist) {
         NowPlayingActions(
             onCollapse = onCollapse,
             onPlayPause = viewModel::togglePlayPause,
@@ -132,7 +131,6 @@ fun NowPlayingScreen(
             onPlayRelated = viewModel::playRelated,
             onPlayNext = viewModel::playNext,
             onAddToQueue = viewModel::addToQueue,
-            onOpenQueue = onOpenQueue,
         )
     }
     NowPlayingScreen(
@@ -155,9 +153,9 @@ private enum class NowPlayingSheet {
 }
 
 /**
- * Stateless Now Playing. Phone: art, metadata and controls, with Lyrics / Up next / Related
+ * Stateless Now Playing. Phone: art, metadata and controls, with Lyrics / Queue / Related
  * panels replacing the art. Expanded width or landscape: art and controls on the left (45%), the
- * panels as tabs on the right. Drag down or back (predictive) collapses; swipe up opens Up next.
+ * panels as tabs on the right. Drag down or back (predictive) collapses; swipe up opens Queue.
  */
 @Composable
 internal fun NowPlayingScreen(
@@ -174,7 +172,7 @@ internal fun NowPlayingScreen(
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
     val gestures = rememberDismissGestures(
         onDismiss = actions.onCollapse,
-        onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.UpNext },
+        onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.Queue },
     )
 
     BoxWithConstraints(
@@ -233,8 +231,6 @@ internal fun NowPlayingScreen(
 
                         NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
 
-                        NowPlayingMenuAction.OpenQueue -> actions.onOpenQueue()
-
                         NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
 
                         NowPlayingMenuAction.GoToArtist ->
@@ -290,7 +286,7 @@ private class PanelContent(
                     modifier = modifier,
                 )
 
-                NowPlayingPanel.UpNext -> Box(modifier.fillMaxSize()) { queueContent() }
+                NowPlayingPanel.Queue -> Box(modifier.fillMaxSize()) { queueContent() }
 
                 NowPlayingPanel.Related -> RelatedPanel(state = related, actions = relatedActions, modifier = modifier)
             }
@@ -307,7 +303,7 @@ private fun OnArtContent(content: @Composable () -> Unit) {
             onSurface = colors.onArt,
             onSurfaceVariant = colors.onArtMuted,
             onBackground = colors.onArt,
-            // Tonal buttons (Play all, Retry, Open queue): a light veil instead of the accent tint.
+            // Tonal buttons (Play all, Retry): a light veil instead of the accent tint.
             secondaryContainer = colors.onArt.copy(alpha = TONAL_ON_ART_ALPHA),
             onSecondaryContainer = colors.onArt,
             // The accent doesn't hold contrast on every backdrop, so on-art highlights are light too: the
@@ -565,7 +561,7 @@ private fun SyncPager(
     }
 }
 
-/** Drag-down and predictive-back collapse, and drag-up to open Up next. */
+/** Drag-down and predictive-back collapse, and drag-up to open Queue. */
 private class DismissGestures(val modifier: Modifier, val predictiveBack: @Composable () -> Unit)
 
 @Composable
@@ -629,7 +625,7 @@ private fun rememberDismissGestures(onDismiss: () -> Unit, onSwipeUp: () -> Unit
     return DismissGestures(modifier, predictiveBack)
 }
 
-private val TWO_PANE_TABS = persistentListOf(NowPlayingPanel.UpNext, NowPlayingPanel.Lyrics, NowPlayingPanel.Related)
+private val TWO_PANE_TABS = persistentListOf(NowPlayingPanel.Queue, NowPlayingPanel.Lyrics, NowPlayingPanel.Related)
 private val TWO_PANE_MIN_WIDTH = 840.dp
 private val LANDSCAPE_TWO_PANE_MIN_WIDTH = 600.dp
 private val INDICATOR_HEIGHT = 2.dp

@@ -25,7 +25,7 @@ spotless {
                 // Theme-scoped values only (core:designsystem, app shell). Anything else is a parameter.
                 mapOf(
                     "compose_allowed_composition_locals" to
-                        "LocalSegueColors,LocalDarkTheme,LocalReduceMotion,LocalShellContentPadding",
+                        "LocalSegueColors,LocalDarkTheme,LocalReduceMotion,LocalShellContentPadding,LocalBaseColorScheme",
                 ),
             )
     }

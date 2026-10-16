@@ -142,13 +142,12 @@ fun MacrobenchmarkScope.openAlbumAndPlay() {
     device.waitFor(By.desc("Pause"), PLAYBACK_TIMEOUT_MS)
 }
 
-/** Opens Now Playing from the mini player, then its queue, then goes back to the album. */
+/** Opens Now Playing from the mini player, then its Queue panel, then goes back to the album. */
 fun MacrobenchmarkScope.openNowPlayingAndQueue() {
     // The lowest Pause button is the mini player's; tap the mini player left of it.
     val pause = device.findObjects(By.desc("Pause")).maxBy { it.visibleBounds.centerY() }
     device.click(device.displayWidth / 3, pause.visibleBounds.centerY())
-    device.waitFor(By.text("Up next")).click()
-    device.wait(Until.findObject(By.text("Open queue")), UI_TIMEOUT_MS)?.click()
+    device.waitFor(By.text("Queue")).click()
     device.waitForIdle()
     device.pressBack()
     device.waitForIdle()

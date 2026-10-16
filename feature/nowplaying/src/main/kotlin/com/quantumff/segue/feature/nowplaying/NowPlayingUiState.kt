@@ -17,7 +17,7 @@ import kotlinx.collections.immutable.persistentListOf
 /** The panels that replace the art (phone) or fill the right pane (two-pane). */
 enum class NowPlayingPanel {
     Lyrics,
-    UpNext,
+    Queue,
     Related,
 }
 

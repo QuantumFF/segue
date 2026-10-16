@@ -11,6 +11,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -67,6 +68,7 @@ fun SegueTheme(
         LocalSegueColors provides extended,
         LocalDarkTheme provides palette.isDark,
         LocalReduceMotion provides reduceMotion,
+        LocalBaseColorScheme provides colorScheme,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
@@ -90,6 +92,23 @@ object SegueTheme {
 }
 
 private val LocalDarkTheme = staticCompositionLocalOf { true }
+
+// Not static: with the album-art accent the scheme animates, and only popups read it.
+private val LocalBaseColorScheme = compositionLocalOf<ColorScheme?> { null }
+
+/**
+ * Draws [content] in the app's own colors, undoing a local re-theme such as Now Playing's on-art
+ * panels. For menus and dialogs opened from such content, which sit on ordinary surfaces.
+ */
+@Composable
+fun SegueBaseColors(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = LocalBaseColorScheme.current ?: MaterialTheme.colorScheme,
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes,
+        content = content,
+    )
+}
 
 /**
  * Segue's color scheme for surfaces drawn outside the app's Compose tree, such as home-screen

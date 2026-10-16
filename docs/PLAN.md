@@ -31,7 +31,7 @@ Its main goals are a rich feature set, excellent performance, and good battery l
 - Upload is event-driven and debounced. It runs on track change, queue edit, pause, seek, and app backgrounding. There is never periodic polling during playback.
 - Download happens on app start and when the app returns to the foreground. Compare the server's `changed`/`changedBy` with local state. If another client saved a newer queue, offer "Continue from <device>", or adopt it automatically if the user enabled that setting.
 - Upload the queue as it is: the queue order is the play order (shuffling happens only when music is queued), so other clients see what is actually playing.
-- The queue screen's top bar also has manual "Upload queue" and "Download queue" buttons. They skip the debounce, the newer-than checks and the queue sync setting. A manual upload waits for an upload in flight, so it is the last save, and declines any offered queue. A manual download takes whatever the server holds, this device's own save included, and the result counts as accounted for, so it is not offered again.
+- The Queue panel's header also has manual "Upload queue" and "Download queue" buttons. They skip the debounce, the newer-than checks and the queue sync setting. A manual upload waits for an upload in flight, so it is the last save, and declines any offered queue. A manual download takes whatever the server holds, this device's own save included, and the result counts as accounted for, so it is not offered again.
 
 ### Album shuffle (at enqueue time)
 - Shuffling happens only when music is added to the queue, never to a running queue.
@@ -39,7 +39,7 @@ Its main goals are a rich feature set, excellent performance, and good battery l
   - The player has no shuffle mode. There is no shuffle button in Now Playing, the player bar, the notification, Android Auto or the widgets. There is no "default shuffle mode" setting.
 - Why: users start a queue and then listen to it; they do not want it reshuffled underneath them. They do want to add shuffled albums to it ("Shuffle albums → Add to queue"). Because the queue order is always the play order:
   - The snapshot and server queue sync store and upload the plain queue.
-  - The queue screen edits exactly what plays.
+  - The Queue panel edits exactly what plays.
   - There is no in-place shuffle state to persist, restore or map between orders.
 - This replaces the earlier Off / Tracks / Albums player modes and the custom Media3 `ShuffleOrder` (album blocks, play-order mapping, shuffle persistence in the snapshot, album-block queue headers), which are deleted.
 - "Play albums" and "Shuffle albums" queue whole albums from a source: the Library albums view as sorted and filtered, a genre's album grid, an artist (in the artist page's order), a genre (always the albums tagged with it, as its grid lists them), a playlist, or the whole library (Android Auto's "Shuffle albums" and a voice "play some music" with an empty queue).
