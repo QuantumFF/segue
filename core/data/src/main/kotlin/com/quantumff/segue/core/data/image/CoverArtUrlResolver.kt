@@ -9,7 +9,11 @@ import kotlinx.coroutines.flow.first
 data class CoverArtLocation(
     /** Carries a fresh auth salt, so never use it as a cache key. */
     val url: String,
-    /** `<serverId>:<coverArtId>:<size>`: stable across requests and unique across servers. */
+    /**
+     * `v2:<serverId>:<coverArtId>:<size>`: stable across requests and unique across servers. The
+     * version skips entries written before `getCoverArt` error documents were treated as failures
+     * (some of those are a cached error, not an image); the caches' size limits evict them.
+     */
     val cacheKey: String,
 )
 
@@ -28,6 +32,8 @@ internal class ActiveServerCoverArtUrlResolver @Inject constructor(private val c
         } catch (_: RemoteException.NotSignedIn) {
             return null
         }
-        return CoverArtLocation(url = client.coverArtUrl(coverArtId, size), cacheKey = "$serverId:$coverArtId:$size")
+        return CoverArtLocation(url = client.coverArtUrl(coverArtId, size), cacheKey = "$CACHE_KEY_VERSION:$serverId:$coverArtId:$size")
     }
 }
+
+private const val CACHE_KEY_VERSION = "v2"

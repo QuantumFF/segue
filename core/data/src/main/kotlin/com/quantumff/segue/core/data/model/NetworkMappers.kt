@@ -80,7 +80,8 @@ internal fun NetworkChild.asEntity(serverId: String) = SongEntity(
     discNumber = discNumber.nullIfZero(),
     year = year.nullIfZero(),
     genre = genre.nullIfBlank(),
-    coverArtId = coverArt.nullIfBlank(),
+    // A song without its own art ID shows its album's: `getCoverArt` takes an album ID too.
+    coverArtId = coverArt.nullIfBlank() ?: albumId.nullIfBlank(),
     durationSeconds = duration,
     bitRate = bitRate.nullIfZero(),
     suffix = suffix.nullIfBlank(),

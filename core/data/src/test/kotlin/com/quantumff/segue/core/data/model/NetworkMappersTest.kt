@@ -52,6 +52,17 @@ class NetworkMappersTest {
     }
 
     @Test
+    fun `a song without its own art shows its album's art`() {
+        val withArt = NetworkChild(id = "s1", title = "t", albumId = "al", coverArt = "mf-s1").asEntity("srv")
+        val withoutArt = NetworkChild(id = "s2", title = "t", albumId = "al", coverArt = "").asEntity("srv")
+        val noAlbum = NetworkChild(id = "s3", title = "t").asEntity("srv")
+
+        assertThat(withArt.coverArtId).isEqualTo("mf-s1")
+        assertThat(withoutArt.coverArtId).isEqualTo("al")
+        assertThat(noAlbum.coverArtId).isNull()
+    }
+
+    @Test
     fun `zero values that mean unknown become null`() {
         val song = NetworkChild(id = "s", title = "t", bpm = 0, userRating = 0, track = 0, year = 0).asEntity("srv")
 
