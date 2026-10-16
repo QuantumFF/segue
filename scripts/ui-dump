@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Prints the on-screen UI of the device adb targets, one labelled element per line:
+#   text | content-desc | x,y
+# x,y is the element's centre, ready for `adb shell input tap x y`.
+set -euo pipefail
+
+adb shell uiautomator dump /sdcard/segue-ui.xml >/dev/null
+adb exec-out cat /sdcard/segue-ui.xml | python3 -I -c '
+import sys, re, xml.etree.ElementTree as ET
+for n in ET.parse(sys.stdin).iter("node"):
+    text, desc = n.get("text", ""), n.get("content-desc", "")
+    if not (text or desc):
+        continue
+    x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
+    print(f"{text} | {desc} | {(x1 + x2) // 2},{(y1 + y2) // 2}")
+'
