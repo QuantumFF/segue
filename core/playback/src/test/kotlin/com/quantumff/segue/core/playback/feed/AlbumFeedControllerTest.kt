@@ -76,6 +76,43 @@ class AlbumFeedControllerTest {
         }
 
     @Test
+    fun `a media browser's shuffle albums becomes a running feed once the session queues the first window`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
+            val request = AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled)
+
+            val items = feed.firstWindowForSession(request, seed = 7)
+
+            val expected = AlbumFeedOrder.order(albumIds, AlbumOrder.Shuffled, 7).take(20)
+            assertThat(items.map { it.mediaId.substringBefore("-") }.distinct()).isEqualTo(expected)
+            assertThat(exo.mediaItemCount).isEqualTo(0) // The session sets the queue, not the feed.
+            assertThat(feed.current).isNull()
+
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current?.source).isEqualTo(AlbumSource.Library)
+            assertThat(feeds.stored?.cursor).isEqualTo(20)
+            assertThat(feeds.stored?.seed).isEqualTo(7)
+            player.seekTo(185, 0)
+            advanceUntilIdle()
+            assertThat(exo.mediaItemCount).isEqualTo(AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
+        }
+
+    @Test
+    fun `a prepared window is dropped when the session queues something else`() = runTest(UnconfinedTestDispatcher()) {
+        val feed = controller()
+        feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
+
+        player.setMediaItems(listOf(song("x", null).toMediaItem()))
+        assertThat(feed.current).isNull()
+        assertThat(feeds.stored).isNull()
+
+        // Nor does a later queue of the same songs adopt it.
+        player.setMediaItems(feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1).take(3))
+        assertThat(feed.current).isNull()
+    }
+
+    @Test
     fun `shuffle albums follows its seed and keeps every album in track order`() = runTest(UnconfinedTestDispatcher()) {
         controller().start(request(AlbumOrder.Shuffled), seed = 99)
 

@@ -16,10 +16,9 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
-import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.playback.R
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -34,18 +33,10 @@ class SessionLibrary(
     private val context: Context,
     private val scope: CoroutineScope,
     private val repository: MediaBrowseRepository,
-    albumShuffle: AlbumShuffleRepository,
     search: SearchRepository,
-    downloadedWhileOffline: suspend () -> DownloadedLibrary? = { null },
     private val callers: BrowseCallers = BrowseCallers(context),
 ) {
-    val tree = BrowseTree(
-        repository,
-        albumShuffle,
-        labels(context),
-        artwork(context),
-        downloadedWhileOffline = downloadedWhileOffline,
-    )
+    val tree = BrowseTree(repository, labels(context), artwork(context))
     private val search = LibrarySearch(search, repository, tree, searchLabels(context))
     private val searchResults = LruCache<String, List<MediaItem>>(SEARCH_CACHE_SIZE)
     private var lastHomeRefresh = 0L
@@ -96,6 +87,15 @@ class SessionLibrary(
     fun resolves(items: List<MediaItem>): Boolean {
         val item = items.singleOrNull() ?: return false
         return item.requestMetadata.searchQuery != null || BrowseId.parse(item.mediaId) != null
+    }
+
+    /**
+     * The album feed a browse node or a voice request starts instead of a fixed list: "Shuffle
+     * albums", and "play some music" (an empty query). Null for everything else.
+     */
+    fun albumPlayRequest(item: MediaItem): AlbumPlayRequest? {
+        val query = item.requestMetadata.searchQuery
+        return if (query != null) search.albumPlayRequest(query) else tree.albumPlayRequest(item.mediaId)
     }
 
     /** What playing a browse node, or a voice "play <query>", queues. */

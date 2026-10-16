@@ -18,6 +18,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.browse.SessionLibrary
@@ -46,6 +47,7 @@ import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncListener
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -101,14 +103,7 @@ class SeguePlaybackService : MediaLibraryService() {
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
         replayGain = ReplayGainController(exoPlayer, replayGainProcessor, offload)
-        library = SessionLibrary(
-            this,
-            scope,
-            components.mediaBrowse,
-            components.albumShuffle,
-            components.search,
-            downloadedWhileOffline = components::downloadedWhileOffline,
-        )
+        library = SessionLibrary(this, scope, components.mediaBrowse, components.search)
 
         session = MediaLibrarySession.Builder(this, player, SessionCallback())
             .setBitmapLoader(components.createBitmapLoader(this))
@@ -363,7 +358,14 @@ class SeguePlaybackService : MediaLibraryService() {
             if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
             return scope.launchFuture {
                 mediaItems.flatMap { item ->
-                    library.songsFor(item)?.map { it.toMediaItem() } ?: listOf(item.withPlayableUri())
+                    val albums = library.albumPlayRequest(item)
+                    if (albums != null) {
+                        // "Shuffle albums": the album feed appends its first window itself and keeps going.
+                        albumFeed.start(albums.copy(placement = QueuePlacement.End), Random.nextLong())
+                        emptyList()
+                    } else {
+                        library.songsFor(item)?.map { it.toMediaItem() } ?: listOf(item.withPlayableUri())
+                    }
                 }
             }
         }
@@ -385,6 +387,13 @@ class SeguePlaybackService : MediaLibraryService() {
                 if (item.requestMetadata.searchQuery?.isBlank() == true && player.mediaItemCount > 0) {
                     // "Play music on Segue" with a queue: carry on with it.
                     return@launchFuture currentQueue()
+                }
+                library.albumPlayRequest(item)?.let { albums ->
+                    // "Shuffle albums": the album feed's first window, which the feed extends once queued,
+                    // persisted like the app's Play / Shuffle albums.
+                    val items = albumFeed.firstWindowForSession(albums, Random.nextLong())
+                    if (items.isEmpty()) throw UnsupportedOperationException("No albums to shuffle")
+                    return@launchFuture MediaSession.MediaItemsWithStartPosition(items, 0, 0)
                 }
                 val request = library.playRequest(item)
                     ?: throw UnsupportedOperationException("Nothing to play for ${item.mediaId}")

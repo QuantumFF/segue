@@ -5,6 +5,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.session.MediaConstants
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.SearchResult
 import kotlin.random.Random
 import kotlinx.coroutines.flow.first
@@ -38,13 +39,17 @@ class LibrarySearch(
             }
     }
 
+    /** An empty query ("play some music") shuffles albums, as an album feed. Null for any other query. */
+    fun albumPlayRequest(query: String): AlbumPlayRequest? =
+        if (query.isBlank()) tree.albumPlayRequest(BrowseId.ShuffleAlbums.encode()) else null
+
     /**
      * What a voice request plays. [extras] are the platform's play-from-search extras: the focus
-     * (artist, album, song) and the recognized fields. An empty query ("play some music") shuffles
-     * albums. Null when nothing matched.
+     * (artist, album, song) and the recognized fields. Null when nothing matched, and for an empty
+     * query, which is an album feed ([albumPlayRequest]).
      */
     suspend fun playRequest(query: String, extras: Bundle): PlayRequest? {
-        if (query.isBlank()) return tree.playRequest(BrowseId.ShuffleAlbums.encode())
+        if (query.isBlank()) return null
         val focus = SearchFocus.fromMimeType(extras.getString(EXTRA_FOCUS))
         val term = when (focus) {
             SearchFocus.Artist -> extras.getString(EXTRA_ARTIST)

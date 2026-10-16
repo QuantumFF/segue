@@ -5,13 +5,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaConstants
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
-import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
-import kotlin.random.Random
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,16 +18,8 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class BrowseTreeTest {
     private val repo = FakeMediaBrowseRepository()
-    private val shuffle = object : AlbumShuffleRepository {
-        override suspend fun albumIds(source: AlbumSource) = repo.albums.map { it.id }
-
-        override suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song> =
-            repo.songs.filter { it.albumId in albumIds }
-    }
-    private var offlineLibrary: DownloadedLibrary? = null
     private val tree = BrowseTree(
         repository = repo,
-        albumShuffle = shuffle,
         labels = BrowseLabels(
             home = "Home",
             library = "Library",
@@ -48,8 +38,6 @@ class BrowseTreeTest {
 
             override fun icon(icon: BrowseIcon): Uri = Uri.parse("android.resource://pkg/${icon.name}")
         },
-        random = Random(1),
-        downloadedWhileOffline = { offlineLibrary },
     )
 
     private suspend fun ids(parent: BrowseId, page: Int = 0, pageSize: Int = 100) =
@@ -294,34 +282,16 @@ class BrowseTreeTest {
     }
 
     @Test
-    fun `shuffle albums queues whole albums in disc and track order, shuffle off`() = runTest {
-        repo.albums = listOf(TestData.album("x"), TestData.album("y"))
-        repo.songs = listOf(
-            TestData.song("x2", albumId = "x", track = 2),
-            TestData.song("y1", albumId = "y", track = 1),
-            TestData.song("x1", albumId = "x", track = 1),
-        )
+    fun `shuffle albums is the whole library as a shuffled album feed, not a fixed list`() = runTest {
+        repo.albums = listOf(TestData.album("x"))
+        repo.songs = listOf(TestData.song("x1", albumId = "x", track = 1))
+        val shuffleAlbums = BrowseId.ShuffleAlbums.encode()
 
-        val request = tree.playRequest(BrowseId.ShuffleAlbums.encode())!!
-
-        val ids = request.songs.map { it.id }
-        assertThat(ids).containsExactly("x1", "x2", "y1")
-        assertThat(ids.indexOf("x2")).isEqualTo(ids.indexOf("x1") + 1)
-    }
-
-    @Test
-    fun `offline shuffle albums picks downloaded albums and queues downloaded songs`() = runTest {
-        repo.albums = listOf(TestData.album("x"), TestData.album("y"))
-        repo.songs = listOf(
-            TestData.song("x1", albumId = "x", track = 1),
-            TestData.song("x2", albumId = "x", track = 2),
-            TestData.song("y1", albumId = "y", track = 1),
-        )
-        offlineLibrary = DownloadedLibrary(songIds = setOf("x2"), albumIds = setOf("x"))
-
-        val request = tree.playRequest(BrowseId.ShuffleAlbums.encode())!!
-
-        assertThat(request.songs.map { it.id }).containsExactly("x2")
+        assertThat(tree.albumPlayRequest(shuffleAlbums))
+            .isEqualTo(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled))
+        assertThat(tree.playRequest(shuffleAlbums)).isNull()
+        assertThat(tree.songs(shuffleAlbums)).isNull()
+        assertThat(tree.albumPlayRequest(BrowseId.Album("x").encode())).isNull()
     }
 
     @Test
@@ -340,7 +310,6 @@ class BrowseTreeTest {
 
     @Test
     fun `nothing to play gives no request`() = runTest {
-        assertThat(tree.playRequest(BrowseId.ShuffleAlbums.encode())).isNull()
         assertThat(tree.playRequest(BrowseId.Album("missing").encode())).isNull()
         assertThat(tree.playRequest(BrowseId.Library.encode())).isNull()
         assertThat(tree.playRequest("plain-song-id")).isNull()
