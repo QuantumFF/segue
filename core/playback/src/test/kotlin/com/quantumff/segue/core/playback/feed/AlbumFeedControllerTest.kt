@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
+import com.quantumff.segue.core.playback.media.withStarred
 import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,17 +109,43 @@ class AlbumFeedControllerTest {
         }
 
     @Test
-    fun `a prepared window is dropped when the session queues something else`() = runTest(UnconfinedTestDispatcher()) {
+    fun `a prepared window waits through unrelated queue events until the session queues it`() =
+        runTest(UnconfinedTestDispatcher()) {
+            player.setMediaItems(listOf(song("x", null).toMediaItem()))
+            val feed = controller()
+            val items = feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
+
+            // A favorite toggle lands between the session's answer and Media3 applying it.
+            player.replaceMediaItem(0, exo.getMediaItemAt(0).withStarred(true))
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current?.seed).isEqualTo(7)
+            assertThat(feeds.stored).isNotNull()
+        }
+
+    @Test
+    fun `the session's next set or add drops a prepared window it never queued`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
+            val items = feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
+
+            feed.cancelPending()
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current).isNull()
+            assertThat(feeds.stored).isNull()
+        }
+
+    @Test
+    fun `a prepared window is not adopted by a different queue`() = runTest(UnconfinedTestDispatcher()) {
         val feed = controller()
-        feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
+        val items = feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1)
 
         player.setMediaItems(listOf(song("x", null).toMediaItem()))
+        player.setMediaItems(items.take(3))
+
         assertThat(feed.current).isNull()
         assertThat(feeds.stored).isNull()
-
-        // Nor does a later queue of the same songs adopt it.
-        player.setMediaItems(feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1).take(3))
-        assertThat(feed.current).isNull()
     }
 
     @Test
@@ -176,7 +203,7 @@ class AlbumFeedControllerTest {
         val feed = controller()
         feed.start(request(AlbumOrder.InOrder), seed = 1)
 
-        player.replaceMediaItem(0, exo.getMediaItemAt(0))
+        player.replaceMediaItem(0, exo.getMediaItemAt(0).withStarred(true))
         assertThat(feed.current).isNotNull()
 
         player.moveMediaItem(5, 1)

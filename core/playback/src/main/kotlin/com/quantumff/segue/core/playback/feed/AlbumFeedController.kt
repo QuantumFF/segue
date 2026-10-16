@@ -54,7 +54,10 @@ class AlbumFeedController(
 
     private var extension: Job? = null
 
-    /** A feed whose first window a media session is about to queue ([firstWindowForSession]). */
+    /**
+     * A feed whose first window a media session is about to queue ([firstWindowForSession]). It waits
+     * for that queue through unrelated queue events (a favorite toggle) until [cancelPending].
+     */
     private var pending: AlbumFeed? = null
 
     // All state here is read and written on the player's (main) thread only; the coroutines run on
@@ -90,7 +93,8 @@ class AlbumFeedController(
      * The first window of [request] for a media session to queue itself, as the reply to a media
      * browser's play request (Android Auto's "Shuffle albums"): the session, not the feed, replaces
      * the queue. Once the session has queued exactly these items, the feed runs as if [start] had
-     * queued them; any other queue change first drops it. Empty if there is nothing to play.
+     * queued them. Until then it waits, unless the session's next set or add request comes first
+     * ([cancelPending]). Empty if there is nothing to play.
      */
     suspend fun firstWindowForSession(request: AlbumPlayRequest, seed: Long): List<MediaItem> = starting.withLock {
         val window = firstWindow(request, seed)
@@ -98,6 +102,14 @@ class AlbumFeedController(
         pending = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint(items))
             .takeUnless { items.isEmpty() || window.exhausted }
         items
+    }
+
+    /**
+     * The session took a new set or add request: a first window it prepared before but has not
+     * queued is not coming any more. Call before resolving each request.
+     */
+    fun cancelPending() {
+        pending = null
     }
 
     /** After the queue snapshot is restored: picks the saved feed back up if the queue is still the one it left. */
@@ -126,11 +138,15 @@ class AlbumFeedController(
         adoptPending()
     }
 
-    /** The session queued a prepared first window: the feed takes it over. Any other change drops it. */
+    /**
+     * The session queued a prepared first window: the feed takes it over. Other queue changes leave it
+     * waiting: between the session's answer and Media3 applying it, the queue may change on its own.
+     */
     private fun adoptPending() {
         val feed = pending ?: return
+        if (feed.queueFingerprint != fingerprint()) return
         pending = null
-        if (current != null || feed.queueFingerprint != fingerprint()) return
+        if (current != null) return
         current = feed
         persist()
         extendIfNeeded()

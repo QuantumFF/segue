@@ -355,6 +355,7 @@ class SeguePlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> {
+            albumFeed.cancelPending()
             if (!library.hasBrowseNodes(mediaItems)) {
                 return Futures.immediateFuture(mediaItems.map { it.withPlayableUri() })
             }
@@ -382,6 +383,7 @@ class SeguePlaybackService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            albumFeed.cancelPending()
             if (!library.resolves(mediaItems)) {
                 return super.onSetMediaItems(mediaSession, controller, mediaItems, startIndex, startPositionMs)
             }
