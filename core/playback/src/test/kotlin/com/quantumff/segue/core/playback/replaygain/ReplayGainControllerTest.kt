@@ -2,6 +2,8 @@ package com.quantumff.segue.core.playback.replaygain
 
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
@@ -95,5 +97,37 @@ class ReplayGainControllerTest {
 
         controller.update(track)
         assertThat(offloadMode()).isEqualTo(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+    }
+
+    @Test
+    fun `switching boost while playing seeks in place, so volume and processor switch together`() {
+        val seeks = mutableListOf<Pair<Int, Long>>()
+        val playing = object : ForwardingPlayer(exo) {
+            override fun getPlaybackState() = Player.STATE_READY
+
+            override fun getCurrentPosition() = 42_000L
+
+            override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                seeks += mediaItemIndex to positionMs
+            }
+        }
+        val controller = ReplayGainController(playing, processor, offload)
+
+        controller.update(track)
+        controller.update(track.copy(target = ReplayGainTarget.Ebu))
+        assertThat(seeks).isEmpty() // The volume alone carries these.
+
+        controller.update(track.copy(boost = true))
+        controller.update(track.copy(boost = true, mode = ReplayGainMode.Album))
+        controller.update(track)
+        assertThat(seeks).containsExactly(0 to 42_000L, 0 to 42_000L).inOrder()
+    }
+
+    @Test
+    fun `switching boost while stopped does not seek`() {
+        controller.update(track)
+        controller.update(track.copy(boost = true))
+        assertThat(exo.currentPosition).isEqualTo(0L)
+        assertThat(exo.playbackState).isEqualTo(Player.STATE_IDLE)
     }
 }

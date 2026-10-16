@@ -96,9 +96,21 @@ class ReplayGainProcessorTest {
     }
 
     @Test
-    fun `is unity without boost, so player volume does the work`() {
+    fun `stays out of the chain without boost, so buffers are not even copied`() {
         processor.settings = boost.copy(boost = false)
         start(item(ReplayGain(trackGain = -6f)))
+        assertThat(processor.isActive).isFalse()
+
+        // The pipeline re-reads isActive when it flushes: at the next track, or the controller's seek.
+        processor.settings = boost
+        start(item(ReplayGain(trackGain = -6f)))
+        assertThat(processor.isActive).isTrue()
+    }
+
+    @Test
+    fun `is unity if boost goes off before the next flush`() {
+        start(item(ReplayGain(trackGain = -6f)))
+        processor.settings = boost.copy(boost = false)
         assertThat(process16(1000, -1000)).containsExactly(1000, -1000).inOrder()
     }
 

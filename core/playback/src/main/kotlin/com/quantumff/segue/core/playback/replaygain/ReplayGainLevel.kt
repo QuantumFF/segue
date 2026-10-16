@@ -2,25 +2,9 @@ package com.quantumff.segue.core.playback.replaygain
 
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.ReplayGainMode
-import com.quantumff.segue.core.model.ReplayGainTarget
-import com.quantumff.segue.core.model.UserPreferences
+import kotlin.math.log10
 import kotlin.math.min
 import kotlin.math.pow
-
-/** The ReplayGain preferences playback needs. */
-data class ReplayGainSettings(
-    val mode: ReplayGainMode = ReplayGainMode.Track,
-    val target: ReplayGainTarget = ReplayGainTarget.ReplayGain2,
-    val boost: Boolean = false,
-) {
-    companion object {
-        fun from(preferences: UserPreferences) = ReplayGainSettings(
-            mode = preferences.replayGainMode,
-            target = preferences.replayGainTarget,
-            boost = preferences.replayGainBoost,
-        )
-    }
-}
 
 /**
  * How loud one track plays: the linear [volume] for the player and the linear [gain] for
@@ -64,5 +48,11 @@ data class ReplayGainLevel(val volume: Float, val gain: Float, val limit: Boolea
 
         private const val UNITY = 1f
         private const val DB_PER_DECADE = 20f
+
+        /** [linear] in dB, for logs. */
+        internal fun decibels(linear: Float) = DB_PER_DECADE * log10(linear)
     }
 }
+
+/** Logcat tag for ReplayGain decisions: per-track volume and per-stream processor gain. */
+internal const val REPLAY_GAIN_TAG = "SegueReplayGain"

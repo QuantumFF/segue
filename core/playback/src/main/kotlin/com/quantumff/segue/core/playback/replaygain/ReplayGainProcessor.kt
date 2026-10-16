@@ -9,12 +9,11 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.playback.media.replayGain
 import java.nio.ByteBuffer
-import kotlin.math.log10
 import kotlin.math.roundToInt
 
 /**
  * ReplayGain with boost: applies [ReplayGainLevel.gain] to PCM, so quiet tracks can be amplified.
- * Without boost the gain is 1 and buffers are copied through; player volume does the work then.
+ * Without boost it stays out of the chain; player volume does the work then.
  *
  * Each track gets its own gain without a main-thread race: `DefaultAudioSink` reconfigures the
  * processors at every track change, gapless ones included, and flushes them with the new track's
@@ -42,6 +41,13 @@ class ReplayGainProcessor : BaseAudioProcessor() {
         if (encoding != C.ENCODING_PCM_16BIT && encoding != C.ENCODING_PCM_FLOAT) return AudioFormat.NOT_SET
         return inputAudioFormat
     }
+
+    /**
+     * In the chain only while boost is on, so plain ReplayGain costs no extra copy. The pipeline
+     * reads this when it flushes: at every track change, and at the seek in place that
+     * [ReplayGainController] makes when boost is switched during playback.
+     */
+    override fun isActive(): Boolean = super.isActive() && settings.boost
 
     override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
         val item = streamMetadata.mediaItem()
@@ -79,7 +85,16 @@ class ReplayGainProcessor : BaseAudioProcessor() {
         if (settings != levelSettings) {
             levelSettings = settings
             level = ReplayGainLevel.of(streamGain, settings)
-            Log.d(TAG, "Stream $streamId: ${describe(level)} ($settings)")
+            val limiting = if (level.limit) ", limiter on" else ""
+            Log.d(
+                REPLAY_GAIN_TAG,
+                "Processor gain %+.2f dB%s for %s (%s)".format(
+                    ReplayGainLevel.decibels(level.gain),
+                    limiting,
+                    streamId,
+                    settings,
+                ),
+            )
         }
         return level
     }
@@ -105,7 +120,6 @@ class ReplayGainProcessor : BaseAudioProcessor() {
     }
 
     private companion object {
-        const val TAG = "SegueReplayGain"
         const val SHORT_SCALE = 32_768f
         const val SHORT_MIN = Short.MIN_VALUE.toInt()
         const val SHORT_MAX = Short.MAX_VALUE.toInt()
@@ -115,8 +129,5 @@ class ReplayGainProcessor : BaseAudioProcessor() {
             val windowIndex = timeline.getPeriodByUid(uid, Timeline.Period()).windowIndex
             timeline.getWindow(windowIndex, Timeline.Window()).mediaItem
         }
-
-        fun describe(level: ReplayGainLevel) =
-            "processor gain %+.2f dB%s".format(20 * log10(level.gain), if (level.limit) ", limiter on" else "")
     }
 }
