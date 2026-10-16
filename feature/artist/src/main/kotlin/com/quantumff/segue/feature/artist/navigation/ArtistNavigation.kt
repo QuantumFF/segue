@@ -4,7 +4,6 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.artist.ArtistDetailRoute
 import kotlinx.serialization.Serializable
 
@@ -19,7 +18,6 @@ fun NavGraphBuilder.artistScreen(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
 ) {
     composable<ArtistRoute> {
@@ -27,7 +25,6 @@ fun NavGraphBuilder.artistScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
     }

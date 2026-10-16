@@ -33,7 +33,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,14 +41,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.Pill
@@ -70,7 +68,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
@@ -81,15 +80,19 @@ fun SearchScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val songs by rememberUpdatedState(uiState.songs)
-    val callbacks = remember(viewModel, playActions, onAlbumClick, onArtistClick, onGenreClick, onAddToPlaylist) {
+    val callbacks = remember(viewModel, onAlbumClick, onArtistClick, onGenreClick, onAddToPlaylist) {
+        val menuHost =
+            MediaActionHost(
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onAddToPlaylist = onAddToPlaylist,
+            )
         SearchCallbacks(
             onQueryChange = viewModel::onQueryChange,
             onSubmit = viewModel::onSubmit,
@@ -105,30 +108,8 @@ fun SearchScreen(
                 viewModel.onResultOpened()
                 onArtistClick(id)
             },
-            onSongClick = { index ->
-                viewModel.onResultOpened()
-                playActions.onPlaySongs(songs, index, false)
-            },
-            onSongAction = { song, action ->
-                when (action) {
-                    MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-
-                    MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-
-                    MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-
-                    MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-
-                    MediaAction.Favorite, MediaAction.Unfavorite -> viewModel.onToggleFavorite(song)
-
-                    MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-
-                    MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-
-                    // TODO(downloads): pin the song for offline once downloads exist.
-                    else -> Unit
-                }
-            },
+            onSongClick = viewModel::onSongClick,
+            onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
             onMessageDismiss = viewModel::onMessageDismiss,
         )
     }
@@ -171,10 +152,17 @@ fun SearchContent(
 ) {
     var menuSong by remember { mutableStateOf<Song?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val favoriteFailed = stringResource(R.string.feature_search_favorite_failed)
-    LaunchedEffect(uiState.message) {
-        if (uiState.message != null) {
-            snackbarHostState.showSnackbar(favoriteFailed)
+    val message = uiState.message?.let {
+        stringResource(
+            when (it) {
+                SearchMessage.FavoriteFailed -> R.string.feature_search_favorite_failed
+                SearchMessage.DownloadFailed -> R.string.feature_search_download_failed
+            },
+        )
+    }
+    LaunchedEffect(message) {
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
             callbacks.onMessageDismiss()
         }
     }

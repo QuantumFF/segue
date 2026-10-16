@@ -14,7 +14,7 @@ Where newly queued songs go: replace the queue and play now, play next, or add t
 _Avoid_: Mode, insert type
 
 **Play intent**:
-A user's request to queue something: a list of songs, an album, an artist, a playlist or an album source, with a placement and whether to shuffle.
+A user's request to queue something: a list of songs, an album, an artist, a playlist or an album source, with a placement and whether to shuffle. An artist means their top songs, or all their albums when the server has no top songs. When a play intent queues nothing, the user is told why.
 _Avoid_: Play request (only for the internal shape of one), command
 
 **Shuffle**:

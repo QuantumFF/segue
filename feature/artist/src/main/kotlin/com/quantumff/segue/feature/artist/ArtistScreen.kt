@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
@@ -41,8 +42,6 @@ import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
@@ -66,7 +65,8 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ExplicitStatus
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
@@ -79,32 +79,32 @@ fun ArtistDetailRoute(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ArtistViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onAlbumClick, onArtistClick, onAddToPlaylist) {
+        MediaActionHost(onAlbumClick = onAlbumClick, onArtistClick = onArtistClick, onAddToPlaylist = onAddToPlaylist)
+    }
     ArtistScreen(
         state = state,
-        playActions = playActions,
         onBackClick = onBackClick,
         onAlbumClick = onAlbumClick,
         onArtistClick = onArtistClick,
-        onAddToPlaylist = onAddToPlaylist,
-        onPlay = { shuffle -> viewModel.play(playActions, shuffle) },
-        onPlayTopSong = { viewModel.playTopSong(playActions, it) },
-        onShuffleAlbums = { viewModel.shuffleAlbums(playActions) },
-        onPlayAlbums = { order, placement -> viewModel.playAlbums(order, placement, playActions) },
-        onInstantMix = { viewModel.startInstantMix(playActions) },
+        onPlay = viewModel::play,
+        onPlayTopSong = viewModel::playTopSong,
+        onShuffleAlbums = viewModel::shuffleAlbums,
+        onPlayAlbums = viewModel::playAlbums,
+        onInstantMix = viewModel::startInstantMix,
         onToggleStar = viewModel::toggleArtistStar,
-        onToggleSongStar = viewModel::toggleSongStar,
         onRetry = viewModel::refresh,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
         onDownload = viewModel::download,
         onRemoveDownload = viewModel::removeDownload,
-        onDownloadSong = viewModel::downloadSong,
+        onArtistAction = { viewModel.onArtistAction(it, menuHost) },
+        onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
     )
 }
 
@@ -116,24 +116,22 @@ fun ArtistDetailRoute(
 @Composable
 fun ArtistScreen(
     state: ArtistUiState,
-    playActions: PlayActions,
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
     onPlay: (shuffle: Boolean) -> Unit,
     onPlayTopSong: (index: Int) -> Unit,
     onShuffleAlbums: () -> Unit,
     onInstantMix: () -> Unit,
     onToggleStar: () -> Unit,
-    onToggleSongStar: (Song) -> Unit,
     onRetry: () -> Unit,
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit = { _, _ -> },
     onDownload: () -> Unit = {},
     onRemoveDownload: () -> Unit = {},
-    onDownloadSong: (Song) -> Unit = {},
+    onArtistAction: (MediaAction) -> Unit = {},
+    onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     Box(modifier.fillMaxSize()) {
@@ -167,22 +165,20 @@ fun ArtistScreen(
 
             is ArtistUiState.Success -> ArtistContent(
                 state = state,
-                playActions = playActions,
                 onBackClick = onBackClick,
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
-                onAddToPlaylist = onAddToPlaylist,
                 onPlay = onPlay,
                 onPlayTopSong = onPlayTopSong,
                 onShuffleAlbums = onShuffleAlbums,
                 onPlayAlbums = onPlayAlbums,
                 onInstantMix = onInstantMix,
                 onToggleStar = onToggleStar,
-                onToggleSongStar = onToggleSongStar,
                 onRetry = onRetry,
                 onDownload = onDownload,
                 onRemoveDownload = onRemoveDownload,
-                onDownloadSong = onDownloadSong,
+                onArtistAction = onArtistAction,
+                onSongAction = onSongAction,
             )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -194,7 +190,6 @@ fun ArtistScreen(
             when (it) {
                 ArtistMessage.FavoriteFailed -> R.string.feature_artist_favorite_failed
                 ArtistMessage.LoadFailed -> R.string.feature_artist_load_failed
-                ArtistMessage.NoSimilarSongs -> R.string.feature_artist_no_similar_songs
                 ArtistMessage.DownloadFailed -> R.string.feature_artist_download_failed
             },
         )
@@ -212,22 +207,20 @@ fun ArtistScreen(
 @Composable
 private fun ArtistContent(
     state: ArtistUiState.Success,
-    playActions: PlayActions,
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
     onPlay: (shuffle: Boolean) -> Unit,
     onPlayTopSong: (index: Int) -> Unit,
     onShuffleAlbums: () -> Unit,
     onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit,
     onInstantMix: () -> Unit,
     onToggleStar: () -> Unit,
-    onToggleSongStar: (Song) -> Unit,
     onRetry: () -> Unit,
     onDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
-    onDownloadSong: (Song) -> Unit,
+    onArtistAction: (MediaAction) -> Unit,
+    onSongAction: (Song, MediaAction) -> Unit,
 ) {
     val artist = state.artist
     var artistMenuOpen by rememberSaveable { mutableStateOf(false) }
@@ -362,17 +355,7 @@ private fun ArtistContent(
         MediaContextMenu(
             header = artist.toMenuHeader(),
             actions = MediaActions.artist(isStarred = artist.isStarred, isDownloaded = state.download != null),
-            onAction = { action ->
-                when (action) {
-                    MediaAction.Play -> onPlay(false)
-                    MediaAction.Shuffle -> onPlay(true)
-                    MediaAction.ShuffleAlbums -> onShuffleAlbums()
-                    MediaAction.Favorite, MediaAction.Unfavorite -> onToggleStar()
-                    MediaAction.Download -> onDownload()
-                    MediaAction.RemoveDownload -> onRemoveDownload()
-                    else -> Unit
-                }
-            },
+            onAction = onArtistAction,
             onDismissRequest = { artistMenuOpen = false },
         )
     }
@@ -392,18 +375,7 @@ private fun ArtistContent(
                 hasAlbum = song.albumId != null,
                 hasArtist = song.artistId != null && song.artistId != artist.id,
             ),
-            onAction = { action ->
-                handleTopSongAction(
-                    action,
-                    song,
-                    playActions,
-                    onToggleSongStar,
-                    onAlbumClick,
-                    onArtistClick,
-                    onAddToPlaylist,
-                    onDownloadSong,
-                )
-            },
+            onAction = { onSongAction(song, it) },
             onDismissRequest = { menuSongId = null },
         )
     }
@@ -473,31 +445,6 @@ private fun WithBackBar(onBackClick: () -> Unit, content: @Composable () -> Unit
     }
 }
 
-/** Top song ⋮ menu actions (DESIGN.md §5.7). */
-@Suppress("LongParameterList")
-internal fun handleTopSongAction(
-    action: MediaAction,
-    song: Song,
-    playActions: PlayActions,
-    onToggleSongStar: (Song) -> Unit,
-    onAlbumClick: (String) -> Unit,
-    onArtistClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
-    onDownloadSong: (Song) -> Unit = {},
-) {
-    when (action) {
-        MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-        MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-        MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-        MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-        MediaAction.Favorite, MediaAction.Unfavorite -> onToggleSongStar(song)
-        MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-        MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-        MediaAction.Download -> onDownloadSong(song)
-        else -> Unit
-    }
-}
-
 private const val TOP_SONGS_PREVIEW = 5
 private const val BIOGRAPHY_LINES = 3
 private const val SKELETON_ROWS = 8
@@ -538,17 +485,14 @@ private fun ArtistScreenPreview() {
     SeguePreview {
         ArtistScreen(
             state = PreviewArtistState,
-            playActions = PlayActions.None,
             onBackClick = {},
             onAlbumClick = {},
             onArtistClick = {},
-            onAddToPlaylist = {},
             onPlay = {},
             onPlayTopSong = {},
             onShuffleAlbums = {},
             onInstantMix = {},
             onToggleStar = {},
-            onToggleSongStar = {},
             onRetry = {},
             onMessageDismiss = {},
         )

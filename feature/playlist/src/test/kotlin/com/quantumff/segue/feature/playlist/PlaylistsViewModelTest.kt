@@ -6,12 +6,15 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
-import com.quantumff.segue.core.model.PlayActions
-import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
@@ -38,11 +41,13 @@ class PlaylistsViewModelTest {
         activeId.value = TestData.server.id
     }
 
+    private val play = RecordingPlayIntents()
+
     private fun viewModel() = PlaylistsViewModel(
         playlists,
         servers,
-        downloads,
         offlineLibraryView(offlineMode, downloads, playlists = playlists),
+        mediaActionHandler(play, downloads, playlists = playlists),
     )
 
     @Test
@@ -103,35 +108,27 @@ class PlaylistsViewModelTest {
     }
 
     @Test
-    fun loadSongsUsesCachedSongsForPlayIntents() = runTest {
-        val songs = listOf(TestData.song("s1"), TestData.song("s2"))
-        playlists.songsByPlaylist.value = mapOf("p1" to songs)
-        val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-        val shuffled = mutableListOf<AlbumSource>()
-        val actions = PlayActions(
-            onPlaySongs = { s, index, shuffle -> played += Triple(s, index, shuffle) },
-            onPlayAlbums = { shuffled += it.source },
-            onPlayNext = {},
-            onAddToQueue = {},
-            onStartInstantMix = {},
-        )
+    fun menuPlaysThePlaylistAndShufflesItsAlbums() = runTest {
+        val viewModel = viewModel()
+        val playlist = TestData.playlist("p1")
 
-        viewModel().loadSongs("p1") { actions.onPlaySongs(it, 0, true) }
-        actions.shuffleAlbums(AlbumSource.Playlist("p1"))
+        viewModel.onPlaylistAction(playlist, MediaAction.Shuffle)
+        viewModel.onPlaylistAction(playlist, MediaAction.ShuffleAlbums)
 
-        assertThat(played).containsExactly(Triple(songs, 0, true))
-        assertThat(shuffled).containsExactly(AlbumSource.Playlist("p1"))
-        assertThat(playlists.refreshed).isEmpty()
+        assertThat(play.plays.single())
+            .isEqualTo(RecordingPlayIntents.Play(PlayTarget.Playlist("p1"), QueuePlacement.Replace, shuffle = true))
+        assertThat(play.albumRequests.single().source).isEqualTo(AlbumSource.Playlist("p1"))
     }
 
     @Test
-    fun loadSongsRefreshesFirstWhenNotCached() = runTest {
-        val loaded = mutableListOf<List<Song>>()
+    fun menuDownloadPinsThePlaylistAndRemoveUnpinsIt() = runTest {
+        val viewModel = viewModel()
+        val playlist = TestData.playlist("p1")
 
-        viewModel().loadSongs("p1") { loaded += it }
+        viewModel.onPlaylistAction(playlist, MediaAction.Download)
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Playlist to "p1")
 
-        assertThat(playlists.refreshed).containsExactly("p1")
-        // Still empty after the refresh: nothing to play, and no callback.
-        assertThat(loaded).isEmpty()
+        viewModel.onPlaylistAction(playlist, MediaAction.RemoveDownload)
+        assertThat(downloads.pins.value).isEmpty()
     }
 }

@@ -2,12 +2,18 @@ package com.quantumff.segue.feature.search
 
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
@@ -41,6 +47,7 @@ class SearchViewModelTest {
     private val library = FakeLibraryRepository()
     private val downloads = FakeDownloadRepository()
     private val offline = FakeOfflineModeRepository()
+    private val play = RecordingPlayIntents()
 
     private val song = TestData.song("s1")
     private val local = SearchResult(
@@ -55,8 +62,14 @@ class SearchViewModelTest {
     )
 
     private fun TestScope.viewModel(): SearchViewModel {
-        val viewModel =
-            SearchViewModel(search, preferences, starRating, library, offlineLibraryView(offline, downloads))
+        val viewModel = SearchViewModel(
+            search,
+            preferences,
+            library,
+            offlineLibraryView(offline, downloads),
+            play,
+            mediaActionHandler(play, downloads, starRating),
+        )
         backgroundScope.launch { viewModel.uiState.collect {} }
         return viewModel
     }
@@ -211,13 +224,13 @@ class SearchViewModelTest {
         viewModel.onQueryChange("rad")
         advanceUntilIdle()
 
-        viewModel.onToggleFavorite(song)
+        viewModel.onSongAction(song, MediaAction.Favorite, MediaActionHost())
         advanceUntilIdle()
         assertThat(starRating.starred[MediaKind.Song to "s1"]).isTrue()
         assertThat(viewModel.uiState.value.songs.single().isStarred).isTrue()
 
         starRating.error = RemoteException.NotSignedIn()
-        viewModel.onToggleFavorite(viewModel.uiState.value.songs.single())
+        viewModel.onSongAction(viewModel.uiState.value.songs.single(), MediaAction.Unfavorite, MediaActionHost())
         advanceUntilIdle()
         assertThat(viewModel.uiState.value.songs.single().isStarred).isTrue()
         assertThat(viewModel.uiState.value.message).isEqualTo(SearchMessage.FavoriteFailed)
@@ -225,6 +238,21 @@ class SearchViewModelTest {
         viewModel.onMessageDismiss()
         advanceUntilIdle()
         assertThat(viewModel.uiState.value.message).isNull()
+    }
+
+    @Test
+    fun tappingASongPlaysTheResultsFromItAndDownloadPinsIt() = runTest(mainDispatcherRule.testDispatcher) {
+        search.script["rad"] = listOf(server)
+        val viewModel = viewModel()
+        viewModel.onQueryChange("rad")
+        advanceUntilIdle()
+
+        viewModel.onSongClick(0)
+        viewModel.onSongAction(song, MediaAction.Download, MediaActionHost())
+        advanceUntilIdle()
+
+        assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(listOf(song), 0))
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Song to "s1")
     }
 
     /** Emits a script per query, one result per second: local first, then the server's. */

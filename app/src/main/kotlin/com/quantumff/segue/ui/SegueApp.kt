@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.window.core.layout.WindowSizeClass
 import com.quantumff.segue.R
+import com.quantumff.segue.core.data.play.PlayIntentMessage
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBar
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
@@ -100,18 +101,13 @@ fun SegueApp(
     }
     val onSidebarPlaylistClick = remember(appState) { { id: String -> appState.navigate { navigateToPlaylist(id) } } }
     val player by playerViewModel.player.collectAsStateWithLifecycle()
-    val playActions = playerViewModel.playActions
     val playerActions = remember(playerViewModel) { playerViewModel.shellActions() }
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     LaunchedEffect(playerViewModel) {
         playerViewModel.messages.collect { message ->
             when (message) {
-                PlayerMessage.NothingToPlay ->
-                    snackbarHostState.showSnackbar(resources.getString(R.string.player_nothing_to_play))
-
-                PlayerMessage.InstantMixFailed ->
-                    snackbarHostState.showSnackbar(resources.getString(R.string.player_instant_mix_failed))
+                is PlayerMessage.NotPlayed -> snackbarHostState.showSnackbar(resources.getString(message.reason.text))
 
                 // DESIGN.md §4.8: with auto-continue on, a snackbar replaces the banner, with Undo.
                 is PlayerMessage.ContinuedFrom -> {
@@ -153,7 +149,6 @@ fun SegueApp(
             SegueNavHost(
                 appState = appState,
                 startDestination = startDestination,
-                playActions = playActions,
                 onAddToPlaylist = { addToPlaylist = it },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -469,6 +464,14 @@ private fun bottomChromeHeight(systemBottom: Dp, miniPlayer: Boolean, navBar: Bo
         systemBottom
 
 private const val MILLIS_PER_SECOND = 1_000L
+
+private val PlayIntentMessage.text: Int
+    get() = when (this) {
+        PlayIntentMessage.NothingToPlay -> R.string.player_nothing_to_play
+        PlayIntentMessage.LoadFailed -> R.string.player_load_failed
+        PlayIntentMessage.InstantMixFailed -> R.string.player_instant_mix_failed
+        PlayIntentMessage.InstantMixOffline -> R.string.player_instant_mix_offline
+    }
 
 /** Light status-bar icons over dark themes and over art (Now Playing), DESIGN.md §3. */
 @Composable

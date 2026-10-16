@@ -25,7 +25,6 @@ import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.core.model.QueuePlacement
 import java.text.NumberFormat
 import kotlinx.coroutines.flow.flowOf
@@ -35,7 +34,6 @@ import kotlinx.coroutines.flow.flowOf
 fun GenreScreen(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
-    playActions: PlayActions,
     modifier: Modifier = Modifier,
     viewModel: GenreViewModel = hiltViewModel(),
 ) {
@@ -45,7 +43,7 @@ fun GenreScreen(
         albums = viewModel.albums.collectAsLazyPagingItems(),
         onBackClick = onBackClick,
         onAlbumClick = onAlbumClick,
-        onPlayAlbums = { order, placement -> viewModel.playAlbums(order, placement, playActions) },
+        onPlayAlbums = viewModel::playAlbums,
         modifier = modifier,
     )
 }

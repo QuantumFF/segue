@@ -3,20 +3,20 @@ package com.quantumff.segue.feature.home
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.designsystem.component.MediaAction
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadedLibrary
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
-import com.quantumff.segue.core.model.PlayActions
-import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
@@ -44,14 +44,16 @@ class HomeViewModelTest {
     private val stars = FakeStarRatingRepository()
     private val downloads = FakeDownloadRepository()
     private val offline = FakeOfflineModeRepository()
+    private val play = RecordingPlayIntents()
 
     private fun viewModel() = HomeViewModel(
         albums,
         library,
         servers,
         sync,
-        stars,
         offlineLibraryView(offline, downloads, playlists = playlists),
+        play,
+        mediaActionHandler(play, downloads, stars, albums),
     )
 
     @Test
@@ -186,72 +188,28 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun playAlbumLoadsSongsThenRaisesThePlayIntent() = runTest {
-        val album = TestData.album("a1")
-        val songs = listOf(TestData.song("s1"), TestData.song("s2"))
-        albums.songsByAlbum.value = mapOf("a1" to songs)
-        val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-        val actions = PlayActions(
-            onPlaySongs = { s, i, shuffle -> played += Triple(s, i, shuffle) },
-            onPlayAlbums = {},
-            onPlayNext = {},
-            onAddToQueue = {},
-            onStartInstantMix = {},
-        )
-        val viewModel = viewModel()
+    fun aCardsPlayButtonPlaysTheAlbum() = runTest {
+        viewModel().playAlbum(TestData.album("a1"))
 
-        dispatchAlbumAction(album, MediaAction.Shuffle, actions, viewModel::withAlbumSongs, viewModel::toggleFavorite, {
-        }, {})
-
-        assertThat(played.single()).isEqualTo(Triple(songs, 0, true))
+        assertThat(play.plays.single().target).isEqualTo(PlayTarget.Album("a1"))
     }
 
     @Test
-    fun shuffleArtistAlbumsUsesTheArtistSource() = runTest {
-        val sources = mutableListOf<AlbumSource>()
-        val actions = PlayActions(
-            onPlaySongs = { _, _, _ -> },
-            onPlayAlbums = { sources += it.source },
-            onPlayNext = {},
-            onAddToQueue = {},
-            onStartInstantMix = {},
-        )
-        val viewModel = viewModel()
+    fun albumMenuDownloadPinsTheAlbum() = runTest {
+        viewModel().onAlbumAction(TestData.album("a1"), MediaAction.Download, MediaActionHost())
 
-        dispatchAlbumAction(
-            TestData.album("a1", artistId = "ar1"),
-            MediaAction.ShuffleArtistAlbums,
-            actions,
-            viewModel::withAlbumSongs,
-            viewModel::toggleFavorite,
-            {},
-            {},
-        )
-
-        assertThat(sources.single()).isEqualTo(AlbumSource.Artist("ar1"))
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Album to "a1")
     }
 
     @Test
-    fun albumWithoutSongsShowsAMessage() = runTest {
+    fun menuFailuresShowAMessage() = runTest {
         val viewModel = viewModel()
-        viewModel.uiState.test {
-            viewModel.withAlbumSongs(TestData.album("missing")) { error("must not play") }
-            assertThat(expectMostRecentItem().message).isEqualTo(HomeMessage.PlaybackLoadFailed)
-            viewModel.messageShown()
-            assertThat(awaitItem().message).isNull()
-        }
-    }
-
-    @Test
-    fun favoriteTogglesAndFailureShowsAMessage() = runTest {
-        val viewModel = viewModel()
-        viewModel.toggleFavorite(TestData.album("a1"))
-        assertThat(stars.starred[MediaKind.Album to "a1"]).isTrue()
-
         stars.error = RemoteException.Unreachable(IOException("offline"))
         viewModel.uiState.test {
-            viewModel.toggleFavorite(TestData.album("a1", starredAt = 1L))
+            viewModel.onAlbumAction(TestData.album("a1"), MediaAction.Favorite, MediaActionHost())
             assertThat(expectMostRecentItem().message).isEqualTo(HomeMessage.FavoriteFailed)
+            viewModel.messageShown()
+            assertThat(awaitItem().message).isNull()
         }
     }
 

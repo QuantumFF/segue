@@ -97,6 +97,20 @@ class PlaylistAndAlbumRepositoryTest {
     }
 
     @Test
+    fun `playing a playlist fetches its songs only when none are cached`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(
+            id = "p",
+            name = "Mix",
+            entry = listOf(networkSong("b", "al"), networkSong("a", "al")),
+        )
+        val repository = playlists()
+
+        assertThat(repository.songsForPlayback("p").map { it.id }).containsExactly("b", "a").inOrder()
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("c", "al")))
+        assertThat(repository.songsForPlayback("p").map { it.id }).containsExactly("b", "a").inOrder()
+    }
+
+    @Test
     fun `deleting a playlist removes it locally`() = runTest {
         server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix")
         val repository = playlists()

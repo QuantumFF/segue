@@ -2,16 +2,16 @@ package com.quantumff.segue.feature.playlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
-import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
-import com.quantumff.segue.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -55,8 +54,8 @@ data class PlaylistsUiState(
 class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     serverRepository: ServerRepository,
-    private val downloadRepository: DownloadRepository,
     offlineView: OfflineLibraryView,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
@@ -99,24 +98,12 @@ class PlaylistsViewModel @Inject constructor(
 
     fun delete(playlist: Playlist) = write { playlistRepository.deletePlaylist(playlist.id) }
 
-    fun download(playlist: Playlist) = write {
-        downloadRepository.pin(PinTarget(PinKind.Playlist, playlist.id, playlist.name, playlist.coverArtId))
-    }
-
-    fun removeDownload(playlist: Playlist) = write { downloadRepository.unpin(PinKind.Playlist, playlist.id) }
-
-    /** Loads the playlist's songs (fetching them when not cached yet) and hands them to [onLoaded]. */
-    fun loadSongs(playlistId: String, onLoaded: (List<Song>) -> Unit) {
+    /** A playlist's ⋮ menu ([MediaActionHandler]); Rename and Delete stay with the screen's dialogs. */
+    fun onPlaylistAction(playlist: Playlist, action: MediaAction) {
         viewModelScope.launch {
-            val cached = playlistRepository.playlistSongs(playlistId).first()
-            val songs = cached.ifEmpty {
-                if (remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }.isFailure) {
-                    local.update { it.copy(message = PlaylistMessage.Failed) }
-                    return@launch
-                }
-                playlistRepository.playlistSongs(playlistId).first()
+            if (mediaActions.playlist(playlist, action, MediaActionHost()) != null) {
+                local.update { it.copy(message = PlaylistMessage.Failed) }
             }
-            if (songs.isNotEmpty()) onLoaded(songs)
         }
     }
 

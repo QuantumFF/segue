@@ -6,12 +6,18 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
@@ -68,9 +74,10 @@ data class PlaylistUiState(
 class PlaylistViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistRepository: PlaylistRepository,
-    private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
     offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
     private val local = MutableStateFlow(LocalState())
@@ -168,18 +175,33 @@ class PlaylistViewModel @Inject constructor(
     /** Pins the playlist for offline use; it then follows the server copy on every library sync. */
     fun download() {
         val playlist = uiState.value.playlist ?: return
-        write { downloadRepository.pin(PinTarget(PinKind.Playlist, playlist.id, playlist.name, playlist.coverArtId)) }
+        write { downloadRepository.pin(PinTarget.of(playlist)) }
     }
 
     fun removeDownload() {
         viewModelScope.launch { downloadRepository.unpin(PinKind.Playlist, playlistId) }
     }
 
-    fun downloadSong(song: Song) = write {
-        downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId))
+    /** Plays the playlist as shown from [startIndex]; [shuffle] shuffles its tracks. */
+    fun play(startIndex: Int = 0, shuffle: Boolean = false) {
+        val songs = uiState.value.songs.ifEmpty { return }
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, startIndex), shuffle = shuffle) }
     }
 
-    fun toggleStar(song: Song) = write { starRatingRepository.setStarred(MediaKind.Song, song.id, !song.isStarred) }
+    /** The playlist's "Shuffle albums": its tracks grouped by album. */
+    fun shuffleAlbums() {
+        val request = AlbumPlayRequest(AlbumSource.Playlist(playlistId), AlbumOrder.Shuffled)
+        viewModelScope.launch { playIntents.playAlbums(request) }
+    }
+
+    /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
+    fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {
+        viewModelScope.launch {
+            if (mediaActions.song(song, action, host) != null) {
+                local.update { it.copy(message = PlaylistMessage.Failed) }
+            }
+        }
+    }
 
     fun onMessageDismiss() = local.update { it.copy(message = null) }
 

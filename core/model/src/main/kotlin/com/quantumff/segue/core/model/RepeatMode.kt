@@ -5,4 +5,8 @@ enum class RepeatMode {
     Off,
     All,
     One,
+    ;
+
+    /** The repeat button's next setting: Off → All → One → Off. */
+    fun next(): RepeatMode = entries[(ordinal + 1) % entries.size]
 }
