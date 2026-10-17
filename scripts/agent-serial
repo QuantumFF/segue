@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Prints the agent emulator serial of a checkout (default: $CLAUDE_PROJECT_DIR, else this one),
+# claiming a free port on first use. A checkout keeps its port until the checkout is deleted, so
+# agents in different worktrees never share an emulator. `scripts/agent-serial --list` prints every
+# claim as "serial checkout".
+#
+# Ports: adb only finds emulators on 5554-5584, and the user's emulators take the low end
+# (scripts/run-app pins segue_pixel to 5554), so agents get 5558-5584.
+set -euo pipefail
+
+claims=${XDG_STATE_HOME:-$HOME/.local/state}/segue/agent-emulators
+mkdir -p "$claims"
+exec 9>"$claims/.lock"
+flock 9
+
+if [[ ${1:-} == --list ]]; then
+  for f in "$claims"/*; do [[ -e $f ]] && echo "emulator-${f##*/} $(<"$f")"; done
+  exit 0
+fi
+
+checkout=${1:-${CLAUDE_PROJECT_DIR:-$(dirname "$0")/..}}
+checkout=$(cd "$checkout" && pwd -P)
+
+for f in "$claims"/*; do
+  [[ -e $f && ! -d $(<"$f") ]] && rm -f "$f"
+done
+
+for f in "$claims"/*; do
+  if [[ -e $f && $(<"$f") == "$checkout" ]]; then
+    echo "emulator-${f##*/}"
+    exit 0
+  fi
+done
+
+for port in $(seq 5558 2 5584); do
+  [[ -e $claims/$port ]] && continue
+  echo "$checkout" >"$claims/$port"
+  echo "emulator-$port"
+  exit 0
+done
+
+echo "agent-serial: every agent emulator port (5558-5584) is claimed; claims of deleted" \
+  "checkouts free themselves, or remove one from $claims" >&2
+exit 1
