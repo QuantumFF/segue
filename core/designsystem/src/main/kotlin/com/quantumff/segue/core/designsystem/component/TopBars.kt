@@ -93,11 +93,14 @@ fun StatusBarScrim(modifier: Modifier = Modifier) {
 
 private const val STATUS_BAR_SCRIM_ALPHA = 0.92f
 
-/** The account action on Home and Library: opens Settings. [serverName] is announced and labelled. */
+/**
+ * The settings action on Home, Library and Playlists: opens Settings. [serverName] is announced
+ * and labelled.
+ */
 @Composable
 fun AccountAction(serverName: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     SegueIconButton(
-        icon = SegueIcons.Account,
+        icon = SegueIcons.Settings,
         contentDescription = serverName ?: stringResource(R.string.ds_account),
         onClick = onClick,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
