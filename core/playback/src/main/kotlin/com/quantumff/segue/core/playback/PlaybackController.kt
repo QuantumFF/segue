@@ -88,6 +88,11 @@ class PlaybackController @Inject constructor(
     /** Each automatic adoption of another device's queue, for the "Continued from" snackbar. */
     val autoAdoptions: Flow<AutoAdoption> = autoAdoptionEvents.receiveAsFlow()
 
+    private val continueFailureEvents = Channel<Unit>(Channel.BUFFERED)
+
+    /** Each "Continue from <device>" ([adoptRemoteQueue]) that adopted nothing, for a snackbar. */
+    val continueFailures: Flow<Unit> = continueFailureEvents.receiveAsFlow()
+
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
      * For surfaces that show no position, so observing them never runs the position ticker.
@@ -227,19 +232,30 @@ class PlaybackController @Inject constructor(
 
     /**
      * "Continue from <device>": the service takes over the offered queue, paused at its saved
-     * position ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]).
+     * position ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]). If it cannot,
+     * [continueFailures] says so.
      */
     fun adoptRemoteQueue() {
-        if (!queueSync.acceptOffer()) return
-        scope.launch { send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY) }
+        val adoption = queueSync.acceptOffer() ?: return
+        scope.launch { if (!adopt(adoption)) continueFailureEvents.send(Unit) }
     }
 
     fun dismissRemoteQueue() = queueSync.dismissOffer()
 
     /** Has the service adopt a queue the auto-continue setting took over, then reports it for the snackbar. */
     internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
-        if (!send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY)) return
+        if (!adopt(adoption)) return
         autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
+    }
+
+    /**
+     * Has the service adopt [adoption], which queue sync staged. False if it did not: offline none
+     * of its songs is downloaded, or the service could not be asked, and then it is unstaged.
+     */
+    private suspend fun adopt(adoption: RemoteAdoption): Boolean {
+        val adopted = send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY)
+        if (!adopted) queueSync.abandonAdoption(adoption)
+        return adopted
     }
 
     /** The snackbar's Undo: puts back the local queue the last automatic adoption replaced. */

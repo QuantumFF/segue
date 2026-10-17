@@ -178,17 +178,26 @@ class QueueSyncEngine @Inject constructor(
 
     /**
      * "Continue from <device>": stages the offered queue, the one the banner shows now, for the
-     * player ([takeAdoption]). False if there is none.
+     * player ([takeAdoption]), and returns it. Null if there is none.
      */
-    fun acceptOffer(): Boolean {
-        val queue = offeredQueue.value ?: return false
+    fun acceptOffer(): RemoteAdoption? {
+        val queue = offeredQueue.value ?: return null
         clearOffer(queue)
-        pendingAdoption.set(RemoteAdoption(queue, undo = null))
-        return true
+        return RemoteAdoption(queue, undo = null).also(pendingAdoption::set)
     }
 
     /** The remote queue staged for the player to adopt, once; null if none. */
     internal fun takeAdoption(): RemoteAdoption? = pendingAdoption.getAndSet(null)
+
+    /**
+     * [adoption] never reached the player (asking the service failed): it is no longer staged, and
+     * an automatic one has nothing to undo since nothing was replaced. Once the player took it
+     * ([takeAdoption]) this does nothing; the player settles undo itself.
+     */
+    internal fun abandonAdoption(adoption: RemoteAdoption) {
+        if (!pendingAdoption.compareAndSet(adoption, null)) return
+        if (adoption.undo != null) adoptionUndo.compareAndSet(adoption.undo, null)
+    }
 
     /** The local queue the last automatic adoption replaced, to restore it; null if none. Only once. */
     internal fun takeAdoptionUndo(): QueueSnapshot? = adoptionUndo.getAndSet(null)

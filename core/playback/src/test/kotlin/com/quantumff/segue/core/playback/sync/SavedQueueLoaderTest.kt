@@ -176,7 +176,7 @@ class SavedQueueLoaderTest {
     fun `continue adopts the queue the banner offered, with nothing to undo`() = runTest {
         playingLocalQueue(autoAdopt = false)
         queueSync.checkRemote(isPlayingLocally = true)
-        assertThat(queueSync.acceptOffer()).isTrue()
+        assertThat(queueSync.acceptOffer()).isNotNull()
         // A later save on the server does not change what the user accepted.
         remote.queue = remoteQueue().copy(songs = persistentListOf(TestData.song("other")))
 
