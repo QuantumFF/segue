@@ -11,6 +11,7 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -29,7 +30,8 @@ data class AlbumListUiState(
     val isRefreshing: Boolean = false,
     val isOffline: Boolean = false,
     val isLoading: Boolean = true,
-    val message: HomeMessage? = null,
+    /** A failed menu action, for the snackbar. */
+    val message: MediaActionFailure? = null,
 )
 
 /** "See all" for a Home section: the server-ordered list, up to [SEE_ALL_SIZE] albums. */
@@ -62,14 +64,14 @@ class AlbumListViewModel @Inject constructor(
     }
 
     fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {
-        viewModelScope.launch { mediaActions.album(album, action, host)?.let { showMessage(it.toHomeMessage()) } }
+        viewModelScope.launch { mediaActions.album(album, action, host)?.let(::showMessage) }
     }
 
     fun messageShown() {
         status.update { it.copy(message = null) }
     }
 
-    private fun showMessage(message: HomeMessage) {
+    private fun showMessage(message: MediaActionFailure) {
         status.update { it.copy(message = message) }
     }
 

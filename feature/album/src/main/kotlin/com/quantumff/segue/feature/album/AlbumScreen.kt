@@ -59,6 +59,7 @@ import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -184,10 +185,8 @@ fun AlbumScreen(
     val messageText = message?.let {
         stringResource(
             when (it) {
-                AlbumMessage.FavoriteFailed -> R.string.feature_album_favorite_failed
+                is AlbumMessage.ActionFailed -> it.failure.text
                 AlbumMessage.RatingFailed -> R.string.feature_album_rating_failed
-                AlbumMessage.DownloadFailed -> R.string.feature_album_download_failed
-                AlbumMessage.LoadFailed -> R.string.feature_album_load_failed
             },
         )
     }

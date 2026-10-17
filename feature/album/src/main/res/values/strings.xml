@@ -26,8 +26,5 @@
     <string name="feature_album_error_message">Check your connection and try again</string>
     <string name="feature_album_not_found_title">Album not found</string>
     <string name="feature_album_not_found_message">It may have been removed from the server</string>
-    <string name="feature_album_favorite_failed">Couldn\'t update favorites</string>
     <string name="feature_album_rating_failed">Couldn\'t save the rating</string>
-    <string name="feature_album_download_failed">Couldn\'t start the download</string>
-    <string name="feature_album_load_failed">Couldn\'t load the album\'s songs</string>
 </resources>

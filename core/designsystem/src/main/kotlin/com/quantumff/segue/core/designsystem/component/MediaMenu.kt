@@ -11,6 +11,7 @@ import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaActions
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -77,6 +78,15 @@ private val MediaAction.label: Int
         MediaAction.Rename -> R.string.ds_action_rename
         MediaAction.RemoveFromPlaylist -> R.string.ds_action_remove_from_playlist
         MediaAction.Delete -> R.string.ds_action_delete
+    }
+
+/** The snackbar text for a failed menu action, worded the same on every screen. */
+val MediaActionFailure.text: Int
+    get() = when (this) {
+        MediaActionFailure.LoadFailed -> R.string.ds_action_failed_load
+        MediaActionFailure.NothingToAdd -> R.string.ds_action_failed_nothing_to_add
+        MediaActionFailure.FavoriteFailed -> R.string.ds_action_failed_favorite
+        MediaActionFailure.DownloadFailed -> R.string.ds_action_failed_download
     }
 
 private val MediaAction.icon: ImageVector

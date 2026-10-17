@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.OfflineLibraryView
-import com.quantumff.segue.core.data.play.MediaActionFailure
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -17,6 +16,7 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
@@ -35,20 +35,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-/** Transient messages shown in a snackbar. */
-enum class HomeMessage {
-    /** Could not load an album's songs to add them to a playlist. */
-    LoadFailed,
-    FavoriteFailed,
-    DownloadFailed,
-}
-
-internal fun MediaActionFailure.toHomeMessage() = when (this) {
-    MediaActionFailure.LoadFailed -> HomeMessage.LoadFailed
-    MediaActionFailure.FavoriteFailed -> HomeMessage.FavoriteFailed
-    MediaActionFailure.DownloadFailed -> HomeMessage.DownloadFailed
-}
 
 /** The Home screen (DESIGN.md §4.1). Lists come from Room; the server refreshes them in the background. */
 data class HomeUiState(
@@ -71,7 +57,8 @@ data class HomeUiState(
     val showsDownloadedOnly: Boolean = false,
     /** True until Room has answered, so the empty state does not flash on start. */
     val isLoading: Boolean = true,
-    val message: HomeMessage? = null,
+    /** A failed menu action, for the snackbar. */
+    val message: MediaActionFailure? = null,
 ) {
     val isEmpty: Boolean
         get() = featured.isEmpty() && recentlyPlayed.isEmpty() && recentlyAdded.isEmpty() &&
@@ -90,7 +77,7 @@ private data class AlbumSections(
     val favorites: List<Album>,
 )
 
-private data class Status(val isRefreshing: Boolean, val isOffline: Boolean, val message: HomeMessage?)
+private data class Status(val isRefreshing: Boolean, val isOffline: Boolean, val message: MediaActionFailure?)
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -200,14 +187,14 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {
-        viewModelScope.launch { mediaActions.album(album, action, host)?.let { showMessage(it.toHomeMessage()) } }
+        viewModelScope.launch { mediaActions.album(album, action, host)?.let(::showMessage) }
     }
 
     fun messageShown() {
         status.update { it.copy(message = null) }
     }
 
-    private fun showMessage(message: HomeMessage) {
+    private fun showMessage(message: MediaActionFailure) {
         status.update { it.copy(message = message) }
     }
 

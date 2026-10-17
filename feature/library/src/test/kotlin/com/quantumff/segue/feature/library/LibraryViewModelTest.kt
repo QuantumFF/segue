@@ -13,6 +13,7 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
@@ -190,7 +191,9 @@ class LibraryViewModelTest {
         stars.error = RemoteException.Unreachable(IOException("offline"))
         viewModel.uiState.test {
             viewModel.onAlbumAction(albums.albumsState.value[1], MediaAction.Favorite, MediaActionHost())
-            assertThat(expectMostRecentItem().message).isEqualTo(LibraryMessage.FavoriteFailed)
+            assertThat(
+                expectMostRecentItem().message,
+            ).isEqualTo(LibraryMessage.ActionFailed(MediaActionFailure.FavoriteFailed))
 
             viewModel.onMessageDismiss()
             assertThat(expectMostRecentItem().message).isNull()

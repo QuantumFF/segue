@@ -6,6 +6,7 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -233,7 +234,7 @@ class SearchViewModelTest {
         viewModel.onSongAction(viewModel.uiState.value.songs.single(), MediaAction.Unfavorite, MediaActionHost())
         advanceUntilIdle()
         assertThat(viewModel.uiState.value.songs.single().isStarred).isTrue()
-        assertThat(viewModel.uiState.value.message).isEqualTo(SearchMessage.FavoriteFailed)
+        assertThat(viewModel.uiState.value.message).isEqualTo(MediaActionFailure.FavoriteFailed)
 
         viewModel.onMessageDismiss()
         advanceUntilIdle()

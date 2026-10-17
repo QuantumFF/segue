@@ -8,6 +8,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
@@ -148,6 +149,14 @@ class MediaActionHandlerTest {
         handler.album(TestData.album("al"), MediaAction.AddToPlaylist, host)
 
         assertThat(hostCalls).containsExactly(listOf("s1", "s2"))
+    }
+
+    @Test
+    fun `adding an album without songs to a playlist says there is nothing to add`() = runTest {
+        val failure = handler.album(TestData.album("empty"), MediaAction.AddToPlaylist, host)
+
+        assertThat(failure).isEqualTo(MediaActionFailure.NothingToAdd)
+        assertThat(hostCalls).isEmpty()
     }
 
     @Test

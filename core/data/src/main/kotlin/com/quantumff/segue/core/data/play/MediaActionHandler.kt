@@ -12,8 +12,8 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
-import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
@@ -37,71 +37,55 @@ class MediaActionHandler @Inject constructor(
 ) {
     suspend fun album(album: Album, action: MediaAction, host: MediaActionHost): MediaActionFailure? = when (action) {
         MediaAction.ShuffleArtistAlbums -> album.artistId?.let { shuffleAlbums(AlbumSource.Artist(it)) }
-        MediaAction.AddToPlaylist -> addToPlaylist(PlayTarget.Album(album.id), host)
         MediaAction.GoToArtist -> done { album.artistId?.let(host.onArtistClick) }
-        MediaAction.Download -> pin(PinTarget.of(album))
-        MediaAction.RemoveDownload -> unpin(PinKind.Album, album.id)
-        else -> common(action, PlayTarget.Album(album.id), MediaKind.Album, album.id, host)
+        else -> common(action, Subject.of(album), host)
     }
 
     suspend fun song(song: Song, action: MediaAction, host: MediaActionHost): MediaActionFailure? = when (action) {
         MediaAction.InstantMix -> done { playIntents.instantMix(InstantMixSeed.Song(song)) }
-        MediaAction.AddToPlaylist -> done { host.onAddToPlaylist(listOf(song.id)) }
         MediaAction.GoToAlbum -> done { song.albumId?.let(host.onAlbumClick) }
         MediaAction.GoToArtist -> done { song.artistId?.let(host.onArtistClick) }
-        MediaAction.Download -> pin(PinTarget.of(song))
-        MediaAction.RemoveDownload -> unpin(PinKind.Song, song.id)
-        else -> common(action, PlayTarget.Songs(listOf(song)), MediaKind.Song, song.id, host)
+        else -> common(action, Subject.of(song), host)
     }
 
     suspend fun artist(artist: Artist, action: MediaAction, host: MediaActionHost): MediaActionFailure? =
-        when (action) {
-            MediaAction.ShuffleAlbums -> shuffleAlbums(AlbumSource.Artist(artist.id))
-            MediaAction.Download -> pin(PinTarget.of(artist))
-            MediaAction.RemoveDownload -> unpin(PinKind.Artist, artist.id)
-            else -> common(action, PlayTarget.Artist(artist.id), MediaKind.Artist, artist.id, host)
-        }
+        common(action, Subject.of(artist), host)
 
     suspend fun playlist(playlist: Playlist, action: MediaAction, host: MediaActionHost): MediaActionFailure? =
+        common(action, Subject.of(playlist), host)
+
+    /** The actions every kind handles alike: play intents, Add to playlist, Favorite, downloads, the screen's own. */
+    private suspend fun common(action: MediaAction, subject: Subject, host: MediaActionHost): MediaActionFailure? =
         when (action) {
-            MediaAction.ShuffleAlbums -> shuffleAlbums(AlbumSource.Playlist(playlist.id))
+            MediaAction.Play -> done { playIntents.play(subject.target) }
 
-            MediaAction.AddToPlaylist -> addToPlaylist(PlayTarget.Playlist(playlist.id), host)
+            MediaAction.Shuffle -> done { playIntents.play(subject.target, shuffle = true) }
 
-            MediaAction.Download -> pin(PinTarget.of(playlist))
+            MediaAction.ShuffleAlbums -> subject.albums?.let { shuffleAlbums(it) }
 
-            MediaAction.RemoveDownload -> unpin(PinKind.Playlist, playlist.id)
+            MediaAction.PlayNext -> done { playIntents.play(subject.target, QueuePlacement.Next) }
 
-            // Playlists are not starred: no MediaKind.
-            else -> common(action, PlayTarget.Playlist(playlist.id), null, playlist.id, host)
+            MediaAction.AddToQueue -> done { playIntents.play(subject.target, QueuePlacement.End) }
+
+            MediaAction.AddToPlaylist -> addToPlaylist(subject.target, host)
+
+            MediaAction.Favorite, MediaAction.Unfavorite -> subject.starKind?.let { kind ->
+                val starred = action == MediaAction.Favorite
+                val outcome = remoteOutcome { stars.setStarred(kind, subject.pin.id, starred) }
+                MediaActionFailure.FavoriteFailed.takeIf { outcome.isFailure }
+            }
+
+            MediaAction.Download ->
+                MediaActionFailure.DownloadFailed.takeIf { remoteOutcome { downloads.pin(subject.pin) }.isFailure }
+
+            MediaAction.RemoveDownload -> done { downloads.unpin(subject.pin.kind, subject.pin.id) }
+
+            MediaAction.Rename, MediaAction.Delete, MediaAction.RemoveFromPlaylist ->
+                done { host.onScreenAction(action) }
+
+            // Not offered for this kind.
+            else -> null
         }
-
-    /** The actions every kind handles alike: play intents, Favorite, and the screen's own. */
-    private suspend fun common(
-        action: MediaAction,
-        target: PlayTarget,
-        kind: MediaKind?,
-        id: String,
-        host: MediaActionHost,
-    ): MediaActionFailure? = when (action) {
-        MediaAction.Play -> done { playIntents.play(target) }
-
-        MediaAction.Shuffle -> done { playIntents.play(target, shuffle = true) }
-
-        MediaAction.PlayNext -> done { playIntents.play(target, QueuePlacement.Next) }
-
-        MediaAction.AddToQueue -> done { playIntents.play(target, QueuePlacement.End) }
-
-        MediaAction.Favorite, MediaAction.Unfavorite -> kind?.let {
-            val starred = action == MediaAction.Favorite
-            MediaActionFailure.FavoriteFailed.takeIf { remoteOutcome { stars.setStarred(kind, id, starred) }.isFailure }
-        }
-
-        MediaAction.Rename, MediaAction.Delete, MediaAction.RemoveFromPlaylist -> done { host.onScreenAction(action) }
-
-        // Not offered for this kind.
-        else -> null
-    }
 
     private suspend fun shuffleAlbums(source: AlbumSource) =
         done { playIntents.playAlbums(AlbumPlayRequest(source, AlbumOrder.Shuffled)) }
@@ -112,19 +96,47 @@ class MediaActionHandler @Inject constructor(
         } catch (_: RemoteException) {
             return MediaActionFailure.LoadFailed
         }
-        if (songs.isNotEmpty()) host.onAddToPlaylist(songs.map { it.id })
+        if (songs.isEmpty()) return MediaActionFailure.NothingToAdd
+        host.onAddToPlaylist(songs.map { it.id })
         return null
     }
-
-    private suspend fun pin(target: PinTarget) =
-        MediaActionFailure.DownloadFailed.takeIf { remoteOutcome { downloads.pin(target) }.isFailure }
-
-    private suspend fun unpin(kind: PinKind, id: String) = done { downloads.unpin(kind, id) }
 
     /** An action that cannot fail here: navigation, or a play intent, which reports its own failures. */
     private inline fun done(action: () -> Unit): MediaActionFailure? {
         action()
         return null
+    }
+
+    /** What the shared actions need to know about the album, song, artist or playlist a menu is for. */
+    private class Subject(
+        /** What Play, Shuffle, Play next, Add to queue and Add to playlist take the songs of. */
+        val target: PlayTarget,
+        /** What Download pins and Remove download unpins; its ID is also the one starred. */
+        val pin: PinTarget,
+        /** Null for playlists, which are not starred. */
+        val starKind: MediaKind?,
+        /** Where Shuffle albums takes its albums from; null on menus without it. */
+        val albums: AlbumSource? = null,
+    ) {
+        companion object {
+            fun of(album: Album) = Subject(PlayTarget.Album(album.id), PinTarget.of(album), MediaKind.Album)
+
+            fun of(song: Song) = Subject(PlayTarget.Songs(listOf(song)), PinTarget.of(song), MediaKind.Song)
+
+            fun of(artist: Artist) = Subject(
+                PlayTarget.Artist(artist.id),
+                PinTarget.of(artist),
+                MediaKind.Artist,
+                albums = AlbumSource.Artist(artist.id),
+            )
+
+            fun of(playlist: Playlist) = Subject(
+                PlayTarget.Playlist(playlist.id),
+                PinTarget.of(playlist),
+                starKind = null,
+                albums = AlbumSource.Playlist(playlist.id),
+            )
+        }
     }
 }
 
@@ -140,11 +152,3 @@ class MediaActionHost(
     /** Rename, Delete and Remove from playlist: the screen's own. */
     val onScreenAction: (MediaAction) -> Unit = {},
 )
-
-/** A menu action that failed, for the screen's snackbar. */
-enum class MediaActionFailure {
-    /** The songs to add to a playlist could not be fetched. */
-    LoadFailed,
-    FavoriteFailed,
-    DownloadFailed,
-}
