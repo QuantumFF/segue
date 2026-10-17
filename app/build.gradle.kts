@@ -11,8 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.quantumff.segue"
-        versionCode = 2
-        versionName = "0.1.1"
+        // versionCode and versionName come from the release tag; see SegueVersion.kt in build-logic.
     }
 
     // Release signing comes from SEGUE_* environment variables (set by .github/workflows/release.yml).

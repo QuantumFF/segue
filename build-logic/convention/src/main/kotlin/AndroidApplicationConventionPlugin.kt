@@ -1,5 +1,6 @@
 import com.android.build.api.dsl.ApplicationExtension
 import com.quantumff.segue.buildlogic.configureKotlinAndroid
+import com.quantumff.segue.buildlogic.configureSegueVersion
 import com.quantumff.segue.buildlogic.configureUnitTests
 import com.quantumff.segue.buildlogic.libs
 import com.quantumff.segue.buildlogic.versionInt
@@ -15,6 +16,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
         extensions.configure<ApplicationExtension> {
             configureKotlinAndroid(this)
             defaultConfig.targetSdk = libs.versionInt("targetSdk")
+            configureSegueVersion(this)
         }
         configureUnitTests()
     }

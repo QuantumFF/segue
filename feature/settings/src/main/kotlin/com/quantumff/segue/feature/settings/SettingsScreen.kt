@@ -739,7 +739,7 @@ private fun SettingsScreenPreview() {
                 ),
                 activeServerId = "1",
             ),
-            versionName = "0.1.1",
+            versionName = "1.0.0",
             actions = SettingsActions.None,
             onBackClick = {},
         )
