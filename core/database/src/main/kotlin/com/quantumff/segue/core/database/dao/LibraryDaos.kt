@@ -41,7 +41,7 @@ private const val DOWNLOADED_ALBUM =
         "WHERE s.serverId = :serverId AND d.state = 'Completed' AND s.albumId IS NOT NULL)"
 
 /** [ALBUM_FILTER], keeping albums with a downloaded song if `:downloaded`, else albums without one. */
-private const val DOWNLOAD_FILTER = "$ALBUM_FILTER AND ($DOWNLOADED_ALBUM) = :downloaded"
+private const val ALBUM_FILTER_BY_DOWNLOAD = "$ALBUM_FILTER AND ($DOWNLOADED_ALBUM) = :downloaded"
 
 @Dao
 abstract class ArtistDao {
@@ -136,7 +136,7 @@ abstract class AlbumDao {
 
     // The same four orders limited to albums with or without a downloaded song (the "Downloaded" chip, offline mode).
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOAD_FILTER ORDER BY sortName, id")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER_BY_DOWNLOAD ORDER BY sortName, id")
     abstract fun downloadFilteredPagingSourceByName(
         serverId: String,
         starred: Boolean?,
@@ -145,7 +145,7 @@ abstract class AlbumDao {
         downloaded: Boolean,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOAD_FILTER ORDER BY artist COLLATE NOCASE, year, sortName, id")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER_BY_DOWNLOAD ORDER BY artist COLLATE NOCASE, year, sortName, id")
     abstract fun downloadFilteredPagingSourceByArtist(
         serverId: String,
         starred: Boolean?,
@@ -154,7 +154,7 @@ abstract class AlbumDao {
         downloaded: Boolean,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOAD_FILTER ORDER BY createdAt DESC, sortName, id")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER_BY_DOWNLOAD ORDER BY createdAt DESC, sortName, id")
     abstract fun downloadFilteredPagingSourceByRecentlyAdded(
         serverId: String,
         starred: Boolean?,
@@ -163,7 +163,7 @@ abstract class AlbumDao {
         downloaded: Boolean,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE $DOWNLOAD_FILTER ORDER BY year DESC, sortName, id")
+    @Query("SELECT * FROM albums WHERE $ALBUM_FILTER_BY_DOWNLOAD ORDER BY year DESC, sortName, id")
     abstract fun downloadFilteredPagingSourceByYear(
         serverId: String,
         starred: Boolean?,
@@ -172,7 +172,7 @@ abstract class AlbumDao {
         downloaded: Boolean,
     ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT COUNT(*) FROM albums WHERE $DOWNLOAD_FILTER")
+    @Query("SELECT COUNT(*) FROM albums WHERE $ALBUM_FILTER_BY_DOWNLOAD")
     abstract fun observeDownloadFilteredCount(
         serverId: String,
         starred: Boolean?,
