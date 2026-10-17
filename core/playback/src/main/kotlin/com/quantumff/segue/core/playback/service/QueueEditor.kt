@@ -23,6 +23,7 @@ import kotlin.random.Random
  *
  * [queue] does all three. A media session applies set and add requests itself; [playable] gives it
  * what to apply. [place] is the bare placement, for the album feed, which queues playable songs.
+ * [putBack] undoes a removal, which is no play intent and keeps none of these rules.
  * Call on the player's thread.
  */
 class QueueEditor(
@@ -41,7 +42,8 @@ class QueueEditor(
         startIndex: Int = 0,
         shuffle: Boolean = false,
     ): Boolean {
-        val playable = playable(items, startIndex, shuffle = shuffle) ?: return false
+        val playable = playable(items, startIndex, shuffle = shuffle)
+        if (playable == null || playable.mediaItems.isEmpty()) return false
         place(playable.mediaItems, placement, playable.startIndex)
         return true
     }
@@ -50,7 +52,8 @@ class QueueEditor(
      * [items] as they may be queued now: narrowed offline, shuffled with [shuffle], each with its
      * playable URI. [startIndex] and [startPositionMs] carry through (including Media3's "unset"
      * values) unless the start song was left out, in which case the new start begins at 0. Null if
-     * nothing can play.
+     * none of [items] can play. No items is Media3's own request: a set of nothing clears the queue
+     * and an add of nothing changes nothing, so they pass through.
      */
     suspend fun playable(
         items: List<MediaItem>,
@@ -58,16 +61,26 @@ class QueueEditor(
         startPositionMs: Long = 0,
         shuffle: Boolean = false,
     ): MediaItemsWithStartPosition? {
+        if (items.isEmpty()) return MediaItemsWithStartPosition(emptyList(), startIndex, startPositionMs)
         val downloaded = offline()?.songIds
         val kept = items.withIndex().filter { downloaded == null || it.value.mediaId in downloaded }
         if (kept.isEmpty()) return null
         val songs = kept.map { it.value.withPlayableUri() }
         if (shuffle) return MediaItemsWithStartPosition(songs.shuffled(random), 0, 0)
         if (startIndex == C.INDEX_UNSET) return MediaItemsWithStartPosition(songs, C.INDEX_UNSET, startPositionMs)
-        val start = kept.indexOfFirst { it.index >= startIndex }.takeIf { it >= 0 } ?: 0
+        // A start past the end is the last song online; offline its songs may be gone, so the first.
+        val start = kept.indexOfFirst { it.index >= startIndex }.takeIf { it >= 0 }
+            ?: if (downloaded == null) kept.lastIndex else 0
         val position = if (kept[start].index == startIndex) startPositionMs else 0
         return MediaItemsWithStartPosition(songs, start, position)
     }
+
+    /**
+     * Puts back [item], which the user just removed, at queue position [index] (the end if the queue
+     * is shorter now). Not a play intent: it was the user's own queue, so it is not narrowed offline.
+     */
+    fun putBack(item: MediaItem, index: Int) =
+        player.addMediaItem(index.coerceAtMost(player.mediaItemCount), item.withPlayableUri())
 
     /**
      * Puts [items], which must be playable, into the queue at [placement]; a replaced queue starts

@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionResult
@@ -82,9 +81,7 @@ class PlaybackController @Inject constructor(
     private val connected = MutableStateFlow<MediaController?>(null)
     private val projection = PlayerUiStateProjection()
 
-    private class Removal(val item: MediaItem, val timelineIndex: Int)
-
-    private var lastRemoval: Removal? = null
+    private var lastRemoval: SegueSessionCommands.Removed? = null
 
     private val autoAdoptionEvents = Channel<AutoAdoption>(Channel.BUFFERED)
 
@@ -167,16 +164,21 @@ class PlaybackController @Inject constructor(
     /** Removes the item at [timelineIndex]. [undoRemove] puts the last removed item back. */
     fun remove(timelineIndex: Int) = command { controller ->
         if (timelineIndex !in 0 until controller.mediaItemCount) return@command
-        lastRemoval = Removal(controller.getMediaItemAt(timelineIndex), timelineIndex)
+        lastRemoval = SegueSessionCommands.Removed(controller.getMediaItemAt(timelineIndex), timelineIndex)
         controller.removeMediaItem(timelineIndex)
     }
 
-    /** Puts the last removed item back where it was. */
+    /**
+     * Puts the last removed item back where it was. It was the user's own queue, so unlike a play
+     * intent (an add, which the service narrows offline) it comes back even if not downloaded.
+     */
     fun undoRemove() = command { controller ->
         val removal = lastRemoval ?: return@command
         lastRemoval = null
-        // The service gives the item back its playable URI (onAddMediaItems).
-        controller.addMediaItem(removal.timelineIndex.coerceAtMost(controller.mediaItemCount), removal.item)
+        controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.UNDO_REMOVE),
+            SegueSessionCommands.undoRemoveArgs(removal),
+        )
     }
 
     fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }

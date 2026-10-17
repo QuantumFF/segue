@@ -285,6 +285,12 @@ class SeguePlaybackService : MediaLibraryService() {
                     }
                 }
 
+                SegueSessionCommands.UNDO_REMOVE -> {
+                    val removed = SegueSessionCommands.undoRemove(args)
+                        ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    queueEditor.putBack(removed.item, removed.index)
+                }
+
                 SegueSessionCommands.QUEUE_SONGS -> {
                     val songs = SegueSessionCommands.queueSongs(args)
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
@@ -310,7 +316,12 @@ class SeguePlaybackService : MediaLibraryService() {
             val allowed = library.mayBrowse(controller)
             return scope.launchFuture {
                 when (val play = library.plays.resolveAdd(mediaItems, allowed)) {
-                    is SessionPlay.Items -> queueEditor.playable(play.items, shuffle = play.shuffle)?.mediaItems
+                    is SessionPlay.Items -> {
+                        // "Shuffle albums" among other items: its feed appends a window itself, as when alone.
+                        val fed = play.albumFeed != null && albumFeed.start(play.albumFeed)
+                        queueEditor.playable(play.items, shuffle = play.shuffle)?.mediaItems
+                            ?: emptyList<MediaItem>().takeIf { fed }
+                    }
 
                     // "Shuffle albums": the album feed appends its first window itself and keeps going.
                     is SessionPlay.AlbumFeed -> startAlbumFeed(play.request)
