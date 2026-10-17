@@ -190,6 +190,20 @@ class MediaActionHandlerTest {
     }
 
     @Test
+    fun `a selection's unfavorite unstars every item, even one starred after it was picked`() = runTest {
+        val selected = listOf(TestData.album("starred", starredAt = 1L), TestData.album("pickedUnstarred"))
+
+        handler.albums(selected, MediaAction.Unfavorite, host)
+
+        assertThat(stars.starred).containsExactly(
+            MediaKind.Album to "starred",
+            false,
+            MediaKind.Album to "pickedUnstarred",
+            false,
+        )
+    }
+
+    @Test
     fun `a selection's remove download unpins every item`() = runTest {
         downloads.pins.value = mapOf(
             (PinKind.Artist to "a") to DownloadStatus.Downloaded,

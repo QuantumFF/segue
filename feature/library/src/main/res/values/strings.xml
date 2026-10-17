@@ -51,6 +51,7 @@
         <item quantity="one">%1$s selected</item>
         <item quantity="other">%1$s selected</item>
     </plurals>
+    <string name="feature_library_select">Select</string>
     <string name="feature_library_play_selected">Play selected</string>
     <string name="feature_library_queue_selected">Add selected to queue</string>
     <string name="feature_library_selection_options">Selection options</string>

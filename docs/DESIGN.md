@@ -199,7 +199,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Name sorts get a fast scroller: a 4dp thumb on the right and a 56dp letter bubble while dragging.
 - **Multi-select** (Albums, Artists and Songs tabs, grid or list; §5.10):
   - Long-press an item (with a haptic) to start selecting with it. Here long-press selects instead of opening the context sheet; the sheet stays on the rows' ⋮ and on the selection's ⋮.
-  - While selecting, a tap picks or drops an item instead of opening or playing it, and long-press does the same. Dropping the last pick, the close button, Back, or another tab ends selecting. Sort and filter changes keep the picks.
+  - While selecting, a tap picks or drops an item instead of opening or playing it, and long-press does the same. Unavailable songs (offline, not downloaded) can't be picked, as they can't be played. Dropping the last pick, the close button, Back, or another tab ends selecting. Sort and filter changes keep the picks, even ones the new filter hides: they still count and are still queued.
   - The top bar becomes the selection bar: close · "N selected" · Play · Add to queue · ⋮. Rows hide their ⋮, and Play / Shuffle albums hide.
   - ⋮ with one pick opens that item's own context sheet, so long-press then ⋮ reaches everything long-press used to. With several it opens a sheet headed "N albums" (their names below, the first pick's art) with: Play · Shuffle · Shuffle albums (albums only) · Play next · Add to queue · Add to playlist (not artists) · Favorite · Download. Favorite and Download become Unfavorite and Remove download once every pick has them (songs keep Download, as on their own menu).
   - Picks are queued in the order they were picked, each album whole and in track order, each artist as their Play queues them. Shuffle shuffles all their tracks together; Shuffle albums queues the picked albums whole in a fresh album order. Favorite and Download skip the picks already starred or pinned.
@@ -459,7 +459,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Selection bar:** replaces the top-level bar at the same 56 height, so the content does not move. 4 side padding, `background`. Close (Lucide `x`, "Clear selection"), then "N selected" in `titleMedium`, then 48 icon buttons in `onSurface`.
 - **Selected card** (album, artist): `scrim` over the art in the art's shape, with a 24 `primary` circle holding a 16 `onPrimary` check in the middle.
 - **Selected row** (media row, track row): `primary` @ 16% fill across the row, and the same mark over its art. A track row with a number instead of art shows a 20 `primary` check in place of the number.
-- Unselected items look as usual while selecting. Selected items report the selected state to accessibility services.
+- Unselected items look as usual while selecting. Selected items report the selected state to accessibility services, and long-press is announced as "Select".
 
 ## 6. Performance constraints that shape the design
 

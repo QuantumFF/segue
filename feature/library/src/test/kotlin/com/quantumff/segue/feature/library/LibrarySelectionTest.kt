@@ -3,6 +3,10 @@ package com.quantumff.segue.feature.library
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
@@ -50,9 +54,20 @@ class LibrarySelectionTest {
         compose.onNodeWithText(albums[1].name).performClick()
 
         assertThat(events).containsExactly(
-            LibraryEvent.ToggleSelected(MenuTarget.ForAlbum(albums[0])),
-            LibraryEvent.ToggleSelected(MenuTarget.ForAlbum(albums[1])),
+            LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(albums[0])),
+            LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(albums[1])),
         ).inOrder()
+    }
+
+    @Test
+    fun `long-press is announced as select`() {
+        show()
+
+        compose.onNodeWithText(albums[0].name).assert(
+            SemanticsMatcher("long-press labelled Select") {
+                it.config.getOrNull(SemanticsActions.OnLongClick)?.label == "Select"
+            },
+        )
     }
 
     @Test

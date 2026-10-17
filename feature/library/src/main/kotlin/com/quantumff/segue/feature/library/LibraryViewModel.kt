@@ -84,29 +84,57 @@ sealed interface LibraryMessage {
     data object RefreshFailed : LibraryMessage
 }
 
+/** An album, artist or song a Library tab lists: what a context menu is for, or what multi-select picks. */
+sealed interface LibraryItem {
+    val id: String
+
+    data class OfAlbum(val album: Album) : LibraryItem {
+        override val id: String get() = album.id
+    }
+
+    data class OfArtist(val artist: Artist) : LibraryItem {
+        override val id: String get() = artist.id
+    }
+
+    data class OfSong(val song: Song) : LibraryItem {
+        override val id: String get() = song.id
+    }
+}
+
 /**
  * What multi-select has picked (DESIGN.md §4.2): items of one tab, in the order picked, which is
- * the order they are queued in.
+ * the order they are queued in. Never empty: dropping the last pick ends multi-select.
  */
 sealed interface LibrarySelection {
     val ids: ImmutableSet<String>
 
-    data class Albums(val albums: PersistentList<Album> = persistentListOf()) : LibrarySelection {
+    data class Albums(val albums: PersistentList<Album>) : LibrarySelection {
         override val ids: ImmutableSet<String> = albums.map { it.id }.toImmutableSet()
-
-        fun toggled(album: Album) = Albums(albums.toggled(album) { it.id })
     }
 
-    data class Artists(val artists: PersistentList<Artist> = persistentListOf()) : LibrarySelection {
+    data class Artists(val artists: PersistentList<Artist>) : LibrarySelection {
         override val ids: ImmutableSet<String> = artists.map { it.id }.toImmutableSet()
-
-        fun toggled(artist: Artist) = Artists(artists.toggled(artist) { it.id })
     }
 
-    data class Songs(val songs: PersistentList<Song> = persistentListOf()) : LibrarySelection {
+    data class Songs(val songs: PersistentList<Song>) : LibrarySelection {
         override val ids: ImmutableSet<String> = songs.map { it.id }.toImmutableSet()
+    }
 
-        fun toggled(song: Song) = Songs(songs.toggled(song) { it.id })
+    companion object {
+        /**
+         * [current] with [item] picked, or dropped if it was; null once nothing is picked. An
+         * item of another kind than [current]'s starts over with just that item.
+         */
+        fun toggle(current: LibrarySelection?, item: LibraryItem): LibrarySelection? = when (item) {
+            is LibraryItem.OfAlbum ->
+                Albums(((current as? Albums)?.albums ?: persistentListOf()).toggled(item.album) { it.id })
+
+            is LibraryItem.OfArtist ->
+                Artists(((current as? Artists)?.artists ?: persistentListOf()).toggled(item.artist) { it.id })
+
+            is LibraryItem.OfSong ->
+                Songs(((current as? Songs)?.songs ?: persistentListOf()).toggled(item.song) { it.id })
+        }.takeIf { it.ids.isNotEmpty() }
     }
 }
 
@@ -166,6 +194,7 @@ data class LibraryUiState(
             is LibrarySelection.Songs -> MediaActions.selection(
                 MediaKind.Song,
                 allStarred = selection.songs.all { it.isStarred },
+                allDownloaded = false,
             )
         }
 }
@@ -280,15 +309,9 @@ class LibraryViewModel @Inject constructor(
         savedStateHandle[KEY_TAB] = tab
     }
 
-    /** Starts multi-select with [album], or adds or drops it; dropping the last pick ends it. */
-    fun toggleSelected(album: Album) =
-        updateSelection { (it as? LibrarySelection.Albums ?: LibrarySelection.Albums()).toggled(album) }
-
-    fun toggleSelected(artist: Artist) =
-        updateSelection { (it as? LibrarySelection.Artists ?: LibrarySelection.Artists()).toggled(artist) }
-
-    fun toggleSelected(song: Song) = updateSelection {
-        (it as? LibrarySelection.Songs ?: LibrarySelection.Songs()).toggled(song)
+    /** Starts multi-select with [item], or picks or drops it; dropping the last pick ends it. */
+    fun toggleSelected(item: LibraryItem) {
+        selection.update { LibrarySelection.toggle(it, item) }
     }
 
     fun clearSelection() {
@@ -305,10 +328,6 @@ class LibraryViewModel @Inject constructor(
                 is LibrarySelection.Songs -> mediaActions.songs(selected.songs, action, host)
             }
         }
-    }
-
-    private fun updateSelection(toggle: (LibrarySelection?) -> LibrarySelection) {
-        selection.update { current -> toggle(current).takeIf { it.ids.isNotEmpty() } }
     }
 
     fun setSort(sort: AlbumSortOrder) {

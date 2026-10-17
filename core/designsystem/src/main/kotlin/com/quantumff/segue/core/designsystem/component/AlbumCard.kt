@@ -51,8 +51,9 @@ fun AlbumCard(
     onLongClick: (() -> Unit)? = null,
     artDisplaySize: Dp = SegueSizes.albumCard,
     selected: Boolean = false,
+    onLongClickLabel: String? = null,
 ) {
-    Column(modifier = modifier.selectedCard(selected).pressableCard(onClick = onClick, onLongClick = onLongClick)) {
+    Column(modifier = modifier.selectedCard(selected).pressableCard(onClick, onLongClick, onLongClickLabel)) {
         Box {
             CoverArt(
                 coverArtId = state.coverArtId,
@@ -89,9 +90,10 @@ fun ArtistCard(
     onLongClick: (() -> Unit)? = null,
     artDisplaySize: Dp = SegueSizes.artistCircle,
     selected: Boolean = false,
+    onLongClickLabel: String? = null,
 ) {
     Column(
-        modifier = modifier.selectedCard(selected).pressableCard(onClick = onClick, onLongClick = onLongClick),
+        modifier = modifier.selectedCard(selected).pressableCard(onClick, onLongClick, onLongClickLabel),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {

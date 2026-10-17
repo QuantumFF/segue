@@ -107,7 +107,7 @@ object MediaActions {
      * at once. Favorite and Download turn into their undo once [allStarred] or [allDownloaded];
      * songs are never offered "Remove download", as on their own menu.
      */
-    fun selection(kind: MediaKind, allStarred: Boolean, allDownloaded: Boolean = false): ImmutableList<MediaAction> =
+    fun selection(kind: MediaKind, allStarred: Boolean, allDownloaded: Boolean): ImmutableList<MediaAction> =
         buildList {
             add(MediaAction.Play)
             add(MediaAction.Shuffle)

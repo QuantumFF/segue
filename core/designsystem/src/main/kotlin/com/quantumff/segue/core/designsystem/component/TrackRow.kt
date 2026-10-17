@@ -79,6 +79,7 @@ fun TrackRow(
     onLongClick: (() -> Unit)? = null,
     onMoreClick: (() -> Unit)? = null,
     selected: Boolean = false,
+    onLongClickLabel: String? = null,
 ) {
     val titleColor = if (state.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -87,7 +88,7 @@ fun TrackRow(
             .fillMaxWidth()
             .height(if (dense) SegueSizes.trackRowDense else SegueSizes.trackRow)
             .selectedRow(selected)
-            .rowClickable(enabled = state.isAvailable, onClick = onClick, onLongClick = onLongClick)
+            .rowClickable(state.isAvailable, onClick, onLongClick, onLongClickLabel)
             .then(if (state.isAvailable) Modifier else Modifier.alpha(SegueAlpha.DISABLED))
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,

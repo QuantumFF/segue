@@ -232,15 +232,15 @@ class LibraryViewModelTest {
     fun selectionKeepsThePickOrderAndEndsWithItsLastPick() = runTest {
         val (one, two, three) = albums.albumsState.value
         viewModel.uiState.test {
-            viewModel.toggleSelected(three)
-            viewModel.toggleSelected(one)
-            viewModel.toggleSelected(two)
-            viewModel.toggleSelected(one)
+            viewModel.toggleSelected(LibraryItem.OfAlbum(three))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(two))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
             val picked = expectMostRecentItem().selection as LibrarySelection.Albums
             assertThat(picked.albums.map { it.id }).containsExactly("3", "2").inOrder()
 
-            viewModel.toggleSelected(three)
-            viewModel.toggleSelected(two)
+            viewModel.toggleSelected(LibraryItem.OfAlbum(three))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(two))
             assertThat(expectMostRecentItem().selection).isNull()
         }
     }
@@ -249,7 +249,7 @@ class LibraryViewModelTest {
     fun anotherTabEndsTheSelection() = runTest {
         viewModel.uiState.test {
             viewModel.selectTab(LibraryTab.Songs)
-            viewModel.toggleSelected(TestData.song("s1"))
+            viewModel.toggleSelected(LibraryItem.OfSong(TestData.song("s1")))
             // Tapping the tab it is on keeps it.
             viewModel.selectTab(LibraryTab.Songs)
             assertThat(expectMostRecentItem().selection).isNotNull()
@@ -260,11 +260,24 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun aNewFilterKeepsThePicksEvenOnesItHides() = runTest {
+        val (starred, plain) = albums.albumsState.value
+        viewModel.uiState.test {
+            viewModel.toggleSelected(LibraryItem.OfAlbum(plain))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(starred))
+            viewModel.toggleFavoritesFilter()
+            val state = expectMostRecentItem()
+            assertThat(state.albumCount).isEqualTo(1)
+            assertThat(state.selection?.ids).containsExactly(plain.id, starred.id)
+        }
+    }
+
+    @Test
     fun aSelectionActionRunsOnEveryPickInOrderAndEndsTheSelection() = runTest {
         val (one, _, three) = albums.albumsState.value
         viewModel.uiState.test {
-            viewModel.toggleSelected(three)
-            viewModel.toggleSelected(one)
+            viewModel.toggleSelected(LibraryItem.OfAlbum(three))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
             viewModel.onSelectionAction(MediaAction.PlayNext, MediaActionHost())
 
             assertThat(expectMostRecentItem().selection).isNull()

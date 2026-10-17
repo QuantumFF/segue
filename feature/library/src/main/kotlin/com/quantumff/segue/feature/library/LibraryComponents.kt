@@ -83,6 +83,7 @@ internal fun PagedAlbumGrid(
     downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
     state: LazyGridState = rememberLazyGridState(),
     selected: ImmutableSet<String> = persistentSetOf(),
+    onAlbumLongClickLabel: String? = null,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(SegueSizes.albumGridCell),
@@ -108,6 +109,7 @@ internal fun PagedAlbumGrid(
                     onLongClick = onAlbumLongClick?.let { { it(album) } },
                     artDisplaySize = SegueSizes.albumGridCell,
                     selected = album.id in selected,
+                    onLongClickLabel = onAlbumLongClickLabel,
                 )
             }
         }

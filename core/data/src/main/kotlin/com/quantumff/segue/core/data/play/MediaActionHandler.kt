@@ -61,10 +61,10 @@ class MediaActionHandler @Inject constructor(
      * order given. Shuffle albums queues them whole in a fresh album order.
      */
     suspend fun albums(albums: List<Album>, action: MediaAction, host: MediaActionHost): MediaActionFailure? {
-        fun target(albums: List<Album>) = PlayTarget.Each(albums.map { PlayTarget.Album(it.id) })
+        fun each(inOrder: List<Album>) = PlayTarget.Each(inOrder.map { PlayTarget.Album(it.id) })
         return when (action) {
-            MediaAction.ShuffleAlbums -> done { playIntents.play(target(albums.shuffled())) }
-            else -> several(action, target(albums), albums.map(Subject::of), host)
+            MediaAction.ShuffleAlbums -> done { playIntents.play(each(albums.shuffled())) }
+            else -> several(action, each(albums), albums.map(Subject::of), host)
         }
     }
 
@@ -81,9 +81,7 @@ class MediaActionHandler @Inject constructor(
     /** The actions every kind handles alike: play intents, Add to playlist, Favorite, downloads, the screen's own. */
     private suspend fun common(action: MediaAction, subject: Subject, host: MediaActionHost): MediaActionFailure? =
         when (action) {
-            MediaAction.Play, MediaAction.Shuffle, MediaAction.PlayNext, MediaAction.AddToQueue,
-            MediaAction.AddToPlaylist,
-            -> songsAction(action, subject.target, host)
+            in SONGS_ACTIONS -> songsAction(action, subject.target, host)
 
             MediaAction.ShuffleAlbums -> subject.albums?.let { shuffleAlbums(it) }
 
@@ -107,8 +105,9 @@ class MediaActionHandler @Inject constructor(
 
     /**
      * The shared actions on several subjects at once: [target] stands for all their songs, and
-     * Favorite and Download leave alone the ones already starred or pinned. One failure does not
-     * stop the rest.
+     * Favorite and Download leave alone the ones already starred or pinned. Unfavorite unstars
+     * every one: a subject's starred state is as of when it was picked, and unstarring again is
+     * harmless. One failure does not stop the rest.
      */
     private suspend fun several(
         action: MediaAction,
@@ -116,13 +115,11 @@ class MediaActionHandler @Inject constructor(
         subjects: List<Subject>,
         host: MediaActionHost,
     ): MediaActionFailure? = when (action) {
-        MediaAction.Play, MediaAction.Shuffle, MediaAction.PlayNext, MediaAction.AddToQueue,
-        MediaAction.AddToPlaylist,
-        -> songsAction(action, target, host)
+        in SONGS_ACTIONS -> songsAction(action, target, host)
 
         MediaAction.Favorite, MediaAction.Unfavorite -> {
             val starred = action == MediaAction.Favorite
-            val failures = subjects.filter { it.isStarred != starred }.count { subject ->
+            val failures = subjects.filter { !starred || !it.isStarred }.count { subject ->
                 val kind = subject.starKind ?: return@count false
                 remoteOutcome { stars.setStarred(kind, subject.pin.id, starred) }.isFailure
             }
@@ -141,7 +138,7 @@ class MediaActionHandler @Inject constructor(
         else -> null
     }
 
-    /** The actions that take [target]'s songs: Play, Shuffle, Play next, Add to queue, Add to playlist. */
+    /** The [SONGS_ACTIONS], which take [target]'s songs. */
     private suspend fun songsAction(action: MediaAction, target: PlayTarget, host: MediaActionHost) = when (action) {
         MediaAction.Play -> done { playIntents.play(target) }
         MediaAction.Shuffle -> done { playIntents.play(target, shuffle = true) }
@@ -179,7 +176,7 @@ class MediaActionHandler @Inject constructor(
         val pin: PinTarget,
         /** Null for playlists, which are not starred. */
         val starKind: MediaKind?,
-        /** Starred already, so a selection's Favorite skips it. */
+        /** Starred already (when the screen read it), so a selection's Favorite skips it. */
         val isStarred: Boolean,
         /** Where Shuffle albums takes its albums from; null on menus without it. */
         val albums: AlbumSource? = null,
@@ -209,6 +206,15 @@ class MediaActionHandler @Inject constructor(
         }
     }
 }
+
+/** The actions that take a subject's songs: Play, Shuffle, Play next, Add to queue, Add to playlist. */
+private val SONGS_ACTIONS = setOf(
+    MediaAction.Play,
+    MediaAction.Shuffle,
+    MediaAction.PlayNext,
+    MediaAction.AddToQueue,
+    MediaAction.AddToPlaylist,
+)
 
 /**
  * What a menu action needs from the screen it was raised on. Callbacks for actions a screen's

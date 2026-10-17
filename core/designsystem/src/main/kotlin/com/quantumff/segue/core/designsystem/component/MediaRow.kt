@@ -47,13 +47,14 @@ fun MediaRow(
     placeholderIcon: ImageVector = SegueIcons.Disc3,
     download: DownloadBadgeState? = null,
     selected: Boolean = false,
+    onLongClickLabel: String? = null,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(SegueSizes.mediaRow)
             .selectedRow(selected)
-            .rowClickable(enabled = true, onClick = onClick, onLongClick = onLongClick)
+            .rowClickable(enabled = true, onClick, onLongClick, onLongClickLabel)
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {

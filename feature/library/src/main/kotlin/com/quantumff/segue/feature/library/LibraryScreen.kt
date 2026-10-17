@@ -159,7 +159,7 @@ internal sealed interface LibraryEvent {
     data object ToggleDownloaded : LibraryEvent
 
     /** Starts multi-select with the item, or picks or drops it. */
-    data class ToggleSelected(val item: MenuTarget) : LibraryEvent
+    data class ToggleSelected(val item: LibraryItem) : LibraryEvent
 
     data object ClearSelection : LibraryEvent
 
@@ -229,21 +229,6 @@ fun LibraryScreen(
     )
 }
 
-private fun LibraryViewModel.toggleSelected(item: MenuTarget) = when (item) {
-    is MenuTarget.ForAlbum -> toggleSelected(item.album)
-    is MenuTarget.ForArtist -> toggleSelected(item.artist)
-    is MenuTarget.ForSong -> toggleSelected(item.song)
-}
-
-/** A context menu's subject, or an item multi-select picks. */
-internal sealed interface MenuTarget {
-    data class ForAlbum(val album: Album) : MenuTarget
-
-    data class ForArtist(val artist: Artist) : MenuTarget
-
-    data class ForSong(val song: Song) : MenuTarget
-}
-
 private enum class LibraryPicker {
     Sort,
     Year,
@@ -261,7 +246,7 @@ internal fun LibraryContent(
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
 ) {
-    var menu by remember { mutableStateOf<MenuTarget?>(null) }
+    var menu by remember { mutableStateOf<LibraryItem?>(null) }
     var picker by remember { mutableStateOf<LibraryPicker?>(null) }
     var selectionMenu by remember { mutableStateOf(false) }
     val selection = state.selection
@@ -550,9 +535,9 @@ private fun TabContent(
     artists: LazyPagingItems<Artist>,
     songs: LazyPagingItems<Song>,
     onEvent: (LibraryEvent) -> Unit,
-    onMenu: (MenuTarget) -> Unit,
+    onMenu: (LibraryItem) -> Unit,
 ) {
-    val selected = state.selection?.ids
+    val selected = state.selection?.ids ?: persistentSetOf()
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
     val gridPadding = PaddingValues(
         start = SegueSpacing.lg,
@@ -595,13 +580,14 @@ private fun TabContent(
 
             state.viewMode == LibraryViewMode.Grid -> PagedAlbumGrid(
                 albums = albums,
-                onAlbumClick = { onEvent(tapEvent(selected, MenuTarget.ForAlbum(it), LibraryEvent.OpenAlbum(it.id))) },
-                onAlbumLongClick = { onEvent(LibraryEvent.ToggleSelected(MenuTarget.ForAlbum(it))) },
+                onAlbumClick = { onEvent(tapEvent(selected, LibraryItem.OfAlbum(it), LibraryEvent.OpenAlbum(it.id))) },
+                onAlbumLongClick = { onEvent(LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(it))) },
                 contentPadding = albumGridPadding,
                 modifier = Modifier.fillMaxSize(),
                 downloads = state.pinnedAlbums,
                 state = albumGridState,
-                selected = selected ?: persistentSetOf(),
+                selected = selected,
+                onAlbumLongClickLabel = stringResource(R.string.feature_library_select),
             )
 
             else -> LazyColumn(
@@ -615,7 +601,7 @@ private fun TabContent(
                     contentType = albums.itemContentType { "album" },
                 ) { index ->
                     val album = albums[index]
-                    val target = album?.let { MenuTarget.ForAlbum(it) }
+                    val target = album?.let { LibraryItem.OfAlbum(it) }
                     MediaRow(
                         title = album?.name.orEmpty(),
                         subtitle = album?.artist,
@@ -624,9 +610,10 @@ private fun TabContent(
                             target?.let { onEvent(tapEvent(selected, it, LibraryEvent.OpenAlbum(it.album.id))) }
                         },
                         onLongClick = target?.let { { onEvent(LibraryEvent.ToggleSelected(it)) } },
-                        onMoreClick = target?.takeIf { selected == null }?.let { { onMenu(it) } },
+                        onMoreClick = target?.takeIf { selected.isEmpty() }?.let { { onMenu(it) } },
                         download = album?.let { state.pinnedAlbums[it.id]?.toBadgeState() },
-                        selected = album != null && selected?.contains(album.id) == true,
+                        selected = target?.id in selected,
+                        onLongClickLabel = stringResource(R.string.feature_library_select),
                     )
                 }
             }
@@ -718,7 +705,7 @@ private fun ArtistGrid(
     artists: LazyPagingItems<Artist>,
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
-    selected: ImmutableSet<String>?,
+    selected: ImmutableSet<String>,
 ) {
     val format = NumberFormat.getIntegerInstance()
     LazyVerticalGrid(
@@ -743,11 +730,12 @@ private fun ArtistGrid(
                     ),
                 ),
                 onClick = {
-                    onEvent(tapEvent(selected, MenuTarget.ForArtist(artist), LibraryEvent.OpenArtist(artist.id)))
+                    onEvent(tapEvent(selected, LibraryItem.OfArtist(artist), LibraryEvent.OpenArtist(artist.id)))
                 },
-                onLongClick = { onEvent(LibraryEvent.ToggleSelected(MenuTarget.ForArtist(artist))) },
+                onLongClick = { onEvent(LibraryEvent.ToggleSelected(LibraryItem.OfArtist(artist))) },
                 artDisplaySize = ARTIST_GRID_CELL,
-                selected = selected?.contains(artist.id) == true,
+                selected = artist.id in selected,
+                onLongClickLabel = stringResource(R.string.feature_library_select),
             )
         }
     }
@@ -761,7 +749,7 @@ private fun ArtistList(
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
     downloads: ImmutableMap<String, DownloadStatus>,
-    selected: ImmutableSet<String>?,
+    selected: ImmutableSet<String>,
 ) {
     val format = NumberFormat.getIntegerInstance()
     LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
@@ -771,7 +759,7 @@ private fun ArtistList(
             contentType = artists.itemContentType { "artist" },
         ) { index ->
             val artist = artists[index]
-            val target = artist?.let { MenuTarget.ForArtist(it) }
+            val target = artist?.let { LibraryItem.OfArtist(it) }
             MediaRow(
                 title = artist?.name.orEmpty(),
                 subtitle = artist?.let {
@@ -787,7 +775,8 @@ private fun ArtistList(
                 artShape = SegueShapes.full,
                 placeholderIcon = SegueIcons.Artist,
                 download = artist?.let { downloads[it.id]?.toBadgeState() },
-                selected = artist != null && selected?.contains(artist.id) == true,
+                selected = target?.id in selected,
+                onLongClickLabel = stringResource(R.string.feature_library_select),
             )
         }
     }
@@ -798,9 +787,9 @@ private fun SongList(
     songs: LazyPagingItems<Song>,
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
-    onMenu: (MenuTarget) -> Unit,
+    onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, SongDownload>,
-    selected: ImmutableSet<String>?,
+    selected: ImmutableSet<String>,
 ) {
     LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         items(
@@ -821,10 +810,11 @@ private fun SongList(
                     state = remember(song, download) {
                         song.toTrackRowState(download = download?.status?.toBadgeState())
                     },
-                    onClick = { onEvent(tapEvent(selected, MenuTarget.ForSong(song), LibraryEvent.PlaySong(song))) },
-                    onLongClick = { onEvent(LibraryEvent.ToggleSelected(MenuTarget.ForSong(song))) },
-                    onMoreClick = if (selected == null) ({ onMenu(MenuTarget.ForSong(song)) }) else null,
-                    selected = selected?.contains(song.id) == true,
+                    onClick = { onEvent(tapEvent(selected, LibraryItem.OfSong(song), LibraryEvent.PlaySong(song))) },
+                    onLongClick = { onEvent(LibraryEvent.ToggleSelected(LibraryItem.OfSong(song))) },
+                    onMoreClick = if (selected.isEmpty()) ({ onMenu(LibraryItem.OfSong(song)) }) else null,
+                    selected = song.id in selected,
+                    onLongClickLabel = stringResource(R.string.feature_library_select),
                 )
             }
         }
@@ -942,13 +932,13 @@ private fun LazyListScope.emptyItem(content: @Composable () -> Unit) {
 
 @Composable
 private fun LibraryMenu(
-    target: MenuTarget,
+    target: LibraryItem,
     state: LibraryUiState,
     onEvent: (LibraryEvent) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     when (target) {
-        is MenuTarget.ForAlbum -> {
+        is LibraryItem.OfAlbum -> {
             val album = target.album
             MediaContextMenu(
                 header = album.toMenuHeader(),
@@ -962,7 +952,7 @@ private fun LibraryMenu(
             )
         }
 
-        is MenuTarget.ForArtist -> MediaContextMenu(
+        is LibraryItem.OfArtist -> MediaContextMenu(
             header = target.artist.toMenuHeader(),
             actions = MediaActions.artist(
                 isStarred = target.artist.isStarred,
@@ -972,7 +962,7 @@ private fun LibraryMenu(
             onDismissRequest = onDismissRequest,
         )
 
-        is MenuTarget.ForSong -> {
+        is LibraryItem.OfSong -> {
             val song = target.song
             MediaContextMenu(
                 header = song.toMenuHeader(),
@@ -988,9 +978,9 @@ private fun LibraryMenu(
     }
 }
 
-/** While selecting ([selected] not null), a tap picks or drops [item]; otherwise it is [event]. */
-private fun tapEvent(selected: ImmutableSet<String>?, item: MenuTarget, event: LibraryEvent): LibraryEvent =
-    if (selected != null) LibraryEvent.ToggleSelected(item) else event
+/** While selecting (anything [selected]), a tap picks or drops [item]; otherwise it is [event]. */
+private fun tapEvent(selected: ImmutableSet<String>, item: LibraryItem, event: LibraryEvent): LibraryEvent =
+    if (selected.isNotEmpty()) LibraryEvent.ToggleSelected(item) else event
 
 /**
  * The selection's ⋮ (DESIGN.md §4.2): one pick gets its own context menu, so a long-press
@@ -1005,9 +995,9 @@ private fun SelectionMenu(
     onDismissRequest: () -> Unit,
 ) {
     val single = when (selection) {
-        is LibrarySelection.Albums -> selection.albums.singleOrNull()?.let { MenuTarget.ForAlbum(it) }
-        is LibrarySelection.Artists -> selection.artists.singleOrNull()?.let { MenuTarget.ForArtist(it) }
-        is LibrarySelection.Songs -> selection.songs.singleOrNull()?.let { MenuTarget.ForSong(it) }
+        is LibrarySelection.Albums -> selection.albums.singleOrNull()?.let { LibraryItem.OfAlbum(it) }
+        is LibrarySelection.Artists -> selection.artists.singleOrNull()?.let { LibraryItem.OfArtist(it) }
+        is LibrarySelection.Songs -> selection.songs.singleOrNull()?.let { LibraryItem.OfSong(it) }
     }
     if (single != null) {
         LibraryMenu(

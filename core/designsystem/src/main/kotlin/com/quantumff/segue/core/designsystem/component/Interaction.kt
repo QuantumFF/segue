@@ -17,10 +17,15 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
 /**
  * Tap plus long-press (with a haptic) that scales the content to 0.97 while pressed (`medium`).
  * The scale is read in the draw phase, so pressing does not recompose the content.
+ * [onLongClickLabel] tells accessibility services what long-press does.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun Modifier.pressableCard(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
+internal fun Modifier.pressableCard(
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    onLongClickLabel: String? = null,
+): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -39,18 +44,24 @@ internal fun Modifier.pressableCard(onClick: () -> Unit, onLongClick: (() -> Uni
             indication = null,
             onClick = onClick,
             onLongClick = longClickWithHaptic,
+            onLongClickLabel = onLongClickLabel,
         )
 }
 
-/** Tap plus long-press with a haptic and the default ripple. For rows. */
+/** Tap plus long-press with a haptic and the default ripple. For rows. [onLongClickLabel] as on [pressableCard]. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun Modifier.rowClickable(enabled: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier =
-    combinedClickable(
-        enabled = enabled,
-        onClick = onClick,
-        onLongClick = onLongClick.withLongPressHaptic(),
-    )
+internal fun Modifier.rowClickable(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    onLongClickLabel: String? = null,
+): Modifier = combinedClickable(
+    enabled = enabled,
+    onClick = onClick,
+    onLongClick = onLongClick.withLongPressHaptic(),
+    onLongClickLabel = onLongClickLabel,
+)
 
 /** Wraps a long-press action so it performs the long-press haptic first. */
 @Composable
