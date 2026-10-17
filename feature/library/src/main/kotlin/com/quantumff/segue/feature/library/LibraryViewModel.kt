@@ -15,6 +15,7 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
+import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
@@ -24,6 +25,7 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaActions
@@ -135,6 +137,10 @@ sealed interface LibrarySelection {
             is LibraryItem.OfSong ->
                 Songs(((current as? Songs)?.songs ?: persistentListOf()).toggled(item.song) { it.id })
         }.takeIf { it.ids.isNotEmpty() }
+
+        /** [current] with [item] picked or dropped, as [picked] says; null once nothing is picked. */
+        fun set(current: LibrarySelection?, item: LibraryItem, picked: Boolean): LibrarySelection? =
+            if ((current?.ids?.contains(item.id) == true) == picked) current else toggle(current, item)
     }
 }
 
@@ -148,6 +154,9 @@ data class LibraryUiState(
     val tab: LibraryTab = LibraryTab.Albums,
     val sort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
     val viewMode: LibraryViewMode = LibraryViewMode.Grid,
+    /** Card size of the album and artist grids, which a pinch steps. */
+    val albumGridSize: GridSize = GridSize.Medium,
+    val artistGridSize: GridSize = GridSize.Medium,
     val filter: AlbumFilter = AlbumFilter(),
     val serverName: String? = null,
     /** Null until counted, so an empty state never flashes before Room answers. */
@@ -211,6 +220,7 @@ class LibraryViewModel @Inject constructor(
     private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     private val mediaActions: MediaActionHandler,
+    private val preferences: UserPreferencesRepository,
 ) : ViewModel() {
 
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
@@ -238,8 +248,12 @@ class LibraryViewModel @Inject constructor(
 
     val songs: Flow<PagingData<Song>> = offlineView.songs.cachedIn(viewModelScope)
 
-    private val settings = combine(tab, sort, viewMode, filter) { tab, sort, viewMode, filter ->
-        Settings(tab, sort, viewMode, filter)
+    private val gridSizes = preferences.preferences
+        .map { it.albumGridSize to it.artistGridSize }
+        .distinctUntilChanged()
+
+    private val settings = combine(tab, sort, viewMode, filter, gridSizes) { tab, sort, viewMode, filter, sizes ->
+        Settings(tab, sort, viewMode, filter, albumGridSize = sizes.first, artistGridSize = sizes.second)
     }
 
     private val counts = combine(
@@ -288,6 +302,8 @@ class LibraryViewModel @Inject constructor(
             tab = settings.tab,
             sort = settings.sort,
             viewMode = settings.viewMode,
+            albumGridSize = settings.albumGridSize,
+            artistGridSize = settings.artistGridSize,
             filter = settings.filter,
             serverName = status.serverName,
             albumCount = counts.albums,
@@ -314,6 +330,11 @@ class LibraryViewModel @Inject constructor(
         selection.update { LibrarySelection.toggle(it, item) }
     }
 
+    /** A drag over [item] picks or drops it, as [picked] says (DESIGN.md §4.2). */
+    fun setPicked(item: LibraryItem, picked: Boolean) {
+        selection.update { LibrarySelection.set(it, item, picked) }
+    }
+
     fun clearSelection() {
         selection.value = null
     }
@@ -338,6 +359,19 @@ class LibraryViewModel @Inject constructor(
         val current = savedStateHandle.get<LibraryViewMode>(KEY_VIEW_MODE) ?: LibraryViewMode.Grid
         savedStateHandle[KEY_VIEW_MODE] =
             if (current == LibraryViewMode.Grid) LibraryViewMode.List else LibraryViewMode.Grid
+    }
+
+    /** A pinch on the [tab]'s grid set its card size; kept across launches. */
+    fun setGridSize(tab: LibraryTab, size: GridSize) {
+        viewModelScope.launch {
+            preferences.update {
+                when (tab) {
+                    LibraryTab.Albums -> it.copy(albumGridSize = size)
+                    LibraryTab.Artists -> it.copy(artistGridSize = size)
+                    else -> it
+                }
+            }
+        }
     }
 
     /** Favorites only, then everything but favorites, then off. */
@@ -435,6 +469,8 @@ class LibraryViewModel @Inject constructor(
         val sort: AlbumSortOrder,
         val viewMode: LibraryViewMode,
         val filter: AlbumFilter,
+        val albumGridSize: GridSize,
+        val artistGridSize: GridSize,
     )
 
     private data class Counts(val albums: Int, val artists: Int?, val songs: Int)

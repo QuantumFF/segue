@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -39,6 +40,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +87,7 @@ import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -96,6 +99,7 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
@@ -161,7 +165,13 @@ internal sealed interface LibraryEvent {
     /** Starts multi-select with the item, or picks or drops it. */
     data class ToggleSelected(val item: LibraryItem) : LibraryEvent
 
+    /** A drag after a long-press picks or drops an item, as [picked] says. */
+    data class SetPicked(val item: LibraryItem, val picked: Boolean) : LibraryEvent
+
     data object ClearSelection : LibraryEvent
+
+    /** A pinch stepped the [tab]'s grid to cards of [size]. */
+    data class SetGridSize(val tab: LibraryTab, val size: GridSize) : LibraryEvent
 
     /** A selection menu action, on every pick. */
     data class SelectionAction(val action: MediaAction) : LibraryEvent
@@ -220,7 +230,9 @@ fun LibraryScreen(
                 LibraryEvent.MessageShown -> viewModel.onMessageDismiss()
                 LibraryEvent.CycleDownloaded -> viewModel.cycleDownloadedFilter()
                 is LibraryEvent.ToggleSelected -> viewModel.toggleSelected(event.item)
+                is LibraryEvent.SetPicked -> viewModel.setPicked(event.item, event.picked)
                 LibraryEvent.ClearSelection -> viewModel.clearSelection()
+                is LibraryEvent.SetGridSize -> viewModel.setGridSize(event.tab, event.size)
                 is LibraryEvent.SelectionAction -> viewModel.onSelectionAction(event.action, menuHost)
             }
         },
@@ -558,6 +570,7 @@ private fun TabContent(
     val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
     val albumGridState = rememberLazyGridState()
     val albumListState = rememberLazyListState()
+    val picker = Picker(selected, remember(state.tab) { DragSelectState() }, onEvent)
     PinAlbumsToTopOnViewChange(
         view = AlbumView(state.sort, state.filter, state.isOffline),
         albums = albums,
@@ -580,22 +593,45 @@ private fun TabContent(
 
             state.albumCount == 0 -> LibraryEmpty(listPadding, onEvent)
 
-            state.viewMode == LibraryViewMode.Grid -> PagedAlbumGrid(
-                albums = albums,
-                onAlbumClick = { onEvent(tapEvent(selected, LibraryItem.OfAlbum(it), LibraryEvent.OpenAlbum(it.id))) },
-                onAlbumLongClick = { onEvent(LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(it))) },
-                contentPadding = albumGridPadding,
-                modifier = Modifier.fillMaxSize(),
-                downloads = state.pinnedAlbums,
-                state = albumGridState,
-                selected = selected,
-                onAlbumLongClickLabel = stringResource(R.string.feature_library_select),
-            )
+            state.viewMode == LibraryViewMode.Grid -> PinchResizableGrid(
+                size = state.albumGridSize,
+                cell = SegueSizes.albumGridCell,
+                horizontalPadding = SegueSpacing.lg,
+                onResize = { onEvent(LibraryEvent.SetGridSize(LibraryTab.Albums, it)) },
+            ) { layout ->
+                PagedAlbumGrid(
+                    albums = albums,
+                    onAlbumClick = {
+                        onEvent(tapEvent(selected, LibraryItem.OfAlbum(it), LibraryEvent.OpenAlbum(it.id)))
+                    },
+                    onAlbumLongClick = { index, album -> picker.longPress(index, LibraryItem.OfAlbum(album)) },
+                    contentPadding = albumGridPadding,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .dragToSelect(
+                            state = picker.drag,
+                            grid = albumGridState,
+                            items = albums,
+                            toItem = { LibraryItem.OfAlbum(it) },
+                            onPick = picker::pick,
+                            startPadding = SegueSpacing.lg,
+                        ),
+                    downloads = state.pinnedAlbums,
+                    state = albumGridState,
+                    selected = selected,
+                    onAlbumLongClickLabel = stringResource(R.string.feature_library_select),
+                    columns = GridCells.Fixed(layout.columns),
+                    artDisplaySize = layout.cellWidth,
+                    animatePlacement = layout.animatePlacement,
+                )
+            }
 
             else -> LazyColumn(
                 state = albumListState,
                 contentPadding = albumListPadding,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .dragToSelect(picker.drag, albumListState, albums, { LibraryItem.OfAlbum(it) }, picker::pick),
             ) {
                 items(
                     count = albums.itemCount,
@@ -611,7 +647,7 @@ private fun TabContent(
                         onClick = {
                             target?.let { onEvent(tapEvent(selected, it, LibraryEvent.OpenAlbum(it.album.id))) }
                         },
-                        onLongClick = target?.let { { onEvent(LibraryEvent.ToggleSelected(it)) } },
+                        onLongClick = target?.let { { picker.longPress(index, it) } },
                         onMoreClick = target?.takeIf { selected.isEmpty() }?.let { { onMenu(it) } },
                         download = album?.let { state.pinnedAlbums[it.id]?.toBadgeState() },
                         selected = target?.id in selected,
@@ -623,15 +659,24 @@ private fun TabContent(
 
         LibraryTab.Artists -> when {
             state.isOffline && artists.itemCount == 0 -> OfflineEmpty(listPadding)
+
             state.artistCount == 0 -> LibraryEmpty(listPadding, onEvent)
-            state.viewMode == LibraryViewMode.Grid -> ArtistGrid(artists, gridPadding, onEvent, selected)
-            else -> ArtistList(artists, listPadding, onEvent, state.pinnedArtists, selected)
+
+            state.viewMode == LibraryViewMode.Grid -> ArtistGrid(
+                artists,
+                gridPadding,
+                state.artistGridSize,
+                picker,
+                onEvent,
+            )
+
+            else -> ArtistList(artists, listPadding, onEvent, state.pinnedArtists, picker)
         }
 
         LibraryTab.Songs -> when {
             state.songCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
             state.songCount == 0 -> LibraryEmpty(listPadding, onEvent)
-            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, selected)
+            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, picker)
         }
 
         LibraryTab.Playlists -> if (state.isOffline && state.playlists?.isEmpty() == true) {
@@ -706,40 +751,76 @@ private class AlbumTopPin(private var view: AlbumView) {
 private fun ArtistGrid(
     artists: LazyPagingItems<Artist>,
     contentPadding: PaddingValues,
+    size: GridSize,
+    picker: Picker,
     onEvent: (LibraryEvent) -> Unit,
-    selected: ImmutableSet<String>,
 ) {
     val format = NumberFormat.getIntegerInstance()
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(ARTIST_GRID_CELL),
-        contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
-        verticalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(
-            count = artists.itemCount,
-            key = artists.itemKey { it.id },
-            contentType = artists.itemContentType { "artist" },
-        ) { index ->
-            val artist = artists[index] ?: return@items
-            ArtistCard(
-                state = artist.toCardState(
-                    pluralStringResource(
-                        R.plurals.feature_library_album_count,
-                        artist.albumCount,
-                        format.format(artist.albumCount),
-                    ),
+    val selected = picker.selected
+    val gridState = rememberLazyGridState()
+    PinchResizableGrid(
+        size = size,
+        cell = ARTIST_GRID_CELL,
+        horizontalPadding = SegueSpacing.lg,
+        onResize = { onEvent(LibraryEvent.SetGridSize(LibraryTab.Artists, it)) },
+    ) { layout ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(layout.columns),
+            state = gridState,
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
+            verticalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
+            modifier = Modifier
+                .fillMaxSize()
+                .dragToSelect(
+                    state = picker.drag,
+                    grid = gridState,
+                    items = artists,
+                    toItem = { LibraryItem.OfArtist(it) },
+                    onPick = picker::pick,
+                    startPadding = SegueSpacing.lg,
                 ),
-                onClick = {
-                    onEvent(tapEvent(selected, LibraryItem.OfArtist(artist), LibraryEvent.OpenArtist(artist.id)))
-                },
-                onLongClick = { onEvent(LibraryEvent.ToggleSelected(LibraryItem.OfArtist(artist))) },
-                artDisplaySize = ARTIST_GRID_CELL,
-                selected = artist.id in selected,
-                onLongClickLabel = stringResource(R.string.feature_library_select),
-            )
+        ) {
+            artistItems(artists, format, layout, picker, onEvent)
         }
+    }
+}
+
+private fun LazyGridScope.artistItems(
+    artists: LazyPagingItems<Artist>,
+    format: NumberFormat,
+    layout: GridLayout,
+    picker: Picker,
+    onEvent: (LibraryEvent) -> Unit,
+) {
+    val selected = picker.selected
+    items(
+        count = artists.itemCount,
+        key = artists.itemKey { it.id },
+        contentType = artists.itemContentType { "artist" },
+    ) { index ->
+        val artist = artists[index] ?: return@items
+        ArtistCard(
+            state = artist.toCardState(
+                pluralStringResource(
+                    R.plurals.feature_library_album_count,
+                    artist.albumCount,
+                    format.format(artist.albumCount),
+                ),
+            ),
+            onClick = {
+                onEvent(tapEvent(selected, LibraryItem.OfArtist(artist), LibraryEvent.OpenArtist(artist.id)))
+            },
+            onLongClick = { picker.longPress(index, LibraryItem.OfArtist(artist)) },
+            artDisplaySize = layout.cellWidth,
+            selected = artist.id in selected,
+            onLongClickLabel = stringResource(R.string.feature_library_select),
+            modifier = Modifier.animateItem(
+                fadeInSpec = null,
+                placementSpec = if (layout.animatePlacement) SegueMotion.player() else null,
+                fadeOutSpec = null,
+            ),
+        )
     }
 }
 
@@ -751,10 +832,18 @@ private fun ArtistList(
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
     downloads: ImmutableMap<String, DownloadStatus>,
-    selected: ImmutableSet<String>,
+    picker: Picker,
 ) {
     val format = NumberFormat.getIntegerInstance()
-    LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
+    val selected = picker.selected
+    val listState = rememberLazyListState()
+    LazyColumn(
+        state = listState,
+        contentPadding = contentPadding,
+        modifier = Modifier
+            .fillMaxSize()
+            .dragToSelect(picker.drag, listState, artists, { LibraryItem.OfArtist(it) }, picker::pick),
+    ) {
         items(
             count = artists.itemCount,
             key = artists.itemKey { it.id },
@@ -773,7 +862,7 @@ private fun ArtistList(
                 },
                 coverArtId = artist?.coverArtId,
                 onClick = { target?.let { onEvent(tapEvent(selected, it, LibraryEvent.OpenArtist(it.artist.id))) } },
-                onLongClick = target?.let { { onEvent(LibraryEvent.ToggleSelected(it)) } },
+                onLongClick = target?.let { { picker.longPress(index, it) } },
                 artShape = SegueShapes.full,
                 placeholderIcon = SegueIcons.Artist,
                 download = artist?.let { downloads[it.id]?.toBadgeState() },
@@ -791,9 +880,17 @@ private fun SongList(
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, SongDownload>,
-    selected: ImmutableSet<String>,
+    picker: Picker,
 ) {
-    LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
+    val selected = picker.selected
+    val listState = rememberLazyListState()
+    LazyColumn(
+        state = listState,
+        contentPadding = contentPadding,
+        modifier = Modifier
+            .fillMaxSize()
+            .dragToSelect(picker.drag, listState, songs, { LibraryItem.OfSong(it) }, picker::pick),
+    ) {
         items(
             count = songs.itemCount,
             key = songs.itemKey { it.id },
@@ -813,7 +910,7 @@ private fun SongList(
                         song.toTrackRowState(download = download?.status?.toBadgeState())
                     },
                     onClick = { onEvent(tapEvent(selected, LibraryItem.OfSong(song), LibraryEvent.PlaySong(song))) },
-                    onLongClick = { onEvent(LibraryEvent.ToggleSelected(LibraryItem.OfSong(song))) },
+                    onLongClick = { picker.longPress(index, LibraryItem.OfSong(song)) },
                     onMoreClick = if (selected.isEmpty()) ({ onMenu(LibraryItem.OfSong(song)) }) else null,
                     selected = song.id in selected,
                     onLongClickLabel = stringResource(R.string.feature_library_select),
@@ -978,6 +1075,24 @@ private fun LibraryMenu(
             )
         }
     }
+}
+
+/**
+ * Multi-select for a Library list: the [selected] ids, and the long-press that picks or drops an
+ * item and lets a drag carry on from it ([drag], DESIGN.md §4.2).
+ */
+@Stable
+private class Picker(
+    val selected: ImmutableSet<String>,
+    val drag: DragSelectState,
+    private val onEvent: (LibraryEvent) -> Unit,
+) {
+    fun longPress(index: Int, item: LibraryItem) {
+        drag.start(index, item.id, selected)
+        onEvent(LibraryEvent.ToggleSelected(item))
+    }
+
+    fun pick(item: LibraryItem, picked: Boolean) = onEvent(LibraryEvent.SetPicked(item, picked))
 }
 
 /** While selecting (anything [selected]), a tap picks or drops [item]; otherwise it is [event]. */

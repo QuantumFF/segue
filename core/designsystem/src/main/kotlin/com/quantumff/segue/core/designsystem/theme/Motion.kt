@@ -2,7 +2,6 @@ package com.quantumff.segue.core.designsystem.theme
 
 import android.content.Context
 import android.provider.Settings
-import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.spring
@@ -45,7 +44,7 @@ object SegueMotion {
     fun <T> lyric(): FiniteAnimationSpec<T> = tween(LYRIC_MS, easing = ExpoOut)
 
     /** Mini player to Now Playing, settle after drag. */
-    fun <T> player(): AnimationSpec<T> = spring(dampingRatio = PLAYER_DAMPING, stiffness = PLAYER_STIFFNESS)
+    fun <T> player(): FiniteAnimationSpec<T> = spring(dampingRatio = PLAYER_DAMPING, stiffness = PLAYER_STIFFNESS)
 
     /** Shared-axis X slide distance. */
     val sharedAxisOffset = 30.dp

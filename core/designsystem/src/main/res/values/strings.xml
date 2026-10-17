@@ -66,4 +66,6 @@
     <string name="ds_sync_phase_playlists">playlists</string>
     <string name="ds_sync_waiting">Library sync waiting for a network connection and enough battery</string>
     <string name="ds_sync_failed">Library sync failed. Tap to retry.</string>
+    <string name="ds_grid_larger">Larger cards</string>
+    <string name="ds_grid_smaller">Smaller cards</string>
 </resources>
