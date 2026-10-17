@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.designsystem.art
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -105,6 +106,13 @@ fun CoverArt(
     }
 }
 
+/** The request behind every pre-blurred bitmap of [coverArtId], so they all share `blur:<coverArtId>`. */
+fun blurredArtRequest(context: Context, coverArtId: String): ImageRequest.Builder = ImageRequest.Builder(context)
+    .data(CoverArtRequest(coverArtId, CoverArtSize.BLUR_SOURCE))
+    .size(CoverArtSize.BLUR_SOURCE)
+    .transformations(PreBlurTransformation())
+    .memoryCacheKey("blur:$coverArtId")
+
 /**
  * Pre-blurred art backdrop (DESIGN.md §6). Requests the 128 bucket (shared with rows), blurs a
  * 32px copy in a Coil transformation, and draws it scaled with low filter quality. No live blur.
@@ -115,13 +123,7 @@ fun BlurredArt(coverArtId: String?, modifier: Modifier = Modifier, alpha: Float 
     if (coverArtId == null || LocalInspectionMode.current) return
     val context = LocalContext.current
     val request = remember(context, coverArtId) {
-        ImageRequest.Builder(context)
-            .data(CoverArtRequest(coverArtId, CoverArtSize.BLUR_SOURCE))
-            .size(CoverArtSize.BLUR_SOURCE)
-            .transformations(PreBlurTransformation())
-            .memoryCacheKey("blur:$coverArtId")
-            .crossfade(SegueMotion.MEDIUM_MS)
-            .build()
+        blurredArtRequest(context, coverArtId).crossfade(SegueMotion.MEDIUM_MS).build()
     }
     AsyncImage(
         model = request,

@@ -77,7 +77,10 @@ internal class WidgetUpdater @Inject constructor(
     private suspend fun isPlaced(widget: GlanceAppWidget) =
         GlanceAppWidgetManager(context).getGlanceIds(widget.javaClass).isNotEmpty()
 
-    /** Renders each widget's preview for the picker, skipping widgets that already have one (the API is rate limited). */
+    /**
+     * Renders each widget's preview for the picker, skipping widgets that already have one (the API
+     * is rate limited).
+     */
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private suspend fun publishPreviews() {
         val providers = AppWidgetManager.getInstance(context).getInstalledProvidersForPackage(context.packageName, null)

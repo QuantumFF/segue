@@ -61,52 +61,68 @@ import com.quantumff.segue.core.designsystem.art.ArtColors
 import com.quantumff.segue.core.designsystem.theme.segueColorScheme
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 
-/** 4x1, resizable: art, title and artist, previous/play/next. */
-class NowPlayingStripWidget : GlanceAppWidget() {
+/**
+ * A now-playing widget: [Content] drawn from the stored snapshot. A running Glance session keeps
+ * following the store, so an `update` while the session is open redraws with the new track too;
+ * art is (re)loaded when the cover changes, and retried while it is missing.
+ */
+abstract class NowPlayingWidget internal constructor(
+    /** The cover size to request, about the art's height in pixels (DESIGN.md §6 buckets). */
+    private val artPx: Int,
+) : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
-    /** A typical 4x1 cell on a phone; the minimum height would shrink the art to a thumbnail. */
-    override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 88.dp)))
+    @Composable
+    internal abstract fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors)
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, STRIP_ART_PX) {
-            state,
-            art,
-            colors,
-        ->
-        Strip(state, art, colors)
+    override suspend fun provideGlance(context: Context, id: GlanceId): Nothing {
+        val store = context.widgetEntryPoint().stateStore()
+        val initial = store.read()
+        val initialArt = loadWidgetArt(context, initial.coverArtId, artPx)
+        val colors = WidgetColors(context)
+        provideContent {
+            val state by store.snapshots.collectAsState(initial)
+            var art by remember { mutableStateOf(initialArt) }
+            LaunchedEffect(state) {
+                if (art.coverArtId != state.coverArtId || art.cover == null) {
+                    art = loadWidgetArt(context, state.coverArtId, artPx)
+                }
+            }
+            val current = art.takeIf { it.coverArtId == state.coverArtId } ?: WidgetArt.None
+            GlanceTheme(colors = colors.glance) { Content(state, current, colors) }
+        }
     }
 
-    override suspend fun providePreview(context: Context, widgetCategory: Int) = providePreview(context) {
-            state,
-            art,
-            colors,
-        ->
-        Strip(state, art, colors)
+    /** The widget picker's preview (API 35+, published by [WidgetUpdater]): a sample track without art. */
+    override suspend fun providePreview(context: Context, widgetCategory: Int): Nothing {
+        val sample = NowPlayingSnapshot(
+            songId = PREVIEW_SONG_ID,
+            title = context.getString(R.string.widget_preview_title),
+            artist = context.getString(R.string.widget_preview_artist),
+        )
+        val colors = WidgetColors(context)
+        provideContent {
+            GlanceTheme(colors = colors.glance) { Content(sample, WidgetArt.None, colors) }
+        }
     }
 }
 
-/** 4x2, resizable: larger art and previous/play/next. */
-class NowPlayingCardWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Exact
+/** 4x1, resizable: art, title and artist, previous/play/next. */
+class NowPlayingStripWidget : NowPlayingWidget(artPx = 256) {
+    /** A typical 4x1 cell on a phone; the minimum height would shrink the art to a thumbnail. */
+    override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 88.dp)))
 
+    @Composable
+    override fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) = Strip(state, art, colors)
+}
+
+/** 4x2, resizable: larger art and previous/play/next. */
+class NowPlayingCardWidget : NowPlayingWidget(artPx = 512) {
     /** A typical 4x2 cell on a phone, rather than the minimum size, which leaves little room for art. */
     override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 160.dp)))
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, CARD_ART_PX) {
-            state,
-            art,
-            colors,
-        ->
-        Card(state, art, colors)
-    }
-
-    override suspend fun providePreview(context: Context, widgetCategory: Int) = providePreview(context) {
-            state,
-            art,
-            colors,
-        ->
-        Card(state, art, colors)
-    }
+    @Composable
+    override fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) = Card(state, art, colors)
 }
 
 class NowPlayingStripWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -117,56 +133,15 @@ class NowPlayingCardWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NowPlayingCardWidget()
 }
 
-private typealias WidgetContent = @Composable (NowPlayingSnapshot, WidgetArt, WidgetColors) -> Unit
-
-/**
- * Renders [content] from the stored snapshot. A running Glance session keeps following the store,
- * so an `update` while the session is open redraws with the new track too; art is (re)loaded when
- * the cover changes, and retried while it is missing.
- */
-private suspend fun GlanceAppWidget.provideNowPlaying(context: Context, artPx: Int, content: WidgetContent): Nothing {
-    val store = context.widgetEntryPoint().stateStore()
-    val initial = store.read()
-    val initialArt = loadWidgetArt(context, initial.coverArtId, artPx)
-    val colors = WidgetColors(context)
-    provideContent {
-        val state by store.snapshots.collectAsState(initial)
-        var art by remember { mutableStateOf(initialArt) }
-        LaunchedEffect(state) {
-            if (art.coverArtId != state.coverArtId || art.cover == null) {
-                art = loadWidgetArt(context, state.coverArtId, artPx)
-            }
-        }
-        val current = art.takeIf { it.coverArtId == state.coverArtId } ?: NoArt
-        GlanceTheme(colors = colors.glance) { content(state, current, colors) }
-    }
-}
-
-/** The widget picker's preview (API 35+, published by [WidgetUpdater]): a sample track without art. */
-private suspend fun GlanceAppWidget.providePreview(context: Context, content: WidgetContent): Nothing {
-    val sample = NowPlayingSnapshot(
-        songId = PREVIEW_SONG_ID,
-        title = context.getString(R.string.widget_preview_title),
-        artist = context.getString(R.string.widget_preview_artist),
-    )
-    val colors = WidgetColors(context)
-    provideContent {
-        GlanceTheme(colors = colors.glance) { content(sample, NoArt, colors) }
-    }
-}
-
-private val NoArt = WidgetArt(null, null, null, null)
-
 // --- Layouts ---------------------------------------------------------------------------------------
 
 /** The art fills the strip's height, flush with its left edge. */
 @Composable
 private fun Strip(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) {
     val size = LocalSize.current
-    // On a narrow strip the previous button gives way first, then the art, so the title keeps some room.
-    val fixed = STRIP_GAP + STRIP_END_PADDING + STRIP_PLAY + TRANSPORT_SIZE + MIN_TITLES_WIDTH
-    val showPrevious = size.width - size.height - fixed - TRANSPORT_SIZE >= 0.dp
-    val showArt = showPrevious || size.width - size.height - fixed >= 0.dp
+    // Previous, play and next always show. On a narrow strip the art gives way so the title keeps some room.
+    val titlesWidthWithArt = size.width - size.height - STRIP_GAP - STRIP_CONTROLS_WIDTH - STRIP_END_PADDING
+    val showArt = titlesWidthWithArt >= MIN_TITLES_WIDTH
     WidgetSurface(state, art, colors) { palette ->
         Row(
             modifier = GlanceModifier
@@ -180,14 +155,12 @@ private fun Strip(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColor
             }
             Titles(state, palette, titleSize = 15, artistSize = 13, modifier = GlanceModifier.defaultWeight())
             if (state.hasTrack) {
-                if (showPrevious) {
-                    Transport(
-                        R.drawable.widget_skip_back,
-                        R.string.widget_previous,
-                        actionRunCallback<PreviousAction>(),
-                        palette,
-                    )
-                }
+                Transport(
+                    R.drawable.widget_skip_back,
+                    R.string.widget_previous,
+                    actionRunCallback<PreviousAction>(),
+                    palette,
+                )
                 PlayPause(state, palette, size = STRIP_PLAY)
                 Transport(
                     R.drawable.widget_skip_forward,
@@ -224,28 +197,28 @@ private fun Card(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors
                     .padding(vertical = CARD_PADDING)
                     .padding(end = CARD_PADDING),
             ) {
-                Spacer(GlanceModifier.height(2.dp))
+                Spacer(GlanceModifier.height(TITLES_GAP))
                 Titles(state, palette, titleSize = 17, artistSize = 14, modifier = GlanceModifier.fillMaxWidth())
                 Spacer(GlanceModifier.defaultWeight())
                 if (state.hasTrack) {
                     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Gap()
+                        FlexSpacer()
                         Transport(
                             R.drawable.widget_skip_back,
                             R.string.widget_previous,
                             actionRunCallback<PreviousAction>(),
                             palette,
                         )
-                        Gap()
-                        PlayPause(state, palette, size = 52.dp)
-                        Gap()
+                        FlexSpacer()
+                        PlayPause(state, palette, size = CARD_PLAY)
+                        FlexSpacer()
                         Transport(
                             R.drawable.widget_skip_forward,
                             R.string.widget_next,
                             actionRunCallback<NextAction>(),
                             palette,
                         )
-                        Gap()
+                        FlexSpacer()
                     }
                 }
             }
@@ -253,12 +226,14 @@ private fun Card(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors
     }
 }
 
+/** Takes an equal share of the row's free width. */
 @Composable
-private fun RowScope.Gap() = Spacer(GlanceModifier.defaultWeight())
+private fun RowScope.FlexSpacer() = Spacer(GlanceModifier.defaultWeight())
 
 /**
- * The widget background: the blurred cover under a dark scrim (DESIGN.md §4.7, "Blurred art"), or
- * the theme surface while there is none. A tap anywhere outside the buttons opens the app.
+ * The widget background: the blurred cover under a dark scrim and noise (DESIGN.md §2.4, §4.7
+ * "Blurred art"), or the theme surface while there is none. A tap anywhere outside the buttons
+ * opens the app.
  */
 @Composable
 private fun WidgetSurface(
@@ -268,7 +243,7 @@ private fun WidgetSurface(
     content: @Composable (WidgetPalette) -> Unit,
 ) {
     val context = LocalContext.current
-    val backdrop = art.backdrop
+    val backdrop = art.backdrop?.bitmap
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -290,8 +265,15 @@ private fun WidgetSurface(
                 contentScale = ContentScale.FillBounds,
                 modifier = GlanceModifier.fillMaxSize(),
             )
+            // FillBounds gives the drawable the whole view, which its tile mode then repeats over.
+            Image(
+                provider = ImageProvider(R.drawable.widget_noise),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = GlanceModifier.fillMaxSize(),
+            )
         }
-        content(if (backdrop == null) colors.plain else WidgetPalette.overArt(art.colors))
+        content(if (backdrop == null) colors.plain else WidgetPalette.overArt(art.backdrop.colors))
     }
 }
 
@@ -343,7 +325,7 @@ private fun Titles(
             maxLines = 1,
             style = TextStyle(color = palette.onSurface, fontSize = titleSize.sp, fontWeight = FontWeight.Bold),
         )
-        Spacer(GlanceModifier.height(2.dp))
+        Spacer(GlanceModifier.height(TITLES_GAP))
         Text(
             text = subtitle,
             maxLines = 1,
@@ -352,7 +334,7 @@ private fun Titles(
     }
 }
 
-/** The primary action: a circle in the accent color. */
+/** The primary action: a circle in the accent color, at least a 48dp touch target (DESIGN.md §2.3). */
 @Composable
 private fun PlayPause(state: NowPlayingSnapshot, palette: WidgetPalette, size: Dp) {
     val icon = if (state.isPlaying) R.drawable.widget_pause else R.drawable.widget_play
@@ -390,73 +372,22 @@ private fun Transport(@DrawableRes icon: Int, @StringRes label: Int, onClick: Ac
     }
 }
 
-// --- Colors ----------------------------------------------------------------------------------------
-
-/** The colors drawn over one background. */
-private class WidgetPalette(
-    val onSurface: ColorProvider,
-    val onSurfaceVariant: ColorProvider,
-    val placeholder: ColorProvider,
-    val primary: ColorProvider,
-    val onPrimary: ColorProvider,
-) {
-    companion object {
-        /**
-         * Over blurred art, text and icons are always light (DESIGN.md §4.7) and the play button
-         * takes the art's accent; white when the art gave no colors.
-         */
-        fun overArt(colors: ArtColors?) = WidgetPalette(
-            onSurface = ColorProvider(Color.White),
-            onSurfaceVariant = ColorProvider(Color.White.copy(alpha = SECONDARY_TEXT_ALPHA)),
-            placeholder = ColorProvider(Color.White.copy(alpha = PLACEHOLDER_ALPHA)),
-            primary = ColorProvider(colors?.accentDark ?: Color.White),
-            onPrimary = ColorProvider(Color.Black),
-        )
-
-        private const val SECONDARY_TEXT_ALPHA = 0.7f
-        private const val PLACEHOLDER_ALPHA = 0.12f
-    }
-}
-
-/**
- * Segue's neutrals with Material You accents (DESIGN.md §2.1), resolved for light and dark so the
- * launcher switches them with the system theme.
- */
-private class WidgetColors(context: Context) {
-    private val light: ColorScheme = segueColorScheme(context, dark = false)
-    private val dark: ColorScheme = segueColorScheme(context, dark = true)
-
-    val glance = ColorProviders(light = light, dark = dark)
-    val background = role { surfaceContainer }
-
-    /** The palette on [background]. */
-    val plain = WidgetPalette(
-        onSurface = role { onSurface },
-        onSurfaceVariant = role { onSurfaceVariant },
-        placeholder = role { surfaceContainerHigh },
-        primary = role { primary },
-        onPrimary = role { onPrimary },
-    )
-
-    /** One color role, switching with the system theme. */
-    private fun role(color: ColorScheme.() -> Color) = ColorProvider(day = light.color(), night = dark.color())
-}
-
-/** Art requests use the app's cover size buckets (DESIGN.md §6), about the art's height in pixels. */
-private const val STRIP_ART_PX = 256
-private const val CARD_ART_PX = 512
+/** Any song id: the preview only needs the sample to count as a track. */
 private const val PREVIEW_SONG_ID = "preview"
+
+/** The minimum touch target (DESIGN.md §2.3), also the previous/next button size. */
 private val TRANSPORT_SIZE = 48.dp
 private val PLACEHOLDER_ICON = 32.dp
+private val TITLES_GAP = 2.dp
 private val MIN_TITLES_WIDTH = 72.dp
 private val STRIP_GAP = 12.dp
 private val STRIP_END_PADDING = 4.dp
-private val STRIP_PLAY = 44.dp
+private val STRIP_PLAY = 48.dp
+private val STRIP_CONTROLS_WIDTH = TRANSPORT_SIZE * 2 + STRIP_PLAY
 private val CARD_PADDING = 16.dp
 private val CARD_GAP = 16.dp
-
-/** Previous, play and next. */
-private val CARD_CONTROLS_WIDTH = 148.dp
+private val CARD_PLAY = 52.dp
+private val CARD_CONTROLS_WIDTH = TRANSPORT_SIZE * 2 + CARD_PLAY
 private val MIN_CARD_ART = 48.dp
 
 /** The narrowest full-height art, as width over height: at most 15% of the cover is cropped. */
