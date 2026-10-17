@@ -160,15 +160,23 @@ class PlaybackController @Inject constructor(
 
     /**
      * Puts the last removed item back where it was. It was the user's own queue, so unlike a play
-     * intent (an add, which the service narrows offline) it comes back even if not downloaded.
+     * intent (an add, which the service narrows offline) it comes back even if not downloaded. If the
+     * service does not put it back, Undo stays possible, unless something else was removed meanwhile.
      */
     fun undoRemove() = command { controller ->
         val removal = lastRemoval ?: return@command
+        // Taken now, so a second tap before the answer does not put it back twice.
         lastRemoval = null
-        controller.sendCustomCommand(
-            SegueSessionCommands.command(SegueSessionCommands.UNDO_REMOVE),
-            SegueSessionCommands.undoRemoveArgs(removal),
-        )
+        val putBack = try {
+            controller.sendCustomCommand(
+                SegueSessionCommands.command(SegueSessionCommands.UNDO_REMOVE),
+                SegueSessionCommands.undoRemoveArgs(removal),
+            ).await().resultCode == SessionResult.RESULT_SUCCESS
+        } catch (e: ExecutionException) {
+            Log.w(TAG, "Could not put the removed item back", e)
+            false
+        }
+        if (!putBack && lastRemoval == null) lastRemoval = removal
     }
 
     fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
