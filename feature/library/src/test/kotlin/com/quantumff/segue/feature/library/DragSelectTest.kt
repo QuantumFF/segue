@@ -46,11 +46,21 @@ class DragSelectTest {
     }
 
     @Test
-    fun `items not loaded yet are skipped, and an ended drag picks nothing`() {
+    fun `items not loaded yet are picked once they load, and an ended drag picks nothing`() {
         val state = DragSelectState()
         state.start(index = 0, id = "0", picked = emptySet())
+        val loaded = albums.toMutableList<LibraryItem?>().apply {
+            this[1] = null
+            this[3] = null
+        }
 
-        assertThat(state.moveTo(2) { if (it == 1) null else albums[it] }).containsExactly(albums[2] to true)
+        assertThat(state.moveTo(3, loaded::getOrNull)).containsExactly(albums[2] to true)
+        loaded[1] = albums[1]
+        assertThat(state.moveTo(3, loaded::getOrNull)).containsExactly(albums[1] to true)
+        // Item 3 never loaded, so leaving it changes nothing; once loaded it is not picked late.
+        assertThat(state.moveTo(2, loaded::getOrNull)).isEmpty()
+        loaded[3] = albums[3]
+        assertThat(state.moveTo(2, loaded::getOrNull)).isEmpty()
 
         state.end()
         assertThat(state.isActive).isFalse()

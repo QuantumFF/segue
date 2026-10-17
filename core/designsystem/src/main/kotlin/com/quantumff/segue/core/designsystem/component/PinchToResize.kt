@@ -88,7 +88,12 @@ fun Modifier.pinchToResize(onGrow: () -> Boolean, onShrink: () -> Boolean): Modi
                         }
                         if (!reduceMotion) {
                             val follow = zoom.coerceIn(MIN_FOLLOW_SCALE, MAX_FOLLOW_SCALE)
-                            scope.launch(start = CoroutineStart.UNDISPATCHED) { scale.snapTo(follow) }
+                            // A step springs back to rest rather than jumping; the spring then chases
+                            // the fingers until it catches them, and the content follows them directly.
+                            val spring = stepped == true || scale.isRunning
+                            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                                if (spring) scale.animateTo(follow, SegueMotion.player()) else scale.snapTo(follow)
+                            }
                         }
                     }
                     // Once pinching, the finger left behind does not scroll either.

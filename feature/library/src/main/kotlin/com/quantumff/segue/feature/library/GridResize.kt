@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.library
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.grid.LazyGridItemScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import com.quantumff.segue.core.designsystem.component.pinchToResize
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
+import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.GridSize
 import kotlinx.coroutines.delay
@@ -46,14 +48,17 @@ internal fun PinchResizableGrid(
     modifier: Modifier = Modifier,
     content: @Composable (GridLayout) -> Unit,
 ) {
-    // Shown before the stored size catches up, so each step lands under the fingers at once.
-    var shown by remember(size) { mutableStateOf(size) }
+    // The last step, shown until the stored size catches up so each step lands under the fingers at
+    // once. The store may pass through the sizes in between on the way, which must not show.
+    var pending by remember { mutableStateOf<GridSize?>(null) }
+    LaunchedEffect(size) { if (size == pending) pending = null }
+    val shown = pending ?: size
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth - horizontalPadding * 2
         val columns = gridColumns(width, cell, SegueSpacing.gutter, shown)
         fun step(to: GridSize?): Boolean {
             if (to == null || gridColumns(width, cell, SegueSpacing.gutter, to) == columns) return false
-            shown = to
+            pending = to
             onResize(to)
             return true
         }
@@ -86,6 +91,13 @@ internal fun gridColumns(width: Dp, cell: Dp, gutter: Dp, size: GridSize): Int {
     val usual = ((width + gutter) / (cell + gutter)).toInt().coerceAtLeast(1)
     return (usual + GridSize.Medium.ordinal - size.ordinal).coerceAtLeast(1)
 }
+
+/** A card's placement: it moves to a new place with the `player` spring while [animate], and jumps otherwise. */
+internal fun LazyGridItemScope.cardPlacement(animate: Boolean): Modifier = Modifier.animateItem(
+    fadeInSpec = null,
+    placementSpec = if (animate) SegueMotion.player() else null,
+    fadeOutSpec = null,
+)
 
 /** Long enough for the `player` spring to settle the moved cards. */
 private const val PLACEMENT_SETTLE_MILLIS = 600L

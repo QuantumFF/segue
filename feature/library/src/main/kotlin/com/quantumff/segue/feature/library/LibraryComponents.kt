@@ -52,7 +52,6 @@ import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
-import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -116,11 +115,7 @@ internal fun PagedAlbumGrid(
                     artDisplaySize = artDisplaySize,
                     selected = album.id in selected,
                     onLongClickLabel = onAlbumLongClickLabel,
-                    modifier = Modifier.animateItem(
-                        fadeInSpec = null,
-                        placementSpec = if (animatePlacement) SegueMotion.player() else null,
-                        fadeOutSpec = null,
-                    ),
+                    modifier = cardPlacement(animatePlacement),
                 )
             }
         }

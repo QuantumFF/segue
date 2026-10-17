@@ -88,7 +88,6 @@ import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
-import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -816,11 +815,7 @@ private fun LazyGridScope.artistItems(
             artDisplaySize = layout.cellWidth,
             selected = artist.id in selected,
             onLongClickLabel = stringResource(R.string.feature_library_select),
-            modifier = Modifier.animateItem(
-                fadeInSpec = null,
-                placementSpec = if (layout.animatePlacement) SegueMotion.player() else null,
-                fadeOutSpec = null,
-            ),
+            modifier = cardPlacement(layout.animatePlacement),
         )
     }
 }

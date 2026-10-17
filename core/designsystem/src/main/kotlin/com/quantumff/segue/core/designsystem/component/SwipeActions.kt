@@ -39,6 +39,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -71,21 +72,15 @@ fun SwipeActionBox(
     val haptics = LocalHapticFeedback.current
     var widthPx by remember { mutableFloatStateOf(0f) }
     var pastThreshold by remember { mutableStateOf(false) }
+    var comeBack by remember { mutableStateOf<Job?>(null) }
     val latestOnStart by rememberUpdatedState(onStart)
     val latestOnEnd by rememberUpdatedState(onEnd)
 
     val dragState = rememberDraggableState { delta ->
         // A side without an action does not move.
-        val target = (offset.value + delta).coerceIn(
-            if (end ==
-                null
-            ) {
-                0f
-            } else {
-                -widthPx
-            },
-            if (start == null) 0f else widthPx,
-        )
+        val min = if (end == null) 0f else -widthPx
+        val max = if (start == null) 0f else widthPx
+        val target = (offset.value + delta).coerceIn(min, max)
         scope.launch(start = CoroutineStart.UNDISPATCHED) { offset.snapTo(target) }
         val past = widthPx > 0f && abs(target) / widthPx >= SWIPE_THRESHOLD
         if (past && !pastThreshold) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
@@ -107,6 +102,8 @@ fun SwipeActionBox(
                 state = dragState,
                 orientation = Orientation.Horizontal,
                 enabled = enabled,
+                // A new swipe owns the row; a dismissed row's late return must not undo it.
+                onDragStarted = { comeBack?.cancel() },
                 onDragStopped = {
                     pastThreshold = false
                     val fraction = if (widthPx > 0f) offset.value / widthPx else 0f
@@ -124,8 +121,10 @@ fun SwipeActionBox(
                                 offset.animateTo(if (fraction > 0f) widthPx else -widthPx, SegueMotion.medium())
                                 onAction()
                                 // The row normally leaves the list now; come back if it did not.
-                                delay(DISMISS_CONFIRM_TIMEOUT_MILLIS)
-                                offset.animateTo(0f, SegueMotion.player())
+                                comeBack = scope.launch {
+                                    delay(DISMISS_CONFIRM_TIMEOUT_MILLIS)
+                                    offset.animateTo(0f, SegueMotion.player())
+                                }
                             }
 
                             else -> {

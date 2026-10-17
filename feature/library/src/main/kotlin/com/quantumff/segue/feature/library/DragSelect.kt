@@ -67,6 +67,9 @@ internal class DragSelectState {
     /** The picks when the drag began, which an item the drag leaves behind returns to. */
     private var before: Set<String> = emptySet()
 
+    /** Indices in the range that were placeholders when the drag reached them; each move tries them again. */
+    private val unloaded = sortedSetOf<Int>()
+
     /** The last finger position, in the list's coordinates, so auto-scroll can re-check what is under it. */
     internal var pointer: Offset? = null
 
@@ -80,19 +83,33 @@ internal class DragSelectState {
         range = DragSelectRange(index)
         picking = id !in picked
         before = picked
+        unloaded.clear()
     }
 
     fun end() {
         range = null
+        unloaded.clear()
         pointer = null
         autoScroll = 0f
     }
 
-    /** Moves the drag to [index]: each item that changes, with whether it is now picked. */
+    /**
+     * Moves the drag to [index]: each item that changes, with whether it is now picked. Placeholders
+     * the range covers are picked on a later move, once they load.
+     */
     internal fun moveTo(index: Int, itemAt: (Int) -> LibraryItem?): List<Pair<LibraryItem, Boolean>> {
         val change = range?.moveTo(index) ?: return emptyList()
-        return change.entered.mapNotNull { i -> itemAt(i)?.let { it to picking } } +
-            change.left.mapNotNull { i -> itemAt(i)?.let { it to (it.id in before) } }
+        // An item that never loaded was never picked, so leaving it changes nothing.
+        val left = change.left.filter { it !in unloaded }.mapNotNull { i -> itemAt(i)?.let { it to (it.id in before) } }
+        unloaded -= change.left.toSet()
+        unloaded += change.entered
+        val entered = unloaded.toList().mapNotNull { i ->
+            itemAt(i)?.let {
+                unloaded -= i
+                it to picking
+            }
+        }
+        return entered + left
     }
 }
 
