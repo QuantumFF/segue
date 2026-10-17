@@ -25,6 +25,10 @@ class SegueSessionCommandsTest {
                 AlbumOrder.InOrder,
                 QueuePlacement.Next,
             ),
+            AlbumPlayRequest(
+                AlbumSource.Albums(AlbumSortOrder.Year, AlbumFilter(starred = false, downloaded = false)),
+                AlbumOrder.Shuffled,
+            ),
             AlbumPlayRequest(AlbumSource.Albums(AlbumSortOrder.Name), AlbumOrder.Shuffled, QueuePlacement.End),
             AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled),
             AlbumPlayRequest(AlbumSource.Artist("ar1"), AlbumOrder.Shuffled),

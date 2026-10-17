@@ -40,7 +40,7 @@ class FakeAlbumRepository : AlbumRepository {
     /** Thrown by refresh calls when set. */
     var refreshError: RemoteException? = null
 
-    /** Albums that count as downloaded for [AlbumFilter.downloadedOnly]. */
+    /** Albums that count as downloaded for [AlbumFilter.downloaded]. */
     var downloadedAlbumIds: Set<String> = emptySet()
 
     /** The last filter [albums] was called with. */
@@ -56,7 +56,7 @@ class FakeAlbumRepository : AlbumRepository {
     }
 
     private fun matches(filter: AlbumFilter, album: Album) =
-        filter.matches(album) && (!filter.downloadedOnly || album.id in downloadedAlbumIds)
+        filter.matches(album) && (filter.downloaded == null || (album.id in downloadedAlbumIds) == filter.downloaded)
 
     override val albumYears: Flow<ImmutableList<Int>> =
         albumsState.map { all -> all.mapNotNull { it.year }.distinct().sortedDescending().toImmutableList() }
@@ -88,7 +88,7 @@ class FakeAlbumRepository : AlbumRepository {
     }
 }
 
-private fun AlbumFilter.matches(album: Album): Boolean = (!starredOnly || album.isStarred) &&
+private fun AlbumFilter.matches(album: Album): Boolean = (starred == null || album.isStarred == starred) &&
     (genre == null || album.genre == genre) &&
     (year == null || album.year == year)
 

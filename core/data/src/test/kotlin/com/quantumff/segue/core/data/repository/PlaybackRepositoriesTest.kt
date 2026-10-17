@@ -170,7 +170,7 @@ class PlaybackRepositoriesTest {
         val byName = AlbumSource.Albums(AlbumSortOrder.Name)
 
         assertThat(repository.albumIds(byName)).containsExactly("a2", "a3", "a1").inOrder()
-        assertThat(repository.albumIds(AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starredOnly = true))))
+        assertThat(repository.albumIds(AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starred = true))))
             .isEmpty()
         assertThat(repository.songs(byName, listOf("a2")).map { it.id }).containsExactly("a2-s1", "a2-s2").inOrder()
     }

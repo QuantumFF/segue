@@ -113,7 +113,7 @@ class ComponentScreenshotTest {
                 horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
             ) {
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
-                SegueFilterChip(label = "Downloaded", selected = false, onClick = {})
+                SegueFilterChip(label = "Downloaded", selected = true, excluded = true, onClick = {})
                 Pill(label = "Rock")
             }
         }

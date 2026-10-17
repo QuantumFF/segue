@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -36,10 +38,18 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 
 /**
  * Filter chip (DESIGN.md §5.6): 32 tall, radius `full`, `labelMedium`. Unselected is transparent
- * with an `outlineVariant` border; selected is `surfaceContainerHighest` with a leading check.
+ * with an `outlineVariant` border; selected is `surfaceContainerHighest` with a leading check, or a
+ * leading ✕ when [excluded] (it hides what it names).
  */
 @Composable
-fun SegueFilterChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun SegueFilterChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    excluded: Boolean = false,
+) {
+    val excludedState = stringResource(R.string.ds_filter_excluded)
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -47,7 +57,7 @@ fun SegueFilterChip(label: String, selected: Boolean, onClick: () -> Unit, modif
         leadingIcon = if (selected) {
             {
                 Icon(
-                    imageVector = SegueIcons.Check,
+                    imageVector = if (excluded) SegueIcons.Close else SegueIcons.Check,
                     contentDescription = null,
                     modifier = Modifier.size(FilterChipDefaults.IconSize),
                 )
@@ -71,7 +81,9 @@ fun SegueFilterChip(label: String, selected: Boolean, onClick: () -> Unit, modif
             borderWidth = SegueSizes.hairline,
             selectedBorderWidth = SegueSizes.hairline,
         ),
-        modifier = modifier.height(SegueSizes.chip),
+        modifier = modifier
+            .height(SegueSizes.chip)
+            .then(if (selected && excluded) Modifier.semantics { stateDescription = excludedState } else Modifier),
     )
 }
 
@@ -133,7 +145,7 @@ private fun ChipsPreview() {
         Column(Modifier.padding(SegueSpacing.lg), verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
-                SegueFilterChip(label = "Downloaded", selected = false, onClick = {})
+                SegueFilterChip(label = "Downloaded", selected = true, excluded = true, onClick = {})
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
                 Pill(label = "Alternative", onClick = {})

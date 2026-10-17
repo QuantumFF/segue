@@ -76,18 +76,27 @@ internal class OfflineFirstAlbumRepository @Inject constructor(
     override fun albums(sort: AlbumSortOrder, filter: AlbumFilter): Flow<PagingData<Album>> =
         clients.pagedForActiveServer(
             source = { serverId ->
-                val starred = filter.starredOnly
+                val starred = filter.starred
                 val (genre, year) = filter.genre to filter.year
-                if (filter.downloadedOnly) {
+                val downloaded = filter.downloaded
+                if (downloaded != null) {
                     when (sort) {
-                        AlbumSortOrder.Name -> albumDao.downloadedPagingSourceByName(serverId, starred, genre, year)
+                        AlbumSortOrder.Name ->
+                            albumDao.downloadFilteredPagingSourceByName(serverId, starred, genre, year, downloaded)
 
-                        AlbumSortOrder.Artist -> albumDao.downloadedPagingSourceByArtist(serverId, starred, genre, year)
+                        AlbumSortOrder.Artist ->
+                            albumDao.downloadFilteredPagingSourceByArtist(serverId, starred, genre, year, downloaded)
 
-                        AlbumSortOrder.RecentlyAdded ->
-                            albumDao.downloadedPagingSourceByRecentlyAdded(serverId, starred, genre, year)
+                        AlbumSortOrder.RecentlyAdded -> albumDao.downloadFilteredPagingSourceByRecentlyAdded(
+                            serverId,
+                            starred,
+                            genre,
+                            year,
+                            downloaded,
+                        )
 
-                        AlbumSortOrder.Year -> albumDao.downloadedPagingSourceByYear(serverId, starred, genre, year)
+                        AlbumSortOrder.Year ->
+                            albumDao.downloadFilteredPagingSourceByYear(serverId, starred, genre, year, downloaded)
                     }
                 } else {
                     when (sort) {
@@ -110,10 +119,11 @@ internal class OfflineFirstAlbumRepository @Inject constructor(
         )
 
     override fun albumCount(filter: AlbumFilter): Flow<Int> = clients.forActiveServer(0) { serverId ->
-        if (filter.downloadedOnly) {
-            albumDao.observeDownloadedCount(serverId, filter.starredOnly, filter.genre, filter.year)
+        val downloaded = filter.downloaded
+        if (downloaded != null) {
+            albumDao.observeDownloadFilteredCount(serverId, filter.starred, filter.genre, filter.year, downloaded)
         } else {
-            albumDao.observeCount(serverId, filter.starredOnly, filter.genre, filter.year)
+            albumDao.observeCount(serverId, filter.starred, filter.genre, filter.year)
         }
     }
 

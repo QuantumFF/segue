@@ -70,7 +70,7 @@ import com.quantumff.segue.core.database.util.Converters
         ServerCapabilitiesEntity::class,
         AlbumFeedEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

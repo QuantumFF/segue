@@ -116,12 +116,24 @@ class DownloadDaoTest {
         db.songDao().upsertAll(listOf(song("a", albumId = "al1"), song("b", albumId = "al2")))
         dao.insertAll(listOf(download("a", DownloadState.Completed), download("b", DownloadState.Queued)))
 
-        val albums = db.albumDao().downloadedPagingSourceByName("s1", starredOnly = false, genre = null, year = null)
+        val albums = db.albumDao().downloadFilteredPagingSourceByName("s1", null, null, null, downloaded = true)
         val songs = db.songDao().pagingSourceDownloaded("s1")
 
         assertThat(albums.loadAll().map { it.id }).containsExactly("al1")
         assertThat(songs.loadAll().map { it.id }).containsExactly("a")
-        assertThat(db.albumDao().observeDownloadedCount("s1", false, null, null).first()).isEqualTo(1)
+        assertThat(db.albumDao().observeDownloadFilteredCount("s1", null, null, null, true).first()).isEqualTo(1)
+    }
+
+    @Test
+    fun `the excluded downloaded filter keeps albums without a completed download`() = runTest {
+        db.albumDao().upsertAll(listOf(album("al1"), album("al2")))
+        db.songDao().upsertAll(listOf(song("a", albumId = "al1"), song("b", albumId = "al2")))
+        dao.insertAll(listOf(download("a", DownloadState.Completed), download("b", DownloadState.Queued)))
+
+        val albums = db.albumDao().downloadFilteredPagingSourceByName("s1", null, null, null, downloaded = false)
+
+        assertThat(albums.loadAll().map { it.id }).containsExactly("al2")
+        assertThat(db.albumDao().observeDownloadFilteredCount("s1", null, null, null, false).first()).isEqualTo(1)
     }
 
     @Test

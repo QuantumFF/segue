@@ -43,5 +43,28 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+    /**
+     * 3 → 4: the album feed's favorites and downloaded filters can also exclude, so `starredOnly`
+     * and `downloadedOnly` become nullable `starred` and `downloaded` (null: no filter, 0: exclude,
+     * 1: only). A running feed keeps its filters: an old 1 stays 1 and an old 0 becomes null.
+     */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `album_feed_new` (`serverId` TEXT NOT NULL, `sourceKind` TEXT NOT NULL, " +
+                    "`sourceId` TEXT, `sort` TEXT, `starred` INTEGER, `genre` TEXT, `year` INTEGER, " +
+                    "`downloaded` INTEGER, `albumOrder` TEXT NOT NULL, `seed` INTEGER NOT NULL, " +
+                    "`cursor` INTEGER NOT NULL, `queueFingerprint` INTEGER NOT NULL, PRIMARY KEY(`serverId`))",
+            )
+            db.execSQL(
+                "INSERT INTO album_feed_new SELECT serverId, sourceKind, sourceId, sort, " +
+                    "CASE WHEN starredOnly = 1 THEN 1 END, genre, year, CASE WHEN downloadedOnly = 1 THEN 1 END, " +
+                    "albumOrder, seed, cursor, queueFingerprint FROM album_feed",
+            )
+            db.execSQL("DROP TABLE album_feed")
+            db.execSQL("ALTER TABLE album_feed_new RENAME TO album_feed")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }

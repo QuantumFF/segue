@@ -65,7 +65,7 @@ class LibraryScrollTest {
         state = state.copy(viewMode = LibraryViewMode.List)
         showScrolledAlbums()
 
-        state = state.copy(filter = state.filter.copy(starredOnly = true))
+        state = state.copy(filter = state.filter.copy(starred = true))
         compose.waitForIdle()
         pages.value = PagingData.from(resorted)
         compose.waitForIdle()

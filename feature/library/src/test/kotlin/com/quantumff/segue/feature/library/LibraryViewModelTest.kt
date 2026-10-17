@@ -86,13 +86,46 @@ class LibraryViewModelTest {
     fun downloadedChipFiltersAlbumsToDownloadedOnes() = runTest {
         albums.downloadedAlbumIds = setOf("2")
         viewModel.uiState.test {
-            viewModel.toggleDownloadedFilter()
+            viewModel.cycleDownloadedFilter()
             val state = expectMostRecentItem()
-            assertThat(state.filter.downloadedOnly).isTrue()
+            assertThat(state.filter.downloaded).isTrue()
             assertThat(state.albumCount).isEqualTo(1)
 
             viewModel.clearFilters()
-            assertThat(expectMostRecentItem().filter.downloadedOnly).isFalse()
+            assertThat(expectMostRecentItem().filter.downloaded).isNull()
+        }
+    }
+
+    @Test
+    fun downloadedChipCyclesThroughOnlyExcludedAndOff() = runTest {
+        albums.downloadedAlbumIds = setOf("2")
+        viewModel.uiState.test {
+            viewModel.cycleDownloadedFilter()
+            assertThat(expectMostRecentItem().albumCount).isEqualTo(1)
+
+            viewModel.cycleDownloadedFilter()
+            val excluded = expectMostRecentItem()
+            assertThat(excluded.filter.downloaded).isFalse()
+            assertThat(excluded.shownDownloadedFilter).isFalse()
+            assertThat(excluded.albumCount).isEqualTo(2)
+
+            viewModel.cycleDownloadedFilter()
+            val off = expectMostRecentItem()
+            assertThat(off.filter.downloaded).isNull()
+            assertThat(off.albumCount).isEqualTo(3)
+        }
+    }
+
+    @Test
+    fun offlineForcesTheDownloadedChipOnEvenWhenExcluded() = runTest {
+        albums.downloadedAlbumIds = setOf("1")
+        viewModel.cycleDownloadedFilter()
+        viewModel.cycleDownloadedFilter()
+        offlineMode.isOffline.value = true
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.shownDownloadedFilter).isTrue()
+            assertThat(state.albumCount).isEqualTo(1)
         }
     }
 
@@ -103,7 +136,7 @@ class LibraryViewModelTest {
         viewModel.uiState.test {
             val state = expectMostRecentItem()
             assertThat(state.isOffline).isTrue()
-            assertThat(state.showsDownloadedOnly).isTrue()
+            assertThat(state.shownDownloadedFilter).isTrue()
             assertThat(state.albumCount).isEqualTo(1)
         }
     }
@@ -125,10 +158,18 @@ class LibraryViewModelTest {
     @Test
     fun favoritesFilterNarrowsTheCount() = runTest {
         viewModel.uiState.test {
-            viewModel.toggleFavoritesFilter()
+            viewModel.cycleFavoritesFilter()
             val state = expectMostRecentItem()
-            assertThat(state.filter).isEqualTo(AlbumFilter(starredOnly = true))
+            assertThat(state.filter).isEqualTo(AlbumFilter(starred = true))
             assertThat(state.albumCount).isEqualTo(1)
+
+            viewModel.cycleFavoritesFilter()
+            val excluded = expectMostRecentItem()
+            assertThat(excluded.filter).isEqualTo(AlbumFilter(starred = false))
+            assertThat(excluded.albumCount).isEqualTo(2)
+
+            viewModel.cycleFavoritesFilter()
+            assertThat(expectMostRecentItem().filter).isEqualTo(AlbumFilter())
         }
     }
 
@@ -204,13 +245,13 @@ class LibraryViewModelTest {
     @Test
     fun playAlbumsQueuesTheAlbumsViewAsSortedAndFiltered() = runTest {
         viewModel.setSort(AlbumSortOrder.Name)
-        viewModel.toggleFavoritesFilter()
+        viewModel.cycleFavoritesFilter()
         viewModel.setGenreFilter("Rock")
 
         viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.Replace)
         viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End)
 
-        val view = AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starredOnly = true, genre = "Rock"))
+        val view = AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starred = true, genre = "Rock"))
         assertThat(play.albumRequests).containsExactly(
             AlbumPlayRequest(view, AlbumOrder.InOrder, QueuePlacement.Replace),
             AlbumPlayRequest(view, AlbumOrder.Shuffled, QueuePlacement.End),
@@ -225,7 +266,7 @@ class LibraryViewModelTest {
 
         val source = play.albumRequests.single().source as AlbumSource.Albums
         assertThat(source.sort).isEqualTo(AlbumSortOrder.RecentlyAdded)
-        assertThat(source.filter).isEqualTo(AlbumFilter(downloadedOnly = true))
+        assertThat(source.filter).isEqualTo(AlbumFilter(downloaded = true))
     }
 
     @Test
@@ -265,7 +306,7 @@ class LibraryViewModelTest {
         viewModel.uiState.test {
             viewModel.toggleSelected(LibraryItem.OfAlbum(plain))
             viewModel.toggleSelected(LibraryItem.OfAlbum(starred))
-            viewModel.toggleFavoritesFilter()
+            viewModel.cycleFavoritesFilter()
             val state = expectMostRecentItem()
             assertThat(state.albumCount).isEqualTo(1)
             assertThat(state.selection?.ids).containsExactly(plain.id, starred.id)

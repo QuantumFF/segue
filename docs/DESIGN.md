@@ -189,6 +189,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Top bar: "Library" in `headlineSmall`, plus actions: sort, view toggle (grid/list), account.
 - Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab.
 - Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
+  - Favorites and Downloaded cycle on each tap: the first keeps what the chip names, the second inverts it (albums that are not favorites, or have no downloaded song), the third turns it off. Offline holds Downloaded on.
 - **Albums:** grid `GridCells.Adaptive(150)` with album cards, or a list of 64-tall rows with 48 art. Paging 3.
   - **Play / Shuffle albums** (§5.9) float at the bottom start, just above the mini player, whenever the tab has albums. They queue exactly the albums shown: current sort, all filters, downloaded only while offline. The list adds the buttons' height plus margins to its bottom padding, so the last row scrolls clear of them.
   - The genre album grid (Genres → a genre) gets the same buttons for its albums, sorted by name.
@@ -411,7 +412,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
 
 ### 5.6 Chips and pills
-- **Filter chip:** M3 `FilterChip`, 32 tall, radius `full`, `labelMedium`. Unselected: transparent with an `outlineVariant` border. Selected: `surfaceContainerHighest`, no border, leading check.
+- **Filter chip:** M3 `FilterChip`, 32 tall, radius `full`, `labelMedium`. Unselected: transparent with an `outlineVariant` border. Selected: `surfaceContainerHighest`, no border, leading check. An inverted chip (it hides what it names) looks selected with a leading ✕ instead.
 - **Pill** (genres, metadata on the hero), Feishin pill: 28 tall, radius `full`, `background` @ 50% fill, 1dp `outlineVariant` border, `labelMedium`, 12 horizontal padding. Tapping opens the genre.
 
 ### 5.7 Context menus and sheets

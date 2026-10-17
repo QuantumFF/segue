@@ -171,8 +171,8 @@ data class LibraryUiState(
     /** Multi-select's picks; null when not selecting. */
     val selection: LibrarySelection? = null,
 ) {
-    /** The "Downloaded" chip is on: chosen, or forced while offline. */
-    val showsDownloadedOnly: Boolean get() = filter.downloadedOnly || isOffline
+    /** The "Downloaded" chip's filter: chosen, or forced to downloaded only while offline. */
+    val shownDownloadedFilter: Boolean? get() = if (isOffline) true else filter.downloaded
 
     /** The selection menu: Favorite and Download turn into their undo once every pick has them. */
     val selectionActions: ImmutableList<MediaAction>?
@@ -216,13 +216,13 @@ class LibraryViewModel @Inject constructor(
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
     private val sort = savedStateHandle.getStateFlow(KEY_SORT, AlbumSortOrder.RecentlyAdded)
     private val viewMode = savedStateHandle.getStateFlow(KEY_VIEW_MODE, LibraryViewMode.Grid)
-    private val starredOnly = savedStateHandle.getStateFlow(KEY_STARRED, false)
+    private val starredFilter = savedStateHandle.getStateFlow<Boolean?>(KEY_STARRED, null)
     private val genreFilter = savedStateHandle.getStateFlow<String?>(KEY_GENRE, null)
     private val yearFilter = savedStateHandle.getStateFlow<Int?>(KEY_YEAR, null)
-    private val downloadedOnly = savedStateHandle.getStateFlow(KEY_DOWNLOADED, false)
+    private val downloadedFilter = savedStateHandle.getStateFlow<Boolean?>(KEY_DOWNLOADED, null)
 
-    private val filter: Flow<AlbumFilter> = combine(starredOnly, genreFilter, yearFilter, downloadedOnly, ::AlbumFilter)
-        .distinctUntilChanged()
+    private val filter: Flow<AlbumFilter> =
+        combine(starredFilter, genreFilter, yearFilter, downloadedFilter, ::AlbumFilter).distinctUntilChanged()
 
     /** [filter], limited to downloaded albums while offline: what the Albums tab shows. */
     private val effectiveFilter: Flow<AlbumFilter> = offlineView.albumFilter(filter)
@@ -340,12 +340,14 @@ class LibraryViewModel @Inject constructor(
             if (current == LibraryViewMode.Grid) LibraryViewMode.List else LibraryViewMode.Grid
     }
 
-    fun toggleFavoritesFilter() {
-        savedStateHandle[KEY_STARRED] = !(savedStateHandle.get<Boolean>(KEY_STARRED) ?: false)
+    /** Favorites only, then everything but favorites, then off. */
+    fun cycleFavoritesFilter() {
+        savedStateHandle[KEY_STARRED] = nextChipFilter(savedStateHandle[KEY_STARRED])
     }
 
-    fun toggleDownloadedFilter() {
-        savedStateHandle[KEY_DOWNLOADED] = !(savedStateHandle.get<Boolean>(KEY_DOWNLOADED) ?: false)
+    /** Downloaded only, then everything not downloaded, then off. */
+    fun cycleDownloadedFilter() {
+        savedStateHandle[KEY_DOWNLOADED] = nextChipFilter(savedStateHandle[KEY_DOWNLOADED])
     }
 
     fun setGenreFilter(genre: String?) {
@@ -357,10 +359,10 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun clearFilters() {
-        savedStateHandle[KEY_STARRED] = false
+        savedStateHandle[KEY_STARRED] = null
         savedStateHandle[KEY_GENRE] = null
         savedStateHandle[KEY_YEAR] = null
-        savedStateHandle[KEY_DOWNLOADED] = false
+        savedStateHandle[KEY_DOWNLOADED] = null
     }
 
     /** Schedules a library sync; progress shows through [LibraryUiState.syncProgress]. */
@@ -399,7 +401,7 @@ class LibraryViewModel @Inject constructor(
      * shows: its sort and filters, limited to downloaded albums while offline.
      */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
-        val stored = AlbumFilter(starredOnly.value, genreFilter.value, yearFilter.value, downloadedOnly.value)
+        val stored = AlbumFilter(starredFilter.value, genreFilter.value, yearFilter.value, downloadedFilter.value)
         val view = AlbumSource.Albums(sort.value, offlineView.albumFilter(stored))
         viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(view, order, placement)) }
     }
@@ -463,10 +465,17 @@ class LibraryViewModel @Inject constructor(
         const val KEY_TAB = "tab"
         const val KEY_SORT = "sort"
         const val KEY_VIEW_MODE = "viewMode"
-        const val KEY_STARRED = "starredOnly"
+        const val KEY_STARRED = "starredFilter"
         const val KEY_GENRE = "genreFilter"
         const val KEY_YEAR = "yearFilter"
-        const val KEY_DOWNLOADED = "downloadedOnly"
+        const val KEY_DOWNLOADED = "downloadedFilter"
         private const val STOP_TIMEOUT_MS = 5_000L
+
+        /** A filter chip tap: off → only → excluded → off (true keeps matches, false drops them). */
+        private fun nextChipFilter(current: Boolean?): Boolean? = when (current) {
+            null -> true
+            true -> false
+            false -> null
+        }
     }
 }

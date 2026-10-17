@@ -11,10 +11,10 @@ data class AlbumSourceRecord(
     val kind: String,
     val id: String? = null,
     val sort: String? = null,
-    val starredOnly: Boolean = false,
+    val starred: Boolean? = null,
     val genre: String? = null,
     val year: Int? = null,
-    val downloadedOnly: Boolean = false,
+    val downloaded: Boolean? = null,
 ) {
     /** Null for a record this version cannot read: an unknown kind or sort, or a missing ID. */
     fun toSource(): AlbumSource? = when (kind) {
@@ -22,7 +22,7 @@ data class AlbumSourceRecord(
 
         KIND_ALBUMS -> AlbumSource.Albums(
             sort = AlbumSortOrder.entries.firstOrNull { it.name == sort } ?: return null,
-            filter = AlbumFilter(starredOnly, genre, year, downloadedOnly),
+            filter = AlbumFilter(starred, genre, year, downloaded),
         )
 
         KIND_ARTIST -> AlbumSource.Artist(id ?: return null)
@@ -47,10 +47,10 @@ data class AlbumSourceRecord(
             is AlbumSource.Albums -> AlbumSourceRecord(
                 kind = KIND_ALBUMS,
                 sort = source.sort.name,
-                starredOnly = source.filter.starredOnly,
+                starred = source.filter.starred,
                 genre = source.filter.genre,
                 year = source.filter.year,
-                downloadedOnly = source.filter.downloadedOnly,
+                downloaded = source.filter.downloaded,
             )
 
             is AlbumSource.Artist -> AlbumSourceRecord(KIND_ARTIST, id = source.artistId)
