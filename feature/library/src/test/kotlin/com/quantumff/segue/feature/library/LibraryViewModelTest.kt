@@ -34,6 +34,7 @@ import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
@@ -225,6 +226,82 @@ class LibraryViewModelTest {
         val source = play.albumRequests.single().source as AlbumSource.Albums
         assertThat(source.sort).isEqualTo(AlbumSortOrder.RecentlyAdded)
         assertThat(source.filter).isEqualTo(AlbumFilter(downloadedOnly = true))
+    }
+
+    @Test
+    fun selectionKeepsThePickOrderAndEndsWithItsLastPick() = runTest {
+        val (one, two, three) = albums.albumsState.value
+        viewModel.uiState.test {
+            viewModel.toggleSelected(LibraryItem.OfAlbum(three))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(two))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
+            val picked = expectMostRecentItem().selection as LibrarySelection.Albums
+            assertThat(picked.albums.map { it.id }).containsExactly("3", "2").inOrder()
+
+            viewModel.toggleSelected(LibraryItem.OfAlbum(three))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(two))
+            assertThat(expectMostRecentItem().selection).isNull()
+        }
+    }
+
+    @Test
+    fun anotherTabEndsTheSelection() = runTest {
+        viewModel.uiState.test {
+            viewModel.selectTab(LibraryTab.Songs)
+            viewModel.toggleSelected(LibraryItem.OfSong(TestData.song("s1")))
+            // Tapping the tab it is on keeps it.
+            viewModel.selectTab(LibraryTab.Songs)
+            assertThat(expectMostRecentItem().selection).isNotNull()
+
+            viewModel.selectTab(LibraryTab.Albums)
+            assertThat(expectMostRecentItem().selection).isNull()
+        }
+    }
+
+    @Test
+    fun aNewFilterKeepsThePicksEvenOnesItHides() = runTest {
+        val (starred, plain) = albums.albumsState.value
+        viewModel.uiState.test {
+            viewModel.toggleSelected(LibraryItem.OfAlbum(plain))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(starred))
+            viewModel.toggleFavoritesFilter()
+            val state = expectMostRecentItem()
+            assertThat(state.albumCount).isEqualTo(1)
+            assertThat(state.selection?.ids).containsExactly(plain.id, starred.id)
+        }
+    }
+
+    @Test
+    fun aSelectionActionRunsOnEveryPickInOrderAndEndsTheSelection() = runTest {
+        val (one, _, three) = albums.albumsState.value
+        viewModel.uiState.test {
+            viewModel.toggleSelected(LibraryItem.OfAlbum(three))
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
+            viewModel.onSelectionAction(MediaAction.PlayNext, MediaActionHost())
+
+            assertThat(expectMostRecentItem().selection).isNull()
+        }
+        assertThat(play.plays.single()).isEqualTo(
+            RecordingPlayIntents.Play(
+                PlayTarget.Each(listOf(PlayTarget.Album("3"), PlayTarget.Album("1"))),
+                QueuePlacement.Next,
+                shuffle = false,
+            ),
+        )
+    }
+
+    @Test
+    fun selectionMenuUndoesFavoriteAndDownloadOnlyOnceEveryPickHasThem() {
+        val (starred, plain) = albums.albumsState.value
+        val pinned = persistentMapOf(starred.id to DownloadStatus.Downloaded)
+
+        val one = LibraryUiState(pinnedAlbums = pinned, selection = LibrarySelection.Albums(persistentListOf(starred)))
+        assertThat(one.selectionActions).containsAtLeast(MediaAction.Unfavorite, MediaAction.RemoveDownload)
+
+        val both = one.copy(selection = LibrarySelection.Albums(persistentListOf(starred, plain)))
+        assertThat(both.selectionActions).containsAtLeast(MediaAction.Favorite, MediaAction.Download)
+        assertThat(both.selectionActions).containsNoneOf(MediaAction.Unfavorite, MediaAction.RemoveDownload)
     }
 
     @Test

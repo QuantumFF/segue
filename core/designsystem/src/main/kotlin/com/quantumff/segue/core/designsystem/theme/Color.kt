@@ -96,6 +96,9 @@ object SegueAlpha {
     /** Navigation indicator pill: `primary` @ 16% (DESIGN.md §3). */
     const val NAV_INDICATOR = 0.16f
 
+    /** A multi-selected row's fill: `primary` @ 16%, like the indicator pill (DESIGN.md §5.10). */
+    const val SELECTED = 0.16f
+
     /** Secondary text over art. */
     const val ON_ART_MUTED = 0.70f
 

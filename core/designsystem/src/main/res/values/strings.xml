@@ -15,6 +15,7 @@
     <string name="ds_account">Account</string>
     <string name="ds_refresh">Refresh</string>
     <string name="ds_clear">Clear</string>
+    <string name="ds_clear_selection">Clear selection</string>
     <string name="ds_collapse">Collapse</string>
     <string name="ds_retry">Retry</string>
     <string name="ds_explicit">E</string>

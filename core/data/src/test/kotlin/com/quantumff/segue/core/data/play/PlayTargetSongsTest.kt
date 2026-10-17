@@ -72,4 +72,14 @@ class PlayTargetSongsTest {
 
         assertThat(targets.songsFor(PlayTarget.Artist("ar"))).isEqualTo(songs)
     }
+
+    @Test
+    fun `several targets play each one's songs in turn`() = runTest {
+        albums.songsByAlbum.value = mapOf("a" to listOf(TestData.song("a1")), "b" to listOf(TestData.song("b1")))
+        val target = PlayTarget.Each(
+            listOf(PlayTarget.Album("b"), PlayTarget.Songs(listOf(TestData.song("s"))), PlayTarget.Album("a")),
+        )
+
+        assertThat(targets.songsFor(target).map { it.id }).containsExactly("b1", "s", "a1").inOrder()
+    }
 }

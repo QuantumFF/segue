@@ -101,6 +101,23 @@ object MediaActions {
             add(MediaAction.Delete)
         }
     }.toImmutableList()
+
+    /**
+     * The Library's multi-selection menu (DESIGN.md §4.2): what applies to every selected [kind]
+     * at once. Favorite and Download turn into their undo once [allStarred] or [allDownloaded];
+     * songs are never offered "Remove download", as on their own menu.
+     */
+    fun selection(kind: MediaKind, allStarred: Boolean, allDownloaded: Boolean): ImmutableList<MediaAction> =
+        buildList {
+            add(MediaAction.Play)
+            add(MediaAction.Shuffle)
+            if (kind == MediaKind.Album) add(MediaAction.ShuffleAlbums)
+            add(MediaAction.PlayNext)
+            add(MediaAction.AddToQueue)
+            if (kind != MediaKind.Artist) add(MediaAction.AddToPlaylist)
+            add(if (allStarred) MediaAction.Unfavorite else MediaAction.Favorite)
+            add(if (kind == MediaKind.Song) MediaAction.Download else downloadAction(allDownloaded))
+        }.toImmutableList()
 }
 
 private fun downloadAction(isDownloaded: Boolean) =

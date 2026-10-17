@@ -78,6 +78,8 @@ fun TrackRow(
     dense: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     onMoreClick: (() -> Unit)? = null,
+    selected: Boolean = false,
+    onLongClickLabel: String? = null,
 ) {
     val titleColor = if (state.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -85,7 +87,8 @@ fun TrackRow(
         modifier = modifier
             .fillMaxWidth()
             .height(if (dense) SegueSizes.trackRowDense else SegueSizes.trackRow)
-            .rowClickable(enabled = state.isAvailable, onClick = onClick, onLongClick = onLongClick)
+            .selectedRow(selected)
+            .rowClickable(state.isAvailable, onClick, onLongClick, onLongClickLabel)
             .then(if (state.isAvailable) Modifier else Modifier.alpha(SegueAlpha.DISABLED))
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -98,7 +101,9 @@ fun TrackRow(
                     shape = SegueShapes.sm,
                     modifier = Modifier.size(SegueSizes.trackRowArt),
                 )
-                if (state.isCurrent) {
+                if (selected) {
+                    SelectedArtOverlay(shape = SegueShapes.sm, modifier = Modifier.size(SegueSizes.trackRowArt))
+                } else if (state.isCurrent) {
                     Box(
                         modifier = Modifier
                             .size(SegueSizes.trackRowArt)
@@ -112,7 +117,14 @@ fun TrackRow(
                 modifier = Modifier.width(SegueSizes.trackNumberWidth),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                if (state.isCurrent) {
+                if (selected) {
+                    Icon(
+                        imageVector = SegueIcons.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(SegueSizes.iconSmall),
+                    )
+                } else if (state.isCurrent) {
                     EqualizerBars(animating = state.isPlaying)
                 } else {
                     Text(
@@ -184,6 +196,7 @@ private fun TrackRowPreview() {
     SeguePreview {
         Column {
             PreviewData.tracks.forEach { TrackRow(state = it, onClick = {}, onMoreClick = {}) }
+            TrackRow(state = PreviewData.tracks.first(), onClick = {}, selected = true)
             PreviewData.tracks.forEach {
                 TrackRow(state = it, onClick = {}, leading = TrackRowLeading.Number, onMoreClick = {})
             }

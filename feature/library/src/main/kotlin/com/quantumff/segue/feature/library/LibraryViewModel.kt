@@ -26,6 +26,8 @@ import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
+import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
@@ -37,8 +39,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,8 +52,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** The Library tabs, in DESIGN.md §4.2 order. */
@@ -77,6 +84,66 @@ sealed interface LibraryMessage {
     data object RefreshFailed : LibraryMessage
 }
 
+/** An album, artist or song a Library tab lists: what a context menu is for, or what multi-select picks. */
+sealed interface LibraryItem {
+    val id: String
+
+    data class OfAlbum(val album: Album) : LibraryItem {
+        override val id: String get() = album.id
+    }
+
+    data class OfArtist(val artist: Artist) : LibraryItem {
+        override val id: String get() = artist.id
+    }
+
+    data class OfSong(val song: Song) : LibraryItem {
+        override val id: String get() = song.id
+    }
+}
+
+/**
+ * What multi-select has picked (DESIGN.md §4.2): items of one tab, in the order picked, which is
+ * the order they are queued in. Never empty: dropping the last pick ends multi-select.
+ */
+sealed interface LibrarySelection {
+    val ids: ImmutableSet<String>
+
+    data class Albums(val albums: PersistentList<Album>) : LibrarySelection {
+        override val ids: ImmutableSet<String> = albums.map { it.id }.toImmutableSet()
+    }
+
+    data class Artists(val artists: PersistentList<Artist>) : LibrarySelection {
+        override val ids: ImmutableSet<String> = artists.map { it.id }.toImmutableSet()
+    }
+
+    data class Songs(val songs: PersistentList<Song>) : LibrarySelection {
+        override val ids: ImmutableSet<String> = songs.map { it.id }.toImmutableSet()
+    }
+
+    companion object {
+        /**
+         * [current] with [item] picked, or dropped if it was; null once nothing is picked. An
+         * item of another kind than [current]'s starts over with just that item.
+         */
+        fun toggle(current: LibrarySelection?, item: LibraryItem): LibrarySelection? = when (item) {
+            is LibraryItem.OfAlbum ->
+                Albums(((current as? Albums)?.albums ?: persistentListOf()).toggled(item.album) { it.id })
+
+            is LibraryItem.OfArtist ->
+                Artists(((current as? Artists)?.artists ?: persistentListOf()).toggled(item.artist) { it.id })
+
+            is LibraryItem.OfSong ->
+                Songs(((current as? Songs)?.songs ?: persistentListOf()).toggled(item.song) { it.id })
+        }.takeIf { it.ids.isNotEmpty() }
+    }
+}
+
+/** This list with [item] dropped if it is in it (by [id]), else added at the end. */
+private fun <T> PersistentList<T>.toggled(item: T, id: (T) -> String): PersistentList<T> {
+    val index = indexOfFirst { id(it) == id(item) }
+    return if (index >= 0) removeAt(index) else add(item)
+}
+
 data class LibraryUiState(
     val tab: LibraryTab = LibraryTab.Albums,
     val sort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
@@ -101,9 +168,35 @@ data class LibraryUiState(
     val pinnedPlaylists: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
     /** Downloads by song ID, for song row badges. */
     val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
+    /** Multi-select's picks; null when not selecting. */
+    val selection: LibrarySelection? = null,
 ) {
     /** The "Downloaded" chip is on: chosen, or forced while offline. */
     val showsDownloadedOnly: Boolean get() = filter.downloadedOnly || isOffline
+
+    /** The selection menu: Favorite and Download turn into their undo once every pick has them. */
+    val selectionActions: ImmutableList<MediaAction>?
+        get() = when (val selection = selection) {
+            null -> null
+
+            is LibrarySelection.Albums -> MediaActions.selection(
+                MediaKind.Album,
+                allStarred = selection.albums.all { it.isStarred },
+                allDownloaded = selection.albums.all { it.id in pinnedAlbums },
+            )
+
+            is LibrarySelection.Artists -> MediaActions.selection(
+                MediaKind.Artist,
+                allStarred = selection.artists.all { it.isStarred },
+                allDownloaded = selection.artists.all { it.id in pinnedArtists },
+            )
+
+            is LibrarySelection.Songs -> MediaActions.selection(
+                MediaKind.Song,
+                allStarred = selection.songs.all { it.isStarred },
+                allDownloaded = false,
+            )
+        }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -135,6 +228,7 @@ class LibraryViewModel @Inject constructor(
     private val effectiveFilter: Flow<AlbumFilter> = offlineView.albumFilter(filter)
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<LibraryMessage?>(null)
+    private val selection = MutableStateFlow<LibrarySelection?>(null)
 
     val albums: Flow<PagingData<Album>> = combine(sort, effectiveFilter, ::Pair)
         .flatMapLatest { (sort, filter) -> albumRepository.albums(sort, filter) }
@@ -173,7 +267,10 @@ class LibraryViewModel @Inject constructor(
         syncRepository.progress,
         isRefreshing,
         message,
-    ) { serverName, progress, refreshing, message -> Status(serverName, progress, refreshing, message) }
+        selection,
+    ) { serverName, progress, refreshing, message, selection ->
+        Status(serverName, progress, refreshing, message, selection)
+    }
 
     val uiState: StateFlow<LibraryUiState> = combine(settings, counts, browse, status, downloads) {
             settings,
@@ -202,11 +299,35 @@ class LibraryViewModel @Inject constructor(
             syncProgress = status.progress,
             isRefreshing = status.refreshing,
             message = status.message,
+            selection = status.selection,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), LibraryUiState())
 
+    /** A tab's picks stay on it: another tab ends multi-select. */
     fun selectTab(tab: LibraryTab) {
+        if (tab != this.tab.value) selection.value = null
         savedStateHandle[KEY_TAB] = tab
+    }
+
+    /** Starts multi-select with [item], or picks or drops it; dropping the last pick ends it. */
+    fun toggleSelected(item: LibraryItem) {
+        selection.update { LibrarySelection.toggle(it, item) }
+    }
+
+    fun clearSelection() {
+        selection.value = null
+    }
+
+    /** Runs a selection menu action on every pick, which ends multi-select. */
+    fun onSelectionAction(action: MediaAction, host: MediaActionHost) {
+        val selected = selection.getAndUpdate { null } ?: return
+        menuAction {
+            when (selected) {
+                is LibrarySelection.Albums -> mediaActions.albums(selected.albums, action, host)
+                is LibrarySelection.Artists -> mediaActions.artists(selected.artists, action, host)
+                is LibrarySelection.Songs -> mediaActions.songs(selected.songs, action, host)
+            }
+        }
     }
 
     fun setSort(sort: AlbumSortOrder) {
@@ -335,6 +456,7 @@ class LibraryViewModel @Inject constructor(
         val progress: SyncProgress,
         val refreshing: Boolean,
         val message: LibraryMessage?,
+        val selection: LibrarySelection?,
     )
 
     internal companion object {

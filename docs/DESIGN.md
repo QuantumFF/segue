@@ -197,6 +197,13 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Playlists:** 64-tall rows with 48 art, name, and "N tracks · 1 h 12 m". A "+" in the top bar creates a playlist.
 - **Genres:** 2-column tiles, 72 tall, radius `md`. Background is a color hashed from the genre name, clamped like a hero tint. Name in `titleSmall`, counts in `bodySmall`.
 - Name sorts get a fast scroller: a 4dp thumb on the right and a 56dp letter bubble while dragging.
+- **Multi-select** (Albums, Artists and Songs tabs, grid or list; §5.10):
+  - Long-press an item (with a haptic) to start selecting with it. Here long-press selects instead of opening the context sheet; the sheet stays on the rows' ⋮ and on the selection's ⋮.
+  - While selecting, a tap picks or drops an item instead of opening or playing it, and long-press does the same. Unavailable songs (offline, not downloaded) can't be picked, as they can't be played. Dropping the last pick, the close button, Back, or another tab ends selecting. Sort and filter changes keep the picks, even ones the new filter hides: they still count and are still queued.
+  - The top bar becomes the selection bar: close · "N selected" · Play · Add to queue · ⋮. Rows hide their ⋮, and Play / Shuffle albums hide.
+  - ⋮ with one pick opens that item's own context sheet, so long-press then ⋮ reaches everything long-press used to. With several it opens a sheet headed "N albums" (their names below, the first pick's art) with: Play · Shuffle · Shuffle albums (albums only) · Play next · Add to queue · Add to playlist (not artists) · Favorite · Download. Favorite and Download become Unfavorite and Remove download once every pick has them (songs keep Download, as on their own menu).
+  - Picks are queued in the order they were picked, each album whole and in track order, each artist as their Play queues them. Shuffle shuffles all their tracks together; Shuffle albums queues the picked albums whole in a fresh album order. Favorite and Download skip the picks already starred or pinned.
+  - Any action ends selecting.
 
 ### 4.3 Album detail (Feishin hero)
 - Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
@@ -364,7 +371,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Width W comes from the grid cell or the section size. Art is a W×W square, radius `md`, with a `surfaceContainerHigh` placeholder showing a 24 Lucide `disc-3` icon in muted color.
 - Below the art (Feishin "poster" style: no card surface, no padding): 8 gap, title in `titleSmall` (1 line), 2 gap, subtitle in `bodySmall` muted (1 line). The subtitle is the artist, or the year on artist pages.
 - Artist variant: circular art, centered text.
-- Press: scale 0.97 (`medium`). Long-press: context sheet with a haptic. Download badge per §4.9.
+- Press: scale 0.97 (`medium`). Long-press: context sheet with a haptic (in the Library it starts multi-select, §4.2). Download badge per §4.9.
 
 ### 5.2 Track row
 - 56 tall, 48 in dense mode. Horizontal padding 16. The row is the touch target; tap plays.
@@ -447,6 +454,12 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ├──────────────────────────────────┤
 │[▣] Song title          (▶)  ⏭   │ ← mini player
 ```
+
+### 5.10 Multi-select
+- **Selection bar:** replaces the top-level bar at the same 56 height, so the content does not move. 4 side padding, `background`. Close (Lucide `x`, "Clear selection"), then "N selected" in `titleMedium`, then 48 icon buttons in `onSurface`.
+- **Selected card** (album, artist): `scrim` over the art in the art's shape, with a 24 `primary` circle holding a 16 `onPrimary` check in the middle.
+- **Selected row** (media row, track row): `primary` @ 16% fill across the row, and the same mark over its art. A track row with a number instead of art shows a 20 `primary` check in place of the number.
+- Unselected items look as usual while selecting. Selected items report the selected state to accessibility services, and long-press is announced as "Select".
 
 ## 6. Performance constraints that shape the design
 

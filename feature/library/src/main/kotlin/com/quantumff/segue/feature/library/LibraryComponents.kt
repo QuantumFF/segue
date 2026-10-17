@@ -63,12 +63,15 @@ import java.text.NumberFormat
 import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * Paged album grid (DESIGN.md §4.2): `GridCells.Adaptive(150)`, gutter 12, side margin 16.
- * Placeholders keep the scroll position stable while pages load.
+ * Placeholders keep the scroll position stable while pages load. [selected] albums carry
+ * multi-select's mark.
  */
 @Composable
 internal fun PagedAlbumGrid(
@@ -79,6 +82,8 @@ internal fun PagedAlbumGrid(
     onAlbumLongClick: ((Album) -> Unit)? = null,
     downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
     state: LazyGridState = rememberLazyGridState(),
+    selected: ImmutableSet<String> = persistentSetOf(),
+    onAlbumLongClickLabel: String? = null,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(SegueSizes.albumGridCell),
@@ -103,6 +108,8 @@ internal fun PagedAlbumGrid(
                     onClick = { onAlbumClick(album) },
                     onLongClick = onAlbumLongClick?.let { { it(album) } },
                     artDisplaySize = SegueSizes.albumGridCell,
+                    selected = album.id in selected,
+                    onLongClickLabel = onAlbumLongClickLabel,
                 )
             }
         }

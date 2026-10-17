@@ -26,6 +26,7 @@ class PlayTargetSongs @Inject constructor(
         is PlayTarget.Album -> albums.songsForPlayback(target.albumId)
         is PlayTarget.Playlist -> playlists.songsForPlayback(target.playlistId)
         is PlayTarget.Artist -> artistSongs(target.artistId)
+        is PlayTarget.Each -> target.targets.flatMap { songsFor(it) }
     }
 
     /** Top songs; without them (none, or no server) every album's songs in page order. */

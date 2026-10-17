@@ -13,16 +13,18 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 
 /**
- * Carries out the context-menu actions [com.quantumff.segue.core.model.MediaActions] offers, the
- * same on every screen: play intents go to [PlayIntents], Favorite stars, Download pins and Remove
+ * Carries out the context-menu actions [MediaActions] offers, the same on every screen, for one
+ * item or a multi-selection: play intents go to [PlayIntents], Favorite stars, Download pins and Remove
  * download unpins. Navigation and the screen's own actions (Rename, Delete, Remove from playlist)
  * go to the [MediaActionHost] the screen passes in.
  *
@@ -54,20 +56,34 @@ class MediaActionHandler @Inject constructor(
     suspend fun playlist(playlist: Playlist, action: MediaAction, host: MediaActionHost): MediaActionFailure? =
         common(action, Subject.of(playlist), host)
 
+    /**
+     * A multi-selection's action ([MediaActions.selection]) on all of [albums], queued in the
+     * order given. Shuffle albums queues them whole in a fresh album order.
+     */
+    suspend fun albums(albums: List<Album>, action: MediaAction, host: MediaActionHost): MediaActionFailure? {
+        fun each(inOrder: List<Album>) = PlayTarget.Each(inOrder.map { PlayTarget.Album(it.id) })
+        return when (action) {
+            MediaAction.ShuffleAlbums -> done { playIntents.play(each(albums.shuffled())) }
+            else -> several(action, each(albums), albums.map(Subject::of), host)
+        }
+    }
+
+    /** A multi-selection's action on all of [artists]: each plays as on their own menu, in the order given. */
+    suspend fun artists(artists: List<Artist>, action: MediaAction, host: MediaActionHost): MediaActionFailure? {
+        val target = PlayTarget.Each(artists.map { PlayTarget.Artist(it.id) })
+        return several(action, target, artists.map(Subject::of), host)
+    }
+
+    /** A multi-selection's action on all of [songs], queued in the order given. */
+    suspend fun songs(songs: List<Song>, action: MediaAction, host: MediaActionHost): MediaActionFailure? =
+        several(action, PlayTarget.Songs(songs), songs.map(Subject::of), host)
+
     /** The actions every kind handles alike: play intents, Add to playlist, Favorite, downloads, the screen's own. */
     private suspend fun common(action: MediaAction, subject: Subject, host: MediaActionHost): MediaActionFailure? =
         when (action) {
-            MediaAction.Play -> done { playIntents.play(subject.target) }
-
-            MediaAction.Shuffle -> done { playIntents.play(subject.target, shuffle = true) }
+            in SONGS_ACTIONS -> songsAction(action, subject.target, host)
 
             MediaAction.ShuffleAlbums -> subject.albums?.let { shuffleAlbums(it) }
-
-            MediaAction.PlayNext -> done { playIntents.play(subject.target, QueuePlacement.Next) }
-
-            MediaAction.AddToQueue -> done { playIntents.play(subject.target, QueuePlacement.End) }
-
-            MediaAction.AddToPlaylist -> addToPlaylist(subject.target, host)
 
             MediaAction.Favorite, MediaAction.Unfavorite -> subject.starKind?.let { kind ->
                 val starred = action == MediaAction.Favorite
@@ -86,6 +102,51 @@ class MediaActionHandler @Inject constructor(
             // Not offered for this kind.
             else -> null
         }
+
+    /**
+     * The shared actions on several subjects at once: [target] stands for all their songs, and
+     * Favorite and Download leave alone the ones already starred or pinned. Unfavorite unstars
+     * every one: a subject's starred state is as of when it was picked, and unstarring again is
+     * harmless. One failure does not stop the rest.
+     */
+    private suspend fun several(
+        action: MediaAction,
+        target: PlayTarget,
+        subjects: List<Subject>,
+        host: MediaActionHost,
+    ): MediaActionFailure? = when (action) {
+        in SONGS_ACTIONS -> songsAction(action, target, host)
+
+        MediaAction.Favorite, MediaAction.Unfavorite -> {
+            val starred = action == MediaAction.Favorite
+            val failures = subjects.filter { !starred || !it.isStarred }.count { subject ->
+                val kind = subject.starKind ?: return@count false
+                remoteOutcome { stars.setStarred(kind, subject.pin.id, starred) }.isFailure
+            }
+            MediaActionFailure.FavoriteFailed.takeIf { failures > 0 }
+        }
+
+        MediaAction.Download -> {
+            val unpinned = subjects.filter { downloads.pinStatus(it.pin.kind, it.pin.id).first() == null }
+            val failures = unpinned.count { remoteOutcome { downloads.pin(it.pin) }.isFailure }
+            MediaActionFailure.DownloadFailed.takeIf { failures > 0 }
+        }
+
+        MediaAction.RemoveDownload -> done { subjects.forEach { downloads.unpin(it.pin.kind, it.pin.id) } }
+
+        // Not offered for a selection.
+        else -> null
+    }
+
+    /** The [SONGS_ACTIONS], which take [target]'s songs. */
+    private suspend fun songsAction(action: MediaAction, target: PlayTarget, host: MediaActionHost) = when (action) {
+        MediaAction.Play -> done { playIntents.play(target) }
+        MediaAction.Shuffle -> done { playIntents.play(target, shuffle = true) }
+        MediaAction.PlayNext -> done { playIntents.play(target, QueuePlacement.Next) }
+        MediaAction.AddToQueue -> done { playIntents.play(target, QueuePlacement.End) }
+        MediaAction.AddToPlaylist -> addToPlaylist(target, host)
+        else -> null
+    }
 
     private suspend fun shuffleAlbums(source: AlbumSource) =
         done { playIntents.playAlbums(AlbumPlayRequest(source, AlbumOrder.Shuffled)) }
@@ -115,18 +176,23 @@ class MediaActionHandler @Inject constructor(
         val pin: PinTarget,
         /** Null for playlists, which are not starred. */
         val starKind: MediaKind?,
+        /** Starred already (when the screen read it), so a selection's Favorite skips it. */
+        val isStarred: Boolean,
         /** Where Shuffle albums takes its albums from; null on menus without it. */
         val albums: AlbumSource? = null,
     ) {
         companion object {
-            fun of(album: Album) = Subject(PlayTarget.Album(album.id), PinTarget.of(album), MediaKind.Album)
+            fun of(album: Album) =
+                Subject(PlayTarget.Album(album.id), PinTarget.of(album), MediaKind.Album, album.isStarred)
 
-            fun of(song: Song) = Subject(PlayTarget.Songs(listOf(song)), PinTarget.of(song), MediaKind.Song)
+            fun of(song: Song) =
+                Subject(PlayTarget.Songs(listOf(song)), PinTarget.of(song), MediaKind.Song, song.isStarred)
 
             fun of(artist: Artist) = Subject(
                 PlayTarget.Artist(artist.id),
                 PinTarget.of(artist),
                 MediaKind.Artist,
+                artist.isStarred,
                 albums = AlbumSource.Artist(artist.id),
             )
 
@@ -134,11 +200,21 @@ class MediaActionHandler @Inject constructor(
                 PlayTarget.Playlist(playlist.id),
                 PinTarget.of(playlist),
                 starKind = null,
+                isStarred = false,
                 albums = AlbumSource.Playlist(playlist.id),
             )
         }
     }
 }
+
+/** The actions that take a subject's songs: Play, Shuffle, Play next, Add to queue, Add to playlist. */
+private val SONGS_ACTIONS = setOf(
+    MediaAction.Play,
+    MediaAction.Shuffle,
+    MediaAction.PlayNext,
+    MediaAction.AddToQueue,
+    MediaAction.AddToPlaylist,
+)
 
 /**
  * What a menu action needs from the screen it was raised on. Callbacks for actions a screen's
