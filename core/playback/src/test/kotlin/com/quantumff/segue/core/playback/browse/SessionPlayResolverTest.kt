@@ -52,7 +52,10 @@ class SessionPlayResolverTest {
     private fun SessionPlay.ids() = (this as SessionPlay.Items).items.map { it.mediaId }
 
     private suspend fun set(item: MediaItem, allowed: Boolean = true, hasQueue: Boolean = false) =
-        resolver.resolveSet(listOf(item), startIndex = 0, startPositionMs = 0, allowed, hasQueue)
+        set(listOf(item), allowed, hasQueue)
+
+    private suspend fun set(items: List<MediaItem>, allowed: Boolean = true, hasQueue: Boolean = false) =
+        resolver.resolveSet(items, startIndex = 0, startPositionMs = 0, allowed, hasQueue)
 
     @Test
     fun `plain songs pass through for any controller, from the requested start`() = runTest {
@@ -102,12 +105,26 @@ class SessionPlayResolverTest {
     }
 
     @Test
-    fun `shuffle albums added among other items still starts its feed`() = runTest {
-        val added = resolver.resolveAdd(listOf(song("x"), node(BrowseId.ShuffleAlbums)), allowed = true)
+    fun `shuffle albums among other items is a feed after their songs`() = runTest {
+        val shuffleAlbums = node(BrowseId.ShuffleAlbums)
+        val items = listOf(song("x"), shuffleAlbums, node(BrowseId.Album("al-1")))
 
-        assertThat(added).isEqualTo(
-            SessionPlay.Items(listOf(song("x")), albumFeed = shuffleLibrary.copy(placement = QueuePlacement.End)),
-        )
+        val added = resolver.resolveAdd(items, allowed = true) as SessionPlay.AlbumFeed
+        assertThat(added.request).isEqualTo(shuffleLibrary.copy(placement = QueuePlacement.End))
+        assertThat(added.songs.map { it.mediaId }).containsExactly("x", "a", "b", "c").inOrder()
+
+        val set = resolver.resolveSet(items, startIndex = 2, startPositionMs = 0, allowed = true, hasQueue = true)
+        assertThat((set as SessionPlay.AlbumFeed).request).isEqualTo(shuffleLibrary)
+        assertThat(set.songs.map { it.mediaId }).containsExactly("x", "a", "b", "c").inOrder()
+        // Only the feed: as "Shuffle albums" alone.
+        assertThat(set(listOf(shuffleAlbums, node(BrowseId.Album("missing")))))
+            .isEqualTo(SessionPlay.AlbumFeed(shuffleLibrary))
+    }
+
+    @Test
+    fun `a set of library items that match nothing leaves the queue alone`() = runTest {
+        assertThat(set(listOf(node(BrowseId.Album("missing")), node(BrowseId.Library))))
+            .isEqualTo(SessionPlay.NothingToPlay)
     }
 
     @Test

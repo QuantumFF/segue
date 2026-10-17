@@ -212,15 +212,16 @@ class SeguePlaybackService : MediaLibraryService() {
 
     /**
      * A session request's album feed ("Shuffle albums", "play some music"), persisted like the app's
-     * Play / Shuffle albums. Replacing the queue, the answer is the first window, which the session
-     * queues and the feed then extends; placed in the queue, the feed queues its window itself and
-     * the answer is empty. Null if there is nothing to play.
+     * Play / Shuffle albums, after the songs requested with it. Replacing the queue, the answer is the
+     * songs and the first window, which the session queues and the feed then extends; placed in the
+     * queue, the feed queues them itself, in one edit so it keeps running, and the answer is empty.
+     * Null if there is nothing to play.
      */
-    private suspend fun startAlbumFeed(request: AlbumPlayRequest): List<MediaItem>? =
-        if (request.placement == QueuePlacement.Replace) {
-            albumFeed.firstWindowForSession(request).ifEmpty { null }
+    private suspend fun startAlbumFeed(play: SessionPlay.AlbumFeed): List<MediaItem>? =
+        if (play.request.placement == QueuePlacement.Replace) {
+            albumFeed.firstWindowForSession(play.request, play.songs).ifEmpty { null }
         } else {
-            emptyList<MediaItem>().takeIf { albumFeed.start(request) }
+            emptyList<MediaItem>().takeIf { albumFeed.start(play.request, play.songs) }
         }
 
     private fun currentQueue() = MediaSession.MediaItemsWithStartPosition(
@@ -316,15 +317,11 @@ class SeguePlaybackService : MediaLibraryService() {
             val allowed = library.mayBrowse(controller)
             return scope.launchFuture {
                 when (val play = library.plays.resolveAdd(mediaItems, allowed)) {
-                    is SessionPlay.Items -> {
-                        // "Shuffle albums" among other items: its feed appends a window itself, as when alone.
-                        val fed = play.albumFeed != null && albumFeed.start(play.albumFeed)
-                        queueEditor.playable(play.items, shuffle = play.shuffle)?.mediaItems
-                            ?: emptyList<MediaItem>().takeIf { fed }
-                    }
+                    is SessionPlay.Items -> queueEditor.playable(play.items, shuffle = play.shuffle)?.mediaItems
 
-                    // "Shuffle albums": the album feed appends its first window itself and keeps going.
-                    is SessionPlay.AlbumFeed -> startAlbumFeed(play.request)
+                    // "Shuffle albums": the album feed appends its first window (after any songs added
+                    // with it) itself and keeps going.
+                    is SessionPlay.AlbumFeed -> startAlbumFeed(play)
 
                     SessionPlay.KeepQueue -> emptyList()
 
@@ -354,7 +351,7 @@ class SeguePlaybackService : MediaLibraryService() {
                         queueEditor.playable(play.items, play.startIndex, play.startPositionMs, play.shuffle)
 
                     is SessionPlay.AlbumFeed ->
-                        startAlbumFeed(play.request)?.let { MediaSession.MediaItemsWithStartPosition(it, 0, 0) }
+                        startAlbumFeed(play)?.let { MediaSession.MediaItemsWithStartPosition(it, 0, 0) }
 
                     // "Play music on Segue" with a queue: carry on with it.
                     SessionPlay.KeepQueue -> currentQueue()

@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.playback.feed
 
 import android.content.Context
+import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -66,13 +67,22 @@ class AlbumFeedControllerTest {
         exo.addListener(it)
     }
 
-    private suspend fun AlbumFeedController.start(request: AlbumPlayRequest, seed: Long): Boolean {
+    private suspend fun AlbumFeedController.start(
+        request: AlbumPlayRequest,
+        seed: Long,
+        songs: List<MediaItem> = emptyList(),
+    ): Boolean {
         nextSeed = seed
-        return start(request)
+        return start(request, songs)
     }
 
-    private suspend fun AlbumFeedController.firstWindowForSession(request: AlbumPlayRequest, seed: Long) =
-        also { nextSeed = seed }.firstWindowForSession(request)
+    private suspend fun AlbumFeedController.firstWindowForSession(
+        request: AlbumPlayRequest,
+        seed: Long,
+        songs: List<MediaItem> = emptyList(),
+    ) = also { nextSeed = seed }.firstWindowForSession(request, songs)
+
+    private fun songs(vararg ids: String) = ids.map { song(it, null).toMediaItem() }
 
     private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
 
@@ -133,6 +143,59 @@ class AlbumFeedControllerTest {
 
             assertThat(feed.current?.seed).isEqualTo(7)
             assertThat(feeds.stored).isNotNull()
+        }
+
+    @Test
+    fun `songs added with shuffle albums go first, and the feed after them keeps growing`() =
+        runTest(UnconfinedTestDispatcher()) {
+            player.setMediaItems(listOf(song("x", null).toMediaItem()))
+            val feed = controller()
+
+            assertThat(
+                feed.start(request(AlbumOrder.InOrder, QueuePlacement.End), seed = 1, songs = songs("y")),
+            ).isTrue()
+
+            // The session then applies its answer to the add: nothing more.
+            player.addMediaItems(emptyList())
+
+            assertThat(queueIds().take(3)).containsExactly("x", "y", "al1-t1").inOrder()
+            assertThat(feed.current).isNotNull()
+            player.seekTo(exo.mediaItemCount - 2, 0)
+            advanceUntilIdle()
+            assertThat(
+                exo.mediaItemCount,
+            ).isEqualTo(2 + AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
+        }
+
+    @Test
+    fun `songs added with shuffle albums are queued even when there are no albums`() =
+        runTest(UnconfinedTestDispatcher()) {
+            albums.ids = emptyList()
+            val feed = controller()
+
+            assertThat(
+                feed.start(request(AlbumOrder.Shuffled, QueuePlacement.End), seed = 1, songs = songs("y")),
+            ).isTrue()
+
+            assertThat(queueIds()).containsExactly("y")
+            assertThat(feed.current).isNull()
+        }
+
+    @Test
+    fun `a session's set of songs and shuffle albums becomes a feed after the songs`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
+
+            val items = feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1, songs = songs("y"))
+            assertThat(items.first().mediaId).isEqualTo("y")
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current).isNotNull()
+            player.seekTo(exo.mediaItemCount - 2, 0)
+            advanceUntilIdle()
+            assertThat(
+                exo.mediaItemCount,
+            ).isEqualTo(1 + AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
         }
 
     @Test

@@ -41,7 +41,7 @@ import kotlinx.coroutines.sync.withLock
  */
 class AlbumFeedController(
     private val player: SeguePlayer,
-    /** Places each window; the windows are already narrowed to what can play. */
+    /** Places each window, which is already narrowed to what can play, and narrows songs queued with one. */
     private val queue: QueueEditor,
     private val albums: AlbumShuffleRepository,
     private val feeds: AlbumFeedRepository,
@@ -74,21 +74,24 @@ class AlbumFeedController(
 
     /**
      * Queues the first window of [request] and, when its albums end the queue, keeps the feed
-     * running. False if there is nothing to play (the queue is then left alone).
+     * running. [songs] (a media browser's "Shuffle albums" among other items) go right before the
+     * window in the same edit, narrowed to what can play, so the feed's albums still end the queue.
+     * False if there is nothing to play (the queue is then left alone).
      */
-    suspend fun start(request: AlbumPlayRequest): Boolean = starting.withLock {
+    suspend fun start(request: AlbumPlayRequest, songs: List<MediaItem> = emptyList()): Boolean = starting.withLock {
         // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
         val seed = newSeed()
         val window = firstWindow(request, seed)
-        if (window.songs.isEmpty()) return@withLock false
+        val albumItems = window.songs.map { it.toMediaItem() }
+        val items = playable(songs) + albumItems
+        if (items.isEmpty()) return@withLock false
         stop()
         pending = null
-        val items = window.songs.map { it.toMediaItem() }
         var first = 0
         ownEdit { first = queue.place(items, request.placement) }
         // Only a feed whose albums end the queue may grow; "play next" before other tracks stays one window.
         val endsQueue = first + items.size == player.mediaItemCount
-        if (endsQueue && !window.exhausted) {
+        if (albumItems.isNotEmpty() && endsQueue && !window.exhausted) {
             current = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint())
             persist()
             extendIfNeeded()
@@ -99,21 +102,28 @@ class AlbumFeedController(
     /**
      * The first window of [request] for a media session to queue itself, as the reply to a media
      * browser's play request (Android Auto's "Shuffle albums"): the session, not the feed, replaces
-     * the queue. Once the session has queued exactly these items, the feed runs as if [start] had
-     * queued them. Until then it waits, unless the session's next set or add request comes first
-     * ([cancelPending]), even while this window is still being read. Empty if there is nothing to play.
+     * the queue. [songs] go before the window, narrowed to what can play, as in [start]. Once the
+     * session has queued exactly these items, the feed runs as if [start] had queued them. Until then
+     * it waits, unless the session's next set or add request comes first ([cancelPending]), even
+     * while this window is still being read. Empty if there is nothing to play.
      */
-    suspend fun firstWindowForSession(request: AlbumPlayRequest): List<MediaItem> {
+    suspend fun firstWindowForSession(
+        request: AlbumPlayRequest,
+        songs: List<MediaItem> = emptyList(),
+    ): List<MediaItem> {
         val requestNumber = sessionRequests
         return starting.withLock {
             val seed = newSeed()
             val window = firstWindow(request, seed)
-            val items = window.songs.map { it.toMediaItem() }
+            val items = playable(songs) + window.songs.map { it.toMediaItem() }
             pending = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint(items))
-                .takeUnless { items.isEmpty() || window.exhausted || sessionRequests != requestNumber }
+                .takeUnless { window.songs.isEmpty() || window.exhausted || sessionRequests != requestNumber }
             items
         }
     }
+
+    /** [songs] as they may be queued now; none if none can play. */
+    private suspend fun playable(songs: List<MediaItem>): List<MediaItem> = queue.playable(songs)?.mediaItems.orEmpty()
 
     /**
      * The session took a new set or add request: a first window it prepared before, or is preparing,
