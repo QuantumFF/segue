@@ -31,11 +31,12 @@ interface BrowseDao {
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName LIMIT :limit OFFSET :offset")
     suspend fun artistsByName(serverId: String, limit: Int, offset: Int): List<ArtistEntity>
 
-    /** Albums tagged with [genre], or holding at least one song in it, by name. */
+    /** Albums tagged with [genre] (any of their genres), or holding at least one song in it, by name. */
     @Query(
         """
         SELECT * FROM albums WHERE serverId = :serverId AND (
-            genre = :genre OR id IN (SELECT albumId FROM songs WHERE serverId = :serverId AND genre = :genre)
+            genre = :genre OR $ALBUM_IN_GENRE
+            OR id IN (SELECT albumId FROM songs WHERE serverId = :serverId AND genre = :genre)
         )
         ORDER BY sortName LIMIT :limit OFFSET :offset
         """,

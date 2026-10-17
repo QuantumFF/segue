@@ -4,6 +4,7 @@ import androidx.paging.PagingSource
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumEntity
+import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
 import com.quantumff.segue.core.database.model.DownloadEntity
@@ -83,6 +84,33 @@ class LibraryDaoTest {
         db.albumDao().replaceAlbumArtists("s1", listOf("feat"), listOf(AlbumArtistCrossRef("s1", "feat", "ar", 1)))
 
         assertThat(db.albumDao().observeByArtist("s1", "ar").first().map { it.id }).containsExactly("own", "feat")
+    }
+
+    @Test
+    fun `a genre's albums include albums that list it after their first genre`() = runTest {
+        val dao = db.albumDao()
+        dao.upsertAll(
+            listOf(
+                album("first").copy(genre = "Hip-Hop"),
+                album("later").copy(genre = "Blues"),
+                album("other").copy(genre = "Jazz"),
+            ),
+        )
+        dao.replaceAlbumGenres(
+            "s1",
+            listOf("later"),
+            listOf(AlbumGenreCrossRef("s1", "later", "Blues"), AlbumGenreCrossRef("s1", "later", "Hip-Hop")),
+        )
+
+        assertThat(dao.idsInViewOrder("s1", "Name", false, "Hip-Hop", null, downloadedOnly = false))
+            .containsExactly("first", "later").inOrder()
+        assertThat(dao.observeCount("s1", starredOnly = false, genre = "Hip-Hop", year = null).first()).isEqualTo(2)
+
+        dao.deleteByIds("s1", listOf("later"))
+        dao.upsertAll(listOf(album("later").copy(genre = "Blues")))
+
+        assertThat(dao.idsInViewOrder("s1", "Name", false, "Hip-Hop", null, downloadedOnly = false))
+            .containsExactly("first")
     }
 
     @Test

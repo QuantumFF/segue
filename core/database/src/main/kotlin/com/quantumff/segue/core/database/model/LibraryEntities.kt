@@ -79,6 +79,17 @@ data class AlbumFtsEntity(val name: String, val artist: String?)
 )
 data class AlbumArtistCrossRef(val serverId: String, val albumId: String, val artistId: String, val position: Int)
 
+/**
+ * Tags an album with each of its OpenSubsonic `genres`. The album's own `genre` is only the first,
+ * and the server counts an album under every genre it has.
+ */
+@Entity(
+    tableName = "album_genres",
+    primaryKeys = ["serverId", "albumId", "genre"],
+    indices = [Index("serverId", "genre")],
+)
+data class AlbumGenreCrossRef(val serverId: String, val albumId: String, val genre: String)
+
 @Entity(
     tableName = "songs",
     primaryKeys = ["serverId", "id"],

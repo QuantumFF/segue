@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumEntity
+import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.AlbumListEntryEntity
 import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.GenreEntity
@@ -22,10 +23,17 @@ import kotlinx.coroutines.flow.Flow
  */
 internal const val SQL_CHUNK = 500
 
-/** The album filter row (DESIGN.md §4.2): favorites only, one genre, one year. Null parameters do not filter. */
+/** Albums tagged with `:genre` in `album_genres`. */
+internal const val ALBUM_IN_GENRE =
+    "id IN (SELECT albumId FROM album_genres WHERE serverId = :serverId AND genre = :genre)"
+
+/**
+ * The album filter row (DESIGN.md §4.2): favorites only, one genre, one year. Null parameters do not
+ * filter. A genre matches any of the album's genres, as the server counts them.
+ */
 private const val ALBUM_FILTER =
     "serverId = :serverId AND (:starredOnly = 0 OR starredAt IS NOT NULL) " +
-        "AND (:genre IS NULL OR genre = :genre) AND (:year IS NULL OR year = :year)"
+        "AND (:genre IS NULL OR genre = :genre OR $ALBUM_IN_GENRE) AND (:year IS NULL OR year = :year)"
 
 /** Albums with at least one downloaded song. Only in queries that need it, so others do not observe `downloads`. */
 private const val DOWNLOADED_ALBUM =
@@ -240,11 +248,23 @@ abstract class AlbumDao {
         insertAlbumArtists(refs)
     }
 
-    /** Deletes albums with their songs and artist credits. */
+    /** Replaces the genre tags of [albumIds] with [refs]. */
+    @Transaction
+    open suspend fun replaceAlbumGenres(
+        serverId: String,
+        albumIds: Collection<String>,
+        refs: List<AlbumGenreCrossRef>,
+    ) {
+        albumIds.chunked(SQL_CHUNK).forEach { deleteAlbumGenresChunk(serverId, it) }
+        insertAlbumGenres(refs)
+    }
+
+    /** Deletes albums with their songs, artist credits and genre tags. */
     @Transaction
     open suspend fun deleteByIds(serverId: String, ids: Collection<String>) {
         ids.chunked(SQL_CHUNK).forEach {
             deleteAlbumArtistsChunk(serverId, it)
+            deleteAlbumGenresChunk(serverId, it)
             deleteSongsOfAlbumsChunk(serverId, it)
             deleteChunk(serverId, it)
         }
@@ -258,6 +278,12 @@ abstract class AlbumDao {
 
     @Query("DELETE FROM album_artists WHERE serverId = :serverId AND albumId IN (:albumIds)")
     protected abstract suspend fun deleteAlbumArtistsChunk(serverId: String, albumIds: List<String>)
+
+    @Insert
+    protected abstract suspend fun insertAlbumGenres(refs: List<AlbumGenreCrossRef>)
+
+    @Query("DELETE FROM album_genres WHERE serverId = :serverId AND albumId IN (:albumIds)")
+    protected abstract suspend fun deleteAlbumGenresChunk(serverId: String, albumIds: List<String>)
 
     @Query("DELETE FROM songs WHERE serverId = :serverId AND albumId IN (:albumIds)")
     protected abstract suspend fun deleteSongsOfAlbumsChunk(serverId: String, albumIds: List<String>)

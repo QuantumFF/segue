@@ -41,6 +41,27 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `2 to 3 adds an empty album genre table and makes the next sync a full one`() {
+        helper.createDatabase(DB_NAME, 2).use { db ->
+            db.execSQL("INSERT INTO sync_metadata VALUES ('s1', 7, 100, 200)")
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 3, true, SegueMigrations.MIGRATION_2_3).use { db ->
+            db.query("SELECT artistsLastModified, lastFullSyncAt, lastSyncAt FROM sync_metadata").use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getLong(0)).isEqualTo(7)
+                assertThat(cursor.isNull(1)).isTrue()
+                assertThat(cursor.getLong(2)).isEqualTo(200)
+            }
+            db.query("SELECT COUNT(*) FROM album_genres").use { cursor ->
+                cursor.moveToFirst()
+                assertThat(cursor.getInt(0)).isEqualTo(0)
+            }
+            db.execSQL("INSERT INTO album_genres VALUES ('s1', 'al', 'Hip-Hop')")
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

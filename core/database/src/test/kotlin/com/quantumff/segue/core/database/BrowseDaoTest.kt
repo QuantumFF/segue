@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.database
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.model.DownloadState
 import kotlinx.coroutines.test.runTest
@@ -51,12 +52,22 @@ class BrowseDaoTest {
     @Test
     fun `genre albums include albums tagged with the genre or holding a song in it`() = runTest {
         db.albumDao().upsertAll(
-            listOf(album("tagged").copy(genre = "Rock"), album("bysong"), album("other").copy(genre = "Jazz")),
+            listOf(
+                album("tagged").copy(genre = "Rock"),
+                album("bysong"),
+                album("later").copy(genre = "Blues"),
+                album("other").copy(genre = "Jazz"),
+            ),
+        )
+        db.albumDao().replaceAlbumGenres(
+            "s1",
+            listOf("later"),
+            listOf(AlbumGenreCrossRef("s1", "later", "Blues"), AlbumGenreCrossRef("s1", "later", "Rock")),
         )
         db.songDao().upsertAll(listOf(song("s", albumId = "bysong").copy(genre = "Rock")))
 
         assertThat(dao.albumsByGenre("s1", "Rock", limit = 10, offset = 0).map { it.id })
-            .containsExactly("bysong", "tagged").inOrder()
+            .containsExactly("bysong", "later", "tagged").inOrder()
     }
 
     @Test

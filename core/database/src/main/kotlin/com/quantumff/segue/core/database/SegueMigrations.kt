@@ -25,5 +25,23 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2)
+    /**
+     * 2 → 3: albums keep every OpenSubsonic genre in `album_genres`, so a genre lists the albums the
+     * server counts in it. The table starts empty; forgetting the last full sync makes the next sync
+     * refetch every album to fill it.
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `album_genres` (`serverId` TEXT NOT NULL, `albumId` TEXT NOT NULL, " +
+                    "`genre` TEXT NOT NULL, PRIMARY KEY(`serverId`, `albumId`, `genre`))",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_album_genres_serverId_genre` ON `album_genres` (`serverId`, `genre`)",
+            )
+            db.execSQL("UPDATE sync_metadata SET lastFullSyncAt = NULL")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

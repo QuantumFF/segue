@@ -2,6 +2,7 @@ package com.quantumff.segue.core.data.model
 
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumEntity
+import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
@@ -63,6 +64,13 @@ internal fun NetworkAlbum.artistCrossRefs(serverId: String): List<AlbumArtistCro
     .filter { it.id.isNotBlank() }
     .distinctBy { it.id }
     .mapIndexed { index, ref -> AlbumArtistCrossRef(serverId, albumId = id, artistId = ref.id, position = index) }
+
+/** One tag per OpenSubsonic album genre; the lone Subsonic `genre` when the server sends no list. */
+internal fun NetworkAlbum.genreCrossRefs(serverId: String): List<AlbumGenreCrossRef> =
+    genres.map { it.name }.ifEmpty { listOfNotNull(genre) }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .map { AlbumGenreCrossRef(serverId, albumId = id, genre = it) }
 
 internal fun NetworkChild.asEntity(serverId: String) = SongEntity(
     serverId = serverId,
