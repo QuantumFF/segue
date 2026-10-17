@@ -166,7 +166,7 @@ class FakeUserPreferencesRepository : UserPreferencesRepository {
     }
 }
 
-class FakeAppUpdateRepository : AppUpdateRepository {
+class FakeAppUpdateRepository(override val installedVersion: String = "0.1.1") : AppUpdateRepository {
     /** What [check] returns: the newer release, or null when up to date. */
     var latest: AppRelease? = null
     var error: RemoteException? = null

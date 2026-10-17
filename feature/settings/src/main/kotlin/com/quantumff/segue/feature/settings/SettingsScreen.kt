@@ -1,8 +1,5 @@
 package com.quantumff.segue.feature.settings
 
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,9 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -57,6 +52,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.designsystem.util.openLink
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
@@ -81,11 +77,9 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val versionName = remember(context) { context.versionName() }
     val uriHandler = LocalUriHandler.current
     LaunchedEffect(viewModel, uriHandler) {
-        viewModel.openRelease.collect { url -> uriHandler.openReleasePage(url) }
+        viewModel.openRelease.collect { url -> uriHandler.openLink(url) }
     }
     val actions = remember(viewModel, onDownloadsClick, onAddServerClick, onLicensesClick) {
         SettingsActions(
@@ -119,7 +113,7 @@ fun SettingsScreen(
     }
     SettingsContent(
         uiState = uiState,
-        versionName = versionName,
+        versionName = viewModel.versionName,
         actions = actions,
         onBackClick = onBackClick,
         modifier = modifier,
@@ -725,30 +719,9 @@ private fun updateCheckLabel(check: UpdateCheck): String = when (check) {
     UpdateCheck.Failed -> stringResource(R.string.feature_settings_update_failed)
 }
 
-/** Opens a release page in the browser; does nothing on a device without one. */
-private fun UriHandler.openReleasePage(url: String) {
-    try {
-        openUri(url)
-    } catch (_: IllegalArgumentException) {
-        // No app can open web links.
-    }
-}
-
 @Composable
 private fun minutesLabel(minutes: Int): String =
     pluralStringResource(R.plurals.feature_settings_minutes, minutes, minutes)
-
-private fun Context.versionName(): String = try {
-    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
-    } else {
-        @Suppress("DEPRECATION")
-        packageManager.getPackageInfo(packageName, 0)
-    }
-    info.versionName.orEmpty()
-} catch (_: PackageManager.NameNotFoundException) {
-    ""
-}
 
 private const val MB_PER_GB = 1024
 private val SWATCH = 32.dp

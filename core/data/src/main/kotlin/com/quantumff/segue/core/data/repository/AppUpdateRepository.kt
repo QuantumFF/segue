@@ -16,6 +16,9 @@ import kotlinx.coroutines.withContext
 
 /** Whether a newer Segue is out, from the GitHub releases. */
 interface AppUpdateRepository {
+    /** The installed app's version name, e.g. "0.1.1". */
+    val installedVersion: String
+
     /** The latest release if it is newer than the installed version, else null. Throws RemoteException. */
     suspend fun check(): AppRelease?
 
@@ -36,7 +39,7 @@ internal class GitHubAppUpdateRepository @Inject constructor(
     private val releases: GitHubReleaseClient,
     private val preferences: UserPreferencesDataSource,
     private val clock: Clock,
-    @InstalledVersionName private val installedVersion: String,
+    @InstalledVersionName override val installedVersion: String,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : AppUpdateRepository {
     override suspend fun check(): AppRelease? {

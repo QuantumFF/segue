@@ -57,6 +57,9 @@ class SettingsViewModel @Inject constructor(
     private val updateCheck = MutableStateFlow<UpdateCheck>(UpdateCheck.Idle)
     private val releasesToOpen = Channel<String>(Channel.CONFLATED)
 
+    /** The installed version, e.g. "0.1.1". */
+    val versionName: String = updateRepository.installedVersion
+
     /** Release page URLs to open in the browser: a check found a newer version. */
     val openRelease: Flow<String> = releasesToOpen.receiveAsFlow()
 

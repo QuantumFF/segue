@@ -61,6 +61,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.designsystem.util.openLink
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.navigateToNowPlaying
@@ -122,22 +123,17 @@ fun SegueApp(
             }
         }
     }
+    val update by appUpdateViewModel.availableUpdate.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
-    LaunchedEffect(appUpdateViewModel) {
-        appUpdateViewModel.availableUpdate.collect { release ->
-            val result = snackbarHostState.showSnackbar(
-                message = resources.getString(R.string.update_available, release.version),
-                actionLabel = resources.getString(R.string.update_view),
-                duration = SnackbarDuration.Long,
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                try {
-                    uriHandler.openUri(release.url)
-                } catch (_: IllegalArgumentException) {
-                    // No app can open web links.
-                }
-            }
-        }
+    LaunchedEffect(update) {
+        val release = update ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = resources.getString(R.string.update_available, release.version),
+            actionLabel = resources.getString(R.string.update_view),
+            duration = SnackbarDuration.Long,
+        )
+        if (result == SnackbarResult.ActionPerformed) uriHandler.openLink(release.url)
+        appUpdateViewModel.onOffered()
     }
     var addToPlaylist by remember { mutableStateOf<List<String>?>(null) }
     // Fixed for the NavHost's lifetime; later sign-outs navigate to login instead.
