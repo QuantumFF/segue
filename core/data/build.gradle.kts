@@ -25,4 +25,5 @@ dependencies {
     testImplementation(libs.androidx.room.runtime)
     testImplementation(libs.androidx.datastore.preferences)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.kotlinx.serialization.json)
 }

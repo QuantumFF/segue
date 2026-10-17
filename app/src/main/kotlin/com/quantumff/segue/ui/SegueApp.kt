@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.core.view.WindowCompat
@@ -60,6 +61,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.designsystem.util.openLink
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.feature.nowplaying.navigation.navigateToNowPlaying
@@ -90,6 +92,7 @@ fun SegueApp(
     windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
     sidebarViewModel: SidebarViewModel = hiltViewModel(),
+    appUpdateViewModel: AppUpdateViewModel = hiltViewModel(),
 ) {
     val appState = rememberSegueAppState(shellLayout = windowAdaptiveInfo.windowSizeClass.toShellLayout())
     // Only the expanded sidebar lists playlists: other layouts do not observe them.
@@ -119,6 +122,18 @@ fun SegueApp(
                 }
             }
         }
+    }
+    val update by appUpdateViewModel.availableUpdate.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(update) {
+        val release = update ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = resources.getString(R.string.update_available, release.version),
+            actionLabel = resources.getString(R.string.update_view),
+            duration = SnackbarDuration.Long,
+        )
+        if (result == SnackbarResult.ActionPerformed) uriHandler.openLink(release.url)
+        appUpdateViewModel.onOffered()
     }
     var addToPlaylist by remember { mutableStateOf<List<String>?>(null) }
     // Fixed for the NavHost's lifetime; later sign-outs navigate to login instead.

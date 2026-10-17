@@ -27,6 +27,8 @@ data class UserPreferences(
     val streamCacheSizeMb: Int = DEFAULT_STREAM_CACHE_MB,
     /** The playback service stops itself after being paused this long. */
     val stopWhenPausedMinutes: Int = DEFAULT_STOP_WHEN_PAUSED_MINUTES,
+    /** Look for a newer release on GitHub once a day when the app starts. */
+    val checkForUpdates: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_STREAM_CACHE_MB = 1024

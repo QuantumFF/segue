@@ -1,6 +1,8 @@
 package com.quantumff.segue.core.data.di
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.work.WorkManager
 import com.quantumff.segue.core.data.download.ConnectivityManagerNetworkConnectivity
 import com.quantumff.segue.core.data.download.DefaultOfflineModeRepository
@@ -18,10 +20,13 @@ import com.quantumff.segue.core.data.repository.AccountServerRepository
 import com.quantumff.segue.core.data.repository.AlbumFeedRepository
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
+import com.quantumff.segue.core.data.repository.AppUpdateRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.CachedServerCapabilitiesRepository
 import com.quantumff.segue.core.data.repository.DataStoreUserPreferencesRepository
 import com.quantumff.segue.core.data.repository.DeviceClientName
+import com.quantumff.segue.core.data.repository.GitHubAppUpdateRepository
+import com.quantumff.segue.core.data.repository.InstalledVersionName
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
@@ -132,6 +137,9 @@ internal interface DataModule {
     fun albumFeedRepository(impl: RoomAlbumFeedRepository): AlbumFeedRepository
 
     @Binds
+    fun appUpdateRepository(impl: GitHubAppUpdateRepository): AppUpdateRepository
+
+    @Binds
     fun scrobbleScheduler(impl: WorkManagerScrobbleScheduler): ScrobbleScheduler
 
     @Binds
@@ -167,6 +175,18 @@ internal interface DataModule {
     companion object {
         @Provides
         fun workManager(@ApplicationContext context: Context): WorkManager = WorkManager.getInstance(context)
+
+        @Provides
+        @InstalledVersionName
+        fun installedVersionName(@ApplicationContext context: Context): String {
+            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            return info.versionName.orEmpty()
+        }
 
         @Provides
         fun clientCreator(factory: SubsonicClientFactory): SubsonicClientCreator =

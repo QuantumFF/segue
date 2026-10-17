@@ -48,6 +48,7 @@ class UserPreferencesDataSourceTest {
             replayGainBoost = true,
             streamCacheSizeMb = 256,
             stopWhenPausedMinutes = 30,
+            checkForUpdates = false,
         )
         val defaults = UserPreferences()
         UserPreferences::class.java.declaredFields
