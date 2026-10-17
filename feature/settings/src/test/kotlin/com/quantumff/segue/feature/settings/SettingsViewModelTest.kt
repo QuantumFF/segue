@@ -2,6 +2,8 @@ package com.quantumff.segue.feature.settings
 
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.model.AppRelease
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.StorageLimit
@@ -10,9 +12,11 @@ import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeAppUpdateRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -26,7 +30,8 @@ class SettingsViewModelTest {
 
     // Lazy: viewModelScope must be created after MainDispatcherRule has installed the test dispatcher.
     private val downloads = FakeDownloadRepository()
-    private val viewModel by lazy { SettingsViewModel(servers, preferences, downloads) }
+    private val updates = FakeAppUpdateRepository()
+    private val viewModel by lazy { SettingsViewModel(servers, preferences, downloads, updates) }
 
     private val home = TestData.server.copy(id = "home", name = "Home")
 
@@ -87,5 +92,31 @@ class SettingsViewModelTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun checkForUpdatesOpensANewerReleaseAndShowsItsVersion() = runTest {
+        updates.latest = AppRelease("0.2.0", "https://github.com/QuantumFF/segue/releases/tag/v0.2.0")
+
+        viewModel.openRelease.test {
+            viewModel.checkForUpdates()
+            assertThat(awaitItem()).isEqualTo("https://github.com/QuantumFF/segue/releases/tag/v0.2.0")
+        }
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().updateCheck).isEqualTo(UpdateCheck.Available("0.2.0"))
+        }
+    }
+
+    @Test
+    fun checkForUpdatesShowsUpToDateOrFailedWithoutOpeningAnything() = runTest {
+        viewModel.uiState.test {
+            viewModel.checkForUpdates()
+            assertThat(expectMostRecentItem().updateCheck).isEqualTo(UpdateCheck.UpToDate)
+
+            updates.error = RemoteException.Unreachable(IOException("offline"))
+            viewModel.checkForUpdates()
+            assertThat(expectMostRecentItem().updateCheck).isEqualTo(UpdateCheck.Failed)
+        }
+        viewModel.openRelease.test { expectNoEvents() }
     }
 }

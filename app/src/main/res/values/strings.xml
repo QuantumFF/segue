@@ -13,4 +13,6 @@
     <string name="player_instant_mix_offline">Instant mix needs a connection to the server</string>
     <string name="player_continued_from">Continued from %1$s</string>
     <string name="player_undo">Undo</string>
+    <string name="update_available">Segue %1$s is available</string>
+    <string name="update_view">View</string>
 </resources>

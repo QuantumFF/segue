@@ -2,7 +2,9 @@ package com.quantumff.segue.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
+import com.quantumff.segue.core.data.repository.AppUpdateRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.DownloadPreferences
@@ -14,9 +16,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -25,25 +31,48 @@ data class SettingsUiState(
     val activeServerId: String? = null,
     val preferences: UserPreferences = UserPreferences(),
     val downloads: DownloadPreferences = DownloadPreferences(),
+    val updateCheck: UpdateCheck = UpdateCheck.Idle,
 )
+
+/** The "Check for updates" row, after a check from Settings. */
+sealed interface UpdateCheck {
+    data object Idle : UpdateCheck
+
+    data object Checking : UpdateCheck
+
+    data object UpToDate : UpdateCheck
+
+    data class Available(val version: String) : UpdateCheck
+
+    data object Failed : UpdateCheck
+}
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val preferencesRepository: UserPreferencesRepository,
     private val downloadRepository: DownloadRepository,
+    private val updateRepository: AppUpdateRepository,
 ) : ViewModel() {
+    private val updateCheck = MutableStateFlow<UpdateCheck>(UpdateCheck.Idle)
+    private val releasesToOpen = Channel<String>(Channel.CONFLATED)
+
+    /** Release page URLs to open in the browser: a check found a newer version. */
+    val openRelease: Flow<String> = releasesToOpen.receiveAsFlow()
+
     val uiState: StateFlow<SettingsUiState> = combine(
         serverRepository.servers,
         serverRepository.activeServer,
         preferencesRepository.preferences,
         downloadRepository.preferences,
-    ) { servers, active, preferences, downloads ->
+        updateCheck,
+    ) { servers, active, preferences, downloads, updateCheck ->
         SettingsUiState(
             servers = servers,
             activeServerId = active?.id,
             preferences = preferences,
             downloads = downloads,
+            updateCheck = updateCheck,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SettingsUiState())
 
@@ -64,6 +93,25 @@ class SettingsViewModel @Inject constructor(
     fun setOfflineMode(enabled: Boolean) = launch { downloadRepository.setForceOffline(enabled) }
 
     fun setStorageLimit(limit: StorageLimit) = launch { downloadRepository.setStorageLimit(limit) }
+
+    /** Asks GitHub for the latest release and opens its page if it is newer than this app. */
+    fun checkForUpdates() {
+        if (updateCheck.value == UpdateCheck.Checking) return
+        updateCheck.value = UpdateCheck.Checking
+        launch {
+            updateCheck.value = try {
+                val release = updateRepository.check()
+                if (release == null) {
+                    UpdateCheck.UpToDate
+                } else {
+                    releasesToOpen.send(release.url)
+                    UpdateCheck.Available(release.version)
+                }
+            } catch (_: RemoteException) {
+                UpdateCheck.Failed
+            }
+        }
+    }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

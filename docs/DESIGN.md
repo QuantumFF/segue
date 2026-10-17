@@ -353,7 +353,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
   - **Downloads & storage:** download quality, cache size, storage limit.
   - **Queue sync:** enabled, auto-continue from other devices.
-  - **Lyrics**, **Scrobbling**, **About**.
+  - **Lyrics**, **Scrobbling**.
+  - **About:** version; "Check for updates" (asks GitHub for the latest release and opens its page when it is newer; the summary says "Up to date" or that the check failed); "Check for updates automatically" (a switch, on by default: once a day on app start, a newer release shows a snackbar with **View**); licenses.
 - Pickers open as bottom sheets with radio rows. Do not use dialogs for pickers.
 
 ### 4.11 Login / server setup

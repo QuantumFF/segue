@@ -26,6 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -80,6 +83,10 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val versionName = remember(context) { context.versionName() }
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(viewModel, uriHandler) {
+        viewModel.openRelease.collect { url -> uriHandler.openReleasePage(url) }
+    }
     val actions = remember(viewModel, onDownloadsClick, onAddServerClick, onLicensesClick) {
         SettingsActions(
             onSwitchServer = viewModel::switchServer,
@@ -106,6 +113,8 @@ fun SettingsScreen(
             onDownloadChargingOnly = viewModel::setDownloadChargingOnly,
             onOfflineMode = viewModel::setOfflineMode,
             onStorageLimit = viewModel::setStorageLimit,
+            onCheckForUpdates = viewModel::checkForUpdates,
+            onAutoUpdateCheck = { on -> viewModel.updatePreferences { it.copy(checkForUpdates = on) } },
         )
     }
     SettingsContent(
@@ -141,6 +150,8 @@ class SettingsActions(
     val onDownloadChargingOnly: (Boolean) -> Unit = {},
     val onOfflineMode: (Boolean) -> Unit = {},
     val onStorageLimit: (StorageLimit) -> Unit = {},
+    val onCheckForUpdates: () -> Unit = {},
+    val onAutoUpdateCheck: (Boolean) -> Unit = {},
 ) {
     companion object {
         val None = SettingsActions(
@@ -364,6 +375,22 @@ fun SettingsContent(
                     title = stringResource(R.string.feature_settings_version),
                     summary = versionName,
                     icon = SegueIcons.Info,
+                )
+            }
+            item(key = "checkForUpdates", contentType = "row") {
+                val checking = uiState.updateCheck == UpdateCheck.Checking
+                SettingsRow(
+                    title = stringResource(R.string.feature_settings_check_for_updates),
+                    summary = updateCheckLabel(uiState.updateCheck),
+                    modifier = Modifier.clickable(enabled = !checking, onClick = actions.onCheckForUpdates),
+                )
+            }
+            item(key = "autoUpdateCheck", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_auto_update_check),
+                    summary = stringResource(R.string.feature_settings_auto_update_check_summary),
+                    checked = prefs.checkForUpdates,
+                    onCheckedChange = actions.onAutoUpdateCheck,
                 )
             }
             item(key = "licenses", contentType = "row") {
@@ -687,6 +714,24 @@ private fun sizeLabel(megabytes: Int): String = if (megabytes >= MB_PER_GB && me
     stringResource(R.string.feature_settings_size_gb, megabytes / MB_PER_GB)
 } else {
     stringResource(R.string.feature_settings_size_mb, megabytes)
+}
+
+@Composable
+private fun updateCheckLabel(check: UpdateCheck): String = when (check) {
+    UpdateCheck.Idle -> stringResource(R.string.feature_settings_check_for_updates_summary)
+    UpdateCheck.Checking -> stringResource(R.string.feature_settings_update_checking)
+    UpdateCheck.UpToDate -> stringResource(R.string.feature_settings_update_up_to_date)
+    is UpdateCheck.Available -> stringResource(R.string.feature_settings_update_available, check.version)
+    UpdateCheck.Failed -> stringResource(R.string.feature_settings_update_failed)
+}
+
+/** Opens a release page in the browser; does nothing on a device without one. */
+private fun UriHandler.openReleasePage(url: String) {
+    try {
+        openUri(url)
+    } catch (_: IllegalArgumentException) {
+        // No app can open web links.
+    }
 }
 
 @Composable

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.quantumff.segue.core.model.RecentSearches
 import com.quantumff.segue.core.model.StreamingQuality
@@ -16,6 +17,7 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class UserPreferencesDataSource @Inject constructor(private val dataStore: DataStore<Preferences>) {
@@ -54,6 +56,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             prefs.putIfChanged(Keys.ReplayGainBoost, old.replayGainBoost, new.replayGainBoost)
             prefs.putIfChanged(Keys.StreamCacheSizeMb, old.streamCacheSizeMb, new.streamCacheSizeMb)
             prefs.putIfChanged(Keys.StopWhenPausedMinutes, old.stopWhenPausedMinutes, new.stopWhenPausedMinutes)
+            prefs.putIfChanged(Keys.CheckForUpdates, old.checkForUpdates, new.checkForUpdates)
         }
     }
 
@@ -72,6 +75,13 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             id = prefs[Keys.DeviceId] ?: UUID.randomUUID().toString().also { prefs[Keys.DeviceId] = it }
         }
         return checkNotNull(id)
+    }
+
+    /** When the automatic update check last reached GitHub, in epoch milliseconds; null if never. */
+    suspend fun lastUpdateCheckMillis(): Long? = dataStore.data.first()[Keys.LastUpdateCheck]
+
+    suspend fun setLastUpdateCheckMillis(millis: Long) {
+        dataStore.edit { it[Keys.LastUpdateCheck] = millis }
     }
 
     private suspend fun editRecentSearches(transform: (List<String>) -> List<String>) {
@@ -104,6 +114,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             replayGainBoost = this[Keys.ReplayGainBoost] ?: defaults.replayGainBoost,
             streamCacheSizeMb = this[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
             stopWhenPausedMinutes = this[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
+            checkForUpdates = this[Keys.CheckForUpdates] ?: defaults.checkForUpdates,
         )
     }
 
@@ -153,6 +164,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val StreamCacheSizeMb = intPreferencesKey("stream_cache_size_mb")
         val StopWhenPausedMinutes = intPreferencesKey("stop_when_paused_minutes")
         val RecentSearches = stringPreferencesKey("recent_searches")
+        val CheckForUpdates = booleanPreferencesKey("check_for_updates")
+        val LastUpdateCheck = longPreferencesKey("last_update_check_millis")
     }
 
     companion object {

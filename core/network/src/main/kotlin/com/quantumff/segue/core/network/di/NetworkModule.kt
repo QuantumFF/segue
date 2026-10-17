@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.network.di
 
 import com.quantumff.segue.core.network.CoverArtResponseInterceptor
+import com.quantumff.segue.core.network.GitHubReleaseClient
 import com.quantumff.segue.core.network.auth.SaltGenerator
 import com.quantumff.segue.core.network.auth.SecureRandomSaltGenerator
 import dagger.Binds
@@ -41,6 +42,10 @@ object NetworkModule {
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .addInterceptor(CoverArtResponseInterceptor())
         .build()
+
+    @Provides
+    fun gitHubReleaseClient(okHttpClient: OkHttpClient, json: Json): GitHubReleaseClient =
+        GitHubReleaseClient(okHttpClient, json)
 
     private const val CONNECT_TIMEOUT_SECONDS = 15L
     private const val READ_TIMEOUT_SECONDS = 30L

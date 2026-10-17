@@ -1,10 +1,12 @@
 package com.quantumff.segue.core.testing.repository
 
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.repository.AppUpdateRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerCapabilitiesRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.model.AppRelease
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.RecentSearches
 import com.quantumff.segue.core.model.Server
@@ -162,4 +164,19 @@ class FakeUserPreferencesRepository : UserPreferencesRepository {
     override suspend fun removeRecentSearch(query: String) = recentSearches.update { current ->
         RecentSearches.remove(current, query).toImmutableList()
     }
+}
+
+class FakeAppUpdateRepository : AppUpdateRepository {
+    /** What [check] returns: the newer release, or null when up to date. */
+    var latest: AppRelease? = null
+    var error: RemoteException? = null
+    var checks = 0
+
+    override suspend fun check(): AppRelease? {
+        checks++
+        error?.let { throw it }
+        return latest
+    }
+
+    override suspend fun checkAutomatically(): AppRelease? = runCatching { check() }.getOrNull()
 }

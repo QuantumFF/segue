@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.core.view.WindowCompat
@@ -90,6 +91,7 @@ fun SegueApp(
     windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
     sidebarViewModel: SidebarViewModel = hiltViewModel(),
+    appUpdateViewModel: AppUpdateViewModel = hiltViewModel(),
 ) {
     val appState = rememberSegueAppState(shellLayout = windowAdaptiveInfo.windowSizeClass.toShellLayout())
     // Only the expanded sidebar lists playlists: other layouts do not observe them.
@@ -116,6 +118,23 @@ fun SegueApp(
                         duration = SnackbarDuration.Long,
                     )
                     if (result == SnackbarResult.ActionPerformed) playerViewModel.undoAutoAdoption()
+                }
+            }
+        }
+    }
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(appUpdateViewModel) {
+        appUpdateViewModel.availableUpdate.collect { release ->
+            val result = snackbarHostState.showSnackbar(
+                message = resources.getString(R.string.update_available, release.version),
+                actionLabel = resources.getString(R.string.update_view),
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                try {
+                    uriHandler.openUri(release.url)
+                } catch (_: IllegalArgumentException) {
+                    // No app can open web links.
                 }
             }
         }
