@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's art noise (DESIGN.md §2.4): the 64px texture tiled at 4% alpha, against gradient banding. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:alpha="0.04"
+    android:src="@drawable/art_noise"
+    android:tileMode="repeat" />

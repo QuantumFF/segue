@@ -1,7 +1,6 @@
 package com.quantumff.segue.feature.widget
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.os.Build
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -15,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.ColorFilter
@@ -29,6 +29,7 @@ import androidx.glance.action.Action
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.PreviewSizeMode
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
@@ -42,6 +43,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
@@ -55,33 +57,72 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.quantumff.segue.core.designsystem.art.ArtColors
 import com.quantumff.segue.core.designsystem.theme.segueColorScheme
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 
-/** 4x1: art, title and artist, play/pause, next. */
-class NowPlayingStripWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Single
+/**
+ * A now-playing widget: [Content] drawn from the stored snapshot. A running Glance session keeps
+ * following the store, so an `update` while the session is open redraws with the new track too;
+ * art is (re)loaded when the cover changes, and retried while it is missing.
+ */
+abstract class NowPlayingWidget internal constructor(
+    /** The cover size to request, about the art's height in pixels (DESIGN.md §6 buckets). */
+    private val artPx: Int,
+) : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Exact
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, STRIP_ART_PX) {
-            state,
-            art,
-            colors,
-        ->
-        Strip(state, art, colors)
+    @Composable
+    internal abstract fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors)
+
+    override suspend fun provideGlance(context: Context, id: GlanceId): Nothing {
+        val store = context.widgetEntryPoint().stateStore()
+        val initial = store.read()
+        val initialArt = loadWidgetArt(context, initial.coverArtId, artPx)
+        val colors = WidgetColors(context)
+        provideContent {
+            val state by store.snapshots.collectAsState(initial)
+            var art by remember { mutableStateOf(initialArt) }
+            LaunchedEffect(state) {
+                if (art.coverArtId != state.coverArtId || art.cover == null) {
+                    art = loadWidgetArt(context, state.coverArtId, artPx)
+                }
+            }
+            val current = art.takeIf { it.coverArtId == state.coverArtId } ?: WidgetArt.None
+            GlanceTheme(colors = colors.glance) { Content(state, current, colors) }
+        }
+    }
+
+    /** The widget picker's preview (API 35+, published by [WidgetUpdater]): a sample track without art. */
+    override suspend fun providePreview(context: Context, widgetCategory: Int): Nothing {
+        val sample = NowPlayingSnapshot(
+            songId = PREVIEW_SONG_ID,
+            title = context.getString(R.string.widget_preview_title),
+            artist = context.getString(R.string.widget_preview_artist),
+        )
+        val colors = WidgetColors(context)
+        provideContent {
+            GlanceTheme(colors = colors.glance) { Content(sample, WidgetArt.None, colors) }
+        }
     }
 }
 
-/** 4x2, resizable: larger art and previous/play/next. */
-class NowPlayingCardWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Exact
+/** 4x1, resizable: art, title and artist, previous/play/next. */
+class NowPlayingStripWidget : NowPlayingWidget(artPx = 256) {
+    /** A typical 4x1 cell on a phone; the minimum height would shrink the art to a thumbnail. */
+    override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 88.dp)))
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) = provideNowPlaying(context, CARD_ART_PX) {
-            state,
-            art,
-            colors,
-        ->
-        Card(state, art, colors)
-    }
+    @Composable
+    override fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) = Strip(state, art, colors)
+}
+
+/** 4x2, resizable: larger art and previous/play/next. */
+class NowPlayingCardWidget : NowPlayingWidget(artPx = 512) {
+    /** A typical 4x2 cell on a phone, rather than the minimum size, which leaves little room for art. */
+    override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 160.dp)))
+
+    @Composable
+    override fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) = Card(state, art, colors)
 }
 
 class NowPlayingStripWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -92,91 +133,92 @@ class NowPlayingCardWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NowPlayingCardWidget()
 }
 
-/**
- * Renders [content] from the stored snapshot. A running Glance session keeps following the store,
- * so an `update` while the session is open redraws with the new track too; art is (re)loaded only
- * when the cover changes.
- */
-private suspend fun GlanceAppWidget.provideNowPlaying(
-    context: Context,
-    artPx: Int,
-    content: @Composable (NowPlayingSnapshot, Bitmap?, WidgetColors) -> Unit,
-): Nothing {
-    val store = context.widgetEntryPoint().stateStore()
-    val initial = store.read()
-    val initialArt = WidgetArt(initial.coverArtId, loadWidgetArt(context, initial.coverArtId, artPx))
-    val colors = WidgetColors(context)
-    provideContent {
-        val state by store.snapshots.collectAsState(initial)
-        var art by remember { mutableStateOf(initialArt) }
-        LaunchedEffect(state.coverArtId) {
-            if (art.coverArtId != state.coverArtId) {
-                art = WidgetArt(state.coverArtId, loadWidgetArt(context, state.coverArtId, artPx))
-            }
-        }
-        val bitmap = art.bitmap.takeIf { art.coverArtId == state.coverArtId }
-        GlanceTheme(colors = colors.glance) { content(state, bitmap, colors) }
-    }
-}
-
-private class WidgetArt(val coverArtId: String?, val bitmap: Bitmap?)
-
 // --- Layouts ---------------------------------------------------------------------------------------
 
+/** The art fills the strip's height, flush with its left edge. */
 @Composable
-private fun Strip(state: NowPlayingSnapshot, art: Bitmap?, colors: WidgetColors) {
-    WidgetSurface(state, colors) {
+private fun Strip(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) {
+    val size = LocalSize.current
+    // Previous, play and next always show. On a narrow strip the art gives way so the title keeps some room.
+    val titlesWidthWithArt = size.width - size.height - STRIP_GAP - STRIP_CONTROLS_WIDTH - STRIP_END_PADDING
+    val showArt = titlesWidthWithArt >= MIN_TITLES_WIDTH
+    WidgetSurface(state, art, colors) { palette ->
         Row(
-            modifier = GlanceModifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .padding(start = if (showArt) 0.dp else STRIP_GAP, end = STRIP_END_PADDING),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Art(art, colors, size = 48.dp)
-            Spacer(GlanceModifier.width(12.dp))
-            Titles(state, colors, titleSize = 14, modifier = GlanceModifier.defaultWeight())
+            if (showArt) {
+                Cover(art, palette, GlanceModifier.fillMaxHeight().width(size.height))
+                Spacer(GlanceModifier.width(STRIP_GAP))
+            }
+            Titles(state, palette, titleSize = 15, artistSize = 13, modifier = GlanceModifier.defaultWeight())
             if (state.hasTrack) {
-                PlayPause(state, colors, filled = false)
-                ControlButton(
+                Transport(
+                    R.drawable.widget_skip_back,
+                    R.string.widget_previous,
+                    actionRunCallback<PreviousAction>(),
+                    palette,
+                )
+                PlayPause(state, palette, size = STRIP_PLAY)
+                Transport(
                     R.drawable.widget_skip_forward,
                     R.string.widget_next,
                     actionRunCallback<NextAction>(),
-                    colors.onSurface,
+                    palette,
                 )
             }
         }
     }
 }
 
+/** The art fills the card's height, flush with its left edge, as far as the controls leave room. */
 @Composable
-private fun Card(state: NowPlayingSnapshot, art: Bitmap?, colors: WidgetColors) {
-    val height = LocalSize.current.height
-    val artSize = (height - CARD_PADDING * 2).coerceIn(MIN_CARD_ART, MAX_CARD_ART)
-    WidgetSurface(state, colors) {
-        Row(
-            modifier = GlanceModifier.fillMaxSize().padding(CARD_PADDING),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Art(art, colors, size = artSize)
-            Spacer(GlanceModifier.width(16.dp))
-            Column(modifier = GlanceModifier.defaultWeight().fillMaxHeight()) {
-                Spacer(GlanceModifier.height(4.dp))
-                Titles(state, colors, titleSize = 16, modifier = GlanceModifier.fillMaxWidth())
+private fun Card(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) {
+    val size = LocalSize.current
+    // The art gives way to the controls on a narrow card, and drops out when it would be a thumbnail.
+    val roomForArt = size.width - CARD_GAP - CARD_PADDING - CARD_CONTROLS_WIDTH
+    val artWidth = minOf(size.height, roomForArt).takeIf { it >= MIN_CARD_ART }
+    // Nearly square art still fills the height, cropping its sides a little. It fills rather than
+    // taking LocalSize's height, which can fall a few dp short of the launcher's cell.
+    val fullHeight = artWidth != null && artWidth >= size.height * MIN_FULL_HEIGHT_ASPECT
+    WidgetSurface(state, art, colors) { palette ->
+        Row(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            if (artWidth != null) {
+                val height = if (fullHeight) GlanceModifier.fillMaxHeight() else GlanceModifier.height(artWidth)
+                Cover(art, palette, height.width(artWidth))
+            }
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxHeight()
+                    .padding(start = if (artWidth != null) CARD_GAP else CARD_PADDING)
+                    .padding(vertical = CARD_PADDING)
+                    .padding(end = CARD_PADDING),
+            ) {
+                Spacer(GlanceModifier.height(TITLES_GAP))
+                Titles(state, palette, titleSize = 17, artistSize = 14, modifier = GlanceModifier.fillMaxWidth())
                 Spacer(GlanceModifier.defaultWeight())
                 if (state.hasTrack) {
                     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(GlanceModifier.defaultWeight())
-                        ControlButton(
+                        FlexSpacer()
+                        Transport(
                             R.drawable.widget_skip_back,
                             R.string.widget_previous,
                             actionRunCallback<PreviousAction>(),
-                            colors.onSurface,
+                            palette,
                         )
-                        PlayPause(state, colors, filled = true)
-                        ControlButton(
+                        FlexSpacer()
+                        PlayPause(state, palette, size = CARD_PLAY)
+                        FlexSpacer()
+                        Transport(
                             R.drawable.widget_skip_forward,
                             R.string.widget_next,
                             actionRunCallback<NextAction>(),
-                            colors.onSurface,
+                            palette,
                         )
+                        FlexSpacer()
                     }
                 }
             }
@@ -184,43 +226,83 @@ private fun Card(state: NowPlayingSnapshot, art: Bitmap?, colors: WidgetColors) 
     }
 }
 
-/** The widget background; a tap anywhere outside the buttons opens the app. */
+/** Takes an equal share of the row's free width. */
 @Composable
-private fun WidgetSurface(state: NowPlayingSnapshot, colors: WidgetColors, content: @Composable () -> Unit) {
+private fun RowScope.FlexSpacer() = Spacer(GlanceModifier.defaultWeight())
+
+/**
+ * The widget background: the blurred cover under a dark scrim and noise (DESIGN.md §2.4, §4.7
+ * "Blurred art"), or the theme surface while there is none. A tap anywhere outside the buttons
+ * opens the app.
+ */
+@Composable
+private fun WidgetSurface(
+    state: NowPlayingSnapshot,
+    art: WidgetArt,
+    colors: WidgetColors,
+    content: @Composable (WidgetPalette) -> Unit,
+) {
     val context = LocalContext.current
+    val backdrop = art.backdrop?.bitmap
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
-            .background(colors.background)
+            .background(if (backdrop == null) colors.background else ColorProvider(Color.Black))
             .cornerRadius(WIDGET_RADIUS)
             .clickable(actionStartActivity(openAppIntent(context, nowPlaying = state.hasTrack))),
     ) {
-        content()
+        if (backdrop != null) {
+            Image(
+                provider = ImageProvider(backdrop),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = GlanceModifier.fillMaxSize(),
+            )
+            Image(
+                provider = ImageProvider(R.drawable.widget_scrim),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = GlanceModifier.fillMaxSize(),
+            )
+            // FillBounds gives the drawable the whole view, which its tile mode then repeats over.
+            Image(
+                provider = ImageProvider(R.drawable.widget_noise),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = GlanceModifier.fillMaxSize(),
+            )
+        }
+        content(if (backdrop == null) colors.plain else WidgetPalette.overArt(art.backdrop.colors))
     }
 }
 
+/**
+ * The cover in [modifier]'s bounds (about square), cropped to fill and unrounded: it sits against
+ * the widget's edge, whose corners clip it.
+ */
 @Composable
-private fun Art(art: Bitmap?, colors: WidgetColors, size: Dp) {
+private fun Cover(art: WidgetArt, palette: WidgetPalette, modifier: GlanceModifier = GlanceModifier) {
     val context = LocalContext.current
-    if (art != null) {
+    val cover = art.cover
+    if (cover != null) {
         Image(
-            provider = ImageProvider(art),
+            provider = ImageProvider(cover),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = GlanceModifier.size(size).cornerRadius(ART_RADIUS),
+            modifier = modifier,
         )
     } else {
         // Placeholder: the disc icon on a raised surface (DESIGN.md §5.1).
         Box(
-            modifier = GlanceModifier.size(size).background(colors.placeholder).cornerRadius(ART_RADIUS),
+            modifier = modifier.background(palette.placeholder),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 provider = ImageProvider(R.drawable.widget_disc),
                 contentDescription = context.getString(R.string.widget_no_art),
-                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-                modifier = GlanceModifier.size(24.dp),
+                colorFilter = ColorFilter.tint(palette.onSurfaceVariant),
+                modifier = GlanceModifier.size(PLACEHOLDER_ICON),
             )
         }
     }
@@ -229,8 +311,9 @@ private fun Art(art: Bitmap?, colors: WidgetColors, size: Dp) {
 @Composable
 private fun Titles(
     state: NowPlayingSnapshot,
-    colors: WidgetColors,
+    palette: WidgetPalette,
     titleSize: Int,
+    artistSize: Int,
     modifier: GlanceModifier = GlanceModifier,
 ) {
     val context = LocalContext.current
@@ -240,86 +323,75 @@ private fun Titles(
         Text(
             text = title,
             maxLines = 1,
-            style = TextStyle(color = colors.onSurface, fontSize = titleSize.sp, fontWeight = FontWeight.Bold),
+            style = TextStyle(color = palette.onSurface, fontSize = titleSize.sp, fontWeight = FontWeight.Bold),
         )
+        Spacer(GlanceModifier.height(TITLES_GAP))
         Text(
             text = subtitle,
             maxLines = 1,
-            style = TextStyle(color = colors.onSurfaceVariant, fontSize = 13.sp),
+            style = TextStyle(color = palette.onSurfaceVariant, fontSize = artistSize.sp),
         )
     }
 }
 
+/** The primary action: a circle in the accent color, at least a 48dp touch target (DESIGN.md §2.3). */
 @Composable
-private fun PlayPause(state: NowPlayingSnapshot, colors: WidgetColors, filled: Boolean) {
+private fun PlayPause(state: NowPlayingSnapshot, palette: WidgetPalette, size: Dp) {
     val icon = if (state.isPlaying) R.drawable.widget_pause else R.drawable.widget_play
     val label = if (state.isPlaying) R.string.widget_pause else R.string.widget_play
-    if (!filled) {
-        ControlButton(icon, label, actionRunCallback<PlayPauseAction>(), colors.onSurface)
-        return
-    }
-    // The card's primary action: a 44 circle in the accent color.
     Box(
         modifier = GlanceModifier
-            .size(44.dp)
-            .cornerRadius(22.dp)
-            .background(colors.primary)
+            .size(size)
+            .cornerRadius(size / 2)
+            .background(palette.primary)
             .clickable(actionRunCallback<PlayPauseAction>()),
         contentAlignment = Alignment.Center,
     ) {
         Image(
             provider = ImageProvider(icon),
             contentDescription = LocalContext.current.getString(label),
-            colorFilter = ColorFilter.tint(colors.onPrimary),
-            modifier = GlanceModifier.size(22.dp),
+            colorFilter = ColorFilter.tint(palette.onPrimary),
+            modifier = GlanceModifier.size(size / 2),
         )
     }
 }
 
+/** Previous or next: a bare icon on a 48dp touch target (DESIGN.md §2.3). */
 @Composable
-private fun ControlButton(@DrawableRes icon: Int, @StringRes label: Int, onClick: Action, tint: ColorProvider) {
+private fun Transport(@DrawableRes icon: Int, @StringRes label: Int, onClick: Action, palette: WidgetPalette) {
     Box(
-        modifier = GlanceModifier.size(44.dp).cornerRadius(22.dp).clickable(onClick),
+        modifier = GlanceModifier.size(TRANSPORT_SIZE).cornerRadius(TRANSPORT_SIZE / 2).clickable(onClick),
         contentAlignment = Alignment.Center,
     ) {
         Image(
             provider = ImageProvider(icon),
             contentDescription = LocalContext.current.getString(label),
-            colorFilter = ColorFilter.tint(tint),
-            modifier = GlanceModifier.size(22.dp),
+            colorFilter = ColorFilter.tint(palette.onSurface),
+            modifier = GlanceModifier.size(24.dp),
         )
     }
 }
 
-// --- Colors ----------------------------------------------------------------------------------------
+/** Any song id: the preview only needs the sample to count as a track. */
+private const val PREVIEW_SONG_ID = "preview"
 
-/**
- * Segue's neutrals with Material You accents (DESIGN.md §2.1), resolved for light and dark so the
- * launcher switches them with the system theme.
- */
-private class WidgetColors(context: Context) {
-    private val light: ColorScheme = segueColorScheme(context, dark = false)
-    private val dark: ColorScheme = segueColorScheme(context, dark = true)
+/** The minimum touch target (DESIGN.md §2.3), also the previous/next button size. */
+private val TRANSPORT_SIZE = 48.dp
+private val PLACEHOLDER_ICON = 32.dp
+private val TITLES_GAP = 2.dp
+private val MIN_TITLES_WIDTH = 72.dp
+private val STRIP_GAP = 12.dp
+private val STRIP_END_PADDING = 4.dp
+private val STRIP_PLAY = 48.dp
+private val STRIP_CONTROLS_WIDTH = TRANSPORT_SIZE * 2 + STRIP_PLAY
+private val CARD_PADDING = 16.dp
+private val CARD_GAP = 16.dp
+private val CARD_PLAY = 52.dp
+private val CARD_CONTROLS_WIDTH = TRANSPORT_SIZE * 2 + CARD_PLAY
+private val MIN_CARD_ART = 48.dp
 
-    val glance = ColorProviders(light = light, dark = dark)
-    val background = role { surfaceContainer }
-    val placeholder = role { surfaceContainerHigh }
-    val onSurface = role { onSurface }
-    val onSurfaceVariant = role { onSurfaceVariant }
-    val primary = role { primary }
-    val onPrimary = role { onPrimary }
-
-    /** One color role, switching with the system theme. */
-    private fun role(color: ColorScheme.() -> Color) = ColorProvider(day = light.color(), night = dark.color())
-}
-
-/** Art requests use the app's cover size buckets (DESIGN.md §6). */
-private const val STRIP_ART_PX = 128
-private const val CARD_ART_PX = 256
-private val CARD_PADDING = 12.dp
-private val MIN_CARD_ART = 56.dp
-private val MAX_CARD_ART = 160.dp
-private val ART_RADIUS = 6.dp
+/** The narrowest full-height art, as width over height: at most 15% of the cover is cropped. */
+private const val MIN_FULL_HEIGHT_ASPECT = 0.85f
 
 /** The launcher's widget corner radius where the platform has one (API 31+), else DESIGN.md `lg`. */
 private val WIDGET_RADIUS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 24.dp else 12.dp

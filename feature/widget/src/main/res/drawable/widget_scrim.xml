@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Darkens the blurred art behind the widget so light text reads on any cover (DESIGN.md §4.7). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#D9000000"
+        android:startColor="#4D000000" />
+</shape>

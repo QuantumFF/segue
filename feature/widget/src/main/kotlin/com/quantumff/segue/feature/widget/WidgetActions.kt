@@ -11,7 +11,9 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.allowHardware
 import coil3.toBitmap
+import com.quantumff.segue.core.designsystem.art.BlurredCover
 import com.quantumff.segue.core.designsystem.art.CoverArtRequest
+import com.quantumff.segue.core.designsystem.art.loadBlurredCover
 import com.quantumff.segue.core.playback.PlaybackController
 import com.quantumff.segue.core.playback.PlaybackIntents
 import dagger.hilt.EntryPoint
@@ -56,15 +58,29 @@ internal fun openAppIntent(context: Context, nowPlaying: Boolean): Intent {
     }
 }
 
-/** Cover art at widget size, from the app's image cache when it is there. Null on failure. */
-internal suspend fun loadWidgetArt(context: Context, coverArtId: String?, size: Int): Bitmap? {
-    if (coverArtId == null) return null
+/** One cover as the widgets draw it. Each part is null when it failed to load. */
+internal class WidgetArt(
+    val coverArtId: String?,
+    /** The cover at widget size. */
+    val cover: Bitmap?,
+    /** The pre-blurred cover the widget draws behind everything (DESIGN.md §6), and its colors. */
+    val backdrop: BlurredCover?,
+) {
+    companion object {
+        val None = WidgetArt(coverArtId = null, cover = null, backdrop = null)
+    }
+}
+
+/** The cover, its blurred backdrop and its colors, from the app's image caches when they are there. */
+internal suspend fun loadWidgetArt(context: Context, coverArtId: String?, size: Int): WidgetArt {
+    if (coverArtId == null) return WidgetArt.None
+    val imageLoader = context.widgetEntryPoint().imageLoader()
     val request = ImageRequest.Builder(context)
         .data(CoverArtRequest(coverArtId, size))
         .size(size)
         // Widgets draw through RemoteViews, which needs a software bitmap.
         .allowHardware(false)
         .build()
-    val result = context.widgetEntryPoint().imageLoader().execute(request)
-    return (result as? SuccessResult)?.image?.toBitmap()
+    val cover = (imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
+    return WidgetArt(coverArtId, cover, loadBlurredCover(context, imageLoader, coverArtId))
 }
