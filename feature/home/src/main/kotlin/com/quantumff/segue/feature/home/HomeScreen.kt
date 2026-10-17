@@ -29,14 +29,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.SectionHeader
@@ -45,6 +44,7 @@ import com.quantumff.segue.core.designsystem.component.StatusBarScrim
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
@@ -55,7 +55,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
@@ -71,12 +72,14 @@ fun HomeScreen(
     onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onSeeAllClick: (AlbumListType) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onArtistClick, onAddToPlaylist) {
+        MediaActionHost(onArtistClick = onArtistClick, onAddToPlaylist = onAddToPlaylist)
+    }
     HomeScreen(
         uiState = uiState,
         onAccountClick = onAccountClick,
@@ -84,18 +87,8 @@ fun HomeScreen(
         onPlaylistClick = onPlaylistClick,
         onGenreClick = onGenreClick,
         onSeeAllClick = onSeeAllClick,
-        onPlayAlbum = { album -> viewModel.withAlbumSongs(album) { playActions.onPlaySongs(it, 0, false) } },
-        onAlbumAction = { album, action ->
-            dispatchAlbumAction(
-                album = album,
-                action = action,
-                playActions = playActions,
-                withSongs = viewModel::withAlbumSongs,
-                onToggleFavorite = viewModel::toggleFavorite,
-                onArtistClick = onArtistClick,
-                onAddToPlaylist = onAddToPlaylist,
-            )
-        },
+        onPlayAlbum = viewModel::playAlbum,
+        onAlbumAction = { album, action -> viewModel.onAlbumAction(album, action, menuHost) },
         onRefresh = viewModel::refresh,
         onRefreshExplore = viewModel::refreshExplore,
         onRetrySync = viewModel::retrySync,
@@ -347,12 +340,6 @@ private fun HomeEmptyState(syncing: Boolean, onRefresh: () -> Unit) {
         )
     }
 }
-
-private val HomeMessage.text: Int
-    get() = when (this) {
-        HomeMessage.PlaybackLoadFailed -> R.string.feature_home_playback_failed
-        HomeMessage.FavoriteFailed -> R.string.feature_home_favorite_failed
-    }
 
 @PreviewSegueThemes
 @Composable

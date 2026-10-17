@@ -3,17 +3,19 @@ package com.quantumff.segue.feature.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
-import com.quantumff.segue.core.data.download.downloadedWhileOffline
+import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -69,16 +71,12 @@ data class SearchUiState(
     val results: SearchResults = SearchResults.Idle,
     val recentSearches: ImmutableList<String> = persistentListOf(),
     val genres: ImmutableList<Genre> = persistentListOf(),
-    /** A one-off message for a snackbar, cleared with [SearchViewModel.onMessageDismiss]. */
-    val message: SearchMessage? = null,
+    /** A failed menu action for a snackbar, cleared with [SearchViewModel.onMessageDismiss]. */
+    val message: MediaActionFailure? = null,
 ) {
     /** The songs of the results, with favorites toggled here applied. Play intents index into this. */
     val songs: ImmutableList<Song>
         get() = (results as? SearchResults.Ready)?.result?.songs ?: persistentListOf()
-}
-
-enum class SearchMessage {
-    FavoriteFailed,
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -86,10 +84,10 @@ enum class SearchMessage {
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val preferences: UserPreferencesRepository,
-    private val starRating: StarRatingRepository,
     libraryRepository: LibraryRepository,
-    private val downloadRepository: DownloadRepository,
-    private val offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val queryState = MutableStateFlow("")
 
@@ -97,14 +95,14 @@ class SearchViewModel @Inject constructor(
     val query: StateFlow<String> = queryState.asStateFlow()
 
     private val filter = MutableStateFlow(SearchFilter.All)
-    private val message = MutableStateFlow<SearchMessage?>(null)
+    private val message = MutableStateFlow<MediaActionFailure?>(null)
 
     /** Song ID to starred, for favorites toggled since the results arrived (results are a snapshot). */
     private val starOverrides = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
     private val results: Flow<SearchResults> = combine(
         queryState.map { it.trim() }.distinctUntilChanged(),
-        offlineModeRepository.downloadedWhileOffline(downloadRepository),
+        offlineView.downloadedWhileOffline,
         ::Pair,
     )
         // Every keystroke searches Room at once; the server is asked after a 300ms pause (see search()).
@@ -155,16 +153,24 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch { preferences.removeRecentSearch(query) }
     }
 
-    fun onToggleFavorite(song: Song) {
-        val starred = !song.isStarred
-        starOverrides.update { it + (song.id to starred) }
+    /** A song result's tap: plays the results' songs from that one. */
+    fun onSongClick(index: Int) {
+        saveRecentSearch()
+        val songs = uiState.value.songs
+        if (index in songs.indices) viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index)) }
+    }
+
+    /**
+     * A song's ⋮ menu ([MediaActionHandler]). Favorite shows at once, since the results are a
+     * snapshot, and is undone if the server refuses it.
+     */
+    fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {
+        val starring = action == MediaAction.Favorite || action == MediaAction.Unfavorite
+        if (starring) starOverrides.update { it + (song.id to (action == MediaAction.Favorite)) }
         viewModelScope.launch {
-            try {
-                starRating.setStarred(MediaKind.Song, song.id, starred)
-            } catch (_: RemoteException) {
-                starOverrides.update { it + (song.id to !starred) }
-                message.value = SearchMessage.FavoriteFailed
-            }
+            val failure = mediaActions.song(song, action, host) ?: return@launch
+            if (failure == MediaActionFailure.FavoriteFailed) starOverrides.update { it + (song.id to song.isStarred) }
+            message.value = failure
         }
     }
 

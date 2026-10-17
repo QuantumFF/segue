@@ -18,6 +18,7 @@ import com.quantumff.segue.core.model.ServerCapabilities
 import com.quantumff.segue.core.network.model.NetworkLyricLine
 import com.quantumff.segue.core.network.model.NetworkPlaylist
 import com.quantumff.segue.core.network.model.NetworkStructuredLyrics
+import com.quantumff.segue.core.testing.repository.FakeServerCapabilitiesRepository
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.coroutines.flow.first
@@ -96,6 +97,20 @@ class PlaylistAndAlbumRepositoryTest {
     }
 
     @Test
+    fun `playing a playlist fetches its songs only when none are cached`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(
+            id = "p",
+            name = "Mix",
+            entry = listOf(networkSong("b", "al"), networkSong("a", "al")),
+        )
+        val repository = playlists()
+
+        assertThat(repository.songsForPlayback("p").map { it.id }).containsExactly("b", "a").inOrder()
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("c", "al")))
+        assertThat(repository.songsForPlayback("p").map { it.id }).containsExactly("b", "a").inOrder()
+    }
+
+    @Test
     fun `deleting a playlist removes it locally`() = runTest {
         server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix")
         val repository = playlists()
@@ -146,7 +161,8 @@ class PlaylistAndAlbumRepositoryTest {
 
     @Test
     fun `lyrics are fetched only when supported, synced first, and cached`() = runTest {
-        server.capabilities = ServerCapabilities.Unknown.copy(
+        val capabilities = FakeServerCapabilitiesRepository()
+        capabilities.byServer[SERVER_ID] = ServerCapabilities.Unknown.copy(
             openSubsonic = true,
             extensions = persistentMapOf(ServerCapabilities.SONG_LYRICS to persistentListOf(1)),
         )
@@ -160,11 +176,7 @@ class PlaylistAndAlbumRepositoryTest {
             ),
         )
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val repository = SubsonicLyricsRepository(
-            clients,
-            CachedServerCapabilitiesRepository(clients, db.serverCapabilitiesDao(), FakeClock(), dispatcher),
-            dispatcher,
-        )
+        val repository = SubsonicLyricsRepository(clients, capabilities, dispatcher)
 
         val lyrics = repository.lyrics("s")
         repository.lyrics("s")
@@ -179,11 +191,7 @@ class PlaylistAndAlbumRepositoryTest {
     @Test
     fun `lyrics are empty without the songLyrics extension`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val repository = SubsonicLyricsRepository(
-            clients,
-            CachedServerCapabilitiesRepository(clients, db.serverCapabilitiesDao(), FakeClock(), dispatcher),
-            dispatcher,
-        )
+        val repository = SubsonicLyricsRepository(clients, FakeServerCapabilitiesRepository(), dispatcher)
 
         assertThat(repository.lyrics("s")).isEmpty()
         assertThat(server.lyricsRequests).isEmpty()

@@ -8,7 +8,9 @@
     <string name="sidebar_playlists">Playlists</string>
     <string name="sidebar_no_playlists">No playlists yet</string>
     <string name="player_nothing_to_play">Nothing to play</string>
+    <string name="player_load_failed">Couldn\'t load the songs. Check your connection.</string>
     <string name="player_instant_mix_failed">Couldn\'t start an instant mix</string>
+    <string name="player_instant_mix_offline">Instant mix needs a connection to the server</string>
     <string name="player_continued_from">Continued from %1$s</string>
     <string name="player_undo">Undo</string>
 </resources>

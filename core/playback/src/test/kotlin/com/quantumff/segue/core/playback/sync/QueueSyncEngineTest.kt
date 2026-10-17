@@ -55,7 +55,7 @@ class QueueSyncEngineTest {
     fun `going to the background flushes at once`() = runTest {
         val engine = engine()
         engine.onQueueEvent(QueueEvent.Pause, state.copy(positionMillis = 1))
-        engine.onAppBackground(state)
+        engine.flush(state)
         runCurrent()
 
         assertThat(remote.saves).containsExactly(state)
@@ -85,7 +85,7 @@ class QueueSyncEngineTest {
         assertThat(remote.saves).isEmpty()
 
         remote.saveError = null
-        engine.onAppBackground(state)
+        engine.flush(state)
         runCurrent()
         assertThat(remote.saves).containsExactly(state)
     }
@@ -94,7 +94,7 @@ class QueueSyncEngineTest {
     fun `an empty queue is neither saved nor uploaded`() = runTest {
         val engine = engine()
         engine.onQueueEvent(QueueEvent.QueueEdit, QueueState(emptyList(), -1, 0))
-        engine.onAppBackground(null)
+        engine.flush(null)
         advanceTimeBy(10_000)
         assertThat(snapshots.saves).isEmpty()
         assertThat(remote.saves).isEmpty()
@@ -111,17 +111,6 @@ class QueueSyncEngineTest {
         val cleared = QueueState(emptyList(), -1, 0)
         assertThat(snapshots.saves).containsExactly(state, cleared).inOrder()
         assertThat(remote.saves).containsExactly(state, cleared).inOrder()
-    }
-
-    @Test
-    fun `a queue restored from the snapshot is not written back or uploaded`() = runTest {
-        val engine = engine()
-        engine.markRestored(state)
-        engine.onQueueEvent(QueueEvent.QueueEdit, state)
-        engine.onAppBackground(state)
-        advanceTimeBy(10_000)
-        assertThat(snapshots.saves).isEmpty()
-        assertThat(remote.saves).isEmpty()
     }
 
     // --- Download and conflicts -------------------------------------------------------------
@@ -164,6 +153,8 @@ class QueueSyncEngineTest {
             assertThat(awaitItem().queue).isEqualTo(remoteQueue())
         }
         assertThat(engine.remoteOffer.value).isNull()
+        assertThat(engine.takeAdoption()?.queue).isEqualTo(remoteQueue())
+        assertThat(engine.takeAdoption()).isNull()
     }
 
     @Test
@@ -252,21 +243,53 @@ class QueueSyncEngineTest {
     }
 
     @Test
-    fun `accepting the offer returns the queue and the adopted state is not uploaded back`() = runTest {
+    fun `accepting the offer stages the offered queue for the player, without undo`() = runTest {
         remote.queue = remoteQueue()
         val engine = engine()
+        assertThat(engine.acceptOffer()).isNull()
         engine.checkRemote(isPlayingLocally = false)
 
-        val adopted = engine.acceptOffer()
-        assertThat(adopted).isEqualTo(remoteQueue())
+        assertThat(engine.acceptOffer()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
         assertThat(engine.remoteOffer.value).isNull()
+        assertThat(engine.takeAdoption()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
+        assertThat(engine.acceptOffer()).isNull()
+    }
 
-        val adoptedState = QueueState(listOf("r1", "r2"), 1, 3_000)
-        engine.markAdopted(adoptedState)
-        engine.onQueueEvent(QueueEvent.QueueEdit, adoptedState)
-        advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
-        assertThat(remote.saves).isEmpty()
-        assertThat(snapshots.saves).containsExactly(adoptedState)
+    @Test
+    fun `an adoption that never reached the player is unstaged, undo and all`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue()
+        val engine = engine()
+        lateinit var adoption: RemoteAdoption
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            adoption = awaitItem()
+        }
+
+        engine.abandonAdoption(adoption)
+
+        assertThat(engine.takeAdoption()).isNull()
+        assertThat(engine.takeAdoptionUndo()).isNull()
+    }
+
+    @Test
+    fun `an adoption the player took is not the controller's to abandon`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue()
+        val engine = engine()
+        lateinit var adoption: RemoteAdoption
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            adoption = awaitItem()
+        }
+        assertThat(engine.takeAdoption()).isSameInstanceAs(adoption)
+
+        // The player adopted it, and the answer was lost on the way back.
+        engine.abandonAdoption(adoption)
+
+        assertThat(engine.takeAdoptionUndo()?.songIds).containsExactly("x")
     }
 
     @Test

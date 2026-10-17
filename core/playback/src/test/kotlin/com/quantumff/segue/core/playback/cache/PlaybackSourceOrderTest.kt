@@ -11,6 +11,8 @@ import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.data.image.CoverArtLocation
+import com.quantumff.segue.core.data.image.CoverArtUrlResolver
 import com.quantumff.segue.core.data.repository.MediaUrlRepository
 import com.quantumff.segue.core.data.repository.StreamLocation
 import com.quantumff.segue.core.model.StreamingQuality
@@ -46,8 +48,14 @@ class PlaybackSourceOrderTest {
     private val mediaUrls = object : MediaUrlRepository {
         override suspend fun stream(songId: String, quality: StreamingQuality) =
             StreamLocation(url = "https://music.example/stream/$songId?t=salt", cacheKey = "srv/$songId")
+    }
 
-        override suspend fun coverArtUrl(coverArtId: String, size: Int?) = "https://music.example/cover/$coverArtId"
+    private var signedIn = true
+    private val covers = object : CoverArtUrlResolver {
+        override suspend fun resolve(coverArtId: String, size: Int) = CoverArtLocation(
+            url = "https://music.example/cover/$coverArtId?size=$size&t=salt",
+            cacheKey = "v2:srv:$coverArtId:$size",
+        ).takeIf { signedIn }
     }
 
     @Before
@@ -65,6 +73,7 @@ class PlaybackSourceOrderTest {
     private val resolver get() = SegueUriResolver(
         downloads,
         mediaUrls,
+        covers,
         FakeUserPreferencesRepository(),
         NetworkMonitor(context),
     )
@@ -114,6 +123,21 @@ class PlaybackSourceOrderTest {
 
         network.online = false
         assertThrows(IOException::class.java) { read("s4") }
+    }
+
+    @Test
+    fun `cover art resolves to the signed URL under the image loader's stable key`() {
+        val spec = resolver.resolveDataSpec(DataSpec(SegueUris.cover("al-1", 512)))
+
+        assertThat(spec.uri.toString()).isEqualTo("https://music.example/cover/al-1?size=512&t=salt")
+        assertThat(spec.key).isEqualTo("v2:srv:al-1:512")
+    }
+
+    @Test
+    fun `signed out, cover art is a load error`() {
+        signedIn = false
+
+        assertThrows(IOException::class.java) { resolver.resolveDataSpec(DataSpec(SegueUris.cover("al-1", 512))) }
     }
 
     /** A fake upstream that serves [body] for any request while [online]. */

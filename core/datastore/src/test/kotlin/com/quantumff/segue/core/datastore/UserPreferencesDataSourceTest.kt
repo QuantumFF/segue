@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import java.io.File
+import java.lang.reflect.Modifier
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -31,38 +32,57 @@ class UserPreferencesDataSourceTest {
     }
 
     @Test
-    fun `every preference persists when set`() = runTest {
+    fun `every field round-trips through update`() = runTest {
+        val source = source()
+        // Every field differs from its default, so a field update forgets to write fails here.
+        val changed = UserPreferences(
+            themeMode = ThemeMode.Black,
+            accentSource = AccentSource.AlbumArt,
+            accentPreset = AccentPreset.Teal,
+            wifiStreamingQuality = StreamingQuality(maxBitRateKbps = 0, format = "raw"),
+            cellularStreamingQuality = StreamingQuality(maxBitRateKbps = 128, format = "opus"),
+            queueSyncEnabled = false,
+            adoptRemoteQueueAutomatically = true,
+            replayGainMode = ReplayGainMode.Album,
+            replayGainTarget = ReplayGainTarget.Ebu,
+            replayGainBoost = true,
+            streamCacheSizeMb = 256,
+            stopWhenPausedMinutes = 30,
+        )
+        val defaults = UserPreferences()
+        UserPreferences::class.java.declaredFields
+            .filterNot { Modifier.isStatic(it.modifiers) }
+            .onEach { it.isAccessible = true }
+            .forEach { assertThat(it.get(changed)).isNotEqualTo(it.get(defaults)) }
+
+        source.update { changed }
+        assertThat(source.preferences.first()).isEqualTo(changed)
+
+        source.update { UserPreferences() }
+        assertThat(source.preferences.first()).isEqualTo(UserPreferences())
+    }
+
+    @Test
+    fun `update sees the stored preferences and keeps fields it does not change`() = runTest {
+        val source = source()
+        source.update { it.copy(themeMode = ThemeMode.Dark) }
+
+        source.update { it.copy(replayGainBoost = !it.replayGainBoost) }
+
+        assertThat(source.preferences.first())
+            .isEqualTo(UserPreferences(themeMode = ThemeMode.Dark, replayGainBoost = true))
+    }
+
+    @Test
+    fun `recent searches follow the shared rule`() = runTest {
         val source = source()
 
-        source.setThemeMode(ThemeMode.Black)
-        source.setAccentSource(AccentSource.AlbumArt)
-        source.setAccentPreset(AccentPreset.Teal)
-        source.setWifiStreamingQuality(StreamingQuality(maxBitRateKbps = 0, format = "raw"))
-        source.setCellularStreamingQuality(StreamingQuality(maxBitRateKbps = 128, format = "opus"))
-        source.setQueueSyncEnabled(false)
-        source.setAdoptRemoteQueueAutomatically(true)
-        source.setReplayGainMode(ReplayGainMode.Album)
-        source.setReplayGainTarget(ReplayGainTarget.Ebu)
-        source.setReplayGainBoost(true)
-        source.setStreamCacheSizeMb(256)
-        source.setStopWhenPausedMinutes(30)
+        source.addRecentSearch("abba")
+        source.addRecentSearch(" ABBA ")
+        source.addRecentSearch("blur")
+        source.removeRecentSearch("blur")
 
-        assertThat(source.preferences.first()).isEqualTo(
-            UserPreferences(
-                themeMode = ThemeMode.Black,
-                accentSource = AccentSource.AlbumArt,
-                accentPreset = AccentPreset.Teal,
-                wifiStreamingQuality = StreamingQuality(maxBitRateKbps = 0, format = "raw"),
-                cellularStreamingQuality = StreamingQuality(maxBitRateKbps = 128, format = "opus"),
-                queueSyncEnabled = false,
-                adoptRemoteQueueAutomatically = true,
-                replayGainMode = ReplayGainMode.Album,
-                replayGainTarget = ReplayGainTarget.Ebu,
-                replayGainBoost = true,
-                streamCacheSizeMb = 256,
-                stopWhenPausedMinutes = 30,
-            ),
-        )
+        assertThat(source.recentSearches.first()).containsExactly("ABBA")
     }
 
     @Test

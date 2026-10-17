@@ -4,22 +4,26 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.designsystem.component.MediaAction
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.InstantMixSeed
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
-import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
-import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
+import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
@@ -33,17 +37,8 @@ class ArtistViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val artists = FakeArtistRepository()
-    private val albums = FakeAlbumRepository()
     private val stars = FakeStarRatingRepository()
-    private val played = mutableListOf<Triple<List<Song>, Int, Boolean>>()
-    private val albumRequests = mutableListOf<AlbumPlayRequest>()
-    private val playActions = PlayActions(
-        onPlaySongs = { songs, start, shuffle -> played += Triple(songs, start, shuffle) },
-        onPlayAlbums = { albumRequests += it },
-        onPlayNext = {},
-        onAddToQueue = {},
-        onStartInstantMix = {},
-    )
+    private val play = RecordingPlayIntents()
 
     private val ownAlbum = TestData.album("own", artistId = "artist-1", songCount = 10)
     private val guestAlbum = TestData.album("guest", artistId = "someone-else", songCount = 12)
@@ -51,10 +46,11 @@ class ArtistViewModelTest {
     private fun viewModel() = ArtistViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ArtistViewModel.ARTIST_ID_KEY to "artist-1")),
         artistRepository = artists,
-        albumRepository = albums,
         starRatingRepository = stars,
         downloadRepository = downloads,
-        offlineModeRepository = offlineMode,
+        offlineView = offlineLibraryView(offlineMode, downloads),
+        playIntents = play,
+        mediaActions = mediaActionHandler(play, downloads, stars, artists = artists),
     )
 
     private val downloads = FakeDownloadRepository()
@@ -113,12 +109,12 @@ class ArtistViewModelTest {
     fun playAlbumsButtonsQueueTheArtistsAlbumsWithTheChosenOrderAndPlacement() = runTest {
         val viewModel = viewModel()
 
-        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.Replace, playActions)
-        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.Next, playActions)
-        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.End, playActions)
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.Replace)
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.Next)
+        viewModel.playAlbums(AlbumOrder.InOrder, QueuePlacement.End)
 
         val artist = AlbumSource.Artist("artist-1")
-        assertThat(albumRequests).containsExactly(
+        assertThat(play.albumRequests).containsExactly(
             AlbumPlayRequest(artist, AlbumOrder.InOrder, QueuePlacement.Replace),
             AlbumPlayRequest(artist, AlbumOrder.Shuffled, QueuePlacement.Next),
             AlbumPlayRequest(artist, AlbumOrder.InOrder, QueuePlacement.End),
@@ -126,52 +122,35 @@ class ArtistViewModelTest {
     }
 
     @Test
-    fun playUsesTopSongsAndShuffleAlbumsUsesTheArtist() = runTest {
+    fun playIsTheArtistTopSongsPlayFromATapAndShuffleAlbumsUsesTheArtist() = runTest {
         seed()
-        artists.topSongs = listOf(TestData.song("t1"), TestData.song("t2"))
+        val top = listOf(TestData.song("t1"), TestData.song("t2"))
+        artists.topSongs = top
         val viewModel = viewModel()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
-        viewModel.play(playActions, shuffle = true)
-        viewModel.playTopSong(playActions, index = 1)
-        viewModel.shuffleAlbums(playActions)
+        viewModel.play(shuffle = true)
+        viewModel.playTopSong(index = 1)
+        viewModel.shuffleAlbums()
 
-        assertThat(played.map { Triple(it.first.map(Song::id), it.second, it.third) }).containsExactly(
-            Triple(listOf("t1", "t2"), 0, true),
-            Triple(listOf("t1", "t2"), 1, false),
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Artist("artist-1"), QueuePlacement.Replace, shuffle = true),
+            RecordingPlayIntents.Play(PlayTarget.Songs(top, 1), QueuePlacement.Replace, shuffle = false),
         ).inOrder()
-        assertThat(albumRequests).containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
+        assertThat(play.albumRequests)
+            .containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
     }
 
     @Test
-    fun playWithoutTopSongsPlaysTheAlbums() = runTest {
-        seed()
-        albums.songsByAlbum.value = mapOf(
-            "own" to listOf(TestData.song("o1")),
-            "guest" to listOf(TestData.song("g1")),
-        )
-        val viewModel = viewModel()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
-
-        viewModel.play(playActions, shuffle = false)
-
-        assertThat(played.single().first.map { it.id }).containsExactly("o1", "g1").inOrder()
-    }
-
-    @Test
-    fun instantMixPlaysSimilarSongsOrReportsNone() = runTest {
+    fun instantMixIsSeededByTheArtist() = runTest {
         seed()
         val viewModel = viewModel()
+
+        viewModel.startInstantMix()
+
+        assertThat(play.mixes).containsExactly(InstantMixSeed.OfArtist("artist-1"))
         viewModel.uiState.test {
-            awaitItem()
-            viewModel.startInstantMix(playActions)
-            assertThat((expectMostRecentItem() as ArtistUiState.Success).message)
-                .isEqualTo(ArtistMessage.NoSimilarSongs)
-
-            artists.similarSongs = listOf(TestData.song("m1"))
-            viewModel.startInstantMix(playActions)
-            assertThat(played.single().first.map { it.id }).containsExactly("m1")
-            cancelAndIgnoreRemainingEvents()
+            assertThat((awaitItem() as ArtistUiState.Success).isPreparingPlayback).isFalse()
         }
     }
 
@@ -188,10 +167,24 @@ class ArtistViewModelTest {
     }
 
     @Test
-    fun topSongMenuGoesToAlbum() {
+    fun menusGoThroughTheMediaActionHandler() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         val opened = mutableListOf<String>()
-        handleTopSongAction(MediaAction.GoToAlbum, TestData.song("t1"), playActions, {}, { opened += it }, {}, {})
+
+        viewModel.onSongAction(
+            TestData.song("t1"),
+            MediaAction.GoToAlbum,
+            MediaActionHost(onAlbumClick = {
+                opened += it
+            }),
+        )
+        viewModel.onSongAction(TestData.song("t1"), MediaAction.Download, MediaActionHost())
+        viewModel.onArtistAction(MediaAction.Play, MediaActionHost())
 
         assertThat(opened).containsExactly("album-1")
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Song to "t1")
+        assertThat(play.plays.single().target).isEqualTo(PlayTarget.Artist("artist-1"))
     }
 }

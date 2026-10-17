@@ -8,6 +8,9 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.playback.media.albumKey
+import com.quantumff.segue.core.playback.media.toMediaItem
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -29,9 +32,44 @@ class SegueSessionCommandsTest {
             AlbumPlayRequest(AlbumSource.Playlist("p1"), AlbumOrder.InOrder),
         )
         for (request in requests) {
-            val args = SegueSessionCommands.playAlbumsArgs(request, seed = -42)
-            assertThat(SegueSessionCommands.playAlbums(args)).isEqualTo(request to -42L)
+            val args = SegueSessionCommands.playAlbumsArgs(request)
+            assertThat(SegueSessionCommands.playAlbums(args)).isEqualTo(request)
         }
         assertThat(SegueSessionCommands.playAlbums(Bundle.EMPTY)).isNull()
+    }
+
+    @Test
+    fun `queued songs survive the trip to the service, metadata included`() {
+        val songs = (1..3).map {
+            Song(id = "s$it", title = "t$it", albumId = "al", album = "A", artist = null, artistId = null)
+        }
+        val request = SegueSessionCommands.QueueSongs(
+            songs.map { it.toMediaItem() },
+            QueuePlacement.Next,
+            startIndex = 2,
+            shuffle = true,
+        )
+
+        val received = SegueSessionCommands.queueSongs(SegueSessionCommands.queueSongsArgs(request))!!
+
+        assertThat(received.items.map { it.mediaId }).containsExactly("s1", "s2", "s3").inOrder()
+        assertThat(received.items.map { it.albumKey }).containsExactly("al", "al", "al")
+        assertThat(received.copy(items = request.items)).isEqualTo(request)
+        assertThat(SegueSessionCommands.queueSongs(Bundle.EMPTY)).isNull()
+    }
+
+    @Test
+    fun `a removed item survives the trip back to the service, metadata included`() {
+        val item = Song(id = "s1", title = "t1", albumId = "al", album = "A", artist = null, artistId = null)
+            .toMediaItem()
+
+        val received = SegueSessionCommands.undoRemove(
+            SegueSessionCommands.undoRemoveArgs(SegueSessionCommands.Removed(item, 4)),
+        )!!
+
+        assertThat(received.item.mediaId).isEqualTo("s1")
+        assertThat(received.item.albumKey).isEqualTo("al")
+        assertThat(received.index).isEqualTo(4)
+        assertThat(SegueSessionCommands.undoRemove(Bundle.EMPTY)).isNull()
     }
 }

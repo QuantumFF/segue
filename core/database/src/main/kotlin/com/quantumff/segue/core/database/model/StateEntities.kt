@@ -33,10 +33,10 @@ data class QueueSyncStateEntity(@PrimaryKey val serverId: String, val seenRemote
 
 /**
  * The running album feed of a server's queue ("Play albums" / "Shuffle albums" queued in windows),
- * at most one. The source is flattened: [sourceKind] names the
- * [com.quantumff.segue.core.model.AlbumSource] variant, [sourceId] holds its artist ID, genre or
- * playlist ID, and the sort and filter columns hold an `Albums` source's view. Enums are stored by
- * name and read back leniently by the repository.
+ * at most one. The source columns hold a [com.quantumff.segue.core.model.AlbumSourceRecord]:
+ * [sourceKind] names the [com.quantumff.segue.core.model.AlbumSource] variant, [sourceId] holds its
+ * artist ID, genre or playlist ID, and the sort and filter columns hold an `Albums` source's view.
+ * Enums are stored by name and read back leniently.
  */
 @Entity(tableName = "album_feed")
 data class AlbumFeedEntity(

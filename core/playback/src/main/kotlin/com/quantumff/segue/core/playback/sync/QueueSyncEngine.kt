@@ -22,8 +22,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 /**
- * A remote queue to adopt without asking, and [undo], the local queue it replaces (null when
- * there was none), for the "Continued from <device> · Undo" snackbar.
+ * A remote queue to adopt, and [undo], the local queue an automatic adoption replaces, for the
+ * "Continued from <device> · Undo" snackbar. Null for "Continue from <device>", and when there was
+ * no local queue.
  */
 data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
 
@@ -33,7 +34,8 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  *
  * - **Upload** is event-driven: the player reports [QueueEvent]s (track change, queue edit, pause,
  *   seek), which are debounced for [DEBOUNCE_MILLIS] and then saved in queue order.
- *   Going to the background flushes at once. Nothing is uploaded while playback simply runs.
+ *   Going to the background, or the service stopping, [flush]es at once. Nothing is uploaded
+ *   while playback simply runs.
  * - **Snapshot**: the same events save the queue to Room, so a cold start can
  *   restore it exactly, offline. An empty queue is saved and uploaded only through
  *   [onQueueCleared], because an empty player is also what the service looks like before it
@@ -43,6 +45,9 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  *   [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions] with the local
  *   queue it replaces, which [takeAdoptionUndo] hands back once for Undo. Only server
  *   timestamps are compared (see [RemoteQueuePolicy]), so a skewed device clock does not matter.
+ * - **Adoption**: an accepted offer ([acceptOffer]) or an automatic adoption is staged for the
+ *   player, which takes it with [takeAdoption] ([SavedQueueLoader]). Whatever the player loads
+ *   from a saved queue it reports through [markRestored] or [markAdopted].
  */
 @Singleton
 class QueueSyncEngine @Inject constructor(
@@ -58,6 +63,9 @@ class QueueSyncEngine @Inject constructor(
     private val offer = MutableStateFlow<RemoteQueueOffer?>(null)
     private val adoptionRequests = Channel<RemoteAdoption>(Channel.BUFFERED)
 
+    /** The remote queue to put in the player next: the accepted offer or the latest automatic adoption. */
+    private val pendingAdoption = AtomicReference<RemoteAdoption?>(null)
+
     /** The local queue an automatic adoption replaced, until undone or played over. */
     private val adoptionUndo = AtomicReference<QueueSnapshot?>(null)
 
@@ -68,7 +76,10 @@ class QueueSyncEngine @Inject constructor(
     /** A newer queue from another device, for the "Continue from <device>" banner. */
     val remoteOffer: StateFlow<RemoteQueueOffer?> = offer.asStateFlow()
 
-    /** Remote queues to adopt without asking, when the user enabled that. */
+    /**
+     * Remote queues adopted without asking, when the user enabled that. Each is staged for the
+     * player ([takeAdoption]) before it is sent here.
+     */
     val adoptions: Flow<RemoteAdoption> = adoptionRequests.receiveAsFlow()
 
     override fun onQueueEvent(@Suppress("UNUSED_PARAMETER") event: QueueEvent, state: QueueState) {
@@ -84,8 +95,11 @@ class QueueSyncEngine @Inject constructor(
         uploader.submit(cleared)
     }
 
-    /** The app left the foreground: save now. [state] is the current queue, or null to flush the latest event's. */
-    fun onAppBackground(state: QueueState?) {
+    /**
+     * Saves and uploads now instead of after the quiet period: the app left the foreground, or the
+     * service is going away. [state] is the current queue, or null to flush the latest event's.
+     */
+    fun flush(state: QueueState?) {
         if (state != null && state.songIds.isEmpty()) return
         snapshotWriter.flush(state)
         uploader.flush(state)
@@ -146,7 +160,9 @@ class QueueSyncEngine @Inject constructor(
                 // The snapshot is the local queue: it is flushed when the app leaves the foreground.
                 val previous = snapshots.snapshot.first()?.takeIf { it.songIds.isNotEmpty() }
                 adoptionUndo.set(previous)
-                adoptionRequests.send(RemoteAdoption(adopted, previous))
+                val adoption = RemoteAdoption(adopted, previous)
+                pendingAdoption.set(adoption)
+                adoptionRequests.send(adoption)
             }
 
             is RemoteQueueDecision.Ignore -> {
@@ -160,11 +176,31 @@ class QueueSyncEngine @Inject constructor(
         }
     }
 
-    /** Takes the offered queue to adopt it; null if there is none. */
-    fun acceptOffer(): RemotePlayQueue? = offeredQueue.value?.also(::clearOffer)
+    /**
+     * "Continue from <device>": stages the offered queue, the one the banner shows now, for the
+     * player ([takeAdoption]), and returns it. Null if there is none.
+     */
+    fun acceptOffer(): RemoteAdoption? {
+        val queue = offeredQueue.value ?: return null
+        clearOffer(queue)
+        return RemoteAdoption(queue, undo = null).also(pendingAdoption::set)
+    }
+
+    /** The remote queue staged for the player to adopt, once; null if none. */
+    internal fun takeAdoption(): RemoteAdoption? = pendingAdoption.getAndSet(null)
+
+    /**
+     * [adoption] never reached the player (asking the service failed): it is no longer staged, and
+     * an automatic one has nothing to undo since nothing was replaced. Once the player took it
+     * ([takeAdoption]) this does nothing; the player settles undo itself.
+     */
+    internal fun abandonAdoption(adoption: RemoteAdoption) {
+        if (!pendingAdoption.compareAndSet(adoption, null)) return
+        if (adoption.undo != null) adoptionUndo.compareAndSet(adoption.undo, null)
+    }
 
     /** The local queue the last automatic adoption replaced, to restore it; null if none. Only once. */
-    fun takeAdoptionUndo(): QueueSnapshot? = adoptionUndo.getAndSet(null)
+    internal fun takeAdoptionUndo(): QueueSnapshot? = adoptionUndo.getAndSet(null)
 
     /** Keeps the local queue. The dismissed save is remembered, so it stays dismissed after a restart too. */
     fun dismissOffer() {
@@ -172,13 +208,13 @@ class QueueSyncEngine @Inject constructor(
     }
 
     /** The player was restored from the local snapshot: that state is already saved everywhere. */
-    fun markRestored(state: QueueState) {
+    internal fun markRestored(state: QueueState) {
         snapshotWriter.markWritten(state)
         uploader.markWritten(state)
     }
 
     /** The player adopted a remote queue: do not upload it straight back. The snapshot still saves it. */
-    fun markAdopted(state: QueueState) {
+    internal fun markAdopted(state: QueueState) {
         uploader.markWritten(state)
     }
 

@@ -19,7 +19,6 @@ import androidx.navigation.navigation
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.album.navigation.albumScreen
 import com.quantumff.segue.feature.album.navigation.navigateToAlbum
 import com.quantumff.segue.feature.artist.navigation.artistScreen
@@ -56,8 +55,8 @@ import com.quantumff.segue.ui.SegueAppState
 
 /**
  * The only place feature graphs meet. Each tab is a nested graph; detail and secondary screens
- * live at the root so any tab can push them onto its own stack. Features navigate and raise play
- * intents through callbacks wired here.
+ * live at the root so any tab can push them onto its own stack. Features navigate through callbacks
+ * wired here; they raise play intents through the injected PlayIntents.
  *
  * @param startDestination [HomeGraph], or a login route when no server is configured.
  * @param onAddToPlaylist shows the add-to-playlist sheet for the song IDs.
@@ -66,7 +65,6 @@ import com.quantumff.segue.ui.SegueAppState
 fun SegueNavHost(
     appState: SegueAppState,
     startDestination: Any,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -104,7 +102,6 @@ fun SegueNavHost(
                 onPlaylistClick = onPlaylistClick,
                 onGenreClick = onGenreClick,
                 onSeeAllClick = { type -> appState.navigate { navigateToAlbumList(type) } },
-                playActions = playActions,
                 onAddToPlaylist = onAddToPlaylist,
             )
         }
@@ -116,7 +113,6 @@ fun SegueNavHost(
                 onPlaylistClick = onPlaylistClick,
                 onGenreClick = onGenreClick,
                 onDownloadsClick = onDownloadsClick,
-                playActions = playActions,
                 onAddToPlaylist = onAddToPlaylist,
                 downloadsTab = { DownloadsTab(onOpen = onPinnedClick) },
             )
@@ -125,7 +121,6 @@ fun SegueNavHost(
             playlistsScreen(
                 onAccountClick = onAccountClick,
                 onPlaylistClick = onPlaylistClick,
-                playActions = playActions,
             )
         }
         navigation<SearchGraph>(startDestination = SearchRoute) {
@@ -133,7 +128,6 @@ fun SegueNavHost(
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
                 onGenreClick = onGenreClick,
-                playActions = playActions,
                 onAddToPlaylist = onAddToPlaylist,
             )
         }
@@ -143,29 +137,25 @@ fun SegueNavHost(
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onGenreClick = onGenreClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
         artistScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
         playlistScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
-        genreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick, playActions = playActions)
+        genreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick)
         albumListScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
         settingsScreen(

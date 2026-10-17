@@ -9,5 +9,4 @@
     <string name="feature_search_offline_results">Offline results</string>
     <string name="feature_search_no_results">No results for “%1$s”</string>
     <string name="feature_search_no_results_offline">The server could not be reached, so only the cached library was searched.</string>
-    <string name="feature_search_favorite_failed">Could not update favorites</string>
 </resources>

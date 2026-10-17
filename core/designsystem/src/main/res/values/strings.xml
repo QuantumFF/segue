@@ -49,6 +49,10 @@
     <string name="ds_action_rename">Rename</string>
     <string name="ds_action_remove_from_playlist">Remove from playlist</string>
     <string name="ds_action_delete">Delete</string>
+    <string name="ds_action_failed_load">Couldn\'t load the songs. Check your connection.</string>
+    <string name="ds_action_failed_nothing_to_add">No songs to add</string>
+    <string name="ds_action_failed_favorite">Couldn\'t update favorites</string>
+    <string name="ds_action_failed_download">Couldn\'t start the download</string>
     <string name="ds_rating">Rating</string>
     <string name="ds_rating_stars">%1$d of 5 stars</string>
     <string name="ds_syncing_library">Syncing library</string>

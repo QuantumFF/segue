@@ -25,8 +25,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -37,9 +35,9 @@ import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -50,7 +48,6 @@ import kotlinx.collections.immutable.persistentListOf
 fun PlaylistsScreen(
     onAccountClick: () -> Unit,
     onPlaylistClick: (String) -> Unit,
-    playActions: PlayActions,
     modifier: Modifier = Modifier,
     viewModel: PlaylistsViewModel = hiltViewModel(),
 ) {
@@ -63,18 +60,7 @@ fun PlaylistsScreen(
         onCreate = viewModel::create,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
-        onMenuAction = { playlist, action ->
-            when (action) {
-                MediaAction.Play -> viewModel.loadSongs(playlist.id) { playActions.onPlaySongs(it, 0, false) }
-                MediaAction.Shuffle -> viewModel.loadSongs(playlist.id) { playActions.onPlaySongs(it, 0, true) }
-                MediaAction.ShuffleAlbums -> playActions.shuffleAlbums(AlbumSource.Playlist(playlist.id))
-                MediaAction.PlayNext -> viewModel.loadSongs(playlist.id, playActions.onPlayNext)
-                MediaAction.AddToQueue -> viewModel.loadSongs(playlist.id, playActions.onAddToQueue)
-                MediaAction.Download -> viewModel.download(playlist)
-                MediaAction.RemoveDownload -> viewModel.removeDownload(playlist)
-                else -> Unit
-            }
-        },
+        onMenuAction = viewModel::onPlaylistAction,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
     )

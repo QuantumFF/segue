@@ -4,7 +4,6 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.playlist.PlaylistScreen
 import com.quantumff.segue.feature.playlist.PlaylistsScreen
 import kotlinx.serialization.Serializable
@@ -20,13 +19,9 @@ data class PlaylistRoute(val playlistId: String)
 fun NavController.navigateToPlaylist(playlistId: String, navOptions: NavOptions? = null) =
     navigate(PlaylistRoute(playlistId), navOptions)
 
-fun NavGraphBuilder.playlistsScreen(
-    onAccountClick: () -> Unit,
-    onPlaylistClick: (String) -> Unit,
-    playActions: PlayActions,
-) {
+fun NavGraphBuilder.playlistsScreen(onAccountClick: () -> Unit, onPlaylistClick: (String) -> Unit) {
     composable<PlaylistsRoute> {
-        PlaylistsScreen(onAccountClick = onAccountClick, onPlaylistClick = onPlaylistClick, playActions = playActions)
+        PlaylistsScreen(onAccountClick = onAccountClick, onPlaylistClick = onPlaylistClick)
     }
 }
 
@@ -34,7 +29,6 @@ fun NavGraphBuilder.playlistScreen(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
 ) {
     composable<PlaylistRoute> {
@@ -42,7 +36,6 @@ fun NavGraphBuilder.playlistScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
         )
     }

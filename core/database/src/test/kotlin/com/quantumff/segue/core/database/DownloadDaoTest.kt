@@ -31,6 +31,15 @@ class DownloadDaoTest {
         DownloadEntity(serverId = serverId, songId = songId, state = state, updatedAt = updatedAt)
 
     @Test
+    fun `download state and pin kind names match the literals in DAO SQL`() {
+        // Stored by name and matched as literals ('Completed', 'Queued', 'Song', ...) in DownloadDao,
+        // BrowseDao and LibraryDaos. Renaming a value needs those queries and a migration updated.
+        assertThat(DownloadState.entries.map { it.name })
+            .containsAtLeast("Queued", "Downloading", "Paused", "Completed", "Failed")
+        assertThat(PinKind.entries.map { it.name }).containsAtLeast("Album", "Playlist", "Artist", "Song")
+    }
+
+    @Test
     fun `pin membership covers album tracks, playlist entries, artist albums and single songs`() = runTest {
         db.albumDao().upsertAll(listOf(album("al1", artistId = "ar1"), album("al2"), album("al3")))
         db.albumDao().replaceAlbumArtists("s1", listOf("al2"), listOf(AlbumArtistCrossRef("s1", "al2", "ar1", 1)))

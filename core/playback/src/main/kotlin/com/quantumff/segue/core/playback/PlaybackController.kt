@@ -4,10 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
@@ -19,16 +16,13 @@ import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
-import com.quantumff.segue.core.model.QueueItem
-import com.quantumff.segue.core.model.RemotePlayQueue
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
-import com.quantumff.segue.core.playback.media.toQueueItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
-import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import com.quantumff.segue.core.playback.sync.RemoteAdoption
@@ -39,10 +33,6 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.random.Random
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -72,8 +62,10 @@ import kotlinx.coroutines.withContext
  * [SeguePlaybackService], connected on first use, and exposes [state] for the UI.
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
- * commands take queue positions ([QueueItem.timelineIndex]). The queue order is the play order:
- * Segue shuffles only when songs are queued, never a running queue.
+ * commands take queue positions ([com.quantumff.segue.core.model.QueueItem.timelineIndex]). The
+ * queue order is the play order: Segue shuffles only when songs are queued, never a running queue.
+ * Play intents ([queue], [playAlbums], [playInstantMix]) suspend until the service answers whether
+ * it queued anything.
  */
 @Singleton
 class PlaybackController @Inject constructor(
@@ -83,22 +75,24 @@ class PlaybackController @Inject constructor(
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
-    private val random = Random.Default
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
     /** The connected controller, or null while disconnected (for example after the service stopped). */
     private val connected = MutableStateFlow<MediaController?>(null)
-    private val queueCache = QueueCache()
+    private val projection = PlayerUiStateProjection()
 
-    private class Removal(val item: MediaItem, val timelineIndex: Int)
-
-    private var lastRemoval: Removal? = null
+    private var lastRemoval: SegueSessionCommands.Removed? = null
 
     private val autoAdoptionEvents = Channel<AutoAdoption>(Channel.BUFFERED)
 
     /** Each automatic adoption of another device's queue, for the "Continued from" snackbar. */
     val autoAdoptions: Flow<AutoAdoption> = autoAdoptionEvents.receiveAsFlow()
+
+    private val continueFailureEvents = Channel<Unit>(Channel.BUFFERED)
+
+    /** Each "Continue from <device>" ([adoptRemoteQueue]) that adopted nothing, for a snackbar. */
+    val continueFailures: Flow<Unit> = continueFailureEvents.receiveAsFlow()
 
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
@@ -121,7 +115,7 @@ class PlaybackController @Inject constructor(
                     flowOf(PlayerUiState())
                 } else {
                     controller.events()
-                        .combine(sessionExtras) { _, extras -> snapshot(controller, extras) }
+                        .combine(sessionExtras) { _, extras -> projection.project(controller, extras) }
                 }
             },
         )
@@ -144,37 +138,14 @@ class PlaybackController @Inject constructor(
     // --- Queue -------------------------------------------------------------------------------------
 
     /**
-     * An explicit "Play" or "Shuffle" of [songs], replacing the queue: in order from [startIndex],
-     * or with [shuffle] queued in a fresh shuffled order from its first song. Shuffling happens
-     * here, when songs are queued; a running queue is never reshuffled.
+     * Queues [songs] at [placement]. Replacing the queue plays them: in order from [startIndex], or
+     * with [shuffle] in a fresh shuffled order from its first song. The service queues them
+     * ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
+     * running queue, and offline only the downloaded songs. False if there is nothing to play.
      */
-    fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean) = command { controller ->
-        if (songs.isEmpty()) return@command
-        val queue = if (shuffle) songs.shuffled(random) else songs
-        val start = if (shuffle) 0 else startIndex.coerceIn(songs.indices)
-        controller.setMediaItems(queue.map { it.toMediaItem() }, start, 0)
-        controller.prepare()
-        controller.play()
-    }
-
-    /** Inserts [songs] right after the current track. */
-    fun playNext(songs: List<Song>) = command { controller ->
-        if (controller.mediaItemCount == 0) {
-            controller.setMediaItems(songs.map { it.toMediaItem() })
-            controller.prepare()
-        } else {
-            controller.addMediaItems(controller.currentMediaItemIndex + 1, songs.map { it.toMediaItem() })
-        }
-    }
-
-    /** Appends [songs] to the end of the queue. */
-    fun addToQueue(songs: List<Song>) = command { controller ->
-        if (controller.mediaItemCount == 0) {
-            controller.setMediaItems(songs.map { it.toMediaItem() })
-            controller.prepare()
-        } else {
-            controller.addMediaItems(songs.map { it.toMediaItem() })
-        }
+    suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean): Boolean {
+        val request = SegueSessionCommands.QueueSongs(songs.map { it.toMediaItem() }, placement, startIndex, shuffle)
+        return send(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
     }
 
     /** Moves the item at queue position [from] to position [to]. */
@@ -183,16 +154,29 @@ class PlaybackController @Inject constructor(
     /** Removes the item at [timelineIndex]. [undoRemove] puts the last removed item back. */
     fun remove(timelineIndex: Int) = command { controller ->
         if (timelineIndex !in 0 until controller.mediaItemCount) return@command
-        lastRemoval = Removal(controller.getMediaItemAt(timelineIndex), timelineIndex)
+        lastRemoval = SegueSessionCommands.Removed(controller.getMediaItemAt(timelineIndex), timelineIndex)
         controller.removeMediaItem(timelineIndex)
     }
 
-    /** Puts the last removed item back where it was. */
+    /**
+     * Puts the last removed item back where it was. It was the user's own queue, so unlike a play
+     * intent (an add, which the service narrows offline) it comes back even if not downloaded. If the
+     * service does not put it back, Undo stays possible, unless something else was removed meanwhile.
+     */
     fun undoRemove() = command { controller ->
         val removal = lastRemoval ?: return@command
+        // Taken now, so a second tap before the answer does not put it back twice.
         lastRemoval = null
-        // The service gives the item back its playable URI (onAddMediaItems).
-        controller.addMediaItem(removal.timelineIndex.coerceAtMost(controller.mediaItemCount), removal.item)
+        val putBack = try {
+            controller.sendCustomCommand(
+                SegueSessionCommands.command(SegueSessionCommands.UNDO_REMOVE),
+                SegueSessionCommands.undoRemoveArgs(removal),
+            ).await().resultCode == SessionResult.RESULT_SUCCESS
+        } catch (e: ExecutionException) {
+            Log.w(TAG, "Could not put the removed item back", e)
+            false
+        }
+        if (!putBack && lastRemoval == null) lastRemoval = removal
     }
 
     fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
@@ -223,13 +207,7 @@ class PlaybackController @Inject constructor(
 
     fun skipToPrevious() = command { it.seekToPrevious() }
 
-    fun setRepeatMode(mode: RepeatMode) = command { controller ->
-        controller.repeatMode = when (mode) {
-            RepeatMode.Off -> Player.REPEAT_MODE_OFF
-            RepeatMode.All -> Player.REPEAT_MODE_ALL
-            RepeatMode.One -> Player.REPEAT_MODE_ONE
-        }
-    }
+    fun setRepeatMode(mode: RepeatMode) = command { it.repeatMode = mode.playerRepeatMode }
 
     /** Starts, replaces, or (with null) cancels the sleep timer. */
     fun setSleepTimer(timer: SleepTimer?) = command { controller ->
@@ -245,44 +223,37 @@ class PlaybackController @Inject constructor(
 
     // --- Remote queue --------------------------------------------------------------------------------
 
-    /** "Continue from <device>": takes over the offered queue, paused at its saved position. */
+    /**
+     * "Continue from <device>": the service takes over the offered queue, paused at its saved
+     * position ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]). If it cannot,
+     * [continueFailures] says so.
+     */
     fun adoptRemoteQueue() {
-        val queue = queueSync.acceptOffer() ?: return
-        scope.launch { adopt(queue) }
+        val adoption = queueSync.acceptOffer() ?: return
+        scope.launch { if (!adopt(adoption)) continueFailureEvents.send(Unit) }
     }
 
     fun dismissRemoteQueue() = queueSync.dismissOffer()
 
-    /** Adopts a queue the auto-continue setting took over, then reports it for the snackbar. */
+    /** Has the service adopt a queue the auto-continue setting took over, then reports it for the snackbar. */
     internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
-        if (!adopt(adoption.queue)) {
-            // Nothing was replaced: there is nothing to undo.
-            queueSync.takeAdoptionUndo()
-            return
-        }
+        if (!adopt(adoption)) return
         autoAdoptionEvents.send(AutoAdoption(adoption.queue.deviceName, canUndo = adoption.undo != null))
+    }
+
+    /**
+     * Has the service adopt [adoption], which queue sync staged. False if it did not: offline none
+     * of its songs is downloaded, or the service could not be asked, and then it is unstaged.
+     */
+    private suspend fun adopt(adoption: RemoteAdoption): Boolean {
+        val adopted = send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY)
+        if (!adopted) queueSync.abandonAdoption(adoption)
+        return adopted
     }
 
     /** The snackbar's Undo: puts back the local queue the last automatic adoption replaced. */
     fun undoAutoAdoption() = command { controller ->
         controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_ADOPTION), Bundle.EMPTY)
-    }
-
-    /** Replaces the local queue with [queue], paused. False if the player could not take it. */
-    internal suspend fun adopt(queue: RemotePlayQueue): Boolean = withContext(mainDispatcher) {
-        try {
-            val controller = controller()
-            controller.pause()
-            val index = queue.currentIndex.coerceIn(queue.songs.indices)
-            controller.setMediaItems(queue.songs.map { it.toMediaItem() }, index, queue.positionMillis)
-            queueSync.markAdopted(QueueState(queue.songs.map { it.id }, index, queue.positionMillis))
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Log.w(TAG, "Could not adopt the remote queue", e)
-            false
-        }
     }
 
     // --- Generated queues ----------------------------------------------------------------------------
@@ -294,41 +265,37 @@ class PlaybackController @Inject constructor(
      * [com.quantumff.segue.core.playback.feed.AlbumFeedController]). Reads Room only; offline only
      * downloaded songs are queued. False if there is nothing to play.
      */
-    suspend fun playAlbums(request: AlbumPlayRequest): Boolean = withContext(mainDispatcher) {
+    suspend fun playAlbums(request: AlbumPlayRequest): Boolean =
+        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request))
+
+    /**
+     * Instant mix: [seed] if given, then songs similar to [artistId] (`getSimilarSongs2`), topped
+     * up with the artist's top songs, replacing the queue. Throws RemoteException. False if
+     * nothing came back.
+     */
+    suspend fun playInstantMix(seed: Song?, artistId: String): Boolean {
+        val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
+        val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
+        val mix = InstantMix.build(seed, similar, top)
+        if (mix.size <= (if (seed == null) 0 else 1)) return false
+        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false)
+    }
+
+    // --- Connection ----------------------------------------------------------------------------------
+
+    /** Sends a queueing or adopting command ([action]) and answers whether the service queued anything. */
+    private suspend fun send(action: String, args: Bundle): Boolean = withContext(mainDispatcher) {
         try {
-            val result = controller().sendCustomCommand(
-                SegueSessionCommands.command(SegueSessionCommands.PLAY_ALBUMS),
-                SegueSessionCommands.playAlbumsArgs(request, seed = random.nextLong()),
-            ).await()
+            val result = controller().sendCustomCommand(SegueSessionCommands.command(action), args).await()
             result.resultCode == SessionResult.RESULT_SUCCESS &&
                 result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Log.w(TAG, "Could not play albums", e)
+            Log.w(TAG, "Session command failed ($action)", e)
             false
         }
     }
-
-    /**
-     * Instant mix from [seed]: the song, then songs similar to its artist (`getSimilarSongs2`),
-     * topped up with the artist's top songs. Throws RemoteException. False if nothing came back.
-     */
-    suspend fun playInstantMix(seed: Song): Boolean = playMix(seed, seed.artistId ?: return false)
-
-    /** Instant mix for an artist, without a seed song. Throws RemoteException. */
-    suspend fun playArtistMix(artistId: String): Boolean = playMix(null, artistId)
-
-    private suspend fun playMix(seed: Song?, artistId: String): Boolean {
-        val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
-        val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
-        val mix = InstantMix.build(seed, similar, top)
-        if (mix.size <= (if (seed == null) 0 else 1)) return false
-        play(mix, startIndex = 0, shuffle = false)
-        return true
-    }
-
-    // --- Connection ----------------------------------------------------------------------------------
 
     private fun command(block: suspend (MediaController) -> Unit) {
         scope.launch {
@@ -390,43 +357,6 @@ class PlaybackController @Inject constructor(
         while (true) {
             emit(snapshot.copy(positionMillis = controller.currentPosition))
             delay(POSITION_TICK_MILLIS)
-        }
-    }
-
-    private fun snapshot(controller: MediaController, extras: Bundle): PlayerUiState {
-        val queue = queueCache.get(controller)
-        val queueIndex = controller.currentMediaItemIndex.takeIf { it in queue.indices } ?: -1
-        val current = queue.getOrNull(queueIndex)
-        return PlayerUiState(
-            currentItem = current,
-            currentQueueIndex = queueIndex,
-            isPlaying = controller.isPlaying,
-            isBuffering = controller.playbackState == Player.STATE_BUFFERING,
-            positionMillis = controller.currentPosition,
-            durationMillis = controller.duration.takeIf { it != C.TIME_UNSET } ?: current?.durationMillis ?: 0,
-            queue = queue,
-            repeatMode = when (controller.repeatMode) {
-                Player.REPEAT_MODE_ONE -> RepeatMode.One
-                Player.REPEAT_MODE_ALL -> RepeatMode.All
-                else -> RepeatMode.Off
-            },
-            sleepTimer = SegueSessionCommands.sleepTimer(extras),
-        )
-    }
-
-    /** Rebuilds the queue only when the timeline changes, not on every position tick. */
-    private class QueueCache {
-        private var timeline: Timeline? = null
-        private var queue: ImmutableList<QueueItem> = persistentListOf()
-
-        fun get(controller: MediaController): ImmutableList<QueueItem> {
-            val current = controller.currentTimeline
-            if (current != timeline) {
-                timeline = current
-                queue = List(controller.mediaItemCount) { controller.getMediaItemAt(it).toQueueItem(it) }
-                    .toImmutableList()
-            }
-            return queue
         }
     }
 

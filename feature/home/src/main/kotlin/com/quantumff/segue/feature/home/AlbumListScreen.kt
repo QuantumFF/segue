@@ -24,18 +24,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.AlbumCardSkeleton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.SkeletonPulse
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.SubScreenTopBar
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
@@ -45,7 +45,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import kotlinx.collections.immutable.ImmutableList
 
 @Composable
@@ -53,27 +54,19 @@ fun AlbumListScreen(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlbumListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onArtistClick, onAddToPlaylist) {
+        MediaActionHost(onArtistClick = onArtistClick, onAddToPlaylist = onAddToPlaylist)
+    }
     AlbumListScreen(
         uiState = uiState,
         onBackClick = onBackClick,
         onAlbumClick = onAlbumClick,
-        onAlbumAction = { album, action ->
-            dispatchAlbumAction(
-                album = album,
-                action = action,
-                playActions = playActions,
-                withSongs = viewModel::withAlbumSongs,
-                onToggleFavorite = viewModel::toggleFavorite,
-                onArtistClick = onArtistClick,
-                onAddToPlaylist = onAddToPlaylist,
-            )
-        },
+        onAlbumAction = { album, action -> viewModel.onAlbumAction(album, action, menuHost) },
         onRefresh = viewModel::refresh,
         onMessageDismiss = viewModel::messageShown,
         modifier = modifier,
@@ -94,17 +87,7 @@ fun AlbumListScreen(
 ) {
     var menuAlbum by remember { mutableStateOf<Album?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val message = uiState.message?.let {
-        stringResource(
-            if (it ==
-                HomeMessage.FavoriteFailed
-            ) {
-                R.string.feature_home_favorite_failed
-            } else {
-                R.string.feature_home_playback_failed
-            },
-        )
-    }
+    val message = uiState.message?.let { stringResource(it.text) }
     val currentOnMessageDismiss by rememberUpdatedState(onMessageDismiss)
     LaunchedEffect(message) {
         if (message != null) {

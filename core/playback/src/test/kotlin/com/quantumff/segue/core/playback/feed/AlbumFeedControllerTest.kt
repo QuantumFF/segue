@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.playback.feed
 
 import android.content.Context
+import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -15,8 +16,12 @@ import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
+import com.quantumff.segue.core.playback.media.withStarred
+import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -46,11 +51,38 @@ class AlbumFeedControllerTest {
     private fun song(id: String, album: String?, track: Int = 1) =
         Song(id = id, title = id, albumId = album, album = album, artist = null, artistId = null, track = track)
 
-    private fun TestScope.controller(offline: DownloadedLibrary? = null) =
-        AlbumFeedController(player, albums, feeds, this, offline = { offline }).also {
-            controller = it
-            exo.addListener(it)
-        }
+    /** The seed the next started feed gets. */
+    private var nextSeed = 0L
+
+    private fun TestScope.controller(offline: DownloadedLibrary? = null) = AlbumFeedController(
+        player,
+        QueueEditor(player, offline = { offline }),
+        albums,
+        feeds,
+        this,
+        offline = { offline },
+        newSeed = { nextSeed },
+    ).also {
+        controller = it
+        exo.addListener(it)
+    }
+
+    private suspend fun AlbumFeedController.start(
+        request: AlbumPlayRequest,
+        seed: Long,
+        songs: List<MediaItem> = emptyList(),
+    ): Boolean {
+        nextSeed = seed
+        return start(request, songs)
+    }
+
+    private suspend fun AlbumFeedController.firstWindowForSession(
+        request: AlbumPlayRequest,
+        seed: Long,
+        songs: List<MediaItem> = emptyList(),
+    ) = also { nextSeed = seed }.firstWindowForSession(request, songs)
+
+    private fun songs(vararg ids: String) = ids.map { song(it, null).toMediaItem() }
 
     private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
 
@@ -99,17 +131,122 @@ class AlbumFeedControllerTest {
         }
 
     @Test
-    fun `a prepared window is dropped when the session queues something else`() = runTest(UnconfinedTestDispatcher()) {
-        val feed = controller()
-        feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
+    fun `a prepared window waits through unrelated queue events until the session queues it`() =
+        runTest(UnconfinedTestDispatcher()) {
+            player.setMediaItems(listOf(song("x", null).toMediaItem()))
+            val feed = controller()
+            val items = feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
 
-        player.setMediaItems(listOf(song("x", null).toMediaItem()))
+            // A favorite toggle lands between the session's answer and Media3 applying it.
+            player.replaceMediaItem(0, exo.getMediaItemAt(0).withStarred(true))
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current?.seed).isEqualTo(7)
+            assertThat(feeds.stored).isNotNull()
+        }
+
+    @Test
+    fun `songs added with shuffle albums go first, and the feed after them keeps growing`() =
+        runTest(UnconfinedTestDispatcher()) {
+            player.setMediaItems(listOf(song("x", null).toMediaItem()))
+            val feed = controller()
+
+            assertThat(
+                feed.start(request(AlbumOrder.InOrder, QueuePlacement.End), seed = 1, songs = songs("y")),
+            ).isTrue()
+
+            // The session then applies its answer to the add: nothing more.
+            player.addMediaItems(emptyList())
+
+            assertThat(queueIds().take(3)).containsExactly("x", "y", "al1-t1").inOrder()
+            assertThat(feed.current).isNotNull()
+            player.seekTo(exo.mediaItemCount - 2, 0)
+            advanceUntilIdle()
+            assertThat(
+                exo.mediaItemCount,
+            ).isEqualTo(2 + AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
+        }
+
+    @Test
+    fun `songs added with shuffle albums are queued even when there are no albums`() =
+        runTest(UnconfinedTestDispatcher()) {
+            albums.ids = emptyList()
+            val feed = controller()
+
+            assertThat(
+                feed.start(request(AlbumOrder.Shuffled, QueuePlacement.End), seed = 1, songs = songs("y")),
+            ).isTrue()
+
+            assertThat(queueIds()).containsExactly("y")
+            assertThat(feed.current).isNull()
+        }
+
+    @Test
+    fun `a session's set of songs and shuffle albums becomes a feed after the songs`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
+
+            val items = feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1, songs = songs("y"))
+            assertThat(items.first().mediaId).isEqualTo("y")
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current).isNotNull()
+            player.seekTo(exo.mediaItemCount - 2, 0)
+            advanceUntilIdle()
+            assertThat(
+                exo.mediaItemCount,
+            ).isEqualTo(1 + AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
+        }
+
+    @Test
+    fun `the session's next set or add drops a prepared window it never queued`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
+            val items = feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), seed = 7)
+
+            feed.cancelPending()
+            player.setMediaItems(items, 0, 0)
+
+            assertThat(feed.current).isNull()
+            assertThat(feeds.stored).isNull()
+        }
+
+    @Test
+    fun `a set or add that comes while a window is being prepared drops it`() = runTest(UnconfinedTestDispatcher()) {
+        val reading = CompletableDeferred<Unit>()
+        val feed = AlbumFeedController(
+            player,
+            QueueEditor(player, offline = { null }),
+            albums,
+            feeds,
+            this,
+            offline = {
+                reading.await()
+                null
+            },
+            newSeed = { 7 },
+        ).also { exo.addListener(it) }
+        val prepared =
+            async { feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled)) }
+
+        feed.cancelPending()
+        reading.complete(Unit)
+        player.setMediaItems(prepared.await(), 0, 0)
+
         assertThat(feed.current).isNull()
         assertThat(feeds.stored).isNull()
+    }
 
-        // Nor does a later queue of the same songs adopt it.
-        player.setMediaItems(feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1).take(3))
+    @Test
+    fun `a prepared window is not adopted by a different queue`() = runTest(UnconfinedTestDispatcher()) {
+        val feed = controller()
+        val items = feed.firstWindowForSession(request(AlbumOrder.InOrder), seed = 1)
+
+        player.setMediaItems(listOf(song("x", null).toMediaItem()))
+        player.setMediaItems(items.take(3))
+
         assertThat(feed.current).isNull()
+        assertThat(feeds.stored).isNull()
     }
 
     @Test
@@ -167,7 +304,7 @@ class AlbumFeedControllerTest {
         val feed = controller()
         feed.start(request(AlbumOrder.InOrder), seed = 1)
 
-        player.replaceMediaItem(0, exo.getMediaItemAt(0))
+        player.replaceMediaItem(0, exo.getMediaItemAt(0).withStarred(true))
         assertThat(feed.current).isNotNull()
 
         player.moveMediaItem(5, 1)

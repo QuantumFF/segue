@@ -3,13 +3,19 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -30,14 +36,16 @@ class PlaylistViewModelTest {
         songsByPlaylist.value = mapOf("p1" to listOf(TestData.song("a"), TestData.song("b"), TestData.song("c")))
     }
     private val stars = FakeStarRatingRepository()
+    private val play = RecordingPlayIntents()
 
     private fun TestScope.viewModel(): PlaylistViewModel {
         val viewModel = PlaylistViewModel(
             SavedStateHandle(mapOf("playlistId" to "p1")),
             playlists,
-            stars,
             downloads,
-            offlineMode,
+            offlineLibraryView(offlineMode, downloads, playlists = playlists),
+            play,
+            mediaActionHandler(play, downloads, stars, playlists = playlists),
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
@@ -145,16 +153,43 @@ class PlaylistViewModelTest {
         val state = viewModel().uiState.value
 
         assertThat(state.loadState).isEqualTo(LoadState.Failed)
+        assertThat(state.isOffline).isTrue()
         assertThat(state.playlist).isNotNull()
         assertThat(state.entries).hasSize(3)
     }
 
     @Test
-    fun toggleStarFlipsSongStar() = runTest {
+    fun serverErrorWithCachedDataKeepsTheRowsWithoutTheOfflineChip() = runTest {
+        playlists.error = RemoteException.ServerError("broken", IOException("500"))
+
+        val state = viewModel().uiState.value
+
+        assertThat(state.loadState).isEqualTo(LoadState.Failed)
+        assertThat(state.isOffline).isFalse()
+        assertThat(state.entries).hasSize(3)
+    }
+
+    @Test
+    fun playPlaysTheRowsAsShown() = runTest {
         val viewModel = viewModel()
 
-        viewModel.toggleStar(TestData.song("a"))
+        viewModel.play(startIndex = 1)
+
+        assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(viewModel.uiState.value.songs, 1))
+    }
+
+    @Test
+    fun trackMenuStarsAndRemovesFromThePlaylist() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.onSongAction(TestData.song("a"), MediaAction.Favorite, MediaActionHost())
+        viewModel.onSongAction(
+            TestData.song("b"),
+            MediaAction.RemoveFromPlaylist,
+            MediaActionHost(onScreenAction = { viewModel.removeAt(1) }),
+        )
 
         assertThat(stars.starred[MediaKind.Song to "a"]).isTrue()
+        assertThat(viewModel.songIds).containsExactly("a", "c").inOrder()
     }
 }

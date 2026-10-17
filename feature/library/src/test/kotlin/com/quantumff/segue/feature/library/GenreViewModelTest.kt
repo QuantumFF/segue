@@ -3,14 +3,13 @@ package com.quantumff.segue.feature.library
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
-import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -29,7 +28,8 @@ class GenreViewModelTest {
                 TestData.album("3", genre = "Jazz"),
             )
         }
-        val viewModel = GenreViewModel(SavedStateHandle(mapOf(GenreViewModel.KEY_GENRE to "Jazz")), albums)
+        val viewModel =
+            GenreViewModel(SavedStateHandle(mapOf(GenreViewModel.KEY_GENRE to "Jazz")), albums, RecordingPlayIntents())
 
         viewModel.uiState.test {
             val state = expectMostRecentItem()
@@ -40,15 +40,15 @@ class GenreViewModelTest {
 
     @Test
     fun playAlbumsQueuesTheGenreGridInItsOrder() {
+        val play = RecordingPlayIntents()
         val viewModel =
-            GenreViewModel(SavedStateHandle(mapOf(GenreViewModel.KEY_GENRE to "Jazz")), FakeAlbumRepository())
-        val play = RecordingPlayActions()
+            GenreViewModel(SavedStateHandle(mapOf(GenreViewModel.KEY_GENRE to "Jazz")), FakeAlbumRepository(), play)
 
-        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End, play.actions)
+        viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End)
 
         assertThat(play.albumRequests).containsExactly(
             AlbumPlayRequest(
-                AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(genre = "Jazz")),
+                AlbumSource.Genre("Jazz"),
                 AlbumOrder.Shuffled,
                 QueuePlacement.End,
             ),

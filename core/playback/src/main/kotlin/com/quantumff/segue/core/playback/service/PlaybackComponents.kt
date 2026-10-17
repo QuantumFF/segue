@@ -33,37 +33,45 @@ import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.playback.browse.SessionLibrary
 import com.quantumff.segue.core.playback.cache.AdjustableLruCacheEvictor
 import com.quantumff.segue.core.playback.cache.NetworkMonitor
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.SegueUriResolver
 import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
+import com.quantumff.segue.core.playback.feed.AlbumFeedController
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingPublisher
 import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
+import com.quantumff.segue.core.playback.scrobble.Scrobbler
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
+import com.quantumff.segue.core.playback.sync.SavedQueueLoader
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 
-/** Everything the playback service needs, constructor-injected in one piece. */
+/**
+ * Everything the playback service needs, constructor-injected in one piece. The service gets the
+ * modules it runs from the `create` functions, which supply their repositories, so it does not
+ * handle the repositories itself.
+ */
 @Suppress("LongParameterList")
 class PlaybackComponents @Inject constructor(
     val queueSync: QueueSyncEngine,
     val bridge: PlaybackServiceBridge,
-    val scrobbles: ScrobbleRepository,
-    val starRatings: StarRatingRepository,
-    val library: LibraryRepository,
-    val snapshots: QueueSnapshotRepository,
+    private val scrobbles: ScrobbleRepository,
+    private val starRatings: StarRatingRepository,
+    private val library: LibraryRepository,
+    private val snapshots: QueueSnapshotRepository,
     val preferences: UserPreferencesRepository,
     val cacheEvictor: AdjustableLruCacheEvictor,
     /** Android Auto browsing and search. */
-    val mediaBrowse: MediaBrowseRepository,
-    val albumShuffle: AlbumShuffleRepository,
+    private val mediaBrowse: MediaBrowseRepository,
+    private val albumShuffle: AlbumShuffleRepository,
     /** "Play albums" / "Shuffle albums" feeds, persisted with the queue. */
-    val albumFeeds: AlbumFeedRepository,
-    val search: SearchRepository,
+    private val albumFeeds: AlbumFeedRepository,
+    private val search: SearchRepository,
     private val offlineMode: OfflineModeRepository,
     private val downloads: DownloadRepository,
     /** Widgets. */
@@ -72,14 +80,15 @@ class PlaybackComponents @Inject constructor(
     private val resolver: SegueUriResolver,
     private val network: NetworkMonitor,
     private val okHttpClient: OkHttpClient,
-    @ApplicationScope val appScope: CoroutineScope,
+    @ApplicationScope private val appScope: CoroutineScope,
     @Dispatcher(SegueDispatchers.Main) val mainDispatcher: CoroutineDispatcher,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) {
     val networkType get() = network.networkType
 
-    /** What is downloaded, while offline; null online. For browse lists that narrow offline. */
-    suspend fun downloadedWhileOffline(): DownloadedLibrary? = offlineMode.downloadedWhileOffline(downloads).first()
+    /** What is downloaded, while offline; null online. Everything the service queues is narrowed to it. */
+    private suspend fun downloadedWhileOffline(): DownloadedLibrary? =
+        offlineMode.downloadedWhileOffline(downloads).first()
 
     /**
      * ExoPlayer for music: audio focus, pause on headphone unplug, a CPU wake lock while playing
@@ -136,6 +145,24 @@ class PlaybackComponents @Inject constructor(
             .setDataSourceFactory(ResolvingDataSource.Factory(OkHttpDataSource.Factory(okHttpClient), resolver))
             .build(),
     )
+
+    fun createQueueEditor(player: SeguePlayer) = QueueEditor(player, offline = ::downloadedWhileOffline)
+
+    fun createAlbumFeed(player: SeguePlayer, editor: QueueEditor, scope: CoroutineScope) =
+        AlbumFeedController(player, editor, albumShuffle, albumFeeds, scope, offline = ::downloadedWhileOffline)
+
+    fun createSavedQueueLoader(player: SeguePlayer, editor: QueueEditor) =
+        SavedQueueLoader(player, queueSync, snapshots, library, editor)
+
+    /** [scope] is the player's; the server call runs in the app's, so it outlives the service. */
+    fun createFavoriteToggle(player: SeguePlayer, scope: CoroutineScope, onChanged: () -> Unit) =
+        FavoriteToggle(player, starRatings, callScope = appScope, playerScope = scope, onChanged)
+
+    /** [scope] is the player's; submissions run in the app's, so they outlive the service. */
+    fun createScrobbler(player: SeguePlayer, scope: CoroutineScope) = Scrobbler(player, scrobbles, scope, appScope)
+
+    fun createSessionLibrary(context: Context, scope: CoroutineScope) =
+        SessionLibrary(context, scope, mediaBrowse, search)
 
     fun createPrefetcher(scope: CoroutineScope) =
         NextTrackPrefetcher(scope, ioDispatcher, cacheDataSourceFactory, resolver, network)

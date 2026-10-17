@@ -3,11 +3,17 @@ package com.quantumff.segue.feature.nowplaying
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.exceptionOrNull
+import com.quantumff.segue.core.data.getOrNull
+import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
+import com.quantumff.segue.core.model.InstantMixSeed
+import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
 import com.quantumff.segue.core.playback.PlaybackController
@@ -16,10 +22,8 @@ import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
 import com.quantumff.segue.feature.nowplaying.lyrics.PlaybackSample
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,14 +34,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-/** One-off messages, shown as snackbars. */
-enum class NowPlayingMessage {
-    InstantMixFailed,
-}
 
 /**
  * Now Playing: the player state plus what the library and server know about the current track.
@@ -51,6 +49,7 @@ class NowPlayingViewModel @Inject constructor(
     private val lyricsRepository: LyricsRepository,
     private val artists: ArtistRepository,
     private val fileInfo: SongFileInfoRepository,
+    private val playIntents: PlayIntents,
 ) : ViewModel() {
     private val currentSongId: Flow<String?> = playback.eventState
         .map { it.currentItem?.songId }
@@ -131,9 +130,6 @@ class NowPlayingViewModel @Inject constructor(
         .holdLastNonNull(RelatedUiState.Loading)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
-    private val messageChannel = Channel<NowPlayingMessage>(Channel.BUFFERED)
-    val messages: Flow<NowPlayingMessage> = messageChannel.receiveAsFlow()
-
     /** Which panels are on screen; lyrics and related songs load only for those. */
     fun setVisiblePanels(panels: Set<NowPlayingPanel>) {
         visiblePanels.value = panels
@@ -153,8 +149,7 @@ class NowPlayingViewModel @Inject constructor(
 
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
 
-    /** Off → All → One → Off. */
-    fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.cycled())
+    fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.next())
 
     fun toggleFavorite() = playback.toggleFavorite()
 
@@ -163,30 +158,28 @@ class NowPlayingViewModel @Inject constructor(
 
     fun cancelSleepTimer() = playback.setSleepTimer(null)
 
-    /** Replaces the queue with an instant mix seeded by the current track. */
+    /**
+     * Replaces the queue with an instant mix seeded by the current track. Like every play intent
+     * ([PlayIntents]), it is refused offline and reports why it did not start.
+     */
     fun startInstantMix() {
         val songId = uiState.value.track?.songId ?: return
-        viewModelScope.launch {
-            val started = try {
-                val seed = library.songsByIds(listOf(songId)).firstOrNull()
-                seed != null && playback.playInstantMix(seed)
-            } catch (e: RemoteException) {
-                Log.w(TAG, "Instant mix failed", e)
-                false
-            }
-            if (!started) messageChannel.send(NowPlayingMessage.InstantMixFailed)
-        }
+        viewModelScope.launch { playIntents.instantMix(InstantMixSeed.OfLibrarySong(songId)) }
     }
 
     /** Plays the related songs from [index]. */
     fun playRelated(index: Int) {
         val songs = (related.value as? RelatedUiState.Loaded)?.songs ?: return
-        playback.play(songs, startIndex = index, shuffle = false)
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index)) }
     }
 
-    fun playNext(song: Song) = playback.playNext(listOf(song))
+    fun playNext(song: Song) {
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(listOf(song)), QueuePlacement.Next) }
+    }
 
-    fun addToQueue(songs: List<Song>) = playback.addToQueue(songs)
+    fun addToQueue(songs: List<Song>) {
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs), QueuePlacement.End) }
+    }
 
     private fun loadLyrics(songId: String): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)
@@ -208,16 +201,9 @@ class NowPlayingViewModel @Inject constructor(
         emit(if (songs == null) RelatedUiState.Error else RelatedUiState.Loaded(songs.toImmutableList()))
     }
 
-    private suspend fun <T> loadOrNull(what: String, block: suspend () -> T): T? = try {
-        block()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: RemoteException) {
-        Log.w(TAG, "Could not load $what", e)
-        null
-    }
-
-    private inline fun <reified E : Enum<E>> E.cycled(): E = enumValues<E>().let { it[(ordinal + 1) % it.size] }
+    private inline fun <T> loadOrNull(what: String, block: () -> T): T? = remoteOutcome(block)
+        .also { outcome -> outcome.exceptionOrNull()?.let { Log.w(TAG, "Could not load $what", it) } }
+        .getOrNull()
 
     private companion object {
         const val TAG = "NowPlayingViewModel"

@@ -2,18 +2,15 @@ package com.quantumff.segue.core.datastore
 
 import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.quantumff.segue.core.model.AccentPreset
-import com.quantumff.segue.core.model.AccentSource
-import com.quantumff.segue.core.model.ReplayGainMode
-import com.quantumff.segue.core.model.ReplayGainTarget
+import com.quantumff.segue.core.model.RecentSearches
 import com.quantumff.segue.core.model.StreamingQuality
-import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import java.util.UUID
 import javax.inject.Inject
@@ -22,82 +19,48 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 class UserPreferencesDataSource @Inject constructor(private val dataStore: DataStore<Preferences>) {
-    val preferences: Flow<UserPreferences> = dataStore.data.map { prefs ->
-        val defaults = UserPreferences()
-        UserPreferences(
-            themeMode = prefs.enum(Keys.ThemeMode, defaults.themeMode),
-            accentSource = prefs.enum(Keys.AccentSource, defaults.accentSource),
-            accentPreset = prefs.enum(Keys.AccentPreset, defaults.accentPreset),
-            wifiStreamingQuality = StreamingQuality(
-                maxBitRateKbps = prefs[Keys.WifiMaxBitRate] ?: defaults.wifiStreamingQuality.maxBitRateKbps,
-                format = prefs[Keys.WifiFormat] ?: defaults.wifiStreamingQuality.format,
-            ),
-            cellularStreamingQuality = StreamingQuality(
-                maxBitRateKbps = prefs[Keys.CellularMaxBitRate] ?: defaults.cellularStreamingQuality.maxBitRateKbps,
-                format = prefs[Keys.CellularFormat] ?: defaults.cellularStreamingQuality.format,
-            ),
-            queueSyncEnabled = prefs[Keys.QueueSyncEnabled] ?: defaults.queueSyncEnabled,
-            adoptRemoteQueueAutomatically = prefs[Keys.AdoptRemoteQueue] ?: defaults.adoptRemoteQueueAutomatically,
-            replayGainMode = prefs.enum(Keys.ReplayGainMode, defaults.replayGainMode),
-            replayGainTarget = prefs.enum(Keys.ReplayGainTarget, defaults.replayGainTarget),
-            replayGainBoost = prefs[Keys.ReplayGainBoost] ?: defaults.replayGainBoost,
-            streamCacheSizeMb = prefs[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
-            stopWhenPausedMinutes = prefs[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
-        )
-    }.distinctUntilChanged()
+    val preferences: Flow<UserPreferences> = dataStore.data.map { it.toUserPreferences() }.distinctUntilChanged()
 
     /** Recent search queries, newest first. */
     val recentSearches: Flow<List<String>> = dataStore.data
-        .map { prefs -> prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR)?.filter { it.isNotEmpty() }.orEmpty() }
+        .map { it.recentSearches() }
         .distinctUntilChanged()
 
-    suspend fun setThemeMode(mode: ThemeMode) = set(Keys.ThemeMode, mode.name)
-
-    suspend fun setAccentSource(source: AccentSource) = set(Keys.AccentSource, source.name)
-
-    suspend fun setAccentPreset(preset: AccentPreset) = set(Keys.AccentPreset, preset.name)
-
-    suspend fun setWifiStreamingQuality(quality: StreamingQuality) {
-        dataStore.edit { it.putQuality(Keys.WifiMaxBitRate, Keys.WifiFormat, quality) }
-    }
-
-    suspend fun setCellularStreamingQuality(quality: StreamingQuality) {
-        dataStore.edit { it.putQuality(Keys.CellularMaxBitRate, Keys.CellularFormat, quality) }
-    }
-
-    suspend fun setQueueSyncEnabled(enabled: Boolean) = set(Keys.QueueSyncEnabled, enabled)
-
-    suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean) = set(Keys.AdoptRemoteQueue, enabled)
-
-    suspend fun setReplayGainMode(mode: ReplayGainMode) = set(Keys.ReplayGainMode, mode.name)
-
-    suspend fun setReplayGainTarget(target: ReplayGainTarget) = set(Keys.ReplayGainTarget, target.name)
-
-    suspend fun setReplayGainBoost(enabled: Boolean) = set(Keys.ReplayGainBoost, enabled)
-
-    suspend fun setStreamCacheSizeMb(sizeMb: Int) = set(Keys.StreamCacheSizeMb, sizeMb)
-
-    suspend fun setStopWhenPausedMinutes(minutes: Int) = set(Keys.StopWhenPausedMinutes, minutes)
-
-    /** Moves [query] to the front of the recent searches, keeping at most [MAX_RECENT_SEARCHES]. */
-    suspend fun addRecentSearch(query: String) {
-        val clean = query.trim().replace(RECENT_SEPARATOR, " ")
-        if (clean.isEmpty()) return
+    /**
+     * Applies [transform] to the stored preferences in one transaction. Only fields it changes are
+     * written, so untouched settings keep following the model defaults.
+     */
+    suspend fun update(transform: (UserPreferences) -> UserPreferences) {
         dataStore.edit { prefs ->
-            val current = prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR).orEmpty()
-            val updated = (listOf(clean) + current.filterNot { it.equals(clean, ignoreCase = true) })
-                .filter { it.isNotEmpty() }
-                .take(MAX_RECENT_SEARCHES)
-            prefs[Keys.RecentSearches] = updated.joinToString(RECENT_SEPARATOR)
+            val old = prefs.toUserPreferences()
+            val new = transform(old)
+            prefs.putIfChanged(Keys.ThemeMode, old.themeMode, new.themeMode) { it.name }
+            prefs.putIfChanged(Keys.AccentSource, old.accentSource, new.accentSource) { it.name }
+            prefs.putIfChanged(Keys.AccentPreset, old.accentPreset, new.accentPreset) { it.name }
+            if (new.wifiStreamingQuality != old.wifiStreamingQuality) {
+                prefs.putQuality(Keys.WifiMaxBitRate, Keys.WifiFormat, new.wifiStreamingQuality)
+            }
+            if (new.cellularStreamingQuality != old.cellularStreamingQuality) {
+                prefs.putQuality(Keys.CellularMaxBitRate, Keys.CellularFormat, new.cellularStreamingQuality)
+            }
+            prefs.putIfChanged(Keys.QueueSyncEnabled, old.queueSyncEnabled, new.queueSyncEnabled)
+            prefs.putIfChanged(
+                Keys.AdoptRemoteQueue,
+                old.adoptRemoteQueueAutomatically,
+                new.adoptRemoteQueueAutomatically,
+            )
+            prefs.putIfChanged(Keys.ReplayGainMode, old.replayGainMode, new.replayGainMode) { it.name }
+            prefs.putIfChanged(Keys.ReplayGainTarget, old.replayGainTarget, new.replayGainTarget) { it.name }
+            prefs.putIfChanged(Keys.ReplayGainBoost, old.replayGainBoost, new.replayGainBoost)
+            prefs.putIfChanged(Keys.StreamCacheSizeMb, old.streamCacheSizeMb, new.streamCacheSizeMb)
+            prefs.putIfChanged(Keys.StopWhenPausedMinutes, old.stopWhenPausedMinutes, new.stopWhenPausedMinutes)
         }
     }
 
-    suspend fun removeRecentSearch(query: String) {
-        dataStore.edit { prefs ->
-            val current = prefs[Keys.RecentSearches]?.split(RECENT_SEPARATOR).orEmpty()
-            prefs[Keys.RecentSearches] = current.filterNot { it == query }.joinToString(RECENT_SEPARATOR)
-        }
-    }
+    /** Moves [query] to the front of the recent searches. See [RecentSearches.add]. */
+    suspend fun addRecentSearch(query: String) = editRecentSearches { RecentSearches.add(it, query) }
+
+    suspend fun removeRecentSearch(query: String) = editRecentSearches { RecentSearches.remove(it, query) }
 
     /**
      * A random ID for this install, created on first call and then stable. Queue sync uses it to
@@ -111,11 +74,53 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         return checkNotNull(id)
     }
 
-    private suspend fun <T> set(key: Preferences.Key<T>, value: T) {
-        dataStore.edit { it[key] = value }
+    private suspend fun editRecentSearches(transform: (List<String>) -> List<String>) {
+        dataStore.edit { prefs ->
+            prefs[Keys.RecentSearches] = transform(prefs.recentSearches()).joinToString(RecentSearches.SEPARATOR)
+        }
     }
 
-    private fun androidx.datastore.preferences.core.MutablePreferences.putQuality(
+    private fun Preferences.recentSearches(): List<String> =
+        this[Keys.RecentSearches]?.split(RecentSearches.SEPARATOR)?.filter { it.isNotEmpty() }.orEmpty()
+
+    private fun Preferences.toUserPreferences(): UserPreferences {
+        val defaults = UserPreferences()
+        return UserPreferences(
+            themeMode = enum(Keys.ThemeMode, defaults.themeMode),
+            accentSource = enum(Keys.AccentSource, defaults.accentSource),
+            accentPreset = enum(Keys.AccentPreset, defaults.accentPreset),
+            wifiStreamingQuality = StreamingQuality(
+                maxBitRateKbps = this[Keys.WifiMaxBitRate] ?: defaults.wifiStreamingQuality.maxBitRateKbps,
+                format = this[Keys.WifiFormat] ?: defaults.wifiStreamingQuality.format,
+            ),
+            cellularStreamingQuality = StreamingQuality(
+                maxBitRateKbps = this[Keys.CellularMaxBitRate] ?: defaults.cellularStreamingQuality.maxBitRateKbps,
+                format = this[Keys.CellularFormat] ?: defaults.cellularStreamingQuality.format,
+            ),
+            queueSyncEnabled = this[Keys.QueueSyncEnabled] ?: defaults.queueSyncEnabled,
+            adoptRemoteQueueAutomatically = this[Keys.AdoptRemoteQueue] ?: defaults.adoptRemoteQueueAutomatically,
+            replayGainMode = enum(Keys.ReplayGainMode, defaults.replayGainMode),
+            replayGainTarget = enum(Keys.ReplayGainTarget, defaults.replayGainTarget),
+            replayGainBoost = this[Keys.ReplayGainBoost] ?: defaults.replayGainBoost,
+            streamCacheSizeMb = this[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
+            stopWhenPausedMinutes = this[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
+        )
+    }
+
+    private fun <T> MutablePreferences.putIfChanged(key: Preferences.Key<T>, old: T, new: T) {
+        if (new != old) this[key] = new
+    }
+
+    private inline fun <T, S> MutablePreferences.putIfChanged(
+        key: Preferences.Key<S>,
+        old: T,
+        new: T,
+        encode: (T) -> S,
+    ) {
+        if (new != old) this[key] = encode(new)
+    }
+
+    private fun MutablePreferences.putQuality(
         bitRateKey: Preferences.Key<Int>,
         formatKey: Preferences.Key<String>,
         quality: StreamingQuality,
@@ -153,8 +158,5 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     companion object {
         /** Run by the preferences DataStore before its first read. */
         val MIGRATIONS: List<DataMigration<Preferences>> = listOf(ReplayGainPreampMigration)
-
-        private const val RECENT_SEPARATOR = "\n"
-        private const val MAX_RECENT_SEARCHES = 10
     }
 }

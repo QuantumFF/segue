@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
@@ -50,8 +51,6 @@ import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -67,8 +66,8 @@ import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
-import com.quantumff.segue.core.model.AlbumSource
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
@@ -81,13 +80,11 @@ fun PlaylistScreen(
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val playlistId = uiState.playlist?.id
     val currentOnBackClick by rememberUpdatedState(onBackClick)
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) currentOnBackClick()
@@ -95,22 +92,13 @@ fun PlaylistScreen(
     PlaylistScreenContent(
         uiState = uiState,
         onBackClick = onBackClick,
-        onPlayClick = { shuffle -> playActions.onPlaySongs(uiState.songs, 0, shuffle) },
-        onShuffleAlbumsClick = { playlistId?.let { playActions.shuffleAlbums(AlbumSource.Playlist(it)) } },
-        onTrackClick = { index -> playActions.onPlaySongs(uiState.songs, index, false) },
+        onPlayClick = { shuffle -> viewModel.play(shuffle = shuffle) },
+        onShuffleAlbumsClick = viewModel::shuffleAlbums,
+        onTrackClick = { index -> viewModel.play(startIndex = index) },
         onTrackAction = { index, song, action ->
-            when (action) {
-                MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-                MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-                MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-                MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-                MediaAction.Favorite, MediaAction.Unfavorite -> viewModel.toggleStar(song)
-                MediaAction.GoToAlbum -> song.albumId?.let(onAlbumClick)
-                MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-                MediaAction.RemoveFromPlaylist -> viewModel.removeAt(index)
-                MediaAction.Download -> viewModel.downloadSong(song)
-                else -> Unit
-            }
+            // Remove from playlist, the one action of this screen's own, removes the row at index.
+            val host = MediaActionHost(onAlbumClick, onArtistClick, onAddToPlaylist) { viewModel.removeAt(index) }
+            viewModel.onSongAction(song, action, host)
         },
         onEditClick = viewModel::startEditing,
         onCancelEditClick = viewModel::cancelEditing,
@@ -224,7 +212,7 @@ fun PlaylistScreenContent(
                 }
             },
         ) {
-            if (uiState.loadState == LoadState.Failed && playlist != null) {
+            if (uiState.isOffline && playlist != null) {
                 item(key = "offline", contentType = "offline") {
                     Box(
                         modifier = Modifier
@@ -268,8 +256,8 @@ fun PlaylistScreenContent(
                     key = { _, entry -> entry.key },
                     contentType = { _, _ -> "track" },
                 ) { index, entry ->
-                    val download = uiState.songDownloads[entry.song.id]
-                    val available = uiState.isAvailable(entry.song)
+                    val download = uiState.availability.downloads[entry.song.id]
+                    val available = uiState.availability.isAvailable(entry.song)
                     TrackRow(
                         state = remember(entry, download, available) {
                             entry.song.toTrackRowState(

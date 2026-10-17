@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
@@ -47,8 +48,6 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
-import com.quantumff.segue.core.designsystem.component.MediaAction
-import com.quantumff.segue.core.designsystem.component.MediaActions
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.PlayButton
@@ -60,6 +59,7 @@ import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -73,10 +73,10 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.Album
-import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.ExplicitStatus
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -90,31 +90,31 @@ fun AlbumDetailRoute(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlbumViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onArtistClick, onAddToPlaylist) {
+        MediaActionHost(onArtistClick = onArtistClick, onAddToPlaylist = onAddToPlaylist)
+    }
     AlbumScreen(
         state = state,
-        playActions = playActions,
         onBackClick = onBackClick,
         onAlbumClick = onAlbumClick,
         onArtistClick = onArtistClick,
         onGenreClick = onGenreClick,
-        onAddToPlaylist = onAddToPlaylist,
-        onPlay = { index, shuffle -> viewModel.play(playActions, index, shuffle) },
-        onShuffleAlbums = { viewModel.shuffleAlbums(playActions, it) },
+        onPlay = viewModel::play,
+        onShuffleAlbums = viewModel::shuffleAlbums,
         onToggleStar = viewModel::toggleAlbumStar,
-        onToggleSongStar = viewModel::toggleSongStar,
         onRatingChange = viewModel::setRating,
         onRetry = viewModel::refresh,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
         onDownload = viewModel::download,
         onRemoveDownload = viewModel::removeDownload,
-        onDownloadSong = viewModel::downloadSong,
+        onAlbumAction = { viewModel.onAlbumAction(it, menuHost) },
+        onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
     )
 }
 
@@ -123,23 +123,21 @@ fun AlbumDetailRoute(
 @Composable
 fun AlbumScreen(
     state: AlbumUiState,
-    playActions: PlayActions,
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
     onPlay: (startIndex: Int, shuffle: Boolean) -> Unit,
     onShuffleAlbums: (ShuffleAlbumsOption) -> Unit,
     onToggleStar: () -> Unit,
-    onToggleSongStar: (Song) -> Unit,
     onRatingChange: (Int) -> Unit,
     onRetry: () -> Unit,
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onDownload: () -> Unit = {},
     onRemoveDownload: () -> Unit = {},
-    onDownloadSong: (Song) -> Unit = {},
+    onAlbumAction: (MediaAction) -> Unit = {},
+    onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -165,21 +163,19 @@ fun AlbumScreen(
 
             is AlbumUiState.Success -> AlbumContent(
                 state = state,
-                playActions = playActions,
                 onBackClick = onBackClick,
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
                 onGenreClick = onGenreClick,
-                onAddToPlaylist = onAddToPlaylist,
                 onPlay = onPlay,
                 onShuffleAlbums = onShuffleAlbums,
                 onToggleStar = onToggleStar,
-                onToggleSongStar = onToggleSongStar,
                 onRatingChange = onRatingChange,
                 onRetry = onRetry,
                 onDownload = onDownload,
                 onRemoveDownload = onRemoveDownload,
-                onDownloadSong = onDownloadSong,
+                onAlbumAction = onAlbumAction,
+                onSongAction = onSongAction,
             )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -189,9 +185,8 @@ fun AlbumScreen(
     val messageText = message?.let {
         stringResource(
             when (it) {
-                AlbumMessage.FavoriteFailed -> R.string.feature_album_favorite_failed
+                is AlbumMessage.ActionFailed -> it.failure.text
                 AlbumMessage.RatingFailed -> R.string.feature_album_rating_failed
-                AlbumMessage.DownloadFailed -> R.string.feature_album_download_failed
             },
         )
     }
@@ -208,21 +203,19 @@ fun AlbumScreen(
 @Composable
 private fun AlbumContent(
     state: AlbumUiState.Success,
-    playActions: PlayActions,
     onBackClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
     onPlay: (startIndex: Int, shuffle: Boolean) -> Unit,
     onShuffleAlbums: (ShuffleAlbumsOption) -> Unit,
     onToggleStar: () -> Unit,
-    onToggleSongStar: (Song) -> Unit,
     onRatingChange: (Int) -> Unit,
     onRetry: () -> Unit,
     onDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
-    onDownloadSong: (Song) -> Unit,
+    onAlbumAction: (MediaAction) -> Unit,
+    onSongAction: (Song, MediaAction) -> Unit,
 ) {
     val album = state.album
     var albumMenuOpen by rememberSaveable { mutableStateOf(false) }
@@ -305,19 +298,7 @@ private fun AlbumContent(
                 hasArtist = album.artistId != null,
                 isDownloaded = state.download != null,
             ),
-            onAction = { action ->
-                handleAlbumAction(
-                    action = action,
-                    state = state,
-                    playActions = playActions,
-                    onPlay = onPlay,
-                    onToggleStar = onToggleStar,
-                    onArtistClick = onArtistClick,
-                    onAddToPlaylist = onAddToPlaylist,
-                    onDownload = onDownload,
-                    onRemoveDownload = onRemoveDownload,
-                )
-            },
+            onAction = onAlbumAction,
             onDismissRequest = { albumMenuOpen = false },
         )
     }
@@ -345,17 +326,7 @@ private fun AlbumContent(
                 hasAlbum = false,
                 hasArtist = song.artistId != null,
             ),
-            onAction = { action ->
-                handleSongAction(
-                    action,
-                    song,
-                    playActions,
-                    onToggleSongStar,
-                    onArtistClick,
-                    onAddToPlaylist,
-                    { onDownloadSong(song) },
-                )
-            },
+            onAction = { onSongAction(song, it) },
             onDismissRequest = { menuSongId = null },
         )
     }
@@ -369,8 +340,8 @@ private fun LazyListScope.trackItems(state: AlbumUiState.Success, onPlay: (Int) 
             }
         }
         items(items = disc.tracks, key = { "track-${it.index}-${it.song.id}" }, contentType = { "track" }) { entry ->
-            val download = state.songDownloads[entry.song.id]
-            val available = state.isAvailable(entry.song)
+            val download = state.availability.downloads[entry.song.id]
+            val available = state.availability.isAvailable(entry.song)
             val row = remember(entry.song, download, available) {
                 entry.song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
             }
@@ -551,69 +522,6 @@ private fun MessageWithBackBar(onBackClick: () -> Unit, content: @Composable () 
     }
 }
 
-/** Album ⋮ menu actions (DESIGN.md §5.7). */
-@Suppress("LongParameterList")
-internal fun handleAlbumAction(
-    action: MediaAction,
-    state: AlbumUiState.Success,
-    playActions: PlayActions,
-    onPlay: (startIndex: Int, shuffle: Boolean) -> Unit,
-    onToggleStar: () -> Unit,
-    onArtistClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
-    onDownload: () -> Unit,
-    onRemoveDownload: () -> Unit = {},
-) {
-    val artistId = state.album.artistId
-    when (action) {
-        MediaAction.Play -> onPlay(0, false)
-
-        MediaAction.Shuffle -> onPlay(0, true)
-
-        MediaAction.ShuffleArtistAlbums, MediaAction.ShuffleAlbums ->
-            artistId?.let { playActions.shuffleAlbums(AlbumSource.Artist(it)) }
-
-        MediaAction.PlayNext -> if (state.songs.isNotEmpty()) playActions.onPlayNext(state.songs)
-
-        MediaAction.AddToQueue -> if (state.songs.isNotEmpty()) playActions.onAddToQueue(state.songs)
-
-        MediaAction.AddToPlaylist -> if (state.songs.isNotEmpty()) onAddToPlaylist(state.songs.map { it.id })
-
-        MediaAction.Favorite, MediaAction.Unfavorite -> onToggleStar()
-
-        MediaAction.GoToArtist -> artistId?.let(onArtistClick)
-
-        MediaAction.Download -> onDownload()
-
-        MediaAction.RemoveDownload -> onRemoveDownload()
-
-        else -> Unit
-    }
-}
-
-/** Track ⋮ menu actions (DESIGN.md §5.7). */
-@Suppress("LongParameterList")
-internal fun handleSongAction(
-    action: MediaAction,
-    song: Song,
-    playActions: PlayActions,
-    onToggleSongStar: (Song) -> Unit,
-    onArtistClick: (String) -> Unit,
-    onAddToPlaylist: (List<String>) -> Unit,
-    onDownload: () -> Unit,
-) {
-    when (action) {
-        MediaAction.PlayNext -> playActions.onPlayNext(listOf(song))
-        MediaAction.AddToQueue -> playActions.onAddToQueue(listOf(song))
-        MediaAction.InstantMix -> playActions.onStartInstantMix(song)
-        MediaAction.AddToPlaylist -> onAddToPlaylist(listOf(song.id))
-        MediaAction.Favorite, MediaAction.Unfavorite -> onToggleSongStar(song)
-        MediaAction.GoToArtist -> song.artistId?.let(onArtistClick)
-        MediaAction.Download -> onDownload()
-        else -> Unit
-    }
-}
-
 private const val SECONDS_PER_MINUTE = 60L
 private const val SKELETON_ROWS = 8
 private val SKELETON_TOP = SegueSizes.topBar * 2
@@ -672,16 +580,13 @@ private fun AlbumScreenPreview() {
     SeguePreview {
         AlbumScreen(
             state = PreviewAlbumState,
-            playActions = PlayActions.None,
             onBackClick = {},
             onAlbumClick = {},
             onArtistClick = {},
             onGenreClick = {},
-            onAddToPlaylist = {},
             onPlay = { _, _ -> },
             onShuffleAlbums = {},
             onToggleStar = {},
-            onToggleSongStar = {},
             onRatingChange = {},
             onRetry = {},
             onMessageDismiss = {},
@@ -695,16 +600,13 @@ private fun AlbumScreenErrorPreview() {
     SeguePreview {
         AlbumScreen(
             state = AlbumUiState.Error,
-            playActions = PlayActions.None,
             onBackClick = {},
             onAlbumClick = {},
             onArtistClick = {},
             onGenreClick = {},
-            onAddToPlaylist = {},
             onPlay = { _, _ -> },
             onShuffleAlbums = {},
             onToggleStar = {},
-            onToggleSongStar = {},
             onRatingChange = {},
             onRetry = {},
             onMessageDismiss = {},

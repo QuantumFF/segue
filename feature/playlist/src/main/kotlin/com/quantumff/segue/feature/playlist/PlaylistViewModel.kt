@@ -4,23 +4,27 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
-import com.quantumff.segue.core.data.repository.StarRatingRepository
-import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
+import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,7 +41,7 @@ enum class LoadState {
     Loading,
     Loaded,
 
-    /** The refresh failed: cached rows (if any) are shown with an offline chip. */
+    /** The refresh failed: cached rows (if any) stay; with none, the screen shows an error. */
     Failed,
 }
 
@@ -46,6 +50,8 @@ data class PlaylistUiState(
     /** The saved order, or the working order while [isEditing]. */
     val entries: ImmutableList<PlaylistEntry> = persistentListOf(),
     val loadState: LoadState = LoadState.Loading,
+    /** The refresh could not reach the server: cached rows show with the offline chip. */
+    val isOffline: Boolean = false,
     val isEditing: Boolean = false,
     val isSaving: Boolean = false,
     /** Set once the playlist was deleted from this screen; the screen then navigates back. */
@@ -53,13 +59,9 @@ data class PlaylistUiState(
     val message: PlaylistMessage? = null,
     /** The playlist's pin status; null when it is not pinned for offline. */
     val download: DownloadStatus? = null,
-    /** Downloads by song ID, for row badges. */
-    val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
-    /** Offline mode: rows of songs that are not downloaded are dimmed and do not play. */
-    val isOfflineMode: Boolean = false,
+    /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
+    val availability: SongAvailability = SongAvailability(),
 ) {
-    fun isAvailable(song: Song): Boolean = !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
-
     /** Only the owner's playlists can be edited, renamed or deleted. */
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
 
@@ -74,9 +76,10 @@ data class PlaylistUiState(
 class PlaylistViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistRepository: PlaylistRepository,
-    private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
     private val local = MutableStateFlow(LocalState())
@@ -85,17 +88,11 @@ class PlaylistViewModel @Inject constructor(
         playlistRepository.playlist(playlistId),
         playlistRepository.playlistSongs(playlistId),
         local,
-        combine(
-            downloadRepository.pinStatus(PinKind.Playlist, playlistId),
-            downloadRepository.songDownloads,
-            offlineModeRepository.isOffline,
-            ::Triple,
-        ),
-    ) { playlist, songs, local, (download, songDownloads, offline) ->
+        combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
+    ) { playlist, songs, local, (download, availability) ->
         PlaylistUiState(
             download = download,
-            songDownloads = songDownloads,
-            isOfflineMode = offline,
+            availability = availability,
             playlist = playlist,
             entries = local.working ?: songs.toEntries(),
             loadState = when {
@@ -103,6 +100,7 @@ class PlaylistViewModel @Inject constructor(
                 playlist == null && local.refreshing -> LoadState.Loading
                 else -> LoadState.Loaded
             },
+            isOffline = local.refreshOffline,
             isEditing = local.working != null,
             isSaving = local.saving,
             isDeleted = local.deleted,
@@ -115,10 +113,16 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun refresh() {
-        local.update { it.copy(refreshing = true, refreshFailed = false) }
+        local.update { it.copy(refreshing = true, refreshFailed = false, refreshOffline = false) }
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.refreshPlaylist(playlistId) }
-            local.update { it.copy(refreshing = false, refreshFailed = failed) }
+            val outcome = remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }
+            local.update {
+                it.copy(
+                    refreshing = false,
+                    refreshFailed = outcome.isFailure,
+                    refreshOffline = outcome.showsOfflineChip,
+                )
+            }
         }
     }
 
@@ -151,7 +155,9 @@ class PlaylistViewModel @Inject constructor(
         if (local.value.saving) return
         local.update { it.copy(saving = true) }
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.replaceSongs(playlistId, working.map { it.song.id }) }
+            val failed = remoteOutcome {
+                playlistRepository.replaceSongs(playlistId, working.map { it.song.id })
+            }.isFailure
             local.update {
                 if (failed) {
                     it.copy(saving = false, message = PlaylistMessage.SaveFailed)
@@ -169,7 +175,7 @@ class PlaylistViewModel @Inject constructor(
 
     fun delete() {
         viewModelScope.launch {
-            val failed = runRemote { playlistRepository.deletePlaylist(playlistId) }
+            val failed = remoteOutcome { playlistRepository.deletePlaylist(playlistId) }.isFailure
             local.update { if (failed) it.copy(message = PlaylistMessage.Failed) else it.copy(deleted = true) }
         }
     }
@@ -177,30 +183,46 @@ class PlaylistViewModel @Inject constructor(
     /** Pins the playlist for offline use; it then follows the server copy on every library sync. */
     fun download() {
         val playlist = uiState.value.playlist ?: return
-        write { downloadRepository.pin(PinTarget(PinKind.Playlist, playlist.id, playlist.name, playlist.coverArtId)) }
+        write { downloadRepository.pin(PinTarget.of(playlist)) }
     }
 
     fun removeDownload() {
         viewModelScope.launch { downloadRepository.unpin(PinKind.Playlist, playlistId) }
     }
 
-    fun downloadSong(song: Song) = write {
-        downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId))
+    /** Plays the playlist as shown from [startIndex]; [shuffle] shuffles its tracks. */
+    fun play(startIndex: Int = 0, shuffle: Boolean = false) {
+        val songs = uiState.value.songs.ifEmpty { return }
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, startIndex), shuffle = shuffle) }
     }
 
-    fun toggleStar(song: Song) = write { starRatingRepository.setStarred(MediaKind.Song, song.id, !song.isStarred) }
+    /** The playlist's "Shuffle albums": its tracks grouped by album. */
+    fun shuffleAlbums() {
+        val request = AlbumPlayRequest(AlbumSource.Playlist(playlistId), AlbumOrder.Shuffled)
+        viewModelScope.launch { playIntents.playAlbums(request) }
+    }
+
+    /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
+    fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {
+        viewModelScope.launch {
+            if (mediaActions.song(song, action, host) != null) {
+                local.update { it.copy(message = PlaylistMessage.Failed) }
+            }
+        }
+    }
 
     fun onMessageDismiss() = local.update { it.copy(message = null) }
 
     private fun write(block: suspend () -> Unit) {
         viewModelScope.launch {
-            if (runRemote(block)) local.update { it.copy(message = PlaylistMessage.Failed) }
+            if (remoteOutcome { block() }.isFailure) local.update { it.copy(message = PlaylistMessage.Failed) }
         }
     }
 
     private data class LocalState(
         val refreshing: Boolean = false,
         val refreshFailed: Boolean = false,
+        val refreshOffline: Boolean = false,
         /** The working order while editing; null outside edit mode. */
         val working: ImmutableList<PlaylistEntry>? = null,
         val saving: Boolean = false,

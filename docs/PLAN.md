@@ -41,7 +41,7 @@ Its main goals are a rich feature set, excellent performance, and good battery l
   - The queue screen edits exactly what plays.
   - There is no in-place shuffle state to persist, restore or map between orders.
 - This replaces the earlier Off / Tracks / Albums player modes and the custom Media3 `ShuffleOrder` (album blocks, play-order mapping, shuffle persistence in the snapshot, album-block queue headers), which are deleted.
-- "Play albums" and "Shuffle albums" queue whole albums from a source: the Library albums view as sorted and filtered, a genre's album grid, an artist (in the artist page's order), a genre, a playlist, or the whole library (Android Auto's "Shuffle albums" and a voice "play some music" with an empty queue).
+- "Play albums" and "Shuffle albums" queue whole albums from a source: the Library albums view as sorted and filtered, a genre's album grid, an artist (in the artist page's order), a genre (always the albums tagged with it, as its grid lists them), a playlist, or the whole library (Android Auto's "Shuffle albums" and a voice "play some music" with an empty queue).
   - Ordered keeps the source order; shuffled uses a seeded album order. Each album keeps disc and track order.
   - Placement is replace (play now), play next, or add to queue (DESIGN.md §5.9).
 - Large libraries are queued lazily as an **album feed**, run by the playback service:

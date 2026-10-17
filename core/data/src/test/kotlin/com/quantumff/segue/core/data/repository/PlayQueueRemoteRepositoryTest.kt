@@ -2,7 +2,6 @@ package com.quantumff.segue.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.testing.FakeClientProvider
-import com.quantumff.segue.core.data.testing.FakeClock
 import com.quantumff.segue.core.data.testing.FakeSubsonicClient
 import com.quantumff.segue.core.data.testing.SERVER_ID
 import com.quantumff.segue.core.data.testing.inMemoryDatabase
@@ -11,6 +10,7 @@ import com.quantumff.segue.core.data.testing.networkSong
 import com.quantumff.segue.core.model.ServerCapabilities
 import com.quantumff.segue.core.network.model.NetworkPlayQueue
 import com.quantumff.segue.core.network.model.NetworkPlayQueueByIndex
+import com.quantumff.segue.core.testing.repository.FakeServerCapabilitiesRepository
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -30,7 +30,7 @@ class PlayQueueRemoteRepositoryTest {
     fun tearDown() = db.close()
 
     private fun TestScope.repository(indexBased: Boolean): PlayQueueRemoteRepository {
-        server.capabilities = ServerCapabilities.Unknown.copy(
+        val capabilities = ServerCapabilities.Unknown.copy(
             openSubsonic = indexBased,
             extensions = if (indexBased) {
                 persistentMapOf(
@@ -40,16 +40,10 @@ class PlayQueueRemoteRepositoryTest {
                 persistentMapOf()
             },
         )
-        val clients = FakeClientProvider(server)
         val dispatcher = StandardTestDispatcher(testScheduler)
         return SubsonicPlayQueueRemoteRepository(
-            clients = clients,
-            capabilities = CachedServerCapabilitiesRepository(
-                clients,
-                db.serverCapabilitiesDao(),
-                FakeClock(),
-                dispatcher,
-            ),
+            clients = FakeClientProvider(server),
+            capabilities = FakeServerCapabilitiesRepository(mutableMapOf(SERVER_ID to capabilities)),
             deviceClientName = { "Segue-1234abcd" },
             writer = libraryWriter(db),
             ioDispatcher = dispatcher,

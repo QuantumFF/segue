@@ -1,12 +1,6 @@
 package com.quantumff.segue.core.data.repository
 
 import com.quantumff.segue.core.datastore.UserPreferencesDataSource
-import com.quantumff.segue.core.model.AccentPreset
-import com.quantumff.segue.core.model.AccentSource
-import com.quantumff.segue.core.model.ReplayGainMode
-import com.quantumff.segue.core.model.ReplayGainTarget
-import com.quantumff.segue.core.model.StreamingQuality
-import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -18,33 +12,16 @@ import kotlinx.coroutines.flow.map
 interface UserPreferencesRepository {
     val preferences: Flow<UserPreferences>
 
-    suspend fun setThemeMode(mode: ThemeMode)
-
-    suspend fun setAccentSource(source: AccentSource)
-
-    suspend fun setAccentPreset(preset: AccentPreset)
-
-    suspend fun setWifiStreamingQuality(quality: StreamingQuality)
-
-    suspend fun setCellularStreamingQuality(quality: StreamingQuality)
-
-    suspend fun setQueueSyncEnabled(enabled: Boolean)
-
-    suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean)
-
-    suspend fun setReplayGainMode(mode: ReplayGainMode)
-
-    suspend fun setReplayGainTarget(target: ReplayGainTarget)
-
-    suspend fun setReplayGainBoost(enabled: Boolean)
-
-    suspend fun setStreamCacheSizeMb(sizeMb: Int)
-
-    suspend fun setStopWhenPausedMinutes(minutes: Int)
+    /**
+     * Applies [transform] to the current preferences and persists the result atomically, e.g.
+     * `update { it.copy(themeMode = ThemeMode.Dark) }`.
+     */
+    suspend fun update(transform: (UserPreferences) -> UserPreferences)
 
     /** Recent search queries, newest first. */
     val recentSearches: Flow<ImmutableList<String>>
 
+    /** See [com.quantumff.segue.core.model.RecentSearches.add]. */
     suspend fun addRecentSearch(query: String)
 
     suspend fun removeRecentSearch(query: String)
@@ -54,31 +31,7 @@ internal class DataStoreUserPreferencesRepository @Inject constructor(private va
     UserPreferencesRepository {
     override val preferences: Flow<UserPreferences> = source.preferences
 
-    override suspend fun setThemeMode(mode: ThemeMode) = source.setThemeMode(mode)
-
-    override suspend fun setAccentSource(source: AccentSource) = this.source.setAccentSource(source)
-
-    override suspend fun setAccentPreset(preset: AccentPreset) = source.setAccentPreset(preset)
-
-    override suspend fun setWifiStreamingQuality(quality: StreamingQuality) = source.setWifiStreamingQuality(quality)
-
-    override suspend fun setCellularStreamingQuality(quality: StreamingQuality) =
-        source.setCellularStreamingQuality(quality)
-
-    override suspend fun setQueueSyncEnabled(enabled: Boolean) = source.setQueueSyncEnabled(enabled)
-
-    override suspend fun setAdoptRemoteQueueAutomatically(enabled: Boolean) =
-        source.setAdoptRemoteQueueAutomatically(enabled)
-
-    override suspend fun setReplayGainMode(mode: ReplayGainMode) = source.setReplayGainMode(mode)
-
-    override suspend fun setReplayGainTarget(target: ReplayGainTarget) = source.setReplayGainTarget(target)
-
-    override suspend fun setReplayGainBoost(enabled: Boolean) = source.setReplayGainBoost(enabled)
-
-    override suspend fun setStreamCacheSizeMb(sizeMb: Int) = source.setStreamCacheSizeMb(sizeMb)
-
-    override suspend fun setStopWhenPausedMinutes(minutes: Int) = source.setStopWhenPausedMinutes(minutes)
+    override suspend fun update(transform: (UserPreferences) -> UserPreferences) = source.update(transform)
 
     override val recentSearches: Flow<ImmutableList<String>> = source.recentSearches.map { it.toImmutableList() }
 

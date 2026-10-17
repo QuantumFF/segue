@@ -5,7 +5,6 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import com.quantumff.segue.core.model.PlayActions
 import com.quantumff.segue.feature.library.GenreScreen
 import com.quantumff.segue.feature.library.LibraryScreen
 import kotlinx.serialization.Serializable
@@ -28,7 +27,6 @@ fun NavGraphBuilder.libraryScreen(
     onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onDownloadsClick: () -> Unit,
-    playActions: PlayActions,
     onAddToPlaylist: (List<String>) -> Unit,
     downloadsTab: (@Composable () -> Unit)? = null,
 ) {
@@ -40,15 +38,14 @@ fun NavGraphBuilder.libraryScreen(
             onPlaylistClick = onPlaylistClick,
             onGenreClick = onGenreClick,
             onDownloadsClick = onDownloadsClick,
-            playActions = playActions,
             onAddToPlaylist = onAddToPlaylist,
             downloadsTab = downloadsTab,
         )
     }
 }
 
-fun NavGraphBuilder.genreScreen(onBackClick: () -> Unit, onAlbumClick: (String) -> Unit, playActions: PlayActions) {
+fun NavGraphBuilder.genreScreen(onBackClick: () -> Unit, onAlbumClick: (String) -> Unit) {
     composable<GenreRoute> {
-        GenreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick, playActions = playActions)
+        GenreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick)
     }
 }

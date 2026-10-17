@@ -16,45 +16,37 @@ import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.SettableFuture
-import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.QueuePlacement
-import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.browse.SessionLibrary
+import com.quantumff.segue.core.playback.browse.SessionPlay
 import com.quantumff.segue.core.playback.browse.launchFuture
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.megabytes
 import com.quantumff.segue.core.playback.feed.AlbumFeedController
-import com.quantumff.segue.core.playback.media.coverArtId
 import com.quantumff.segue.core.playback.media.isStarred
-import com.quantumff.segue.core.playback.media.toMediaItem
-import com.quantumff.segue.core.playback.media.withPlayableUri
-import com.quantumff.segue.core.playback.media.withStarred
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingSnapshot
 import com.quantumff.segue.core.playback.replaygain.ReplayGainController
 import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
 import com.quantumff.segue.core.playback.replaygain.ReplayGainSettings
-import com.quantumff.segue.core.playback.scrobble.Scrobbler
+import com.quantumff.segue.core.playback.service.FavoriteToggle
+import com.quantumff.segue.core.playback.service.IdleStop
 import com.quantumff.segue.core.playback.service.LoadingWifiLock
 import com.quantumff.segue.core.playback.service.PlaybackComponents
+import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.ScreenOffOffload
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.sleep.SleepTimerController
-import com.quantumff.segue.core.playback.sync.QueueRestore
-import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncListener
+import com.quantumff.segue.core.playback.sync.SavedQueueLoader
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -62,7 +54,8 @@ import kotlinx.coroutines.launch
  *
  * - Media3 runs it in the foreground only while playing; after [UserPreferences.stopWhenPausedMinutes]
  *   paused it stops itself.
- * - At start it restores the local queue snapshot (paused, offline-capable).
+ * - Saved queues reach the player through [SavedQueueLoader]: this device's at start (paused,
+ *   offline-capable) and for playback resumption, and another client's on adoption.
  * - Player events drive queue sync ([com.quantumff.segue.core.playback.sync.QueueSyncEngine]),
  *   scrobbling, ReplayGain, prefetching, and the sleep timer. None of them polls.
  */
@@ -80,10 +73,12 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var sleepTimer: SleepTimerController
     private lateinit var prefetcher: NextTrackPrefetcher
     private lateinit var library: SessionLibrary
+    private lateinit var queueEditor: QueueEditor
     private lateinit var albumFeed: AlbumFeedController
+    private lateinit var savedQueues: SavedQueueLoader
+    private lateinit var favorite: FavoriteToggle
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
-    private var idleStop: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -92,18 +87,15 @@ class SeguePlaybackService : MediaLibraryService() {
         exoPlayer = components.createExoPlayer(this, replayGainProcessor)
         player = SeguePlayer(exoPlayer)
         queueSyncListener = QueueSyncListener(player, components.queueSync)
-        albumFeed = AlbumFeedController(
-            player,
-            components.albumShuffle,
-            components.albumFeeds,
-            scope,
-            offline = components::downloadedWhileOffline,
-        )
+        queueEditor = components.createQueueEditor(player)
+        albumFeed = components.createAlbumFeed(player, queueEditor, scope)
+        savedQueues = components.createSavedQueueLoader(player, queueEditor)
+        favorite = components.createFavoriteToggle(player, scope) { updateSessionState() }
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
         replayGain = ReplayGainController(exoPlayer, replayGainProcessor, offload)
-        library = SessionLibrary(this, scope, components.mediaBrowse, components.search)
+        library = components.createSessionLibrary(this, scope)
 
         session = MediaLibrarySession.Builder(this, player, SessionCallback())
             .setBitmapLoader(components.createBitmapLoader(this))
@@ -116,8 +108,13 @@ class SeguePlaybackService : MediaLibraryService() {
         exoPlayer.addListener(queueSyncListener)
         exoPlayer.addListener(albumFeed)
         exoPlayer.addListener(sleepTimer)
-        exoPlayer.addListener(Scrobbler(player, components.scrobbles, scope, components.appScope))
-        components.bridge.player = player
+        exoPlayer.addListener(components.createScrobbler(player, scope))
+        exoPlayer.addListener(
+            IdleStop(player, scope, { preferences.stopWhenPausedMinutes * MILLIS_PER_MINUTE }) {
+                pauseAllPlayersAndStopSelf()
+            },
+        )
+        components.bridge.attach(player)
 
         scope.launch {
             components.preferences.preferences.collect { prefs ->
@@ -128,7 +125,7 @@ class SeguePlaybackService : MediaLibraryService() {
         }
         scope.launch { components.networkType.drop(1).collect { updatePrefetch() } }
         scope.launch {
-            restoreSnapshot()
+            savedQueues.restore()
             albumFeed.restore()
         }
         updateSessionState()
@@ -137,10 +134,10 @@ class SeguePlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onDestroy() {
-        if (components.bridge.player === player) components.bridge.player = null
-        if (player.mediaItemCount > 0) components.queueSync.onAppBackground(player.queueState())
+        components.bridge.detach(player)
+        if (player.mediaItemCount > 0) components.queueSync.flush(player.queueState())
         // Widgets keep showing the track, paused: the next tap restarts the service.
-        components.nowPlaying.publish(nowPlaying().copy(isPlaying = false))
+        components.nowPlaying.publish(NowPlayingSnapshot.of(player).copy(isPlaying = false))
         offload.stop()
         prefetcher.stop()
         scope.cancel()
@@ -169,14 +166,10 @@ class SeguePlaybackService : MediaLibraryService() {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) updatePrefetch()
-            updateIdleStop()
             publishNowPlaying()
         }
 
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            updateIdleStop()
-            publishNowPlaying()
-        }
+        override fun onPlaybackStateChanged(playbackState: Int) = publishNowPlaying()
     }
 
     /** Prefetch only while the user means to play; a paused queue does not need the radio. */
@@ -184,84 +177,21 @@ class SeguePlaybackService : MediaLibraryService() {
         if (exoPlayer.playWhenReady) prefetcher.update(player.upNext(PREFETCH_LOOKAHEAD))
     }
 
-    /** Paused, or stopped at the end of the queue: nothing will play until the user acts. */
-    private fun isIdle() = !exoPlayer.playWhenReady ||
-        exoPlayer.playbackState == Player.STATE_ENDED ||
-        exoPlayer.playbackState == Player.STATE_IDLE
-
-    /** Arms one timer while idle; stops the service if it is still idle when it fires. */
-    private fun updateIdleStop() {
-        if (!isIdle()) {
-            idleStop?.cancel()
-            idleStop = null
-            return
-        }
-        if (idleStop?.isActive == true) return
-        idleStop = scope.launch {
-            delay(preferences.stopWhenPausedMinutes * MILLIS_PER_MINUTE)
-            if (isIdle()) pauseAllPlayersAndStopSelf()
-        }
-    }
-
-    // --- Restore ---------------------------------------------------------------------------------
-
-    private data class Restored(val items: List<MediaItem>, val state: QueueState)
-
-    /** The local snapshot as playable items, from Room only, so it works offline. */
-    private suspend fun loadSnapshot(): Restored? = components.snapshots.snapshot.first()?.let { load(it) }
-
-    /** [snapshot] as playable items, from Room only. */
-    private suspend fun load(snapshot: QueueSnapshot): Restored? {
-        // In queue order with duplicates; songs missing from the library are dropped (see QueueRestore).
-        val songs = components.library.songsByIds(snapshot.songIds)
-        val state = QueueRestore.plan(snapshot, songs.mapTo(HashSet()) { it.id }) ?: return null
-        return Restored(songs.map { it.toMediaItem() }, state)
-    }
-
-    private suspend fun restoreSnapshot() {
-        val restored = loadSnapshot() ?: return
-        if (player.mediaItemCount > 0) return // Something was queued while we read the snapshot.
-        player.restore(restored.items, restored.state)
-        components.queueSync.markRestored(player.queueState())
-    }
-
-    /**
-     * Undo of an automatic remote adoption: the replaced local queue comes back, paused. The queue
-     * edit is then saved and uploaded like any other.
-     */
-    private suspend fun undoAdoption() {
-        val previous = components.queueSync.takeAdoptionUndo() ?: return
-        val restored = load(previous) ?: return
-        player.pause()
-        player.restore(restored.items, restored.state)
-    }
-
     // --- Session state: extras and buttons -------------------------------------------------------
 
     private fun updateSessionState() {
         val session = session ?: return
-        session.sessionExtras = SegueSessionCommands.extras(sleepTimer.timer)
+        session.sessionExtras = SegueSessionCommands.sleepArgs(sleepTimer.timer)
         session.setMediaButtonPreferences(mediaButtons())
         publishNowPlaying()
     }
 
     /** Widgets follow player events: track and play/pause. Unchanged snapshots are dropped. */
-    private fun publishNowPlaying() = components.nowPlaying.publish(nowPlaying())
-
-    private fun nowPlaying(): NowPlayingSnapshot {
-        val item = exoPlayer.currentMediaItem ?: return NowPlayingSnapshot.Empty
-        return NowPlayingSnapshot(
-            songId = item.mediaId,
-            title = item.mediaMetadata.title?.toString(),
-            artist = item.mediaMetadata.artist?.toString(),
-            coverArtId = item.coverArtId,
-            isPlaying = exoPlayer.playWhenReady && exoPlayer.playbackState != Player.STATE_ENDED,
-        )
-    }
+    private fun publishNowPlaying() = components.nowPlaying.publish(NowPlayingSnapshot.of(player))
 
     private fun mediaButtons(): List<CommandButton> {
         val starred = exoPlayer.currentMediaItem?.isStarred == true
-        val favorite = CommandButton.Builder(
+        val heart = CommandButton.Builder(
             if (starred) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED,
         )
             .setDisplayName(getString(if (starred) R.string.playback_unfavorite else R.string.playback_favorite))
@@ -271,23 +201,28 @@ class SeguePlaybackService : MediaLibraryService() {
             .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build()
         // No shuffle button: Segue shuffles only when music is queued, never a running queue.
-        return listOf(favorite)
-    }
-
-    private fun toggleFavorite() {
-        val index = exoPlayer.currentMediaItemIndex
-        val item = exoPlayer.currentMediaItem ?: return
-        val starred = !item.isStarred
-        // Updates metadata in place; playback is not interrupted.
-        player.replaceMediaItem(index, item.withStarred(starred))
-        updateSessionState()
-        components.appScope.launch {
-            runCatching { components.starRatings.setStarred(MediaKind.Song, item.mediaId, starred) }
-        }
+        return listOf(heart)
     }
 
     private fun notAllowed(controller: MediaSession.ControllerInfo) =
         SecurityException("${controller.packageName} may not play from the library")
+
+    /** Fails a set or add request: Media3 then leaves the queue alone. */
+    private fun nothingToPlay() = UnsupportedOperationException("Nothing to play")
+
+    /**
+     * A session request's album feed ("Shuffle albums", "play some music"), persisted like the app's
+     * Play / Shuffle albums, after the songs requested with it. Replacing the queue, the answer is the
+     * songs and the first window, which the session queues and the feed then extends; placed in the
+     * queue, the feed queues them itself, in one edit so it keeps running, and the answer is empty.
+     * Null if there is nothing to play.
+     */
+    private suspend fun startAlbumFeed(play: SessionPlay.AlbumFeed): List<MediaItem>? =
+        if (play.request.placement == QueuePlacement.Replace) {
+            albumFeed.firstWindowForSession(play.request, play.songs).ifEmpty { null }
+        } else {
+            emptyList<MediaItem>().takeIf { albumFeed.start(play.request, play.songs) }
+        }
 
     private fun currentQueue() = MediaSession.MediaItemsWithStartPosition(
         List(player.mediaItemCount) { player.getMediaItemAt(it) },
@@ -326,18 +261,44 @@ class SeguePlaybackService : MediaLibraryService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             when (customCommand.customAction) {
-                SegueSessionCommands.TOGGLE_FAVORITE -> toggleFavorite()
+                SegueSessionCommands.TOGGLE_FAVORITE -> favorite.toggle()
 
                 SegueSessionCommands.SET_SLEEP_TIMER -> sleepTimer.set(SegueSessionCommands.sleepTimer(args))
 
-                SegueSessionCommands.UNDO_ADOPTION -> scope.launch { undoAdoption() }
+                SegueSessionCommands.ADOPT_QUEUE -> {
+                    albumFeed.cancelPending()
+                    return scope.launchFuture {
+                        SessionResult(
+                            SessionResult.RESULT_SUCCESS,
+                            SegueSessionCommands.startedResult(savedQueues.adopt()),
+                        )
+                    }
+                }
+
+                SegueSessionCommands.UNDO_ADOPTION -> scope.launch { savedQueues.undoAdoption() }
 
                 SegueSessionCommands.PLAY_ALBUMS -> {
-                    val (request, seed) = SegueSessionCommands.playAlbums(args)
+                    val request = SegueSessionCommands.playAlbums(args)
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                     return scope.launchFuture {
-                        val started = albumFeed.start(request, seed)
+                        val started = albumFeed.start(request)
                         SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(started))
+                    }
+                }
+
+                SegueSessionCommands.UNDO_REMOVE -> {
+                    val removed = SegueSessionCommands.undoRemove(args)
+                        ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    queueEditor.putBack(removed.item, removed.index)
+                }
+
+                SegueSessionCommands.QUEUE_SONGS -> {
+                    val songs = SegueSessionCommands.queueSongs(args)
+                        ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    albumFeed.cancelPending()
+                    return scope.launchFuture {
+                        val queued = queueEditor.queue(songs.items, songs.placement, songs.startIndex, songs.shuffle)
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(queued))
                     }
                 }
 
@@ -346,31 +307,34 @@ class SeguePlaybackService : MediaLibraryService() {
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
 
+        /** Plain songs from any controller, or a browse node from an allowed browser: what can play of them. */
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> {
-            if (!library.hasBrowseNodes(mediaItems)) {
-                return Futures.immediateFuture(mediaItems.map { it.withPlayableUri() })
-            }
-            // Browse nodes (Android Auto) stand for songs from Room; only allowed browsers may use them.
-            if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
+            albumFeed.cancelPending()
+            val allowed = library.mayBrowse(controller)
             return scope.launchFuture {
-                mediaItems.flatMap { item ->
-                    val albums = library.albumPlayRequest(item)
-                    if (albums != null) {
-                        // "Shuffle albums": the album feed appends its first window itself and keeps going.
-                        albumFeed.start(albums.copy(placement = QueuePlacement.End), Random.nextLong())
-                        emptyList()
-                    } else {
-                        library.songsFor(item)?.map { it.toMediaItem() } ?: listOf(item.withPlayableUri())
-                    }
-                }
+                when (val play = library.plays.resolveAdd(mediaItems, allowed)) {
+                    is SessionPlay.Items -> queueEditor.playable(play.items, shuffle = play.shuffle)?.mediaItems
+
+                    // "Shuffle albums": the album feed appends its first window (after any songs added
+                    // with it) itself and keeps going.
+                    is SessionPlay.AlbumFeed -> startAlbumFeed(play)
+
+                    SessionPlay.KeepQueue -> emptyList()
+
+                    // Only a set keeps the queue.
+
+                    SessionPlay.NotAllowed -> throw notAllowed(controller)
+
+                    SessionPlay.NothingToPlay -> null
+                } ?: throw nothingToPlay()
             }
         }
 
-        /** A browse node or a voice "play <query>": the whole list, from the chosen track. */
+        /** Plain songs, a browse node or a voice "play <query>": what can play of the list, from the chosen track. */
         override fun onSetMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -378,26 +342,24 @@ class SeguePlaybackService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            if (!library.resolves(mediaItems)) {
-                return super.onSetMediaItems(mediaSession, controller, mediaItems, startIndex, startPositionMs)
-            }
-            if (!library.mayBrowse(controller)) return Futures.immediateFailedFuture(notAllowed(controller))
-            val item = mediaItems.single()
+            albumFeed.cancelPending()
+            val allowed = library.mayBrowse(controller)
             return scope.launchFuture {
-                if (item.requestMetadata.searchQuery?.isBlank() == true && player.mediaItemCount > 0) {
+                val hasQueue = player.mediaItemCount > 0
+                when (val play = library.plays.resolveSet(mediaItems, startIndex, startPositionMs, allowed, hasQueue)) {
+                    is SessionPlay.Items ->
+                        queueEditor.playable(play.items, play.startIndex, play.startPositionMs, play.shuffle)
+
+                    is SessionPlay.AlbumFeed ->
+                        startAlbumFeed(play)?.let { MediaSession.MediaItemsWithStartPosition(it, 0, 0) }
+
                     // "Play music on Segue" with a queue: carry on with it.
-                    return@launchFuture currentQueue()
-                }
-                library.albumPlayRequest(item)?.let { albums ->
-                    // "Shuffle albums": the album feed's first window, which the feed extends once queued,
-                    // persisted like the app's Play / Shuffle albums.
-                    val items = albumFeed.firstWindowForSession(albums, Random.nextLong())
-                    if (items.isEmpty()) throw UnsupportedOperationException("No albums to shuffle")
-                    return@launchFuture MediaSession.MediaItemsWithStartPosition(items, 0, 0)
-                }
-                val request = library.playRequest(item)
-                    ?: throw UnsupportedOperationException("Nothing to play for ${item.mediaId}")
-                MediaSession.MediaItemsWithStartPosition(request.songs.map { it.toMediaItem() }, request.startIndex, 0)
+                    SessionPlay.KeepQueue -> currentQueue()
+
+                    SessionPlay.NotAllowed -> throw notAllowed(controller)
+
+                    SessionPlay.NothingToPlay -> null
+                } ?: throw nothingToPlay()
             }
         }
 
@@ -445,24 +407,8 @@ class SeguePlaybackService : MediaLibraryService() {
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             isForPlayback: Boolean,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
-            scope.launch {
-                val restored = loadSnapshot()
-                if (restored == null) {
-                    result.setException(UnsupportedOperationException("Nothing to resume"))
-                } else {
-                    components.queueSync.markRestored(restored.state)
-                    result.set(
-                        MediaSession.MediaItemsWithStartPosition(
-                            restored.items,
-                            restored.state.currentIndex,
-                            restored.state.positionMillis,
-                        ),
-                    )
-                }
-            }
-            return result
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.launchFuture {
+            savedQueues.resumption() ?: throw UnsupportedOperationException("Nothing to resume")
         }
     }
 

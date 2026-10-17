@@ -4,27 +4,33 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
-import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.play.MediaActionHandler
+import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.AlbumOrder
+import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
-import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
-import com.quantumff.segue.core.model.PlayActions
+import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,11 +53,14 @@ class AlbumViewModel @Inject constructor(
     artistRepository: ArtistRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineModeRepository: OfflineModeRepository,
+    offlineView: OfflineLibraryView,
+    private val playIntents: PlayIntents,
+    private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
 
-    private val refresh = MutableStateFlow(RefreshState.Running)
+    /** The last refresh's outcome; null while one runs. */
+    private val refresh = MutableStateFlow<RemoteOutcome<Unit>?>(null)
     private val message = MutableStateFlow<AlbumMessage?>(null)
 
     private val album = albumRepository.album(albumId)
@@ -65,36 +74,28 @@ class AlbumViewModel @Inject constructor(
         }
         .map { albums -> albums.filterNot { it.id == albumId }.toImmutableList() }
 
-    private val offline = combine(
-        downloadRepository.pinStatus(PinKind.Album, albumId),
-        downloadRepository.songDownloads,
-        offlineModeRepository.isOffline,
-        ::OfflineState,
-    )
-
     val uiState: StateFlow<AlbumUiState> = combine(
         album,
         albumRepository.albumSongs(albumId),
         moreByArtist,
         combine(refresh, message, ::Pair),
-        offline,
-    ) { album, songs, more, (refresh, message), offline ->
+        combine(downloadRepository.pinStatus(PinKind.Album, albumId), offlineView.songAvailability, ::Pair),
+    ) { album, songs, more, (refresh, message), (download, availability) ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
                 songs = songs,
                 discs = groupDiscs(album, songs),
                 moreByArtist = more,
-                isOffline = refresh == RefreshState.Failed,
+                isOffline = refresh?.showsOfflineChip == true,
                 message = message,
-                download = offline.pin,
-                songDownloads = offline.songs,
-                isOfflineMode = offline.isOffline,
+                download = download,
+                availability = availability,
             )
 
-            refresh == RefreshState.Running -> AlbumUiState.Loading
+            refresh == null -> AlbumUiState.Loading
 
-            refresh == RefreshState.NotFound -> AlbumUiState.NotFound
+            refresh is RemoteOutcome.NotFound -> AlbumUiState.NotFound
 
             else -> AlbumUiState.Error
         }
@@ -106,24 +107,16 @@ class AlbumViewModel @Inject constructor(
 
     /** Refetches the album; the cached copy stays on screen meanwhile. */
     fun refresh() {
-        refresh.value = RefreshState.Running
-        viewModelScope.launch {
-            refresh.value = try {
-                albumRepository.refreshAlbum(albumId)
-                RefreshState.Done
-            } catch (_: RemoteException.NotFound) {
-                RefreshState.NotFound
-            } catch (_: RemoteException) {
-                RefreshState.Failed
-            }
-        }
+        refresh.value = null
+        viewModelScope.launch { refresh.value = remoteOutcome { albumRepository.refreshAlbum(albumId) } }
     }
 
     /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. */
-    fun play(playActions: PlayActions, startIndex: Int = 0, shuffle: Boolean = false) {
+    fun play(startIndex: Int = 0, shuffle: Boolean = false) {
         val songs = (uiState.value as? AlbumUiState.Success)?.songs ?: return
         if (songs.isEmpty()) return
-        playActions.onPlaySongs(songs, startIndex.coerceIn(songs.indices), shuffle)
+        val target = PlayTarget.Songs(songs, startIndex.coerceIn(songs.indices))
+        viewModelScope.launch { playIntents.play(target, shuffle = shuffle) }
     }
 
     /** Pins the album for offline use. */
@@ -131,9 +124,9 @@ class AlbumViewModel @Inject constructor(
         val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
         viewModelScope.launch {
             try {
-                downloadRepository.pin(PinTarget(PinKind.Album, album.id, album.name, album.coverArtId))
+                downloadRepository.pin(PinTarget.of(album))
             } catch (_: RemoteException) {
-                message.value = AlbumMessage.DownloadFailed
+                message.value = AlbumMessage.ActionFailed(MediaActionFailure.DownloadFailed)
             }
         }
     }
@@ -143,27 +136,28 @@ class AlbumViewModel @Inject constructor(
         viewModelScope.launch { downloadRepository.unpin(PinKind.Album, albumId) }
     }
 
-    /** Pins one song for offline use. */
-    fun downloadSong(song: Song) {
-        viewModelScope.launch {
-            try {
-                downloadRepository.pin(PinTarget(PinKind.Song, song.id, song.title, song.coverArtId))
-            } catch (_: RemoteException) {
-                message.value = AlbumMessage.DownloadFailed
-            }
-        }
+    fun shuffleAlbums(option: ShuffleAlbumsOption) {
+        viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(option.source, AlbumOrder.Shuffled)) }
     }
 
-    fun shuffleAlbums(playActions: PlayActions, option: ShuffleAlbumsOption) {
-        playActions.shuffleAlbums(option.source)
+    /** The album's ⋮ menu ([MediaActionHandler]). */
+    fun onAlbumAction(action: MediaAction, host: MediaActionHost) {
+        val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
+        menuAction { mediaActions.album(album, action, host) }
+    }
+
+    /** A track's ⋮ menu. */
+    fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) =
+        menuAction { mediaActions.song(song, action, host) }
+
+    private fun menuAction(run: suspend () -> MediaActionFailure?) {
+        viewModelScope.launch { run()?.let { message.value = AlbumMessage.ActionFailed(it) } }
     }
 
     fun toggleAlbumStar() {
         val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
         setStarred(MediaKind.Album, album.id, !album.isStarred)
     }
-
-    fun toggleSongStar(song: Song) = setStarred(MediaKind.Song, song.id, !song.isStarred)
 
     fun setRating(rating: Int) {
         viewModelScope.launch {
@@ -184,18 +178,10 @@ class AlbumViewModel @Inject constructor(
             try {
                 starRatingRepository.setStarred(kind, id, starred)
             } catch (_: RemoteException) {
-                message.value = AlbumMessage.FavoriteFailed
+                message.value = AlbumMessage.ActionFailed(MediaActionFailure.FavoriteFailed)
             }
         }
     }
-
-    private enum class RefreshState { Running, Done, Failed, NotFound }
-
-    private data class OfflineState(
-        val pin: DownloadStatus?,
-        val songs: ImmutableMap<String, SongDownload>,
-        val isOffline: Boolean,
-    )
 
     companion object {
         /** The [com.quantumff.segue.feature.album.navigation.AlbumRoute] argument. */
@@ -225,14 +211,9 @@ sealed interface AlbumUiState {
         val message: AlbumMessage? = null,
         /** The album's pin status; null when it is not pinned for offline. */
         val download: DownloadStatus? = null,
-        /** Downloads by song ID, for row badges. */
-        val songDownloads: ImmutableMap<String, SongDownload> = persistentMapOf(),
-        /** Offline mode: rows of songs that are not downloaded are dimmed and do not play. */
-        val isOfflineMode: Boolean = false,
+        /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
+        val availability: SongAvailability = SongAvailability(),
     ) : AlbumUiState {
-        fun isAvailable(song: Song): Boolean =
-            !isOfflineMode || songDownloads[song.id]?.state == DownloadState.Completed
-
         val showDiscHeaders: Boolean get() = discs.size > 1
         val trackCount: Int get() = if (songs.isEmpty()) album.songCount else songs.size
         val durationSeconds: Long
@@ -265,7 +246,12 @@ sealed interface ShuffleAlbumsOption {
     }
 }
 
-enum class AlbumMessage { FavoriteFailed, RatingFailed, DownloadFailed }
+sealed interface AlbumMessage {
+    /** A menu action, or the header's Favorite or Download, failed. */
+    data class ActionFailed(val failure: MediaActionFailure) : AlbumMessage
+
+    data object RatingFailed : AlbumMessage
+}
 
 /** Groups [songs] (already in disc and track order) by disc number. Songs without one go on disc 1. */
 internal fun groupDiscs(album: Album, songs: List<Song>): ImmutableList<Disc> {
