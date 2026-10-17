@@ -188,7 +188,7 @@ private typealias Exit = AnimatedContentTransitionScope<NavBackStackEntry>.() ->
 private class SegueTransitions(val enter: Enter, val exit: Exit, val popEnter: Enter, val popExit: Exit)
 
 /**
- * Shared-axis X (fade plus 30dp slide, `long`) forward and back; tab switches crossfade (`medium`).
+ * Shared-axis X (fade through plus 30dp slide, `long`) forward and back; tab switches crossfade (`medium`).
  * With reduced motion every transition is a `medium` crossfade (DESIGN.md §2.5).
  */
 @Composable
@@ -199,10 +199,10 @@ private fun rememberSegueTransitions(appState: SegueAppState): SegueTransitions 
         val crossIn = fadeIn(SegueMotion.medium())
         val crossOut = fadeOut(SegueMotion.medium())
         val slideIn = { from: Int ->
-            slideInHorizontally(SegueMotion.longEnter<IntOffset>()) { from } + fadeIn(SegueMotion.longEnter())
+            slideInHorizontally(SegueMotion.longEnter<IntOffset>()) { from } + fadeIn(SegueMotion.sharedAxisFadeIn())
         }
         val slideOut = { to: Int ->
-            slideOutHorizontally(SegueMotion.longExit<IntOffset>()) { to } + fadeOut(SegueMotion.longExit())
+            slideOutHorizontally(SegueMotion.longExit<IntOffset>()) { to } + fadeOut(SegueMotion.sharedAxisFadeOut())
         }
         // Read at transition time: the flag is set by the navigation that starts the transition.
         val crossfade = { reduceMotion || appState.isTabSwitch }
