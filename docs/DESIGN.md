@@ -476,3 +476,22 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Position ticker (battery): it runs only while a player surface is composed and at least `STARTED`. Mini player: 1Hz. Now Playing seekbar: 4Hz with `animateFloat` interpolation between ticks. Synced lyrics: next-line timer. Never poll from the background.
 - Animate with `graphicsLayer` (translation, scale, alpha) only. Never animate layout size in lists. Lyric lines are a `LazyColumn`, and only the 2 lines around the active line animate.
 - Marquee: only on the Now Playing title, and only while the screen is resumed.
+
+## 7. App icon and brand
+
+The mark is **Wave on vinyl**: a dark, grooved record with a seven-bar waveform riding across it. The bars shade from white into `primary`, which is the segue: one track handing over to the next.
+
+- **Sources:** `docs/brand/icon.svg` (circle-masked, for docs and the README), `docs/brand/icon-full-bleed.svg` and `docs/brand/icon-512.png` (unmasked 108 canvas, for store listings, which apply their own mask). `docs/brand/generate.py` writes the SVGs and the vector drawables from the geometry below, so change it there and re-run it.
+- **Adaptive icon** (`app/src/main/res/mipmap-anydpi/ic_launcher.xml`), on the 108 canvas, centered on (54, 54):
+
+| Layer | Content |
+|---|---|
+| Background | `#0C0C0C` (Dark `background`) |
+| Record | Circle r 31, `#171C29`. Grooves: rings r 26, 21, 16, 1 wide, white @ 6% |
+| Waveform | 7 bars, 5.5 wide with fully rounded ends, 8 apart from x 30 to 78. Centers y 54, 44, 42, 54, 66, 64, 54; lengths 14, 22, 28, 30, 28, 22, 14 |
+| Bar colors, left to right | `#FFFFFF` `#DDE7FF` `#BBCFFE` `#98B6FE` `#769EFD` `#5487FC` `#3574FC` |
+| Monochrome (themed icons) | Same shapes, alpha only: record @ 16%, grooves @ 20%, bars @ 100% |
+
+- Everything stays inside the 66 safe circle, so no launcher mask clips it.
+- **Status bar:** the media notification's small icon (`media3_notification_small_icon`, in `app` so it outranks Media3's own alias) is the waveform alone, white, with no record. The record would read as a blob at 24.
+- The download notification keeps the system download icon, because it says what the notification is about.

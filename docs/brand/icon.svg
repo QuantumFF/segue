@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="256" height="256">
+  <circle cx="54" cy="54" r="36" fill="#0C0C0C"/>
+  <circle cx="54" cy="54" r="31" fill="#171C29"/>
+  <circle cx="54" cy="54" r="26" fill="none" stroke="#FFFFFF" stroke-opacity="0.06"/>
+  <circle cx="54" cy="54" r="21" fill="none" stroke="#FFFFFF" stroke-opacity="0.06"/>
+  <circle cx="54" cy="54" r="16" fill="none" stroke="#FFFFFF" stroke-opacity="0.06"/>
+  <path fill="#FFFFFF" d="M27.25,49.75 a2.75,2.75 0 0,1 5.5,0 v8.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+  <path fill="#DDE7FF" d="M35.25,35.75 a2.75,2.75 0 0,1 5.5,0 v16.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+  <path fill="#BBCFFE" d="M43.25,30.75 a2.75,2.75 0 0,1 5.5,0 v22.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+  <path fill="#98B6FE" d="M51.25,41.75 a2.75,2.75 0 0,1 5.5,0 v24.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+  <path fill="#769EFD" d="M59.25,54.75 a2.75,2.75 0 0,1 5.5,0 v22.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+  <path fill="#5487FC" d="M67.25,55.75 a2.75,2.75 0 0,1 5.5,0 v16.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+  <path fill="#3574FC" d="M75.25,49.75 a2.75,2.75 0 0,1 5.5,0 v8.5 a2.75,2.75 0 0,1 -5.5,0 z"/>
+</svg>
