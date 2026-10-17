@@ -133,7 +133,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 | Medium (600 to 839) | `NavigationRail`, 80 wide | Mini player across the content area, at the bottom |
 | Expanded (≥ 840) | Permanent sidebar, 240 wide, Feishin-style: destinations, then a "Playlists" list | Player bar, 80 tall, full width (§5.5) |
 
-- **Destinations:** Home, Library, Playlists, Search (four tabs). Settings opens from the account icon in the Home, Library and Playlists top bars. Downloads is a Library tab and is also linked from Settings > Storage.
+- **Destinations:** Home, Library, Playlists, Search (four tabs). Settings opens from the settings icon in the Home, Library and Playlists top bars. Downloads is a Library tab and is also linked from Settings > Storage.
 - **Back stacks:** each tab keeps its own back stack, saved and restored on tab switches (Home included). Album, artist and playlist detail, Settings and Downloads push onto the current tab's stack. Re-selecting the current tab returns to its root. Back at the root of another tab goes to Home; back at Home's root leaves the app.
 - **Playlists tab:** the playlist list (rows as in §4.2 Playlists), with a "+" in the top bar to create a playlist. Library keeps its Playlists tab too.
 - **Secondary screens** (Settings, Downloads, Queue) use an opaque 56 top bar: back arrow, then the title in `titleMedium` (optional muted subtitle such as "Playing from <source>"), then actions.
@@ -147,7 +147,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ## 4. Screens
 
 ### 4.1 Home
-- Top bar (not pinned, scrolls away): "Home" in `headlineSmall`. On the right, an account icon that opens Settings and shows the server name in a tooltip.
+- Top bar (not pinned, scrolls away): "Home" in `headlineSmall`. On the right, a settings icon that opens Settings and shows the server name in a tooltip.
 - **Feature carousel** (Feishin): a `HorizontalPager` of 10 random albums. Each item:
   - Card: 200 tall, radius `md`, page spacing 12, peek 16.
   - Backdrop: pre-blurred art at 80% opacity, plus a bottom gradient to black 60%.
@@ -186,7 +186,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ```
 
 ### 4.2 Library
-- Top bar: "Library" in `headlineSmall`, plus actions: sort, view toggle (grid/list), account.
+- Top bar: "Library" in `headlineSmall`, plus actions: sort, view toggle (grid/list), settings.
 - Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab.
 - Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
   - Favorites and Downloaded cycle on each tap: the first keeps what the chip names, the second inverts it (albums that are not favorites, or have no downloaded song), the third turns it off. Offline holds Downloaded on.
