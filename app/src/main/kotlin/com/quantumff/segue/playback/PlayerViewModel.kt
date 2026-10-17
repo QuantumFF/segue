@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 
 /** Shell snackbars: why a play intent did nothing, or that another device's queue was taken over. */
 sealed interface PlayerMessage {
-    /** A play intent raised on any screen queued nothing. */
+    /** A play intent raised on any screen, or "Continue from <device>", queued nothing. */
     data class NotPlayed(val reason: PlayIntentMessage) : PlayerMessage
 
     /** "Continued from <device>", with Undo when [canUndo]. */
@@ -26,7 +26,7 @@ sealed interface PlayerMessage {
 
 /**
  * The shell's link to playback: the state the mini player and player bar show, their commands,
- * and the snackbars for play intents raised on any screen ([PlayIntents.messages]).
+ * and the snackbars for play intents raised on any screen ([PlayIntents.messages]) and for adoption.
  */
 @HiltViewModel
 class PlayerViewModel @Inject constructor(private val playback: PlaybackController, playIntents: PlayIntents) :
@@ -47,6 +47,8 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
 
     val messages: Flow<PlayerMessage> = merge(
         playIntents.messages.map { PlayerMessage.NotPlayed(it) },
+        // "Continue from <device>" that adopted nothing, as when offline none of its songs is downloaded.
+        playback.continueFailures.map { PlayerMessage.NotPlayed(PlayIntentMessage.NothingToPlay) },
         playback.autoAdoptions.map { PlayerMessage.ContinuedFrom(it.deviceName, it.canUndo) },
     )
 

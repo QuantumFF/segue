@@ -57,4 +57,19 @@ class SegueSessionCommandsTest {
         assertThat(received.copy(items = request.items)).isEqualTo(request)
         assertThat(SegueSessionCommands.queueSongs(Bundle.EMPTY)).isNull()
     }
+
+    @Test
+    fun `a removed item survives the trip back to the service, metadata included`() {
+        val item = Song(id = "s1", title = "t1", albumId = "al", album = "A", artist = null, artistId = null)
+            .toMediaItem()
+
+        val received = SegueSessionCommands.undoRemove(
+            SegueSessionCommands.undoRemoveArgs(SegueSessionCommands.Removed(item, 4)),
+        )!!
+
+        assertThat(received.item.mediaId).isEqualTo("s1")
+        assertThat(received.item.albumKey).isEqualTo("al")
+        assertThat(received.index).isEqualTo(4)
+        assertThat(SegueSessionCommands.undoRemove(Bundle.EMPTY)).isNull()
+    }
 }

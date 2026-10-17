@@ -83,6 +83,27 @@ class QueueEditorTest {
     }
 
     @Test
+    fun `online a start past the end plays the last song`() = runTest {
+        editor.queue(items("a", "b", "c"), QueuePlacement.Replace, startIndex = 7)
+
+        assertThat(exo.currentMediaItemIndex).isEqualTo(2)
+    }
+
+    @Test
+    fun `an empty request is Media3's own, a play intent of nothing queues nothing`() = runTest {
+        // A set of nothing clears the queue; an add of nothing changes nothing. Neither fails.
+        val empty = editor.playable(emptyList(), startIndex = 0, startPositionMs = 0)!!
+        assertThat(empty.mediaItems).isEmpty()
+        downloaded = emptySet()
+        assertThat(editor.playable(emptyList())?.mediaItems).isEmpty()
+
+        downloaded = null
+        player.setMediaItems(items("x"))
+        assertThat(editor.queue(emptyList(), QueuePlacement.Replace)).isFalse()
+        assertThat(queueIds()).containsExactly("x")
+    }
+
+    @Test
     fun `shuffle queues every song in a fresh order, from the first`() = runTest {
         val ids = (1..30).map { "s$it" }
 
@@ -124,6 +145,19 @@ class QueueEditorTest {
         assertThat(editor.queue(emptyList(), QueuePlacement.End)).isFalse()
 
         assertThat(queueIds()).containsExactly("x")
+    }
+
+    @Test
+    fun `an undone removal comes back where it was, offline too`() {
+        downloaded = emptySet()
+        player.setMediaItems(items("a", "c"))
+        val removed = items("b").single().buildUpon().setUri(null as String?).build()
+
+        editor.putBack(removed, 1)
+        editor.putBack(items("z").single(), 9)
+
+        assertThat(queueIds()).containsExactly("a", "b", "c", "z").inOrder()
+        assertThat(exo.getMediaItemAt(1).localConfiguration).isNotNull()
     }
 
     @Test

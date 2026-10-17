@@ -102,6 +102,22 @@ class SessionPlayResolverTest {
     }
 
     @Test
+    fun `shuffle albums added among other items still starts its feed`() = runTest {
+        val added = resolver.resolveAdd(listOf(song("x"), node(BrowseId.ShuffleAlbums)), allowed = true)
+
+        assertThat(added).isEqualTo(
+            SessionPlay.Items(listOf(song("x")), albumFeed = shuffleLibrary.copy(placement = QueuePlacement.End)),
+        )
+    }
+
+    @Test
+    fun `an empty request passes through, for Media3 to clear the queue or change nothing`() = runTest {
+        assertThat(resolver.resolveAdd(emptyList(), allowed = false)).isEqualTo(SessionPlay.Items(emptyList()))
+        assertThat(resolver.resolveSet(emptyList(), 0, 0, allowed = false, hasQueue = true))
+            .isEqualTo(SessionPlay.Items(emptyList()))
+    }
+
+    @Test
     fun `voice play music shuffles albums, or with a queue keeps it`() = runTest {
         assertThat(set(voice(""), hasQueue = false)).isEqualTo(SessionPlay.AlbumFeed(shuffleLibrary))
         assertThat(set(voice(" "), hasQueue = true)).isEqualTo(SessionPlay.KeepQueue)

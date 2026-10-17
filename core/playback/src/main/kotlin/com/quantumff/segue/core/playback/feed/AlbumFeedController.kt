@@ -63,6 +63,9 @@ class AlbumFeedController(
      */
     private var pending: AlbumFeed? = null
 
+    /** Counts [cancelPending] calls, so a window still being read when one comes is not left pending. */
+    private var sessionRequests = 0
+
     // All state here is read and written on the player's (main) thread only; the coroutines run on
     // it too, so [current] can be compared by identity after a suspension to spot a stopped feed.
     private var editing = false
@@ -98,23 +101,27 @@ class AlbumFeedController(
      * browser's play request (Android Auto's "Shuffle albums"): the session, not the feed, replaces
      * the queue. Once the session has queued exactly these items, the feed runs as if [start] had
      * queued them. Until then it waits, unless the session's next set or add request comes first
-     * ([cancelPending]). Empty if there is nothing to play.
+     * ([cancelPending]), even while this window is still being read. Empty if there is nothing to play.
      */
-    suspend fun firstWindowForSession(request: AlbumPlayRequest): List<MediaItem> = starting.withLock {
-        val seed = newSeed()
-        val window = firstWindow(request, seed)
-        val items = window.songs.map { it.toMediaItem() }
-        pending = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint(items))
-            .takeUnless { items.isEmpty() || window.exhausted }
-        items
+    suspend fun firstWindowForSession(request: AlbumPlayRequest): List<MediaItem> {
+        val requestNumber = sessionRequests
+        return starting.withLock {
+            val seed = newSeed()
+            val window = firstWindow(request, seed)
+            val items = window.songs.map { it.toMediaItem() }
+            pending = AlbumFeed(request.source, request.order, seed, window.cursor, fingerprint(items))
+                .takeUnless { items.isEmpty() || window.exhausted || sessionRequests != requestNumber }
+            items
+        }
     }
 
     /**
-     * The session took a new set or add request: a first window it prepared before but has not
-     * queued is not coming any more. Call before resolving each request.
+     * The session took a new set or add request: a first window it prepared before, or is preparing,
+     * but has not queued is not coming any more. Call before resolving each request.
      */
     fun cancelPending() {
         pending = null
+        sessionRequests++
     }
 
     /** After the queue snapshot is restored: picks the saved feed back up if the queue is still the one it left. */

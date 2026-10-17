@@ -144,7 +144,7 @@ class ArtistViewModel @Inject constructor(
     }
 
     /** Plays songs similar to the artist (`getSimilarSongs2`), topped up with their top songs. */
-    fun startInstantMix() = preparing { playIntents.instantMix(InstantMixSeed.Artist(artistId)) }
+    fun startInstantMix() = preparing { playIntents.instantMix(InstantMixSeed.OfArtist(artistId)) }
 
     /** The artist's ⋮ menu ([MediaActionHandler]). */
     fun onArtistAction(action: MediaAction, host: MediaActionHost) {

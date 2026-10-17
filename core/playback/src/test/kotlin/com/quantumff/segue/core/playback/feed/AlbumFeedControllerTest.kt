@@ -18,7 +18,9 @@ import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.media.withStarred
 import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -145,6 +147,32 @@ class AlbumFeedControllerTest {
             assertThat(feed.current).isNull()
             assertThat(feeds.stored).isNull()
         }
+
+    @Test
+    fun `a set or add that comes while a window is being prepared drops it`() = runTest(UnconfinedTestDispatcher()) {
+        val reading = CompletableDeferred<Unit>()
+        val feed = AlbumFeedController(
+            player,
+            QueueEditor(player, offline = { null }),
+            albums,
+            feeds,
+            this,
+            offline = {
+                reading.await()
+                null
+            },
+            newSeed = { 7 },
+        ).also { exo.addListener(it) }
+        val prepared =
+            async { feed.firstWindowForSession(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled)) }
+
+        feed.cancelPending()
+        reading.complete(Unit)
+        player.setMediaItems(prepared.await(), 0, 0)
+
+        assertThat(feed.current).isNull()
+        assertThat(feeds.stored).isNull()
+    }
 
     @Test
     fun `a prepared window is not adopted by a different queue`() = runTest(UnconfinedTestDispatcher()) {

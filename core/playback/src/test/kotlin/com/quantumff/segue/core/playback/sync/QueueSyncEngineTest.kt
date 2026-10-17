@@ -246,13 +246,50 @@ class QueueSyncEngineTest {
     fun `accepting the offer stages the offered queue for the player, without undo`() = runTest {
         remote.queue = remoteQueue()
         val engine = engine()
-        assertThat(engine.acceptOffer()).isFalse()
+        assertThat(engine.acceptOffer()).isNull()
         engine.checkRemote(isPlayingLocally = false)
 
-        assertThat(engine.acceptOffer()).isTrue()
+        assertThat(engine.acceptOffer()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
         assertThat(engine.remoteOffer.value).isNull()
         assertThat(engine.takeAdoption()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
-        assertThat(engine.acceptOffer()).isFalse()
+        assertThat(engine.acceptOffer()).isNull()
+    }
+
+    @Test
+    fun `an adoption that never reached the player is unstaged, undo and all`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue()
+        val engine = engine()
+        lateinit var adoption: RemoteAdoption
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            adoption = awaitItem()
+        }
+
+        engine.abandonAdoption(adoption)
+
+        assertThat(engine.takeAdoption()).isNull()
+        assertThat(engine.takeAdoptionUndo()).isNull()
+    }
+
+    @Test
+    fun `an adoption the player took is not the controller's to abandon`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue()
+        val engine = engine()
+        lateinit var adoption: RemoteAdoption
+        engine.adoptions.test {
+            engine.checkRemote(isPlayingLocally = false)
+            adoption = awaitItem()
+        }
+        assertThat(engine.takeAdoption()).isSameInstanceAs(adoption)
+
+        // The player adopted it, and the answer was lost on the way back.
+        engine.abandonAdoption(adoption)
+
+        assertThat(engine.takeAdoptionUndo()?.songIds).containsExactly("x")
     }
 
     @Test

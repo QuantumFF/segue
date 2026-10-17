@@ -78,6 +78,35 @@ class FavoriteToggleTest {
     }
 
     @Test
+    fun `quick toggles that all fail put back the heart from before them`() = runTest {
+        queue()
+        starRatings.error = RemoteException.Unreachable(IOException("offline"))
+        val favorite = toggle()
+
+        favorite.toggle()
+        favorite.toggle()
+        runCurrent()
+
+        assertThat(hearts()).containsExactly(false, false, false)
+    }
+
+    @Test
+    fun `a later failed toggle goes back to what the server accepted`() = runTest {
+        queue()
+        val favorite = toggle()
+        favorite.toggle()
+        runCurrent()
+        starRatings.error = RemoteException.Unreachable(IOException("offline"))
+
+        favorite.toggle()
+        favorite.toggle()
+        favorite.toggle()
+        runCurrent()
+
+        assertThat(hearts()).containsExactly(true, false, true).inOrder()
+    }
+
+    @Test
     fun `playback carries on through a toggle`() = runTest {
         queue()
         player.seekTo(0, 1_234)

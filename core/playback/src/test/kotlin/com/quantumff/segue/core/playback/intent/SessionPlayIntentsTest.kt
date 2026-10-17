@@ -14,6 +14,7 @@ import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
+import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import java.io.IOException
@@ -32,11 +33,13 @@ class SessionPlayIntentsTest {
     private val albums = FakeAlbumRepository()
     private val offline = FakeOfflineModeRepository()
     private val session = FakeIntentSession()
+    private val library = FakeLibraryRepository()
     private val songs = listOf(TestData.song("s1"), TestData.song("s2"))
 
     private fun TestScope.intents() = SessionPlayIntents(
         session,
         PlayTargetSongs(albums, FakePlaylistRepository(), FakeArtistRepository()),
+        library,
         offline,
         backgroundScope,
     )
@@ -95,7 +98,7 @@ class SessionPlayIntentsTest {
         offline.isOffline.value = true
         val intents = intents()
 
-        intents.instantMix(InstantMixSeed.Song(songs[0]))
+        intents.instantMix(InstantMixSeed.OfSong(songs[0]))
 
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.InstantMixOffline)
         assertThat(session.mixes).isEmpty()
@@ -106,10 +109,33 @@ class SessionPlayIntentsTest {
         session.mixError = RemoteException.Unreachable(IOException("down"))
         val intents = intents()
 
-        intents.instantMix(InstantMixSeed.Artist("ar"))
+        intents.instantMix(InstantMixSeed.OfArtist("ar"))
 
-        assertThat(session.mixes).containsExactly(InstantMixSeed.Artist("ar"))
+        assertThat(session.mixes).containsExactly(Mix(null, "ar"))
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.InstantMixFailed)
+    }
+
+    @Test
+    fun `a song seeds a mix of its artist, from the library when known only by id`() = runTest {
+        library.songsState.value = listOf(songs[1])
+        val intents = intents()
+
+        intents.instantMix(InstantMixSeed.OfSong(songs[0]))
+        intents.instantMix(InstantMixSeed.OfLibrarySong("s2"))
+
+        assertThat(session.mixes).containsExactly(Mix(songs[0], "artist-1"), Mix(songs[1], "artist-1")).inOrder()
+    }
+
+    @Test
+    fun `an instant mix with no seed to start from says so`() = runTest {
+        val intents = intents()
+
+        intents.instantMix(InstantMixSeed.OfLibrarySong("not-synced"))
+        assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.InstantMixFailed)
+
+        intents.instantMix(InstantMixSeed.OfSong(TestData.song("no-artist", artistId = null)))
+        assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.InstantMixFailed)
+        assertThat(session.mixes).isEmpty()
     }
 
     @Test
@@ -134,9 +160,11 @@ private data class Queued(
     val shuffle: Boolean,
 )
 
+private data class Mix(val seed: Song?, val artistId: String)
+
 private class FakeIntentSession : IntentSession {
     val queued = mutableListOf<Queued>()
-    val mixes = mutableListOf<InstantMixSeed>()
+    val mixes = mutableListOf<Mix>()
     var answer = true
     var mixError: RemoteException? = null
 
@@ -156,8 +184,8 @@ private class FakeIntentSession : IntentSession {
 
     override suspend fun playAlbums(request: AlbumPlayRequest) = answer
 
-    override suspend fun instantMix(seed: InstantMixSeed): Boolean {
-        mixes += seed
+    override suspend fun instantMix(seed: Song?, artistId: String): Boolean {
+        mixes += Mix(seed, artistId)
         mixError?.let { throw it }
         return answer
     }

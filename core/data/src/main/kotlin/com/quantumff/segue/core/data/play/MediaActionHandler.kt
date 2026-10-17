@@ -42,7 +42,7 @@ class MediaActionHandler @Inject constructor(
     }
 
     suspend fun song(song: Song, action: MediaAction, host: MediaActionHost): MediaActionFailure? = when (action) {
-        MediaAction.InstantMix -> done { playIntents.instantMix(InstantMixSeed.Song(song)) }
+        MediaAction.InstantMix -> done { playIntents.instantMix(InstantMixSeed.OfSong(song)) }
         MediaAction.GoToAlbum -> done { song.albumId?.let(host.onAlbumClick) }
         MediaAction.GoToArtist -> done { song.artistId?.let(host.onArtistClick) }
         else -> common(action, Subject.of(song), host)

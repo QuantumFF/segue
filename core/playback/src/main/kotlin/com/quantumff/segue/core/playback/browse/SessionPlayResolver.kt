@@ -13,13 +13,15 @@ sealed interface SessionPlay {
     /**
      * Queue [items]: a set from [startIndex] at [startPositionMs], shuffled first with [shuffle].
      * The session still narrows them to what can play
-     * ([com.quantumff.segue.core.playback.service.QueueEditor.playable]).
+     * ([com.quantumff.segue.core.playback.service.QueueEditor.playable]). An add of several items
+     * with "Shuffle albums" among them also starts that [albumFeed], which appends its own window.
      */
     data class Items(
         val items: List<MediaItem>,
         val startIndex: Int = 0,
         val startPositionMs: Long = 0,
         val shuffle: Boolean = false,
+        val albumFeed: AlbumPlayRequest? = null,
     ) : SessionPlay
 
     /** Start an album feed instead of a fixed list; a set replaces the queue, an add appends. */
@@ -57,18 +59,12 @@ class SessionPlayResolver(private val tree: BrowseTree, private val search: Libr
         hasQueue: Boolean,
     ): SessionPlay {
         val item = items.singleOrNull()?.takeIf { it.isLibraryRequest }
-        if (item == null) {
-            // Media3's default for a set: the items as an add resolves them, from the requested start.
-            val added = resolveAdd(items, allowed)
-            return if (added is SessionPlay.Items) {
-                added.copy(
-                    startIndex = startIndex,
-                    startPositionMs = startPositionMs,
-                )
-            } else {
-                added
+            ?: return when (val added = resolveAdd(items, allowed)) {
+                // Media3's default for a set: the items as an add resolves them, from the requested start.
+                is SessionPlay.Items -> added.copy(startIndex = startIndex, startPositionMs = startPositionMs)
+
+                else -> added
             }
-        }
         if (!allowed) return SessionPlay.NotAllowed
         if (item.searchQuery?.isBlank() == true && hasQueue) return SessionPlay.KeepQueue
         return resolve(item, adding = false)
@@ -79,19 +75,12 @@ class SessionPlayResolver(private val tree: BrowseTree, private val search: Libr
         if (items.none { it.isLibraryRequest }) return SessionPlay.Items(items)
         if (!allowed) return SessionPlay.NotAllowed
         items.singleOrNull()?.let { return resolve(it, adding = true) }
-        val songs = items.flatMap { item ->
-            if (item.isLibraryRequest) {
-                (
-                    resolve(
-                        item,
-                        adding = true,
-                    ) as? SessionPlay.Items
-                    )?.items.orEmpty()
-            } else {
-                listOf(item)
-            }
-        }
-        return if (songs.isEmpty()) SessionPlay.NothingToPlay else SessionPlay.Items(songs)
+        // Several items: each node's songs, plain songs as they are, and "Shuffle albums" as a feed beside them.
+        val plays = items.map { if (it.isLibraryRequest) resolve(it, adding = true) else SessionPlay.Items(listOf(it)) }
+        val songs = plays.filterIsInstance<SessionPlay.Items>().flatMap { it.items }
+        val feed = plays.filterIsInstance<SessionPlay.AlbumFeed>().firstOrNull()?.request
+        if (songs.isEmpty() && feed == null) return SessionPlay.NothingToPlay
+        return SessionPlay.Items(songs, albumFeed = feed)
     }
 
     private suspend fun resolve(item: MediaItem, adding: Boolean): SessionPlay {

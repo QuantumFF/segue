@@ -33,6 +33,12 @@ internal object SegueSessionCommands {
     /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_STARTED]. */
     const val QUEUE_SONGS = PREFIX + "QUEUE_SONGS"
 
+    /**
+     * Puts back the queue item the user just removed (QueueEditor.putBack). Not a play intent: it is
+     * the user's own queue, so it is not narrowed offline.
+     */
+    const val UNDO_REMOVE = PREFIX + "UNDO_REMOVE"
+
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
@@ -48,6 +54,8 @@ internal object SegueSessionCommands {
     private const val ARG_ITEMS = "items"
     private const val ARG_START_INDEX = "startIndex"
     private const val ARG_SHUFFLE = "shuffle"
+    private const val ARG_ITEM = "item"
+    private const val ARG_INDEX = "index"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -61,6 +69,7 @@ internal object SegueSessionCommands {
             UNDO_ADOPTION,
             PLAY_ALBUMS,
             QUEUE_SONGS,
+            UNDO_REMOVE,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
@@ -148,6 +157,20 @@ internal object SegueSessionCommands {
             bundle.getInt(ARG_START_INDEX),
             bundle.getBoolean(ARG_SHUFFLE),
         )
+    }
+
+    /** An [UNDO_REMOVE] request: [item] goes back at queue position [index]. */
+    data class Removed(val item: MediaItem, val index: Int)
+
+    fun undoRemoveArgs(removed: Removed) = Bundle().apply {
+        putBundle(ARG_ITEM, removed.item.toBundle())
+        putInt(ARG_INDEX, removed.index)
+    }
+
+    /** The request of [undoRemoveArgs], or null if [bundle] does not hold one. */
+    fun undoRemove(bundle: Bundle): Removed? {
+        val item = bundle.getBundle(ARG_ITEM) ?: return null
+        return Removed(MediaItem.fromBundle(item), bundle.getInt(ARG_INDEX))
     }
 
     /** The answer to [PLAY_ALBUMS], [QUEUE_SONGS] and [ADOPT_QUEUE]: whether anything was queued. */

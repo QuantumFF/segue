@@ -148,7 +148,7 @@ class ArtistViewModelTest {
 
         viewModel.startInstantMix()
 
-        assertThat(play.mixes).containsExactly(InstantMixSeed.Artist("artist-1"))
+        assertThat(play.mixes).containsExactly(InstantMixSeed.OfArtist("artist-1"))
         viewModel.uiState.test {
             assertThat((awaitItem() as ArtistUiState.Success).isPreparingPlayback).isFalse()
         }
