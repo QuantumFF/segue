@@ -122,7 +122,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - `emphasizedDecel` = `(0.05, 0.7, 0.1, 1)`
   - `emphasizedAccel` = `(0.3, 0, 0.8, 0.15)`
   - `expoOut` = `(0.16, 1, 0.3, 1)`
-- Navigation: shared-axis X (fade plus 30dp slide, `long`) for forward and back. Bottom-tab switches crossfade (`medium`).
+- Navigation: shared-axis X (fade plus 30dp slide, `long`) for forward and back. The fade goes through rather than across: the leaving screen fades out over the first 100ms (`standard`), then the entering screen fades in over the last 200ms (`emphasizedDecel`), so the two are never both visible. Bottom-tab switches crossfade (`medium`).
 - When `ANIMATOR_DURATION_SCALE == 0` or the reduce-motion setting is on, every transition becomes a `medium` crossfade.
 
 ## 3. App shell

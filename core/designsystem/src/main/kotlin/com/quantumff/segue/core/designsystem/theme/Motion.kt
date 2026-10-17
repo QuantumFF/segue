@@ -34,6 +34,13 @@ object SegueMotion {
     /** Screen transitions, panels, sheets: leaving. */
     fun <T> longExit(): FiniteAnimationSpec<T> = tween(LONG_MS, easing = EmphasizedAccelerate)
 
+    /** Shared-axis fade, leaving screen: gone within the first third of `long`, before the next fades in. */
+    fun <T> sharedAxisFadeOut(): FiniteAnimationSpec<T> = tween(SHORT_MS, easing = Standard)
+
+    /** Shared-axis fade, entering screen: waits for the leaving one, then fills the rest of `long`. */
+    fun <T> sharedAxisFadeIn(): FiniteAnimationSpec<T> =
+        tween(LONG_MS - SHORT_MS, delayMillis = SHORT_MS, easing = EmphasizedDecelerate)
+
     /** Lyric line opacity and scale. */
     fun <T> lyric(): FiniteAnimationSpec<T> = tween(LYRIC_MS, easing = ExpoOut)
 
