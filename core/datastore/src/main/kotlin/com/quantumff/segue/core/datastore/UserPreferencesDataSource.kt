@@ -57,6 +57,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             prefs.putIfChanged(Keys.StreamCacheSizeMb, old.streamCacheSizeMb, new.streamCacheSizeMb)
             prefs.putIfChanged(Keys.StopWhenPausedMinutes, old.stopWhenPausedMinutes, new.stopWhenPausedMinutes)
             prefs.putIfChanged(Keys.CheckForUpdates, old.checkForUpdates, new.checkForUpdates)
+            prefs.putIfChanged(Keys.AlbumGridSize, old.albumGridSize, new.albumGridSize) { it.name }
+            prefs.putIfChanged(Keys.ArtistGridSize, old.artistGridSize, new.artistGridSize) { it.name }
         }
     }
 
@@ -115,6 +117,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             streamCacheSizeMb = this[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
             stopWhenPausedMinutes = this[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
             checkForUpdates = this[Keys.CheckForUpdates] ?: defaults.checkForUpdates,
+            albumGridSize = enum(Keys.AlbumGridSize, defaults.albumGridSize),
+            artistGridSize = enum(Keys.ArtistGridSize, defaults.artistGridSize),
         )
     }
 
@@ -166,6 +170,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val RecentSearches = stringPreferencesKey("recent_searches")
         val CheckForUpdates = booleanPreferencesKey("check_for_updates")
         val LastUpdateCheck = longPreferencesKey("last_update_check_millis")
+        val AlbumGridSize = stringPreferencesKey("album_grid_size")
+        val ArtistGridSize = stringPreferencesKey("artist_grid_size")
     }
 
     companion object {

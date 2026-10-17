@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ReplayGainTarget
 import com.quantumff.segue.core.model.StreamingQuality
@@ -49,6 +50,8 @@ class UserPreferencesDataSourceTest {
             streamCacheSizeMb = 256,
             stopWhenPausedMinutes = 30,
             checkForUpdates = false,
+            albumGridSize = GridSize.Large,
+            artistGridSize = GridSize.Small,
         )
         val defaults = UserPreferences()
         UserPreferences::class.java.declaredFields
