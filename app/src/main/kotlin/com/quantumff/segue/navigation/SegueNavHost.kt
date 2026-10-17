@@ -91,6 +91,9 @@ fun SegueNavHost(
         exitTransition = transitions.exit,
         popEnterTransition = transitions.popEnter,
         popExitTransition = transitions.popExit,
+        // The back gesture scrubs the same transitions; the library default scales the screen down instead.
+        predictivePopEnterTransition = { transitions.popEnter(this) },
+        predictivePopExitTransition = { transitions.popExit(this) },
     ) {
         navigation<HomeGraph>(startDestination = HomeRoute) {
             homeScreen(
