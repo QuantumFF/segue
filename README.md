@@ -1,50 +1,68 @@
-<img src="docs/brand/icon.svg" width="96" alt="Segue icon: a waveform on a dark record">
+<div align="center">
+
+<img src="docs/brand/icon.svg" width="112" alt="Segue icon: a waveform on a dark record">
 
 # Segue
 
-A modern, minimalist Android client for [Navidrome](https://www.navidrome.org/). It's built on the
-Subsonic API with OpenSubsonic extensions, and aims for a rich feature set, fast performance, and
-good battery life. The design is a Feishin-leaning hybrid of [Feishin](https://github.com/jeffvli/feishin)
-and Symfonium.
+**A fast, minimalist Android client for [Navidrome](https://www.navidrome.org/).**
 
-<p>
-  <img src="docs/screenshots/home.webp" width="24%" alt="Home">
-  <img src="docs/screenshots/album.webp" width="24%" alt="Album">
-  <img src="docs/screenshots/now-playing.webp" width="24%" alt="Now Playing">
-  <img src="docs/screenshots/up-next.webp" width="24%" alt="Queue">
+[![CI](https://github.com/QuantumFF/segue/actions/workflows/ci.yml/badge.svg)](https://github.com/QuantumFF/segue/actions/workflows/ci.yml)
+[![Android 10+](https://img.shields.io/badge/Android-10%2B-3574FC?labelColor=171C29&logo=android&logoColor=white)](#install)
+[![OpenSubsonic](https://img.shields.io/badge/API-OpenSubsonic-3574FC?labelColor=171C29)](https://opensubsonic.netlify.app/)
+[![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-3574FC?labelColor=171C29)](LICENSE)
+
+[Highlights](#highlights) · [Features](#features) · [Install](#install) · [Building](#building) · [Architecture](#architecture)
+
+</div>
+
+Segue is built on the Subsonic API with OpenSubsonic extensions. It aims for a rich feature set, fast
+performance, and good battery life. The look comes from [Feishin](https://github.com/jeffvli/feishin)
+and the ergonomics from [Symfonium](https://symfonium.app/).
+
+<p align="center">
+  <img src="docs/screenshots/home.webp" width="24%" alt="Home" title="Home">
+  <img src="docs/screenshots/album.webp" width="24%" alt="Album" title="Album">
+  <img src="docs/screenshots/now-playing.webp" width="24%" alt="Now Playing" title="Now Playing">
+  <img src="docs/screenshots/up-next.webp" width="24%" alt="Queue" title="Queue">
 </p>
-<p>
-  <img src="docs/screenshots/library-buttons.webp" width="24%" alt="Play and Shuffle albums buttons">
-  <img src="docs/screenshots/downloads-continue.webp" width="24%" alt="Downloads and Continue from another device">
-  <img src="docs/screenshots/artist.webp" width="24%" alt="Artist">
-  <img src="docs/screenshots/tablet.webp" width="24%" alt="Tablet layout">
+<p align="center">
+  <img src="docs/screenshots/library-buttons.webp" width="22%" alt="Play and Shuffle albums buttons" title="Play albums and Shuffle albums">
+  <img src="docs/screenshots/downloads-continue.webp" width="22%" alt="Downloads and Continue from another device" title="Downloads, and Continue from another device">
+  <img src="docs/screenshots/artist.webp" width="22%" alt="Artist" title="Artist">
+  <img src="docs/screenshots/tablet.webp" width="30.6%" alt="Tablet layout" title="Tablet layout">
 </p>
 
 ## Highlights
 
-- **Server queue sync.** Segue saves your play queue to Navidrome when something changes: track
-  change, queue edit, pause, seek, or leaving the app. It never polls. When you open Segue after
-  listening elsewhere, a *Continue from &lt;device&gt;* bar offers to pick up where you left off, or
-  Segue adopts the queue automatically (with Undo) if you turn that on. It uses OpenSubsonic's
-  index-based queue when the server supports it. Conflict detection uses the server's own
-  timestamps, so a skewed phone clock doesn't matter.
-- **Album shuffle.** Shuffling happens when music is queued, never to a running queue. *Play albums*
-  and *Shuffle albums* sit above the mini player in the Library's Albums view. They queue the albums
-  you see, in that order or shuffled, each album whole and in track order. Tap to play now, or
-  long-press to play next or add to your queue. Big libraries are queued a window at a time as you
-  listen. *Shuffle albums* is also available for an artist, a genre, or a playlist.
+### Server queue sync
+
+Your queue follows you between devices. Segue saves it to Navidrome when something changes: track
+change, queue edit, pause, seek, or leaving the app. It never polls.
+
+- When you open Segue after listening elsewhere, a *Continue from &lt;device&gt;* bar offers to pick
+  up where you left off. Turn on *Continue automatically* and Segue takes the queue over itself, with Undo.
+- It uses OpenSubsonic's index-based queue when the server supports it.
+- Conflict detection uses the server's own timestamps, so a skewed phone clock doesn't matter.
+
+### Album shuffle
+
+Shuffling happens when music is queued, never to a running queue.
+
+- *Play albums* and *Shuffle albums* sit above the mini player in the Library's Albums view. They
+  queue the albums you see, in that order or shuffled, each album whole and in track order.
+- Tap to play now, or long-press to play next or add to your queue.
+- Big libraries are queued a window at a time as you listen.
+- *Shuffle albums* also works for an artist, a genre, or a playlist.
 
 ## Features
 
-- Gapless playback, ReplayGain (track/album, −18 or −23 LUFS normalisation, optional boost for
-  quiet tracks), per-network streaming quality
-- Offline downloads: pin albums, playlists or artists. Wi-Fi/charging constraints, a storage limit,
-  and offline mode
-- Synced lyrics (OpenSubsonic), sleep timer (time, end of track, end of album), instant mix, related songs
-- Scrobbling through Navidrome. Plays made offline are queued and sent later
-- Favorites, ratings, and playlist create/edit/reorder
-- Android Auto (browse, voice search), home-screen widgets, and a tablet layout
-- Dark, true-black (AMOLED) and light themes, with a fixed, Material You, or album-art accent
+| Area | What you get |
+| --- | --- |
+| **Playback** | Gapless playback, ReplayGain (track/album, −18 or −23 LUFS normalisation, optional boost for quiet tracks), per-network streaming quality, sleep timer (time, end of track, end of album), instant mix, related songs |
+| **Offline** | Pin albums, playlists or artists. Wi-Fi/charging constraints, a storage limit, and offline mode. Plays made offline are scrobbled later |
+| **Library** | Favorites, ratings, playlist create/edit/reorder, synced lyrics (OpenSubsonic), scrobbling through Navidrome |
+| **Beyond the phone** | Android Auto (browse, voice search), home-screen widgets, and a tablet layout |
+| **Themes** | Dark, true-black (AMOLED) and light, with a fixed, Material You, or album-art accent |
 
 ## Performance and battery
 
@@ -62,8 +80,9 @@ Debug APKs are attached to every [CI run](https://github.com/QuantumFF/segue/act
 releases are published under [Releases](https://github.com/QuantumFF/segue/releases) when a
 `v*` tag is pushed.
 
-To try it without your own server, use the public Navidrome demo:
-`https://demo.navidrome.org`, user `demo`, password `demo`.
+> [!TIP]
+> No server yet? Try the public Navidrome demo: `https://demo.navidrome.org`, user `demo`,
+> password `demo`.
 
 ## Building
 
@@ -79,12 +98,16 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ./gradlew assembleRelease               # R8 release; signed by SEGUE_* env vars, else the debug key
 ```
 
-Release signing reads `SEGUE_KEYSTORE_BASE64`, `SEGUE_KEYSTORE_PASSWORD`, `SEGUE_KEY_ALIAS`
-and `SEGUE_KEY_PASSWORD`. CI reads these from repository secrets.
+> [!NOTE]
+> Release signing reads `SEGUE_KEYSTORE_BASE64`, `SEGUE_KEYSTORE_PASSWORD`, `SEGUE_KEY_ALIAS`
+> and `SEGUE_KEY_PASSWORD`. CI reads these from repository secrets.
 
 ## Architecture
 
 See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/DESIGN.md](docs/DESIGN.md) for the UI spec.
+
+<details>
+<summary>Modules</summary>
 
 | Module | Purpose |
 | --- | --- |
@@ -100,6 +123,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/DESIGN.md](docs/
 | `core:testing` | Shared test utilities |
 | `feature:*` | Screens: home, library, album, artist, playlist, search, nowplaying, queue, downloads, settings, login, widget |
 | `baselineprofile` | Baseline Profile generator and startup/scroll Macrobenchmarks |
+
+</details>
 
 ## License
 
