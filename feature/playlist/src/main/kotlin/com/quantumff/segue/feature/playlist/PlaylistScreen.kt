@@ -58,6 +58,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
+import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
@@ -258,19 +259,25 @@ fun PlaylistScreenContent(
                 ) { index, entry ->
                     val download = uiState.availability.downloads[entry.song.id]
                     val available = uiState.availability.isAvailable(entry.song)
-                    TrackRow(
-                        state = remember(entry, download, available) {
-                            entry.song.toTrackRowState(
-                                rowKey = entry.key,
-                                download = download?.status?.toBadgeState(),
-                                isAvailable = available,
-                            )
-                        },
-                        onClick = { onTrackClick(index) },
-                        leading = TrackRowLeading.Art,
-                        onLongClick = { trackMenu = index to entry.song },
-                        onMoreClick = { trackMenu = index to entry.song },
-                    )
+                    TrackSwipeBox(
+                        onPlayNext = { onTrackAction(index, entry.song, MediaAction.PlayNext) },
+                        onAddToQueue = { onTrackAction(index, entry.song, MediaAction.AddToQueue) },
+                        enabled = available,
+                    ) {
+                        TrackRow(
+                            state = remember(entry, download, available) {
+                                entry.song.toTrackRowState(
+                                    rowKey = entry.key,
+                                    download = download?.status?.toBadgeState(),
+                                    isAvailable = available,
+                                )
+                            },
+                            onClick = { onTrackClick(index) },
+                            leading = TrackRowLeading.Art,
+                            onLongClick = { trackMenu = index to entry.song },
+                            onMoreClick = { trackMenu = index to entry.song },
+                        )
+                    }
                 }
             }
         }

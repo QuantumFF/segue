@@ -29,6 +29,10 @@ data class UserPreferences(
     val stopWhenPausedMinutes: Int = DEFAULT_STOP_WHEN_PAUSED_MINUTES,
     /** Look for a newer release on GitHub once a day when the app starts. */
     val checkForUpdates: Boolean = true,
+    /** Card size of the Library's album grid; pinching the grid steps through the sizes. */
+    val albumGridSize: GridSize = GridSize.Medium,
+    /** Card size of the Library's artist grid, as [albumGridSize]. */
+    val artistGridSize: GridSize = GridSize.Medium,
 ) {
     companion object {
         const val DEFAULT_STREAM_CACHE_MB = 1024
@@ -68,6 +72,24 @@ enum class ReplayGainTarget(val lufs: Int) {
         /** The target closest to a preamp of [preampDb], from the setting this one replaced. */
         fun nearestTo(preampDb: Float): ReplayGainTarget = entries.minBy { abs(it.offsetDb - preampDb) }
     }
+}
+
+/**
+ * A grid's card size, smallest first. [Medium] is the grid's usual column count; each step down
+ * adds a column and each step up drops one.
+ */
+enum class GridSize {
+    ExtraSmall,
+    Small,
+    Medium,
+    Large,
+    ;
+
+    /** The next size up, or null at [Large]. */
+    val larger: GridSize? get() = entries.getOrNull(ordinal + 1)
+
+    /** The next size down, or null at [ExtraSmall]. */
+    val smaller: GridSize? get() = entries.getOrNull(ordinal - 1)
 }
 
 enum class ThemeMode {

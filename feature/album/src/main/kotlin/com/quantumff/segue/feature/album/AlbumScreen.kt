@@ -58,6 +58,7 @@ import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
+import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -271,7 +272,7 @@ private fun AlbumContent(
                 onRetry = onRetry,
             )
         }
-        trackItems(state, onPlay = { onPlay(it, false) }, onMoreClick = { menuSongId = it.id })
+        trackItems(state, onPlay = { onPlay(it, false) }, onMoreClick = { menuSongId = it.id }, onSongAction)
         item(key = "footer", contentType = "footer") {
             AlbumFooter(year = album.year, trackCount = state.trackCount, durationSeconds = state.durationSeconds)
         }
@@ -332,7 +333,12 @@ private fun AlbumContent(
     }
 }
 
-private fun LazyListScope.trackItems(state: AlbumUiState.Success, onPlay: (Int) -> Unit, onMoreClick: (Song) -> Unit) {
+private fun LazyListScope.trackItems(
+    state: AlbumUiState.Success,
+    onPlay: (Int) -> Unit,
+    onMoreClick: (Song) -> Unit,
+    onSongAction: (Song, MediaAction) -> Unit,
+) {
     state.discs.forEach { disc ->
         if (state.showDiscHeaders) {
             item(key = "disc-${disc.number}", contentType = "discHeader") {
@@ -345,13 +351,19 @@ private fun LazyListScope.trackItems(state: AlbumUiState.Success, onPlay: (Int) 
             val row = remember(entry.song, download, available) {
                 entry.song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
             }
-            TrackRow(
-                state = row,
-                onClick = { onPlay(entry.index) },
-                leading = TrackRowLeading.Number,
-                onLongClick = { onMoreClick(entry.song) },
-                onMoreClick = { onMoreClick(entry.song) },
-            )
+            TrackSwipeBox(
+                onPlayNext = { onSongAction(entry.song, MediaAction.PlayNext) },
+                onAddToQueue = { onSongAction(entry.song, MediaAction.AddToQueue) },
+                enabled = available,
+            ) {
+                TrackRow(
+                    state = row,
+                    onClick = { onPlay(entry.index) },
+                    leading = TrackRowLeading.Number,
+                    onLongClick = { onMoreClick(entry.song) },
+                    onMoreClick = { onMoreClick(entry.song) },
+                )
+            }
         }
     }
 }

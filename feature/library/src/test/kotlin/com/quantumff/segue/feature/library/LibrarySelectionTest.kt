@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.library
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -17,11 +18,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
@@ -57,6 +60,44 @@ class LibrarySelectionTest {
             LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(albums[0])),
             LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(albums[1])),
         ).inOrder()
+    }
+
+    @Test
+    fun `dragging on after a long-press picks every album up to the finger`() {
+        show()
+        val first = compose.onNodeWithText(albums[0].name).fetchSemanticsNode().boundsInRoot
+        val third = compose.onNodeWithText(albums[2].name).fetchSemanticsNode().boundsInRoot
+
+        compose.onNodeWithText(albums[0].name).performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + LONG_PRESS_MARGIN_MILLIS)
+            // Two columns: the second album is beside the first, the third under it.
+            moveTo(center + (third.center - first.center))
+            up()
+        }
+
+        assertThat(events).containsExactly(
+            LibraryEvent.ToggleSelected(LibraryItem.OfAlbum(albums[0])),
+            LibraryEvent.SetPicked(LibraryItem.OfAlbum(albums[1]), picked = true),
+            LibraryEvent.SetPicked(LibraryItem.OfAlbum(albums[2]), picked = true),
+        ).inOrder()
+    }
+
+    @Test
+    fun `pinching the album grid steps its card size`() {
+        show()
+
+        compose.onNodeWithText(albums[0].name).performTouchInput {
+            pinch(center - PINCH_NEAR, center - PINCH_FAR, center + PINCH_NEAR, center + PINCH_FAR)
+        }
+        // Medium is two columns here; Large is one, and there is nothing larger.
+        assertThat(events).containsExactly(LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize.Large))
+
+        events.clear()
+        compose.onNodeWithText(albums[0].name).performTouchInput {
+            pinch(center - PINCH_FAR, center - PINCH_NEAR, center + PINCH_FAR, center + PINCH_NEAR)
+        }
+        assertThat(events.first()).isEqualTo(LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize.Medium))
     }
 
     @Test
@@ -119,6 +160,12 @@ class LibrarySelectionTest {
             LibraryEvent.AlbumMenu(albums[0], MediaAction.Shuffle),
             LibraryEvent.ClearSelection,
         ).inOrder()
+    }
+
+    private companion object {
+        const val LONG_PRESS_MARGIN_MILLIS = 100L
+        val PINCH_NEAR = Offset(10f, 10f)
+        val PINCH_FAR = Offset(120f, 120f)
     }
 
     private fun show() {

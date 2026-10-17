@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.PinKind
@@ -31,6 +32,7 @@ import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
+import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
@@ -55,6 +57,7 @@ class LibraryViewModelTest {
     private val offlineMode = FakeOfflineModeRepository()
     private val savedState = SavedStateHandle()
     private val play = RecordingPlayIntents()
+    private val preferences = FakeUserPreferencesRepository()
     private lateinit var viewModel: LibraryViewModel
 
     @Before
@@ -79,6 +82,7 @@ class LibraryViewModelTest {
             offlineLibraryView(offlineMode, downloads, artists, library, playlists),
             play,
             mediaActionHandler(play, downloads, stars, albums, playlists, artists),
+            preferences,
         )
     }
 
@@ -284,6 +288,37 @@ class LibraryViewModelTest {
             viewModel.toggleSelected(LibraryItem.OfAlbum(two))
             assertThat(expectMostRecentItem().selection).isNull()
         }
+    }
+
+    @Test
+    fun aDragPicksAndDropsWithoutTogglingWhatIsAlreadySo() = runTest {
+        val (one, two) = albums.albumsState.value
+        viewModel.uiState.test {
+            viewModel.toggleSelected(LibraryItem.OfAlbum(one))
+            viewModel.setPicked(LibraryItem.OfAlbum(two), picked = true)
+            viewModel.setPicked(LibraryItem.OfAlbum(two), picked = true)
+            viewModel.setPicked(LibraryItem.OfAlbum(one), picked = true)
+            val picked = expectMostRecentItem().selection as LibrarySelection.Albums
+            assertThat(picked.albums.map { it.id }).containsExactly("1", "2").inOrder()
+
+            viewModel.setPicked(LibraryItem.OfAlbum(one), picked = false)
+            viewModel.setPicked(LibraryItem.OfAlbum(one), picked = false)
+            viewModel.setPicked(LibraryItem.OfAlbum(two), picked = false)
+            assertThat(expectMostRecentItem().selection).isNull()
+        }
+    }
+
+    @Test
+    fun aPinchKeepsEachGridsSizeInPreferences() = runTest {
+        viewModel.uiState.test {
+            viewModel.setGridSize(LibraryTab.Albums, GridSize.Small)
+            viewModel.setGridSize(LibraryTab.Artists, GridSize.Large)
+            val state = expectMostRecentItem()
+            assertThat(state.albumGridSize).isEqualTo(GridSize.Small)
+            assertThat(state.artistGridSize).isEqualTo(GridSize.Large)
+        }
+        assertThat(preferences.preferences.value.albumGridSize).isEqualTo(GridSize.Small)
+        assertThat(preferences.preferences.value.artistGridSize).isEqualTo(GridSize.Large)
     }
 
     @Test

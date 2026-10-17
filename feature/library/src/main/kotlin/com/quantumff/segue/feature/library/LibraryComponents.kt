@@ -41,6 +41,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
@@ -69,9 +70,10 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 
 /**
- * Paged album grid (DESIGN.md §4.2): `GridCells.Adaptive(150)`, gutter 12, side margin 16.
- * Placeholders keep the scroll position stable while pages load. [selected] albums carry
- * multi-select's mark.
+ * Paged album grid (DESIGN.md §4.2): `GridCells.Adaptive(150)` unless [columns] says otherwise,
+ * gutter 12, side margin 16. Placeholders keep the scroll position stable while pages load.
+ * [selected] albums carry multi-select's mark. [artDisplaySize] should match the cell width. With
+ * [animatePlacement] the cards move to new places with the `player` spring (after a resize).
  */
 @Composable
 internal fun PagedAlbumGrid(
@@ -79,14 +81,17 @@ internal fun PagedAlbumGrid(
     onAlbumClick: (Album) -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
-    onAlbumLongClick: ((Album) -> Unit)? = null,
+    onAlbumLongClick: ((index: Int, album: Album) -> Unit)? = null,
     downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
     state: LazyGridState = rememberLazyGridState(),
     selected: ImmutableSet<String> = persistentSetOf(),
     onAlbumLongClickLabel: String? = null,
+    columns: GridCells = GridCells.Adaptive(SegueSizes.albumGridCell),
+    artDisplaySize: Dp = SegueSizes.albumGridCell,
+    animatePlacement: Boolean = false,
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(SegueSizes.albumGridCell),
+        columns = columns,
         state = state,
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
@@ -106,10 +111,11 @@ internal fun PagedAlbumGrid(
                 AlbumCard(
                     state = remember(album, download) { album.toCardState(download = download?.toBadgeState()) },
                     onClick = { onAlbumClick(album) },
-                    onLongClick = onAlbumLongClick?.let { { it(album) } },
-                    artDisplaySize = SegueSizes.albumGridCell,
+                    onLongClick = onAlbumLongClick?.let { { it(index, album) } },
+                    artDisplaySize = artDisplaySize,
                     selected = album.id in selected,
                     onLongClickLabel = onAlbumLongClickLabel,
+                    modifier = cardPlacement(animatePlacement),
                 )
             }
         }
