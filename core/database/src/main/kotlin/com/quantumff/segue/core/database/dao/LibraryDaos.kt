@@ -310,10 +310,6 @@ abstract class SongDao {
     open suspend fun getByAlbumIds(serverId: String, albumIds: Collection<String>): List<SongEntity> =
         albumIds.distinct().chunked(SQL_CHUNK).flatMap { getByAlbumIdsChunk(serverId, it) }
 
-    /** Albums with at least one song in [genre]. */
-    @Query("SELECT DISTINCT albumId FROM songs WHERE serverId = :serverId AND genre = :genre AND albumId IS NOT NULL")
-    abstract suspend fun albumIdsByGenre(serverId: String, genre: String): List<String>
-
     @Upsert
     abstract suspend fun upsertAll(songs: List<SongEntity>)
 

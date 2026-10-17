@@ -7,6 +7,7 @@ import com.quantumff.segue.core.database.dao.AlbumDao
 import com.quantumff.segue.core.database.dao.PlaylistDao
 import com.quantumff.segue.core.database.dao.SongDao
 import com.quantumff.segue.core.database.model.asExternalModel
+import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistAlbums
 import com.quantumff.segue.core.model.Song
@@ -23,8 +24,8 @@ import kotlinx.coroutines.withContext
 interface AlbumShuffleRepository {
     /**
      * The albums [source] covers: the library, a Library albums view (in its sort order), an
-     * artist's albums (in the artist page's order), albums with songs in a genre, or albums on a playlist. IDs only, so even a
-     * large library is cheap to list.
+     * artist's albums (in the artist page's order), a genre's albums (by name, as its page lists
+     * them), or albums on a playlist. IDs only, so even a large library is cheap to list.
      */
     suspend fun albumIds(source: AlbumSource): List<String>
 
@@ -62,7 +63,14 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
                 ArtistAlbums.of(source.artistId, albums).inPageOrder.map { it.id }
             }
 
-            is AlbumSource.Genre -> songDao.albumIdsByGenre(serverId, source.name)
+            is AlbumSource.Genre -> albumDao.idsInViewOrder(
+                serverId = serverId,
+                sort = AlbumSortOrder.Name.name,
+                starredOnly = false,
+                genre = source.name,
+                year = null,
+                downloadedOnly = false,
+            )
 
             is AlbumSource.Playlist ->
                 playlistDao.observeSongs(serverId, source.playlistId).first().mapNotNull { it.albumId }.distinct()

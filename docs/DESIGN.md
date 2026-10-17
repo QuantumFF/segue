@@ -422,7 +422,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Show skeletons only when Room has no data and the load takes longer than 150ms.
   - Inline spinners: 20 `CircularProgressIndicator`, stroke 2.
 - **Error:**
-  - Room has data: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
+  - Room has data and the server can't be reached: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
+  - Room has data and the server answered with an error (signed out, refused, server error): show it without the chip. It is not offline.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
   - Image load failure: keep the placeholder. Never show a broken-image icon.
 

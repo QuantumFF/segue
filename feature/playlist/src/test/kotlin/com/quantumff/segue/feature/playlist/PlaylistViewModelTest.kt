@@ -153,7 +153,19 @@ class PlaylistViewModelTest {
         val state = viewModel().uiState.value
 
         assertThat(state.loadState).isEqualTo(LoadState.Failed)
+        assertThat(state.isOffline).isTrue()
         assertThat(state.playlist).isNotNull()
+        assertThat(state.entries).hasSize(3)
+    }
+
+    @Test
+    fun serverErrorWithCachedDataKeepsTheRowsWithoutTheOfflineChip() = runTest {
+        playlists.error = RemoteException.ServerError("broken", IOException("500"))
+
+        val state = viewModel().uiState.value
+
+        assertThat(state.loadState).isEqualTo(LoadState.Failed)
+        assertThat(state.isOffline).isFalse()
         assertThat(state.entries).hasSize(3)
     }
 

@@ -44,7 +44,7 @@ class GenreViewModel @Inject constructor(
 
     /** "Play albums" or "Shuffle albums" of the grid as shown: the genre's albums by name. */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
-        val request = AlbumPlayRequest(AlbumSource.Albums(SORT, filter), order, placement)
+        val request = AlbumPlayRequest(AlbumSource.Genre(genre), order, placement)
         viewModelScope.launch { playIntents.playAlbums(request) }
     }
 

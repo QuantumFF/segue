@@ -8,6 +8,7 @@ import com.quantumff.segue.core.data.testing.SERVER_ID
 import com.quantumff.segue.core.data.testing.inMemoryDatabase
 import com.quantumff.segue.core.data.testing.libraryWriter
 import com.quantumff.segue.core.data.testing.networkAlbum
+import com.quantumff.segue.core.data.testing.networkSong
 import com.quantumff.segue.core.model.AlbumFeed
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
@@ -172,6 +173,31 @@ class PlaybackRepositoriesTest {
         assertThat(repository.albumIds(AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starredOnly = true))))
             .isEmpty()
         assertThat(repository.songs(byName, listOf("a2")).map { it.id }).containsExactly("a2-s1", "a2-s2").inOrder()
+    }
+
+    @Test
+    fun `a genre source lists the albums tagged with it by name, as the genre page does`() = runTest {
+        libraryWriter(db).writeAlbums(
+            SERVER_ID,
+            listOf(
+                networkAlbum("rock-b", name = "B").copy(genre = "Rock"),
+                networkAlbum("rock-a", name = "A").copy(genre = "Rock"),
+                // A Jazz album with one Rock song is not one of Rock's albums.
+                networkAlbum("jazz", name = "C").copy(
+                    genre = "Jazz",
+                    song = listOf(networkSong("jazz-s1", albumId = "jazz", track = 1).copy(genre = "Rock")),
+                ),
+            ),
+        )
+        val repository = RoomAlbumShuffleRepository(
+            clients,
+            db.albumDao(),
+            db.songDao(),
+            db.playlistDao(),
+            StandardTestDispatcher(testScheduler),
+        )
+
+        assertThat(repository.albumIds(AlbumSource.Genre("Rock"))).containsExactly("rock-a", "rock-b").inOrder()
     }
 
     @Test

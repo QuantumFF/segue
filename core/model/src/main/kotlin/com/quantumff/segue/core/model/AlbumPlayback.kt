@@ -10,7 +10,10 @@ sealed interface AlbumSource {
 
     data class Artist(val artistId: String) : AlbumSource
 
-    /** Albums with at least one song in the genre. */
+    /**
+     * The albums tagged with the genre, by name: what the genre's page lists. Every entry point
+     * (the Genres tab, the genre page, an album's "By genre") means this same set.
+     */
     data class Genre(val name: String) : AlbumSource
 
     /** The playlist's tracks grouped by album; only tracks on the playlist are queued. */

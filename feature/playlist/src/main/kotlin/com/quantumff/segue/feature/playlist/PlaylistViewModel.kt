@@ -41,7 +41,7 @@ enum class LoadState {
     Loading,
     Loaded,
 
-    /** The refresh failed: cached rows (if any) are shown with an offline chip. */
+    /** The refresh failed: cached rows (if any) stay; with none, the screen shows an error. */
     Failed,
 }
 
@@ -50,6 +50,8 @@ data class PlaylistUiState(
     /** The saved order, or the working order while [isEditing]. */
     val entries: ImmutableList<PlaylistEntry> = persistentListOf(),
     val loadState: LoadState = LoadState.Loading,
+    /** The refresh could not reach the server: cached rows show with the offline chip. */
+    val isOffline: Boolean = false,
     val isEditing: Boolean = false,
     val isSaving: Boolean = false,
     /** Set once the playlist was deleted from this screen; the screen then navigates back. */
@@ -98,6 +100,7 @@ class PlaylistViewModel @Inject constructor(
                 playlist == null && local.refreshing -> LoadState.Loading
                 else -> LoadState.Loaded
             },
+            isOffline = local.refreshOffline,
             isEditing = local.working != null,
             isSaving = local.saving,
             isDeleted = local.deleted,
@@ -110,11 +113,16 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun refresh() {
-        local.update { it.copy(refreshing = true, refreshFailed = false) }
+        local.update { it.copy(refreshing = true, refreshFailed = false, refreshOffline = false) }
         viewModelScope.launch {
-            // Any failure, not found included, shows the offline chip (see RemoteOutcome).
-            val failed = remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }.isFailure
-            local.update { it.copy(refreshing = false, refreshFailed = failed) }
+            val outcome = remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }
+            local.update {
+                it.copy(
+                    refreshing = false,
+                    refreshFailed = outcome.isFailure,
+                    refreshOffline = outcome.showsOfflineChip,
+                )
+            }
         }
     }
 
@@ -214,6 +222,7 @@ class PlaylistViewModel @Inject constructor(
     private data class LocalState(
         val refreshing: Boolean = false,
         val refreshFailed: Boolean = false,
+        val refreshOffline: Boolean = false,
         /** The working order while editing; null outside edit mode. */
         val working: ImmutableList<PlaylistEntry>? = null,
         val saving: Boolean = false,

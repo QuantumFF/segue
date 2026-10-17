@@ -212,7 +212,7 @@ fun PlaylistScreenContent(
                 }
             },
         ) {
-            if (uiState.loadState == LoadState.Failed && playlist != null) {
+            if (uiState.isOffline && playlist != null) {
                 item(key = "offline", contentType = "offline") {
                     Box(
                         modifier = Modifier

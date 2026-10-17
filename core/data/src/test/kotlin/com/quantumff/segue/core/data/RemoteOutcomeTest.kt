@@ -57,6 +57,20 @@ class RemoteOutcomeTest {
     }
 
     @Test
+    fun `only an unreachable server shows the offline chip`() {
+        assertThat(remoteOutcome<Int> { throw RemoteException.Unreachable(cause) }.showsOfflineChip).isTrue()
+
+        val others = listOf(
+            remoteOutcome { 42 },
+            remoteOutcome<Int> { throw RemoteException.NotFound(cause) },
+            remoteOutcome<Int> { throw RemoteException.NotSignedIn() },
+            remoteOutcome<Int> { throw RemoteException.AuthFailed(cause) },
+            remoteOutcome<Int> { throw RemoteException.ServerError("nope", cause) },
+        )
+        for (outcome in others) assertThat(outcome.showsOfflineChip).isFalse()
+    }
+
+    @Test
     fun `other exceptions and cancellation propagate`() {
         assertThrows(IllegalStateException::class.java) { remoteOutcome<Int> { throw IllegalStateException() } }
         assertThrows(CancellationException::class.java) { remoteOutcome<Int> { throw CancellationException() } }

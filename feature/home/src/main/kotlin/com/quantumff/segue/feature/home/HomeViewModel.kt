@@ -2,7 +2,6 @@ package com.quantumff.segue.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
@@ -163,7 +162,7 @@ class HomeViewModel @Inject constructor(
                     remoteOutcome { albumRepository.refreshAlbumList(type, size) }
                 }
             }.awaitAll()
-            val offline = results.any { it is RemoteOutcome.Unreachable }
+            val offline = results.any { it.showsOfflineChip }
             status.update { it.copy(isRefreshing = false, isOffline = offline) }
         }
     }

@@ -87,7 +87,7 @@ class AlbumViewModel @Inject constructor(
                 songs = songs,
                 discs = groupDiscs(album, songs),
                 moreByArtist = more,
-                isOffline = refresh is RemoteOutcome.Failed,
+                isOffline = refresh?.showsOfflineChip == true,
                 message = message,
                 download = download,
                 availability = availability,

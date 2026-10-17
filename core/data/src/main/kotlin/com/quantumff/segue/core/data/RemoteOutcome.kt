@@ -4,15 +4,19 @@ package com.quantumff.segue.core.data
  * How a server call ended, for screens that turn a failure into UI state instead of catching
  * [RemoteException] themselves. Run the call with [remoteOutcome].
  *
- * Which failures show the "Offline · showing cached library" chip (DESIGN.md) differs by screen,
- * and each screen keeps its own mapping:
- * - Album and artist detail: any [Failed] (but not [NotFound], which has its own state).
- * - Playlist detail: any failure, [NotFound] included.
- * - Home and its "See all" lists: only [Unreachable].
+ * Every screen shows the "Offline · showing cached library" chip (DESIGN.md) for the same outcome,
+ * [showsOfflineChip]. Other failures keep the cached rows without the chip, or show the screen's
+ * error state when nothing is cached.
  */
 sealed interface RemoteOutcome<out T> {
     /** The call failed, for whatever reason. */
     val isFailure: Boolean get() = this !is Done
+
+    /**
+     * The server could not be reached, so the screen is showing what it has cached. A server that
+     * answered with an error (signed out, refused, broken) is not "offline".
+     */
+    val showsOfflineChip: Boolean get() = this is Unreachable
 
     data class Done<out T>(val value: T) : RemoteOutcome<T>
 

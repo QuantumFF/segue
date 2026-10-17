@@ -85,7 +85,7 @@ class ArtistViewModel @Inject constructor(
                     similarArtists = remote.info?.similarArtists ?: persistentListOf(),
                     biography = remote.info?.biography,
                     trackCount = albums.sumOf { it.songCount },
-                    isOffline = refresh is RemoteOutcome.Failed,
+                    isOffline = refresh?.showsOfflineChip == true,
                     isPreparingPlayback = busy,
                     message = message,
                     download = download,

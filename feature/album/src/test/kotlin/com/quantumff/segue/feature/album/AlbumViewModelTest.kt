@@ -127,6 +127,15 @@ class AlbumViewModelTest {
     }
 
     @Test
+    fun serverErrorWithCachedDataKeepsTheRowsWithoutTheOfflineChip() = runTest {
+        seed()
+        albums.refreshError = RemoteException.ServerError("broken", IOException("500"))
+        viewModel().uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).isOffline).isFalse()
+        }
+    }
+
+    @Test
     fun refreshFailureWithoutDataIsErrorAndNotFoundIsNotFound() = runTest {
         albums.refreshError = RemoteException.Unreachable(IOException("offline"))
         viewModel().uiState.test { assertThat(awaitItem()).isEqualTo(AlbumUiState.Error) }

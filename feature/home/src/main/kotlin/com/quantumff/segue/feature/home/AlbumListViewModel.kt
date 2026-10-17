@@ -3,7 +3,6 @@ package com.quantumff.segue.feature.home
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
@@ -59,7 +58,7 @@ class AlbumListViewModel @Inject constructor(
         status.update { it.copy(isRefreshing = true) }
         viewModelScope.launch {
             val outcome = remoteOutcome { albumRepository.refreshAlbumList(type, SEE_ALL_SIZE) }
-            status.update { it.copy(isRefreshing = false, isOffline = outcome is RemoteOutcome.Unreachable) }
+            status.update { it.copy(isRefreshing = false, isOffline = outcome.showsOfflineChip) }
         }
     }
 
