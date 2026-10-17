@@ -26,6 +26,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -53,6 +54,7 @@ import com.quantumff.segue.core.model.RemoteQueueOffer
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -80,10 +82,9 @@ internal fun QueueViewModel.actions() = QueueActions(
 )
 
 /**
- * The queue, ready to embed (for example in Now Playing's Up next panel): the
- * "Continue from <device>" banner, and the reorderable list, with its own undo snackbar unless
- * [snackbarHostState] is given (then the host shows it). Clear and Save as playlist live in the
- * full-screen queue's menu.
+ * The queue (DESIGN.md §4.8), ready to embed in Now Playing's Queue panel: the header (jump to
+ * current, upload, download), the "Continue from <device>" banner, and the reorderable list,
+ * with its own snackbar unless [snackbarHostState] is given (then the host shows it).
  */
 @Composable
 fun QueueContent(
@@ -95,23 +96,43 @@ fun QueueContent(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val hostState = snackbarHostState ?: remember { SnackbarHostState() }
     val actions = remember(viewModel) { viewModel.actions() }
+    val headerActions = remember(viewModel) { viewModel.headerActions() }
     QueueMessages(state.message, hostState, onUndo = viewModel::undoRemove, onShow = viewModel::onMessageShown)
     Box(modifier) {
-        QueueContent(state = state, actions = actions, contentPadding = contentPadding)
+        QueueContent(state = state, actions = actions, headerActions = headerActions, contentPadding = contentPadding)
         if (snackbarHostState == null) SegueSnackbarHost(hostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 
-/** Stateless queue: see the stateful overload. [listState] is hoisted for the top bar's scroll-to-current. */
+/** Stateless queue: see the stateful overload. */
 @Composable
 fun QueueContent(
     state: QueueUiState,
     actions: QueueActions,
     modifier: Modifier = Modifier,
+    headerActions: QueueHeaderActions = QueueHeaderActions(),
     listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(),
 ) {
+    val scope = rememberCoroutineScope()
+    val currentVisible by rememberCurrentTrackVisible(listState, state.currentKey)
     Column(modifier.fillMaxSize()) {
+        QueueHeader(
+            state = state,
+            actions = headerActions,
+            showJumpToCurrent = !currentVisible,
+            onJumpToCurrent = {
+                val key = state.currentKey
+                val index = if (key ==
+                    null
+                ) {
+                    -1
+                } else {
+                    queueIndexOf(state.items, key, hasBanner = state.remoteOffer != null)
+                }
+                if (index >= 0) scope.launch { listState.animateScrollToItem((index - 1).coerceAtLeast(0)) }
+            },
+        )
         if (state.items.isEmpty() && state.remoteOffer == null) {
             if (!state.isLoading && rememberDelayedVisibility()) {
                 EmptyState(
@@ -253,9 +274,9 @@ private fun AutoScrollToCurrent(
     }
 }
 
-/** True while the current track's row is on screen (or there is none): hides scroll-to-current. */
+/** True while the current track's row is on screen (or there is none): hides jump to current. */
 @Composable
-fun rememberCurrentTrackVisible(listState: LazyListState, currentKey: String?): State<Boolean> =
+private fun rememberCurrentTrackVisible(listState: LazyListState, currentKey: String?): State<Boolean> =
     remember(listState, currentKey) {
         derivedStateOf { currentKey == null || listState.layoutInfo.visibleItemsInfo.any { it.key == currentKey } }
     }
@@ -284,8 +305,20 @@ internal fun QueueMessages(
             latestOnShown()
             val text = when (shown) {
                 is QueueMessage.Removed -> resources.getString(R.string.feature_queue_removed, shown.title)
-                is QueueMessage.SavedAsPlaylist -> resources.getString(R.string.feature_queue_saved, shown.name)
-                QueueMessage.SaveFailed -> resources.getString(R.string.feature_queue_save_failed)
+
+                QueueMessage.Uploaded -> resources.getString(R.string.feature_queue_uploaded)
+
+                QueueMessage.UploadFailed -> resources.getString(R.string.feature_queue_upload_failed)
+
+                is QueueMessage.Downloaded -> resources.getQuantityString(
+                    R.plurals.feature_queue_downloaded,
+                    shown.trackCount,
+                    shown.trackCount,
+                )
+
+                QueueMessage.NothingToDownload -> resources.getString(R.string.feature_queue_nothing_to_download)
+
+                QueueMessage.DownloadFailed -> resources.getString(R.string.feature_queue_download_failed)
             }
             val undoable = shown is QueueMessage.Removed
             val result = hostState.showSnackbar(

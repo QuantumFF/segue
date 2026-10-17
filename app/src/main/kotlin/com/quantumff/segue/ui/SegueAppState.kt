@@ -15,7 +15,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
-import com.quantumff.segue.feature.queue.navigation.QueueRoute
 import com.quantumff.segue.navigation.TopLevelDestination
 
 /** How the shell lays out navigation and the player (DESIGN.md §3). */
@@ -129,6 +128,6 @@ class SegueAppState(
     }
 
     private companion object {
-        val FullScreenRoutes = listOf(NowPlayingRoute::class, QueueRoute::class, LoginRoute::class)
+        val FullScreenRoutes = listOf(NowPlayingRoute::class, LoginRoute::class)
     }
 }

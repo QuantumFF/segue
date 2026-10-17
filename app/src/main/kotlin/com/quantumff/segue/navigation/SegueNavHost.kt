@@ -43,8 +43,6 @@ import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import com.quantumff.segue.feature.playlist.navigation.playlistScreen
 import com.quantumff.segue.feature.playlist.navigation.playlistsScreen
 import com.quantumff.segue.feature.queue.QueueContent
-import com.quantumff.segue.feature.queue.navigation.navigateToQueue
-import com.quantumff.segue.feature.queue.navigation.queueScreen
 import com.quantumff.segue.feature.search.navigation.SearchRoute
 import com.quantumff.segue.feature.search.navigation.searchScreen
 import com.quantumff.segue.feature.settings.navigation.licensesScreen
@@ -178,12 +176,8 @@ fun SegueNavHost(
                 onArtistClick(id)
             },
             onAddToPlaylist = onAddToPlaylist,
-            // Over Now Playing: back returns to it.
-            onOpenQueue = { appState.navigate { navigateToQueue() } },
-            // The same queue, with all its gestures, as on the Queue screen.
             queueContent = { QueueContent() },
         )
-        queueScreen(onBackClick = onBackClick)
         loginScreen(onBackClick = onBackClick, onSignedIn = appState::onSignedIn)
     }
 }

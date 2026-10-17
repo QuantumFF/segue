@@ -78,6 +78,8 @@ object SegueIcons {
     val DragHandle by lazy { lucide("grip-vertical", LucidePaths.GripVertical) }
     val Remove by lazy { lucide("trash", LucidePaths.Trash) }
     val ScrollToCurrent by lazy { lucide("locate-fixed", LucidePaths.LocateFixed) }
+    val UploadQueue by lazy { lucide("cloud-upload", LucidePaths.CloudUpload) }
+    val DownloadQueue by lazy { lucide("cloud-download", LucidePaths.CloudDownload) }
 
     val Download by lazy { lucide("download", LucidePaths.Download) }
     val DownloadQueued by lazy { lucide("arrow-down", LucidePaths.ArrowDown) }

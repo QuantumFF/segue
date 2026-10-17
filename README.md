@@ -9,7 +9,7 @@ and Symfonium.
   <img src="docs/screenshots/home.webp" width="24%" alt="Home">
   <img src="docs/screenshots/album.webp" width="24%" alt="Album">
   <img src="docs/screenshots/now-playing.webp" width="24%" alt="Now Playing">
-  <img src="docs/screenshots/up-next.webp" width="24%" alt="Up next">
+  <img src="docs/screenshots/up-next.webp" width="24%" alt="Queue">
 </p>
 <p>
   <img src="docs/screenshots/library-buttons.webp" width="24%" alt="Play and Shuffle albums buttons">

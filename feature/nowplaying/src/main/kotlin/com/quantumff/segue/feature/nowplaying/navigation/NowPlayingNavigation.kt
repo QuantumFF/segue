@@ -26,14 +26,13 @@ fun NavController.navigateToNowPlaying(navOptions: NavOptions? = null) = navigat
  * collapses (DESIGN.md §2.5, §4.7). The screens behind it stay put.
  *
  * @param onAlbumClick and [onArtistClick] should collapse Now Playing before navigating.
- * @param queueContent the Up next panel.
+ * @param queueContent the Queue panel.
  */
 fun NavGraphBuilder.nowPlayingScreen(
     onCollapseClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
-    onOpenQueue: () -> Unit,
     queueContent: @Composable () -> Unit,
 ) {
     composable<NowPlayingRoute>(
@@ -49,7 +48,6 @@ fun NavGraphBuilder.nowPlayingScreen(
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
-            onOpenQueue = onOpenQueue,
             queueContent = queueContent,
         )
     }
