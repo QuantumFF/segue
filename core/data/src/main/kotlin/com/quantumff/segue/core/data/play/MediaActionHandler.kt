@@ -113,7 +113,8 @@ class MediaActionHandler @Inject constructor(
         } catch (_: RemoteException) {
             return MediaActionFailure.LoadFailed
         }
-        if (songs.isNotEmpty()) host.onAddToPlaylist(songs.map { it.id })
+        if (songs.isEmpty()) return MediaActionFailure.NothingToAdd
+        host.onAddToPlaylist(songs.map { it.id })
         return null
     }
 

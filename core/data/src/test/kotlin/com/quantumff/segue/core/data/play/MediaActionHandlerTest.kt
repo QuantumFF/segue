@@ -152,6 +152,14 @@ class MediaActionHandlerTest {
     }
 
     @Test
+    fun `adding an album without songs to a playlist says there is nothing to add`() = runTest {
+        val failure = handler.album(TestData.album("empty"), MediaAction.AddToPlaylist, host)
+
+        assertThat(failure).isEqualTo(MediaActionFailure.NothingToAdd)
+        assertThat(hostCalls).isEmpty()
+    }
+
+    @Test
     fun `an artist plays as an artist, so the artist page's rule applies everywhere`() = runTest {
         handler.artist(TestData.artist("ar"), MediaAction.Play, host)
 

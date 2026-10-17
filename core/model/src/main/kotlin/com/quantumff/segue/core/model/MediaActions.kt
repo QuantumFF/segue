@@ -38,6 +38,9 @@ enum class MediaAction {
 enum class MediaActionFailure {
     /** The songs to add to a playlist could not be fetched. */
     LoadFailed,
+
+    /** The album or playlist to add to a playlist has no songs. */
+    NothingToAdd,
     FavoriteFailed,
     DownloadFailed,
 }

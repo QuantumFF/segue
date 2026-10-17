@@ -84,6 +84,7 @@ private val MediaAction.label: Int
 val MediaActionFailure.text: Int
     get() = when (this) {
         MediaActionFailure.LoadFailed -> R.string.ds_action_failed_load
+        MediaActionFailure.NothingToAdd -> R.string.ds_action_failed_nothing_to_add
         MediaActionFailure.FavoriteFailed -> R.string.ds_action_failed_favorite
         MediaActionFailure.DownloadFailed -> R.string.ds_action_failed_download
     }
