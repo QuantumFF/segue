@@ -2,6 +2,7 @@ package com.quantumff.segue.core.data.model
 
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
+import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.ReplayGainEntity
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.DiscTitle
@@ -10,6 +11,7 @@ import com.quantumff.segue.core.network.model.NetworkArtist
 import com.quantumff.segue.core.network.model.NetworkArtistRef
 import com.quantumff.segue.core.network.model.NetworkChild
 import com.quantumff.segue.core.network.model.NetworkDiscTitle
+import com.quantumff.segue.core.network.model.NetworkItemGenre
 import com.quantumff.segue.core.network.model.NetworkPlaylist
 import com.quantumff.segue.core.network.model.NetworkReplayGain
 import org.junit.Test
@@ -118,6 +120,24 @@ class NetworkMappersTest {
             AlbumArtistCrossRef("srv", "al", "a", 0),
             AlbumArtistCrossRef("srv", "al", "b", 1),
         )
+    }
+
+    @Test
+    fun `album genre tags list every OpenSubsonic genre, else the Subsonic genre`() {
+        val tagged = NetworkAlbum(
+            id = "al",
+            name = "Mixtape",
+            genre = "Blues",
+            genres = listOf(NetworkItemGenre("Blues"), NetworkItemGenre("Hip-Hop"), NetworkItemGenre("Blues")),
+        )
+        assertThat(tagged.genreCrossRefs("srv")).containsExactly(
+            AlbumGenreCrossRef("srv", "al", "Blues"),
+            AlbumGenreCrossRef("srv", "al", "Hip-Hop"),
+        )
+
+        assertThat(NetworkAlbum(id = "al", name = "Plain", genre = "Rock").genreCrossRefs("srv"))
+            .containsExactly(AlbumGenreCrossRef("srv", "al", "Rock"))
+        assertThat(NetworkAlbum(id = "al", name = "Untagged", genre = " ").genreCrossRefs("srv")).isEmpty()
     }
 
     @Test

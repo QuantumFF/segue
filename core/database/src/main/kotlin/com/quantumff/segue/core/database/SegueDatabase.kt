@@ -21,6 +21,7 @@ import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumEntity
 import com.quantumff.segue.core.database.model.AlbumFeedEntity
 import com.quantumff.segue.core.database.model.AlbumFtsEntity
+import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.AlbumListEntryEntity
 import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.ArtistFtsEntity
@@ -52,6 +53,7 @@ import com.quantumff.segue.core.database.util.Converters
         AlbumEntity::class,
         AlbumFtsEntity::class,
         AlbumArtistCrossRef::class,
+        AlbumGenreCrossRef::class,
         SongEntity::class,
         SongFtsEntity::class,
         GenreEntity::class,
@@ -68,7 +70,7 @@ import com.quantumff.segue.core.database.util.Converters
         ServerCapabilitiesEntity::class,
         AlbumFeedEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

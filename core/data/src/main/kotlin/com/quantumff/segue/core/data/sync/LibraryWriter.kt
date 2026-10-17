@@ -2,6 +2,7 @@ package com.quantumff.segue.core.data.sync
 
 import com.quantumff.segue.core.data.model.artistCrossRefs
 import com.quantumff.segue.core.data.model.asEntity
+import com.quantumff.segue.core.data.model.genreCrossRefs
 import com.quantumff.segue.core.data.model.songEntities
 import com.quantumff.segue.core.database.TransactionRunner
 import com.quantumff.segue.core.database.dao.AlbumDao
@@ -28,6 +29,7 @@ internal class LibraryWriter @Inject constructor(
         transactions.run {
             albumDao.upsertAll(albums.map { it.asEntity(serverId) })
             albumDao.replaceAlbumArtists(serverId, ids, albums.flatMap { it.artistCrossRefs(serverId) })
+            albumDao.replaceAlbumGenres(serverId, ids, albums.flatMap { it.genreCrossRefs(serverId) })
             songDao.replaceSongsOfAlbums(serverId, ids, albums.flatMap { it.song.songEntities(serverId) })
             albumDao.deleteByIds(serverId, missing)
         }

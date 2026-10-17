@@ -380,6 +380,7 @@ abstract class ServerDataDao {
         deleteSongs(serverId)
         deleteAlbums(serverId)
         deleteAlbumArtists(serverId)
+        deleteAlbumGenres(serverId)
         deleteArtists(serverId)
         deleteGenres(serverId)
         deletePlaylistSongs(serverId)
@@ -404,6 +405,9 @@ abstract class ServerDataDao {
 
     @Query("DELETE FROM album_artists WHERE serverId = :serverId")
     protected abstract suspend fun deleteAlbumArtists(serverId: String)
+
+    @Query("DELETE FROM album_genres WHERE serverId = :serverId")
+    protected abstract suspend fun deleteAlbumGenres(serverId: String)
 
     @Query("DELETE FROM artists WHERE serverId = :serverId")
     protected abstract suspend fun deleteArtists(serverId: String)
