@@ -14,8 +14,8 @@ import coil3.request.transformations
 import coil3.toBitmap
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 
-/** One extractor per process, so its 200-entry LRU is shared by every screen (DESIGN.md §2.1). */
-private val SharedArtColorExtractor = ArtColorExtractor()
+/** One extractor per process, so its 200-entry LRU is shared by every screen and the widgets (DESIGN.md §2.1). */
+val SharedArtColorExtractor = ArtColorExtractor()
 
 /**
  * The [ArtColors] of [coverArtId], or null until they are known (and when there is no art).

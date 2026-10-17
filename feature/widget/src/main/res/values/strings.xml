@@ -9,6 +9,8 @@
     <string name="widget_previous">Previous</string>
     <string name="widget_strip_label">Now playing strip</string>
     <string name="widget_card_label">Now playing card</string>
-    <string name="widget_strip_description">Now playing: art, title, play and next</string>
+    <string name="widget_strip_description">Now playing: art, title, previous, play and next</string>
     <string name="widget_card_description">Now playing with larger art</string>
+    <string name="widget_preview_title">Song title</string>
+    <string name="widget_preview_artist">Artist</string>
 </resources>

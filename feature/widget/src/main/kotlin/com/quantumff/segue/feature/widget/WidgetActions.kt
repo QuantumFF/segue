@@ -10,8 +10,13 @@ import coil3.ImageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.allowHardware
+import coil3.request.transformations
 import coil3.toBitmap
+import com.quantumff.segue.core.designsystem.art.ArtColors
 import com.quantumff.segue.core.designsystem.art.CoverArtRequest
+import com.quantumff.segue.core.designsystem.art.CoverArtSize
+import com.quantumff.segue.core.designsystem.art.PreBlurTransformation
+import com.quantumff.segue.core.designsystem.art.SharedArtColorExtractor
 import com.quantumff.segue.core.playback.PlaybackController
 import com.quantumff.segue.core.playback.PlaybackIntents
 import dagger.hilt.EntryPoint
@@ -56,15 +61,42 @@ internal fun openAppIntent(context: Context, nowPlaying: Boolean): Intent {
     }
 }
 
-/** Cover art at widget size, from the app's image cache when it is there. Null on failure. */
-internal suspend fun loadWidgetArt(context: Context, coverArtId: String?, size: Int): Bitmap? {
-    if (coverArtId == null) return null
-    val request = ImageRequest.Builder(context)
-        .data(CoverArtRequest(coverArtId, size))
+/** One cover as the widgets draw it. Each part is null when it failed to load. */
+internal class WidgetArt(
+    val coverArtId: String?,
+    /** The cover at widget size. */
+    val cover: Bitmap?,
+    /** The pre-blurred 32px cover the widget draws behind everything (DESIGN.md §6). */
+    val backdrop: Bitmap?,
+    val colors: ArtColors?,
+)
+
+/**
+ * The cover, its blurred backdrop and its colors, from the app's image cache when they are there.
+ * The backdrop shares the app's `blur:<coverArtId>` cache entry, and the colors its extractor.
+ */
+internal suspend fun loadWidgetArt(context: Context, coverArtId: String?, size: Int): WidgetArt {
+    if (coverArtId == null) return WidgetArt(null, null, null, null)
+    val cover = context.loadBitmap(CoverArtRequest(coverArtId, size), size)
+    val backdrop = context.loadBitmap(CoverArtRequest(coverArtId, CoverArtSize.BLUR_SOURCE), CoverArtSize.BLUR_SOURCE) {
+        transformations(PreBlurTransformation()).memoryCacheKey("blur:$coverArtId")
+    }
+    val colors = backdrop?.let { SharedArtColorExtractor.extract(coverArtId, it) }
+    return WidgetArt(coverArtId, cover, backdrop, colors)
+}
+
+private suspend fun Context.loadBitmap(
+    data: CoverArtRequest,
+    size: Int,
+    configure: ImageRequest.Builder.() -> ImageRequest.Builder = { this },
+): Bitmap? {
+    val request = ImageRequest.Builder(this)
+        .data(data)
         .size(size)
-        // Widgets draw through RemoteViews, which needs a software bitmap.
+        .configure()
+        // Widgets draw through RemoteViews, which needs a software bitmap; Palette reads pixels too.
         .allowHardware(false)
         .build()
-    val result = context.widgetEntryPoint().imageLoader().execute(request)
+    val result = widgetEntryPoint().imageLoader().execute(request)
     return (result as? SuccessResult)?.image?.toBitmap()
 }
