@@ -71,6 +71,7 @@ import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -933,10 +934,9 @@ internal val AlbumSortOrder.label: Int
 
 private val LibraryMessage.text: Int
     get() = when (this) {
+        is LibraryMessage.ActionFailed -> failure.text
         LibraryMessage.LoadFailed -> R.string.feature_library_error_load
-        LibraryMessage.FavoriteFailed -> R.string.feature_library_error_favorite
         LibraryMessage.RefreshFailed -> R.string.feature_library_error_refresh
-        LibraryMessage.DownloadFailed -> R.string.feature_library_error_download
     }
 
 private val PreviewAlbums = List(6) { index ->

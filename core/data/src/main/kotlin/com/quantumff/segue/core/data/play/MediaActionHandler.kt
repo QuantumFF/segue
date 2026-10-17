@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -140,11 +141,3 @@ class MediaActionHost(
     /** Rename, Delete and Remove from playlist: the screen's own. */
     val onScreenAction: (MediaAction) -> Unit = {},
 )
-
-/** A menu action that failed, for the screen's snackbar. */
-enum class MediaActionFailure {
-    /** The songs to add to a playlist could not be fetched. */
-    LoadFailed,
-    FavoriteFailed,
-    DownloadFailed,
-}

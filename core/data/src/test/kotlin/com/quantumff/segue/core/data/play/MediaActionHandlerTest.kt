@@ -8,6 +8,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind

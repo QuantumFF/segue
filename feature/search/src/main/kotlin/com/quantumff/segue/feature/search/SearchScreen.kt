@@ -57,6 +57,7 @@ import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
@@ -152,14 +153,7 @@ fun SearchContent(
 ) {
     var menuSong by remember { mutableStateOf<Song?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val message = uiState.message?.let {
-        stringResource(
-            when (it) {
-                SearchMessage.FavoriteFailed -> R.string.feature_search_favorite_failed
-                SearchMessage.DownloadFailed -> R.string.feature_search_download_failed
-            },
-        )
-    }
+    val message = uiState.message?.let { stringResource(it.text) }
     LaunchedEffect(message) {
         if (message != null) {
             snackbarHostState.showSnackbar(message)

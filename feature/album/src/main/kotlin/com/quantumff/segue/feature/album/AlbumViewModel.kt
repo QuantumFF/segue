@@ -8,7 +8,6 @@ import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
-import com.quantumff.segue.core.data.play.MediaActionFailure
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -22,6 +21,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -126,7 +126,7 @@ class AlbumViewModel @Inject constructor(
             try {
                 downloadRepository.pin(PinTarget.of(album))
             } catch (_: RemoteException) {
-                message.value = AlbumMessage.DownloadFailed
+                message.value = AlbumMessage.ActionFailed(MediaActionFailure.DownloadFailed)
             }
         }
     }
@@ -151,14 +151,7 @@ class AlbumViewModel @Inject constructor(
         menuAction { mediaActions.song(song, action, host) }
 
     private fun menuAction(run: suspend () -> MediaActionFailure?) {
-        viewModelScope.launch {
-            message.value = when (run()) {
-                null -> return@launch
-                MediaActionFailure.LoadFailed -> AlbumMessage.LoadFailed
-                MediaActionFailure.FavoriteFailed -> AlbumMessage.FavoriteFailed
-                MediaActionFailure.DownloadFailed -> AlbumMessage.DownloadFailed
-            }
-        }
+        viewModelScope.launch { run()?.let { message.value = AlbumMessage.ActionFailed(it) } }
     }
 
     fun toggleAlbumStar() {
@@ -185,7 +178,7 @@ class AlbumViewModel @Inject constructor(
             try {
                 starRatingRepository.setStarred(kind, id, starred)
             } catch (_: RemoteException) {
-                message.value = AlbumMessage.FavoriteFailed
+                message.value = AlbumMessage.ActionFailed(MediaActionFailure.FavoriteFailed)
             }
         }
     }
@@ -253,13 +246,11 @@ sealed interface ShuffleAlbumsOption {
     }
 }
 
-enum class AlbumMessage {
-    FavoriteFailed,
-    RatingFailed,
-    DownloadFailed,
+sealed interface AlbumMessage {
+    /** A menu action, or the header's Favorite or Download, failed. */
+    data class ActionFailed(val failure: MediaActionFailure) : AlbumMessage
 
-    /** The album's songs could not be fetched to add them to a playlist. */
-    LoadFailed,
+    data object RatingFailed : AlbumMessage
 }
 
 /** Groups [songs] (already in disc and track order) by disc number. Songs without one go on disc 1. */

@@ -35,6 +35,7 @@ import com.quantumff.segue.core.designsystem.component.SkeletonPulse
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.SubScreenTopBar
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader

@@ -44,6 +44,7 @@ import com.quantumff.segue.core.designsystem.component.StatusBarScrim
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
+import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
@@ -339,13 +340,6 @@ private fun HomeEmptyState(syncing: Boolean, onRefresh: () -> Unit) {
         )
     }
 }
-
-internal val HomeMessage.text: Int
-    get() = when (this) {
-        HomeMessage.LoadFailed -> R.string.feature_home_playback_failed
-        HomeMessage.FavoriteFailed -> R.string.feature_home_favorite_failed
-        HomeMessage.DownloadFailed -> R.string.feature_home_download_failed
-    }
 
 @PreviewSegueThemes
 @Composable

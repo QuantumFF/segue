@@ -9,7 +9,6 @@ import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.getOrNull
-import com.quantumff.segue.core.data.play.MediaActionFailure
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -26,6 +25,7 @@ import com.quantumff.segue.core.model.ArtistInfo
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -64,7 +64,7 @@ class ArtistViewModel @Inject constructor(
     /** The last refresh's outcome; null while one runs. */
     private val refresh = MutableStateFlow<RemoteOutcome<Unit>?>(null)
     private val remote = MutableStateFlow(RemoteSections())
-    private val message = MutableStateFlow<ArtistMessage?>(null)
+    private val message = MutableStateFlow<MediaActionFailure?>(null)
     private val busy = MutableStateFlow(false)
 
     val uiState: StateFlow<ArtistUiState> = combine(
@@ -149,12 +149,12 @@ class ArtistViewModel @Inject constructor(
     /** The artist's ⋮ menu ([MediaActionHandler]). */
     fun onArtistAction(action: MediaAction, host: MediaActionHost) {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
-        preparing { mediaActions.artist(artist, action, host)?.let(::report) }
+        preparing { mediaActions.artist(artist, action, host)?.let { message.value = it } }
     }
 
     /** A top song's ⋮ menu. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {
-        viewModelScope.launch { mediaActions.song(song, action, host)?.let(::report) }
+        viewModelScope.launch { mediaActions.song(song, action, host)?.let { message.value = it } }
     }
 
     fun toggleArtistStar() {
@@ -169,7 +169,7 @@ class ArtistViewModel @Inject constructor(
             val outcome = remoteOutcome {
                 downloadRepository.pin(PinTarget.of(artist))
             }
-            if (outcome.isFailure) message.value = ArtistMessage.DownloadFailed
+            if (outcome.isFailure) message.value = MediaActionFailure.DownloadFailed
         }
     }
 
@@ -193,20 +193,12 @@ class ArtistViewModel @Inject constructor(
         }
     }
 
-    private fun report(failure: MediaActionFailure) {
-        message.value = when (failure) {
-            MediaActionFailure.LoadFailed -> ArtistMessage.LoadFailed
-            MediaActionFailure.FavoriteFailed -> ArtistMessage.FavoriteFailed
-            MediaActionFailure.DownloadFailed -> ArtistMessage.DownloadFailed
-        }
-    }
-
     private fun setStarred(kind: MediaKind, id: String, starred: Boolean) {
         viewModelScope.launch {
             try {
                 starRatingRepository.setStarred(kind, id, starred)
             } catch (_: RemoteException) {
-                message.value = ArtistMessage.FavoriteFailed
+                message.value = MediaActionFailure.FavoriteFailed
             }
         }
     }
@@ -243,7 +235,8 @@ sealed interface ArtistUiState {
         val isOffline: Boolean = false,
         /** Play, Shuffle or Instant mix is fetching songs. */
         val isPreparingPlayback: Boolean = false,
-        val message: ArtistMessage? = null,
+        /** A failed menu, Favorite or Download action, for the snackbar. */
+        val message: MediaActionFailure? = null,
         /** The artist's pin status; null when it is not pinned for offline. */
         val download: DownloadStatus? = null,
         /** Row badges; offline, top songs that are not downloaded are dimmed and do not play. */
@@ -252,5 +245,3 @@ sealed interface ArtistUiState {
         val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
     }
 }
-
-enum class ArtistMessage { FavoriteFailed, LoadFailed, DownloadFailed }

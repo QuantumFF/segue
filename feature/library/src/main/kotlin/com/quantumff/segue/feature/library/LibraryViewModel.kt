@@ -8,7 +8,6 @@ import androidx.paging.cachedIn
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
-import com.quantumff.segue.core.data.play.MediaActionFailure
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -26,6 +25,7 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
@@ -67,11 +67,14 @@ enum class LibraryViewMode {
 }
 
 /** One-shot messages shown in a snackbar. */
-enum class LibraryMessage {
-    LoadFailed,
-    FavoriteFailed,
-    RefreshFailed,
-    DownloadFailed,
+sealed interface LibraryMessage {
+    /** A menu action failed. */
+    data class ActionFailed(val failure: MediaActionFailure) : LibraryMessage
+
+    /** Shuffle all could not fetch random songs. */
+    data object LoadFailed : LibraryMessage
+
+    data object RefreshFailed : LibraryMessage
 }
 
 data class LibraryUiState(
@@ -301,14 +304,7 @@ class LibraryViewModel @Inject constructor(
         menuAction { mediaActions.song(song, action, host) }
 
     private fun menuAction(run: suspend () -> MediaActionFailure?) {
-        viewModelScope.launch {
-            message.value = when (run()) {
-                null -> return@launch
-                MediaActionFailure.LoadFailed -> LibraryMessage.LoadFailed
-                MediaActionFailure.FavoriteFailed -> LibraryMessage.FavoriteFailed
-                MediaActionFailure.DownloadFailed -> LibraryMessage.DownloadFailed
-            }
-        }
+        viewModelScope.launch { run()?.let { message.value = LibraryMessage.ActionFailed(it) } }
     }
 
     private data class Settings(

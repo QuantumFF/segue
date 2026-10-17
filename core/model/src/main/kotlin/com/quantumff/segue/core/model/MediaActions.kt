@@ -6,7 +6,8 @@ import kotlinx.collections.immutable.toImmutableList
 
 /**
  * Context menu actions for songs, albums, artists and playlists (DESIGN.md §5.7). The design
- * system's MediaContextMenu labels them; core:data's MediaActionHandler carries them out.
+ * system's MediaContextMenu labels them; core:data's MediaActionHandler carries them out and
+ * returns a [MediaActionFailure] when one fails.
  */
 enum class MediaAction {
     Play,
@@ -28,6 +29,17 @@ enum class MediaAction {
     Rename,
     RemoveFromPlaylist,
     Delete,
+}
+
+/**
+ * A [MediaAction] that failed, for the screen's snackbar. The design system words each one, so
+ * every screen reports a failure alike.
+ */
+enum class MediaActionFailure {
+    /** The songs to add to a playlist could not be fetched. */
+    LoadFailed,
+    FavoriteFailed,
+    DownloadFailed,
 }
 
 /** Menu orders from DESIGN.md §5.7: albums, artists and playlists put Play, Shuffle and Shuffle albums first. */
