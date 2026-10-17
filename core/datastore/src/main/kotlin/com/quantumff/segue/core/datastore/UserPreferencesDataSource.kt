@@ -76,12 +76,12 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
 
     private suspend fun editRecentSearches(transform: (List<String>) -> List<String>) {
         dataStore.edit { prefs ->
-            prefs[Keys.RecentSearches] = transform(prefs.recentSearches()).joinToString(RECENT_SEPARATOR)
+            prefs[Keys.RecentSearches] = transform(prefs.recentSearches()).joinToString(RecentSearches.SEPARATOR)
         }
     }
 
     private fun Preferences.recentSearches(): List<String> =
-        this[Keys.RecentSearches]?.split(RECENT_SEPARATOR)?.filter { it.isNotEmpty() }.orEmpty()
+        this[Keys.RecentSearches]?.split(RecentSearches.SEPARATOR)?.filter { it.isNotEmpty() }.orEmpty()
 
     private fun Preferences.toUserPreferences(): UserPreferences {
         val defaults = UserPreferences()
@@ -158,7 +158,5 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
     companion object {
         /** Run by the preferences DataStore before its first read. */
         val MIGRATIONS: List<DataMigration<Preferences>> = listOf(ReplayGainPreampMigration)
-
-        private const val RECENT_SEPARATOR = "\n"
     }
 }
