@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Replaces Media3's default status-bar icon with the launcher icon's waveform. White; the system tints it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedResources"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="60"
+    android:viewportHeight="60">
+    <group
+        android:translateX="-24"
+        android:translateY="-24">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M27.25,49.75 a2.75,2.75 0 0,1 5.5,0 v8.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M35.25,35.75 a2.75,2.75 0 0,1 5.5,0 v16.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M43.25,30.75 a2.75,2.75 0 0,1 5.5,0 v22.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M51.25,41.75 a2.75,2.75 0 0,1 5.5,0 v24.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M59.25,54.75 a2.75,2.75 0 0,1 5.5,0 v22.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M67.25,55.75 a2.75,2.75 0 0,1 5.5,0 v16.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M75.25,49.75 a2.75,2.75 0 0,1 5.5,0 v8.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    </group>
+</vector>

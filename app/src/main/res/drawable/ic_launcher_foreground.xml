@@ -1,11 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Wave on vinyl: a grooved record with a waveform. Spec in docs/DESIGN.md §7. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Eighth note, centered in the 72dp safe zone. -->
+    <path
+        android:fillColor="#FF171C29"
+        android:pathData="M23,54 a31,31 0 1,1 62,0 a31,31 0 1,1 -62,0 z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.06"
+        android:pathData="M28,54 a26,26 0 1,1 52,0 a26,26 0 1,1 -52,0 z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.06"
+        android:pathData="M33,54 a21,21 0 1,1 42,0 a21,21 0 1,1 -42,0 z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.06"
+        android:pathData="M38,54 a16,16 0 1,1 32,0 a16,16 0 1,1 -32,0 z" />
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M58,34 L70,38 L70,46 L62,43.5 L62,68 A8,8 0 1,1 58,61.1 Z" />
+        android:pathData="M27.25,49.75 a2.75,2.75 0 0,1 5.5,0 v8.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    <path
+        android:fillColor="#FFDDE7FF"
+        android:pathData="M35.25,35.75 a2.75,2.75 0 0,1 5.5,0 v16.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    <path
+        android:fillColor="#FFBBCFFE"
+        android:pathData="M43.25,30.75 a2.75,2.75 0 0,1 5.5,0 v22.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    <path
+        android:fillColor="#FF98B6FE"
+        android:pathData="M51.25,41.75 a2.75,2.75 0 0,1 5.5,0 v24.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    <path
+        android:fillColor="#FF769EFD"
+        android:pathData="M59.25,54.75 a2.75,2.75 0 0,1 5.5,0 v22.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    <path
+        android:fillColor="#FF5487FC"
+        android:pathData="M67.25,55.75 a2.75,2.75 0 0,1 5.5,0 v16.5 a2.75,2.75 0 0,1 -5.5,0 z" />
+    <path
+        android:fillColor="#FF3574FC"
+        android:pathData="M75.25,49.75 a2.75,2.75 0 0,1 5.5,0 v8.5 a2.75,2.75 0 0,1 -5.5,0 z" />
 </vector>

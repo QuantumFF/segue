@@ -1,3 +1,5 @@
+<img src="docs/brand/icon.svg" width="96" alt="Segue icon: a waveform on a dark record">
+
 # Segue
 
 A modern, minimalist Android client for [Navidrome](https://www.navidrome.org/). It's built on the
