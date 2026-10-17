@@ -62,9 +62,10 @@ import kotlinx.coroutines.withContext
  * [SeguePlaybackService], connected on first use, and exposes [state] for the UI.
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
- * commands take queue positions ([QueueItem.timelineIndex]). The queue order is the play order:
- * Segue shuffles only when songs are queued, never a running queue. Play intents (play, play next,
- * add to queue, play albums) suspend until the service answers whether it queued anything.
+ * commands take queue positions ([com.quantumff.segue.core.model.QueueItem.timelineIndex]). The
+ * queue order is the play order: Segue shuffles only when songs are queued, never a running queue.
+ * Play intents ([queue], [playAlbums], [playInstantMix]) suspend until the service answers whether
+ * it queued anything.
  */
 @Singleton
 class PlaybackController @Inject constructor(
@@ -137,31 +138,15 @@ class PlaybackController @Inject constructor(
     // --- Queue -------------------------------------------------------------------------------------
 
     /**
-     * An explicit "Play" or "Shuffle" of [songs], replacing the queue: in order from [startIndex],
-     * or with [shuffle] queued in a fresh shuffled order from its first song. The service queues
-     * them ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
+     * Queues [songs] at [placement]. Replacing the queue plays them: in order from [startIndex], or
+     * with [shuffle] in a fresh shuffled order from its first song. The service queues them
+     * ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
      * running queue, and offline only the downloaded songs. False if there is nothing to play.
      */
-    suspend fun play(songs: List<Song>, startIndex: Int, shuffle: Boolean): Boolean =
-        queue(songs, QueuePlacement.Replace, startIndex, shuffle)
-
-    /** Inserts [songs] right after the current track. False if there is nothing to play. */
-    suspend fun playNext(songs: List<Song>): Boolean = queue(songs, QueuePlacement.Next)
-
-    /** Appends [songs] to the end of the queue. False if there is nothing to play. */
-    suspend fun addToQueue(songs: List<Song>): Boolean = queue(songs, QueuePlacement.End)
-
-    private suspend fun queue(
-        songs: List<Song>,
-        placement: QueuePlacement,
-        startIndex: Int = 0,
-        shuffle: Boolean = false,
-    ) = send(
-        SegueSessionCommands.QUEUE_SONGS,
-        SegueSessionCommands.queueSongsArgs(
-            SegueSessionCommands.QueueSongs(songs.map { it.toMediaItem() }, placement, startIndex, shuffle),
-        ),
-    )
+    suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean): Boolean {
+        val request = SegueSessionCommands.QueueSongs(songs.map { it.toMediaItem() }, placement, startIndex, shuffle)
+        return send(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
+    }
 
     /** Moves the item at queue position [from] to position [to]. */
     fun move(from: Int, to: Int) = command { controller -> controller.moveMediaItem(from, to) }
@@ -276,20 +261,16 @@ class PlaybackController @Inject constructor(
         send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request))
 
     /**
-     * Instant mix from [seed]: the song, then songs similar to its artist (`getSimilarSongs2`),
-     * topped up with the artist's top songs. Throws RemoteException. False if nothing came back.
+     * Instant mix: [seed] if given, then songs similar to [artistId] (`getSimilarSongs2`), topped
+     * up with the artist's top songs, replacing the queue. Throws RemoteException. False if
+     * nothing came back.
      */
-    suspend fun playInstantMix(seed: Song): Boolean = playMix(seed, seed.artistId ?: return false)
-
-    /** Instant mix for an artist, without a seed song. Throws RemoteException. */
-    suspend fun playArtistMix(artistId: String): Boolean = playMix(null, artistId)
-
-    private suspend fun playMix(seed: Song?, artistId: String): Boolean {
+    suspend fun playInstantMix(seed: Song?, artistId: String): Boolean {
         val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
         if (mix.size <= (if (seed == null) 0 else 1)) return false
-        return play(mix, startIndex = 0, shuffle = false)
+        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false)
     }
 
     // --- Connection ----------------------------------------------------------------------------------

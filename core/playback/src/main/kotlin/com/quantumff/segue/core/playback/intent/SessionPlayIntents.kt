@@ -7,6 +7,7 @@ import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.play.PlayIntentMessage
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.play.PlayTargetSongs
+import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
@@ -33,6 +34,7 @@ import kotlinx.coroutines.launch
 internal class SessionPlayIntents @Inject constructor(
     private val session: IntentSession,
     private val targets: PlayTargetSongs,
+    private val library: LibraryRepository,
     private val offlineMode: OfflineModeRepository,
     @ApplicationScope private val scope: CoroutineScope,
 ) : PlayIntents {
@@ -60,12 +62,22 @@ internal class SessionPlayIntents @Inject constructor(
         // The mix comes from the server (getSimilarSongs2), so there is none offline.
         if (offlineMode.isOffline.value) return@runIntent report(PlayIntentMessage.InstantMixOffline)
         val started = try {
-            session.instantMix(seed)
+            when (seed) {
+                is InstantMixSeed.OfSong -> songMix(seed.song)
+                is InstantMixSeed.OfLibrarySong -> songMix(library.songsByIds(listOf(seed.songId)).firstOrNull())
+                is InstantMixSeed.OfArtist -> session.instantMix(seed = null, seed.artistId)
+            }
         } catch (e: RemoteException) {
             Log.w(TAG, "Instant mix failed", e)
             false
         }
         if (!started) report(PlayIntentMessage.InstantMixFailed)
+    }
+
+    /** A mix from [song], of its artist: none without the song (not in the library) or its artist. */
+    private suspend fun songMix(song: Song?): Boolean {
+        val artistId = song?.artistId ?: return false
+        return session.instantMix(song, artistId)
     }
 
     /** Runs [intent] in the application scope, so the caller going away does not cancel it. */
@@ -78,30 +90,26 @@ internal class SessionPlayIntents @Inject constructor(
     }
 }
 
-/** What a play intent asks of the playback session. Each call answers whether anything was queued. */
+/**
+ * What a play intent asks of the playback session ([PlaybackController]); a seam so play intents
+ * can be tested without a session. Each call answers whether anything was queued.
+ */
 internal interface IntentSession {
     suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean): Boolean
 
     suspend fun playAlbums(request: AlbumPlayRequest): Boolean
 
-    /** Throws RemoteException. */
-    suspend fun instantMix(seed: InstantMixSeed): Boolean
+    /** An instant mix of songs similar to [artistId], after [seed] if given. Throws RemoteException. */
+    suspend fun instantMix(seed: Song?, artistId: String): Boolean
 }
 
 internal class ControllerIntentSession @Inject constructor(private val playback: PlaybackController) : IntentSession {
     override suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean) =
-        when (placement) {
-            QueuePlacement.Replace -> playback.play(songs, startIndex, shuffle)
-            QueuePlacement.Next -> playback.playNext(songs)
-            QueuePlacement.End -> playback.addToQueue(songs)
-        }
+        playback.queue(songs, placement, startIndex, shuffle)
 
     override suspend fun playAlbums(request: AlbumPlayRequest) = playback.playAlbums(request)
 
-    override suspend fun instantMix(seed: InstantMixSeed) = when (seed) {
-        is InstantMixSeed.Song -> playback.playInstantMix(seed.song)
-        is InstantMixSeed.Artist -> playback.playArtistMix(seed.artistId)
-    }
+    override suspend fun instantMix(seed: Song?, artistId: String) = playback.playInstantMix(seed, artistId)
 }
 
 @Module

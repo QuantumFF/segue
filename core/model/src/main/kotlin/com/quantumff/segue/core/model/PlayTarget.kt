@@ -20,12 +20,3 @@ sealed interface PlayTarget {
      */
     data class Artist(val artistId: String) : PlayTarget
 }
-
-/** Where an instant mix starts from. */
-sealed interface InstantMixSeed {
-    /** The song plays first, then songs similar to its artist. */
-    data class Song(val song: com.quantumff.segue.core.model.Song) : InstantMixSeed
-
-    /** Songs similar to the artist. */
-    data class Artist(val artistId: String) : InstantMixSeed
-}

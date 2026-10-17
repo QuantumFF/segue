@@ -164,11 +164,7 @@ class NowPlayingViewModel @Inject constructor(
      */
     fun startInstantMix() {
         val songId = uiState.value.track?.songId ?: return
-        viewModelScope.launch {
-            // Every queued song is in Room: it came from the library, a search or the server's lists.
-            val seed = library.songsByIds(listOf(songId)).firstOrNull() ?: return@launch
-            playIntents.instantMix(InstantMixSeed.Song(seed))
-        }
+        viewModelScope.launch { playIntents.instantMix(InstantMixSeed.OfLibrarySong(songId)) }
     }
 
     /** Plays the related songs from [index]. */

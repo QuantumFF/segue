@@ -191,7 +191,7 @@ class AlbumViewModelTest {
         assertThat(
             play.albumRequests,
         ).containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
-        assertThat(play.mixes).containsExactly(InstantMixSeed.Song(songs[1]))
+        assertThat(play.mixes).containsExactly(InstantMixSeed.OfSong(songs[1]))
         assertThat(addedToPlaylist).containsExactly(listOf("s1", "s2", "s3"))
     }
 
