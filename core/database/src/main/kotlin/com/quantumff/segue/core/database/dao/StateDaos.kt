@@ -70,9 +70,6 @@ abstract class QueueDao {
     @Upsert
     abstract suspend fun upsertAlbumFeed(feed: AlbumFeedEntity)
 
-    @Query("DELETE FROM queue_sync_state WHERE serverId = :serverId")
-    protected abstract suspend fun deleteQueueSyncState(serverId: String)
-
     @Query("DELETE FROM album_feed WHERE serverId = :serverId")
     abstract suspend fun deleteAlbumFeed(serverId: String)
 }
