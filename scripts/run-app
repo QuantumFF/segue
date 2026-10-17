@@ -58,7 +58,10 @@ if ! timeout 300 "$adb" wait-for-device shell \
   exit 1
 fi
 
-./gradlew :app:installDebug
+# installDebug refuses a lower versionCode than the installed app's, and every
+# local build is versionCode 1, so install with -d to allow the downgrade.
+./gradlew :app:assembleDebug
+"$adb" install -r -d app/build/outputs/apk/debug/app-debug.apk >/dev/null
 
 app=com.quantumff.segue.debug
 since=$("$adb" shell "date '+%m-%d %H:%M:%S.000'")
