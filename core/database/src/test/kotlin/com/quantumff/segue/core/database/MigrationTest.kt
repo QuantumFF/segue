@@ -62,6 +62,30 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `3 to 4 makes the album feed filters nullable and keeps the running feed's filters`() {
+        helper.createDatabase(DB_NAME, 3).use { db ->
+            db.execSQL(
+                "INSERT INTO album_feed VALUES ('s1', 'Albums', NULL, 'Name', 1, 'Jazz', 1971, 0, 'Shuffled', 7, 3, 42)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 4, true, SegueMigrations.MIGRATION_3_4).use { db ->
+            db.query(
+                "SELECT starred, genre, year, downloaded, albumOrder, seed, cursor FROM album_feed",
+            ).use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getInt(0)).isEqualTo(1)
+                assertThat(cursor.getString(1)).isEqualTo("Jazz")
+                assertThat(cursor.getInt(2)).isEqualTo(1971)
+                assertThat(cursor.isNull(3)).isTrue()
+                assertThat(cursor.getString(4)).isEqualTo("Shuffled")
+                assertThat(cursor.getLong(5)).isEqualTo(7)
+                assertThat(cursor.getInt(6)).isEqualTo(3)
+            }
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

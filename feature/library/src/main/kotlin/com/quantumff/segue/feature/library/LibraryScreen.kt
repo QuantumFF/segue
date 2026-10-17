@@ -118,7 +118,7 @@ internal sealed interface LibraryEvent {
 
     data object ToggleViewMode : LibraryEvent
 
-    data object ToggleFavorites : LibraryEvent
+    data object CycleFavorites : LibraryEvent
 
     data class SetGenreFilter(val genre: String?) : LibraryEvent
 
@@ -156,7 +156,7 @@ internal sealed interface LibraryEvent {
 
     data object MessageShown : LibraryEvent
 
-    data object ToggleDownloaded : LibraryEvent
+    data object CycleDownloaded : LibraryEvent
 
     /** Starts multi-select with the item, or picks or drops it. */
     data class ToggleSelected(val item: LibraryItem) : LibraryEvent
@@ -199,7 +199,7 @@ fun LibraryScreen(
                 is LibraryEvent.SelectTab -> viewModel.selectTab(event.tab)
                 is LibraryEvent.SetSort -> viewModel.setSort(event.sort)
                 LibraryEvent.ToggleViewMode -> viewModel.toggleViewMode()
-                LibraryEvent.ToggleFavorites -> viewModel.toggleFavoritesFilter()
+                LibraryEvent.CycleFavorites -> viewModel.cycleFavoritesFilter()
                 is LibraryEvent.SetGenreFilter -> viewModel.setGenreFilter(event.genre)
                 is LibraryEvent.SetYearFilter -> viewModel.setYearFilter(event.year)
                 LibraryEvent.ClearFilters -> viewModel.clearFilters()
@@ -218,7 +218,7 @@ fun LibraryScreen(
                 is LibraryEvent.ArtistMenu -> viewModel.onArtistAction(event.artist, event.action, menuHost)
                 is LibraryEvent.SongMenu -> viewModel.onSongAction(event.song, event.action, menuHost)
                 LibraryEvent.MessageShown -> viewModel.onMessageDismiss()
-                LibraryEvent.ToggleDownloaded -> viewModel.toggleDownloadedFilter()
+                LibraryEvent.CycleDownloaded -> viewModel.cycleDownloadedFilter()
                 is LibraryEvent.ToggleSelected -> viewModel.toggleSelected(event.item)
                 LibraryEvent.ClearSelection -> viewModel.clearSelection()
                 is LibraryEvent.SelectionAction -> viewModel.onSelectionAction(event.action, menuHost)
@@ -451,14 +451,16 @@ private fun RowScope.AlbumFilterChips(
     )
     SegueFilterChip(
         label = stringResource(R.string.feature_library_filter_favorites),
-        selected = state.filter.starredOnly,
-        onClick = { onEvent(LibraryEvent.ToggleFavorites) },
+        selected = state.filter.starred != null,
+        excluded = state.filter.starred == false,
+        onClick = { onEvent(LibraryEvent.CycleFavorites) },
     )
     // Offline keeps it on: only downloaded albums can play (DESIGN.md §4.2 filter row).
     SegueFilterChip(
         label = stringResource(R.string.feature_library_filter_downloaded),
-        selected = state.showsDownloadedOnly,
-        onClick = { if (!state.isOffline) onEvent(LibraryEvent.ToggleDownloaded) },
+        selected = state.shownDownloadedFilter != null,
+        excluded = state.shownDownloadedFilter == false,
+        onClick = { if (!state.isOffline) onEvent(LibraryEvent.CycleDownloaded) },
     )
     DropdownChip(
         label = state.filter.year?.toString() ?: stringResource(R.string.feature_library_filter_year),
@@ -1165,7 +1167,7 @@ private fun LibraryContentPreview() {
                 songCount = 60,
                 genres = persistentListOf(Genre("Alternative", 60, 6)),
                 playlists = persistentListOf(),
-                filter = AlbumFilter(starredOnly = true),
+                filter = AlbumFilter(starred = true),
             ),
             albums = previewItems(PreviewAlbums),
             artists = previewItems(emptyList()),

@@ -48,10 +48,10 @@ private fun AlbumFeed.asEntity(serverId: String): AlbumFeedEntity {
         sourceKind = record.kind,
         sourceId = record.id,
         sort = record.sort,
-        starredOnly = record.starredOnly,
+        starred = record.starred,
         genre = record.genre,
         year = record.year,
-        downloadedOnly = record.downloadedOnly,
+        downloaded = record.downloaded,
         albumOrder = order.name,
         seed = seed,
         cursor = cursor,
@@ -61,7 +61,7 @@ private fun AlbumFeed.asEntity(serverId: String): AlbumFeedEntity {
 
 /** Null for a row this version cannot read (see [AlbumSourceRecord.toSource]): the feed is dropped. */
 private fun AlbumFeedEntity.asExternalModel(): AlbumFeed? {
-    val source = AlbumSourceRecord(sourceKind, sourceId, sort, starredOnly, genre, year, downloadedOnly).toSource()
+    val source = AlbumSourceRecord(sourceKind, sourceId, sort, starred, genre, year, downloaded).toSource()
         ?: return null
     val order = AlbumOrder.entries.firstOrNull { it.name == albumOrder } ?: return null
     return AlbumFeed(source, order, seed, cursor, queueFingerprint)

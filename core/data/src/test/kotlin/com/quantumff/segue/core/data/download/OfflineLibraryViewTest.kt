@@ -82,7 +82,7 @@ class OfflineLibraryViewTest {
         assertThat(view.artistCount.first()).isEqualTo(2)
         assertThat(view.songCount.first()).isEqualTo(3)
         assertThat(view.downloadedWhileOffline.first()).isNull()
-        assertThat(view.albumFilter(AlbumFilter(starredOnly = true))).isEqualTo(AlbumFilter(starredOnly = true))
+        assertThat(view.albumFilter(AlbumFilter(starred = true))).isEqualTo(AlbumFilter(starred = true))
         assertThat(songs.map(view.songAvailability.first()::isAvailable)).containsExactly(true, true, true)
     }
 
@@ -95,8 +95,8 @@ class OfflineLibraryViewTest {
         assertThat(view.artistCount.first()).isNull()
         assertThat(view.songCount.first()).isEqualTo(1)
         assertThat(view.downloadedWhileOffline.first()).isEqualTo(DownloadedLibrary(songIds = setOf("s1")))
-        assertThat(view.albumFilter(AlbumFilter(starredOnly = true)))
-            .isEqualTo(AlbumFilter(starredOnly = true, downloadedOnly = true))
+        assertThat(view.albumFilter(AlbumFilter(starred = true)))
+            .isEqualTo(AlbumFilter(starred = true, downloaded = true))
         // Only a finished download makes a row available; one still downloading does not.
         assertThat(songs.map(view.songAvailability.first()::isAvailable)).containsExactly(true, false, false).inOrder()
     }
@@ -119,7 +119,7 @@ class OfflineLibraryViewTest {
 
         assertThat(shown.first()).isEqualTo(AlbumFilter())
         offlineMode.isOffline.value = true
-        assertThat(shown.first()).isEqualTo(AlbumFilter(downloadedOnly = true))
+        assertThat(shown.first()).isEqualTo(AlbumFilter(downloaded = true))
     }
 
     @Test

@@ -39,7 +39,7 @@ class AlbumSourceRecordTest {
     fun `records match what album_feed rows already hold`() {
         assertThat(AlbumSourceRecord.of(AlbumSource.Library)).isEqualTo(AlbumSourceRecord("Library"))
         assertThat(AlbumSourceRecord.of(AlbumSource.Albums(AlbumSortOrder.Artist, AlbumFilter(true, "Jazz", 1971))))
-            .isEqualTo(AlbumSourceRecord("Albums", sort = "Artist", starredOnly = true, genre = "Jazz", year = 1971))
+            .isEqualTo(AlbumSourceRecord("Albums", sort = "Artist", starred = true, genre = "Jazz", year = 1971))
         assertThat(AlbumSourceRecord.of(AlbumSource.Artist("ar1"))).isEqualTo(AlbumSourceRecord("Artist", id = "ar1"))
         assertThat(AlbumSourceRecord.of(AlbumSource.Genre("Rock"))).isEqualTo(AlbumSourceRecord("Genre", id = "Rock"))
         assertThat(AlbumSourceRecord.of(AlbumSource.Playlist("p1")))

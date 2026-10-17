@@ -95,7 +95,7 @@ class OfflineLibraryView @Inject constructor(
     fun albumFilter(filter: AlbumFilter): AlbumFilter = shownFilter(filter, isOffline.value)
 
     private fun shownFilter(filter: AlbumFilter, offline: Boolean): AlbumFilter =
-        if (offline) filter.copy(downloadedOnly = true) else filter
+        if (offline) filter.copy(downloaded = true) else filter
 }
 
 /** Pin status by ID for each [PinKind]; empty for a kind with no pins. */

@@ -102,14 +102,14 @@ class LibraryDaoTest {
             listOf(AlbumGenreCrossRef("s1", "later", "Blues"), AlbumGenreCrossRef("s1", "later", "Hip-Hop")),
         )
 
-        assertThat(dao.idsInViewOrder("s1", "Name", false, "Hip-Hop", null, downloadedOnly = false))
+        assertThat(dao.idsInViewOrder("s1", "Name", null, "Hip-Hop", null, downloaded = null))
             .containsExactly("first", "later").inOrder()
-        assertThat(dao.observeCount("s1", starredOnly = false, genre = "Hip-Hop", year = null).first()).isEqualTo(2)
+        assertThat(dao.observeCount("s1", starred = null, genre = "Hip-Hop", year = null).first()).isEqualTo(2)
 
         dao.deleteByIds("s1", listOf("later"))
         dao.upsertAll(listOf(album("later").copy(genre = "Blues")))
 
-        assertThat(dao.idsInViewOrder("s1", "Name", false, "Hip-Hop", null, downloadedOnly = false))
+        assertThat(dao.idsInViewOrder("s1", "Name", null, "Hip-Hop", null, downloaded = null))
             .containsExactly("first")
     }
 
@@ -187,18 +187,19 @@ class LibraryDaoTest {
             ),
         )
 
-        suspend fun ids(sort: String, genre: String? = null, starred: Boolean = false) =
-            dao.idsInViewOrder("s1", sort, starred, genre, null, downloadedOnly = false)
+        suspend fun ids(sort: String, genre: String? = null, starred: Boolean? = null) =
+            dao.idsInViewOrder("s1", sort, starred, genre, null, downloaded = null)
 
-        assertThat(ids("Name")).isEqualTo(dao.pagingSourceByName("s1", false, null, null).loadAllIds())
-        assertThat(ids("Artist")).isEqualTo(dao.pagingSourceByArtist("s1", false, null, null).loadAllIds())
+        assertThat(ids("Name")).isEqualTo(dao.pagingSourceByName("s1", null, null, null).loadAllIds())
+        assertThat(ids("Artist")).isEqualTo(dao.pagingSourceByArtist("s1", null, null, null).loadAllIds())
         assertThat(ids("RecentlyAdded"))
-            .isEqualTo(dao.pagingSourceByRecentlyAdded("s1", false, null, null).loadAllIds())
-        assertThat(ids("Year")).isEqualTo(dao.pagingSourceByYear("s1", false, null, null).loadAllIds())
+            .isEqualTo(dao.pagingSourceByRecentlyAdded("s1", null, null, null).loadAllIds())
+        assertThat(ids("Year")).isEqualTo(dao.pagingSourceByYear("s1", null, null, null).loadAllIds())
         // Duplicate names fall back to the album ID, so both lists agree on ties too.
         assertThat(ids("Name").take(3)).containsExactly("a4", "a5", "a0").inOrder()
         assertThat(ids("Year", genre = "Rock")).containsExactly("a3", "a0", "a1").inOrder()
         assertThat(ids("Name", starred = true)).containsExactly("a5")
+        assertThat(ids("Name", starred = false)).containsExactly("a4", "a0", "a1", "a2", "a3").inOrder()
     }
 
     @Test
@@ -209,9 +210,11 @@ class LibraryDaoTest {
             listOf(DownloadEntity(serverId = "s1", songId = "a", state = DownloadState.Completed, updatedAt = 0)),
         )
 
-        assertThat(db.albumDao().idsInViewOrder("s1", "Name", false, null, null, downloadedOnly = true))
+        assertThat(db.albumDao().idsInViewOrder("s1", "Name", null, null, null, downloaded = true))
             .containsExactly("al1")
-        assertThat(db.albumDao().idsInViewOrder("s1", "Name", false, null, null, downloadedOnly = false))
+        assertThat(db.albumDao().idsInViewOrder("s1", "Name", null, null, null, downloaded = false))
+            .containsExactly("al2")
+        assertThat(db.albumDao().idsInViewOrder("s1", "Name", null, null, null, downloaded = null))
             .containsExactly("al2", "al1")
             .inOrder()
     }

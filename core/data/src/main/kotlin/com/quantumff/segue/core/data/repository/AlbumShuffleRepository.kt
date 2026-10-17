@@ -51,10 +51,10 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
             is AlbumSource.Albums -> albumDao.idsInViewOrder(
                 serverId = serverId,
                 sort = source.sort.name,
-                starredOnly = source.filter.starredOnly,
+                starred = source.filter.starred,
                 genre = source.filter.genre,
                 year = source.filter.year,
-                downloadedOnly = source.filter.downloadedOnly,
+                downloaded = source.filter.downloaded,
             )
 
             // The artist page's order: their own albums, then the ones that only credit them.
@@ -66,10 +66,10 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
             is AlbumSource.Genre -> albumDao.idsInViewOrder(
                 serverId = serverId,
                 sort = AlbumSortOrder.Name.name,
-                starredOnly = false,
+                starred = null,
                 genre = source.name,
                 year = null,
-                downloadedOnly = false,
+                downloaded = null,
             )
 
             is AlbumSource.Playlist ->

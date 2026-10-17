@@ -45,10 +45,10 @@ internal object SegueSessionCommands {
     private const val ARG_SOURCE_KIND = "sourceKind"
     private const val ARG_SOURCE_ID = "sourceId"
     private const val ARG_SORT = "sort"
-    private const val ARG_STARRED = "starredOnly"
+    private const val ARG_STARRED = "starred"
     private const val ARG_GENRE = "genre"
     private const val ARG_YEAR = "year"
-    private const val ARG_DOWNLOADED = "downloadedOnly"
+    private const val ARG_DOWNLOADED = "downloaded"
     private const val ARG_ALBUM_ORDER = "albumOrder"
     private const val ARG_PLACEMENT = "placement"
     private const val ARG_ITEMS = "items"
@@ -108,10 +108,10 @@ internal object SegueSessionCommands {
         putString(ARG_SOURCE_KIND, source.kind)
         putString(ARG_SOURCE_ID, source.id)
         putString(ARG_SORT, source.sort)
-        putBoolean(ARG_STARRED, source.starredOnly)
+        source.starred?.let { putBoolean(ARG_STARRED, it) }
         putString(ARG_GENRE, source.genre)
         source.year?.let { putInt(ARG_YEAR, it) }
-        putBoolean(ARG_DOWNLOADED, source.downloadedOnly)
+        source.downloaded?.let { putBoolean(ARG_DOWNLOADED, it) }
     }
 
     /** The request of [playAlbumsArgs], or null if [bundle] does not hold one. */
@@ -120,10 +120,10 @@ internal object SegueSessionCommands {
             kind = bundle.getString(ARG_SOURCE_KIND) ?: return null,
             id = bundle.getString(ARG_SOURCE_ID),
             sort = bundle.getString(ARG_SORT),
-            starredOnly = bundle.getBoolean(ARG_STARRED),
+            starred = if (bundle.containsKey(ARG_STARRED)) bundle.getBoolean(ARG_STARRED) else null,
             genre = bundle.getString(ARG_GENRE),
             year = if (bundle.containsKey(ARG_YEAR)) bundle.getInt(ARG_YEAR) else null,
-            downloadedOnly = bundle.getBoolean(ARG_DOWNLOADED),
+            downloaded = if (bundle.containsKey(ARG_DOWNLOADED)) bundle.getBoolean(ARG_DOWNLOADED) else null,
         ).toSource() ?: return null
         val order = enumOrNull<AlbumOrder>(bundle.getString(ARG_ALBUM_ORDER)) ?: return null
         val placement = enumOrNull<QueuePlacement>(bundle.getString(ARG_PLACEMENT)) ?: return null
