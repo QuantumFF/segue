@@ -78,6 +78,7 @@ import com.quantumff.segue.core.designsystem.component.SelectionTopBar
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
+import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -905,16 +906,25 @@ private fun SongList(
                 )
             } else {
                 val download = downloads[song.id]
-                TrackRow(
-                    state = remember(song, download) {
-                        song.toTrackRowState(download = download?.status?.toBadgeState())
-                    },
-                    onClick = { onEvent(tapEvent(selected, LibraryItem.OfSong(song), LibraryEvent.PlaySong(song))) },
-                    onLongClick = { picker.longPress(index, LibraryItem.OfSong(song)) },
-                    onMoreClick = if (selected.isEmpty()) ({ onMenu(LibraryItem.OfSong(song)) }) else null,
-                    selected = song.id in selected,
-                    onLongClickLabel = stringResource(R.string.feature_library_select),
-                )
+                // Swipes queue the song; while selecting, rows only pick.
+                TrackSwipeBox(
+                    onPlayNext = { onEvent(LibraryEvent.SongMenu(song, MediaAction.PlayNext)) },
+                    onAddToQueue = { onEvent(LibraryEvent.SongMenu(song, MediaAction.AddToQueue)) },
+                    enabled = selected.isEmpty(),
+                ) {
+                    TrackRow(
+                        state = remember(song, download) {
+                            song.toTrackRowState(download = download?.status?.toBadgeState())
+                        },
+                        onClick = {
+                            onEvent(tapEvent(selected, LibraryItem.OfSong(song), LibraryEvent.PlaySong(song)))
+                        },
+                        onLongClick = { picker.longPress(index, LibraryItem.OfSong(song)) },
+                        onMoreClick = if (selected.isEmpty()) ({ onMenu(LibraryItem.OfSong(song)) }) else null,
+                        selected = song.id in selected,
+                        onLongClickLabel = stringResource(R.string.feature_library_select),
+                    )
+                }
             }
         }
     }

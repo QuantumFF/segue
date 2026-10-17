@@ -57,6 +57,7 @@ import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
+import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -418,12 +419,17 @@ private fun LazyListScope.allResults(
 
 private fun LazyListScope.songRows(songs: List<Song>, callbacks: SearchCallbacks, onSongMoreClick: (Song) -> Unit) {
     itemsIndexed(songs, key = { _, song -> "song:${song.id}" }, contentType = { _, _ -> "song" }) { index, song ->
-        TrackRow(
-            state = song.toTrackRowState(),
-            onClick = { callbacks.onSongClick(index) },
-            onLongClick = { onSongMoreClick(song) },
-            onMoreClick = { onSongMoreClick(song) },
-        )
+        TrackSwipeBox(
+            onPlayNext = { callbacks.onSongAction(song, MediaAction.PlayNext) },
+            onAddToQueue = { callbacks.onSongAction(song, MediaAction.AddToQueue) },
+        ) {
+            TrackRow(
+                state = song.toTrackRowState(),
+                onClick = { callbacks.onSongClick(index) },
+                onLongClick = { onSongMoreClick(song) },
+                onMoreClick = { onSongMoreClick(song) },
+            )
+        }
     }
 }
 

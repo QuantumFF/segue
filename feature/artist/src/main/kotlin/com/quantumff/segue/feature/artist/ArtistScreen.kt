@@ -50,6 +50,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
+import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
@@ -310,12 +311,18 @@ private fun ArtistContent(
                 val row = remember(song, download, available) {
                     song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
                 }
-                TrackRow(
-                    state = row,
-                    onClick = { onPlayTopSong(index) },
-                    onLongClick = { menuSongId = song.id },
-                    onMoreClick = { menuSongId = song.id },
-                )
+                TrackSwipeBox(
+                    onPlayNext = { onSongAction(song, MediaAction.PlayNext) },
+                    onAddToQueue = { onSongAction(song, MediaAction.AddToQueue) },
+                    enabled = available,
+                ) {
+                    TrackRow(
+                        state = row,
+                        onClick = { onPlayTopSong(index) },
+                        onLongClick = { menuSongId = song.id },
+                        onMoreClick = { menuSongId = song.id },
+                    )
+                }
             }
             if (showAllTopSongs) {
                 item(key = "topSongsLess", contentType = "button") {

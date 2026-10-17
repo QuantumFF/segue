@@ -394,6 +394,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 - Expanded width gets a sticky column header row: 36 tall, `labelSmall` uppercase muted, `outlineVariant` bottom divider. Columns can be configured via the header's ⋮.
 - Playing: title and number in `primary`, and the equalizer bars replace the number or overlay the art. Unavailable offline: 38% alpha, not clickable.
+- **Swipes** (Symfonium, like the queue's §4.8): swipe right for Play next (Lucide `list-start`), left for Add to queue (`list-end`), both `primary`, revealed on `surfaceContainerHigh`. Both trigger at 40% of the width with a haptic tick, then the row springs back (`player`); there is no snackbar, as for the menu's own Play next. They apply to album, artist (top songs), playlist, search and Library Songs rows. They do not apply in the queue (which has its own), in playlist edit mode, to unavailable rows, or while the Library is selecting. Accessibility services get both as custom actions.
 
 ### 5.3 Section header
 - 48 tall, horizontal padding 16. Title in `titleLarge`. Trailing: a `TextButton` "See all" (muted) or a 24 chevron. Optional extra icon (Explore refresh).
