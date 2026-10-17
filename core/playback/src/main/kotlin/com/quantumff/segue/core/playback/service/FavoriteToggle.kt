@@ -12,7 +12,8 @@ import kotlinx.coroutines.launch
 /**
  * The session's favorite (heart) button: stars or unstars the current song. The heart changes at
  * once, on every queue item of that song, without interrupting playback. If the server call fails,
- * [StarRatingRepository] rolls Room back and the hearts go back with it.
+ * [StarRatingRepository] rolls Room back, and once the song's last toggle has an answer the hearts
+ * show what the server last accepted.
  *
  * Call [toggle] on the player's thread.
  */
@@ -26,22 +27,46 @@ class FavoriteToggle(
     /** A heart changed: refresh the session's buttons. */
     private val onChanged: () -> Unit,
 ) {
+    /** A song's toggles still waiting for the server: the latest one, and the state the server last accepted. */
+    private class Toggles(var latest: Int, var accepted: Boolean)
+
+    /** Per song with a server call on its way. Player's thread only, like [count]. */
+    private val waiting = HashMap<String, Toggles>()
+    private var count = 0
+
     fun toggle() {
         val item = player.currentMediaItem ?: return
         val songId = item.mediaId
         val starred = !item.isStarred
+        val toggle = ++count
+        waiting.getOrPut(songId) { Toggles(toggle, accepted = item.isStarred) }.latest = toggle
         show(songId, starred)
         onChanged()
         callScope.launch {
-            try {
+            val succeeded = try {
                 starRatings.setStarred(MediaKind.Song, songId, starred)
+                true
             } catch (e: CancellationException) {
                 throw e
             } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                // Signed out or the server refused. A toggle back meanwhile already shows this state.
-                playerScope.launch { if (show(songId, !starred)) onChanged() }
+                // Signed out or the server refused.
+                false
             }
+            playerScope.launch { answered(songId, toggle, starred, succeeded) }
         }
+    }
+
+    /**
+     * The server answered [toggle] of [songId]. Once the song's latest toggle is answered its hearts
+     * show what the server last accepted: a failed call does not just flip the heart back, since a
+     * quick star and unstar that both fail would then end starred.
+     */
+    private fun answered(songId: String, toggle: Int, starred: Boolean, succeeded: Boolean) {
+        val toggles = waiting[songId] ?: return
+        if (succeeded) toggles.accepted = starred
+        if (toggle != toggles.latest) return // A later toggle is on its way; its answer settles the hearts.
+        waiting.remove(songId)
+        if (show(songId, toggles.accepted)) onChanged()
     }
 
     /** Shows [songId] as [starred] on every queue item of it. True if any item changed. */
