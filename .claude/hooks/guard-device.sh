@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Keeps agents off the user's devices. The user runs the app on segue_pixel (and maybe a phone)
-# while agents work; agents get their own emulator, whose serial is ANDROID_SERIAL in
-# .claude/settings.json. adb and Gradle already default to it, so this only refuses a Bash command
-# that reaches for some other device.
+# Keeps each agent on its own emulator. The user runs the app on segue_pixel (and maybe a phone),
+# and agents in other worktrees run theirs; this session's emulator is the one scripts/agent-serial
+# gives its checkout. The SessionStart hook already points adb and Gradle at it, so this only
+# refuses a Bash command that reaches for some other device.
 set -euo pipefail
 
 cmd=$(jq -r '.tool_input.command // empty')
 case $cmd in *adb* | *emulator* | *gradlew* | *ANDROID_SERIAL*) ;; *) exit 0 ;; esac
 
-agent=$(jq -r .env.ANDROID_SERIAL "$CLAUDE_PROJECT_DIR/.claude/settings.json")
+agent=$("$(dirname "$0")/../../scripts/agent-serial" "$CLAUDE_PROJECT_DIR" 2>/dev/null) || agent=none
 
 refuse() {
-  echo "Blocked: $1. The user is on their own emulator or phone right now. Use the agents'" \
-    "emulator ($agent): scripts/agent-emulator boots it, and adb and Gradle already target it." \
-    "See .claude/skills/emulator/SKILL.md." >&2
+  echo "Blocked: $1. Other devices belong to the user or to agents in other worktrees. Use" \
+    "this checkout's emulator ($agent): scripts/agent-emulator boots it, and adb and Gradle" \
+    "already target it. See .claude/skills/emulator/SKILL.md." >&2
   exit 2
 }
 
@@ -21,7 +21,7 @@ refuse() {
 
 rest=$cmd
 while [[ $rest =~ (emulator-[0-9]+)(.*) ]]; do
-  [[ ${BASH_REMATCH[1]} == "$agent" ]] || refuse "${BASH_REMATCH[1]} is not the agents' emulator"
+  [[ ${BASH_REMATCH[1]} == "$agent" ]] || refuse "${BASH_REMATCH[1]} is not this checkout's emulator"
   rest=${BASH_REMATCH[2]}
 done
 
@@ -33,7 +33,7 @@ other_flag="$adb_opts[[:space:]]+-[det]([[:space:]]|\$)"
 
 rest=$cmd
 while [[ $rest =~ $explicit ]]; do
-  [[ ${BASH_REMATCH[4]} == "$agent" ]] || refuse "${BASH_REMATCH[4]} is not the agents' emulator"
+  [[ ${BASH_REMATCH[4]} == "$agent" ]] || refuse "${BASH_REMATCH[4]} is not this checkout's emulator"
   rest=${BASH_REMATCH[5]}
 done
 

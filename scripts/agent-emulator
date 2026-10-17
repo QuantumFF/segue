@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Boots the agents' emulator (AVD segue_agent, headless, wiped on every boot) and prints its
-# serial. Reuses it when it is already running. `scripts/agent-emulator stop` shuts it down.
-# The serial is ANDROID_SERIAL in .claude/settings.json; segue_pixel belongs to the user.
+# Boots this checkout's agent emulator and prints its serial; reuses it when it is already running.
+# `scripts/agent-emulator stop` shuts it down.
+#
+# Every agent emulator is a -read-only copy of the AVD segue_agent: copies run side by side, each
+# starts from the AVD's clean state, and a copy's changes vanish when it stops. The serial comes from
+# scripts/agent-serial, one per checkout. At most SEGUE_AGENT_EMULATORS (default 3) run at once:
+# each takes about 2 GB of RAM.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-serial=${ANDROID_SERIAL:-$(jq -r .env.ANDROID_SERIAL "$root/.claude/settings.json")}
+serial=$("$root/scripts/agent-serial")
 port=${serial#emulator-}
 sdk=${ANDROID_HOME:-$(sed -n 's/^sdk\.dir=//p' "$root/local.properties")}
 avd=segue_agent
+max=${SEGUE_AGENT_EMULATORS:-3}
 
 if [[ ${1:-} == stop ]]; then
   adb -s "$serial" emu kill >/dev/null 2>&1 || true
@@ -16,19 +21,44 @@ if [[ ${1:-} == stop ]]; then
 fi
 
 booted() { [[ $(adb -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; }
+running() { adb devices | grep -q "^$1[[:space:]]"; }
 
-if ! booted; then
+# Two agents starting at once would race to start the adb server and to take the last slot.
+exec 9>"${XDG_STATE_HOME:-$HOME/.local/state}/segue/agent-emulators/.boot-lock"
+flock 9
+adb start-server >/dev/null 2>&1
+
+if ! running "$serial"; then
+  others=()
+  while read -r other checkout; do
+    [[ $other != "$serial" ]] && running "$other" && others+=("$other ($checkout)")
+  done < <("$root/scripts/agent-serial" --list)
+  if ((${#others[@]} >= max)); then
+    printf 'agent-emulator: %s agent emulators are running, the limit (SEGUE_AGENT_EMULATORS=%s):\n' \
+      "${#others[@]}" "$max" >&2
+    printf '  %s\n' "${others[@]}" >&2
+    echo "Wait for one to stop, or ask the user. Leave other checkouts' emulators alone." >&2
+    exit 1
+  fi
+
+  log=${TMPDIR:-/tmp}/$avd-$port.log
   if ! "$sdk/emulator/emulator" -list-avds | grep -qx "$avd"; then
     echo no | "$sdk/cmdline-tools/latest/bin/avdmanager" create avd -n "$avd" \
       -k "system-images;android-37.0;google_apis;x86_64" -d pixel_8 >&2
+    # One writable boot gives the copies a clean, booted state to start from.
+    "$sdk/emulator/emulator" -avd "$avd" -port "$port" -wipe-data -no-snapshot -no-window \
+      -no-audio >"$log" 2>&1 &
+    adb -s "$serial" wait-for-device
+    until booted; do sleep 3; done
+    adb -s "$serial" emu kill >/dev/null
+    while running "$serial"; do sleep 1; done
   fi
-  if ! adb devices | grep -q "^$serial[[:space:]]"; then
-    log=${TMPDIR:-/tmp}/$avd-emulator.log
-    nohup "$sdk/emulator/emulator" -avd "$avd" -port "$port" -wipe-data -no-snapshot \
-      -no-window -no-audio -memory 2048 -cores 2 >"$log" 2>&1 &
-    echo "booting $avd on $serial (log: $log)" >&2
-  fi
-  adb -s "$serial" wait-for-device
-  until booted; do sleep 3; done
+  setsid -f "$sdk/emulator/emulator" -avd "$avd" -port "$port" -read-only -no-snapshot \
+    -no-window -no-audio -memory 2048 -cores 2 >"$log" 2>&1
+  echo "booting $avd on $serial (log: $log)" >&2
 fi
+flock -u 9
+
+timeout 300 adb -s "$serial" wait-for-device
+until booted; do sleep 3; done
 echo "$serial"

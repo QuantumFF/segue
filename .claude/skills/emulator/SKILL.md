@@ -9,14 +9,16 @@ description: >-
 # Agents' emulator
 
 The user runs Segue on their own emulator (`segue_pixel`) or phone while you work, signed in to
-their real Navidrome server. Agents get a separate emulator, `segue_agent`, whose serial is
-`ANDROID_SERIAL` in `.claude/settings.json`. `adb` and Gradle's install and connected tasks already
-target it, so leave the device unspecified. A hook refuses commands that name any other device.
+their real Navidrome server, and agents in other worktrees run their own emulators. Each checkout
+gets its own copy of the `segue_agent` emulator, and this session's `ANDROID_SERIAL` already points
+at it: `adb` and Gradle's install and connected tasks target it, so leave the device unspecified.
+A hook refuses commands that name any other device. Subagents in this session share its emulator.
 
 ## Steps
 
 1. **Boot**: `scripts/agent-emulator` prints the serial once the emulator has booted. It reuses a
-   running one, and wipes data on every fresh boot.
+   running one, and every fresh boot starts from a clean state. If it reports that the machine is
+   at its emulator limit, wait for another worktree's emulator to stop, or ask the user.
 2. **Install**: `./gradlew :app:installDebug`, then
    `adb shell am start -n com.quantumff.segue.debug/com.quantumff.segue.MainActivity`.
 3. **Sign in** only to `https://demo.navidrome.org` as `demo`/`demo`. Read the server field on the
