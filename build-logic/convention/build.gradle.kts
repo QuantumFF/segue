@@ -23,6 +23,9 @@ dependencies {
     compileOnly(libs.compose.gradlePlugin)
     compileOnly(libs.ksp.gradlePlugin)
     compileOnly(libs.room.gradlePlugin)
+
+    testImplementation(libs.junit4)
+    testImplementation(libs.truth)
 }
 
 tasks {

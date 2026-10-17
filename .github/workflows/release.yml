@@ -1,5 +1,10 @@
 # Builds a signed release APK and AAB for a v* tag and publishes them as a GitHub Release.
 #
+# Release by pushing a tag (`git tag v1.2.3 && git push origin v1.2.3`) or by running this workflow
+# on main with a version (`gh workflow run release.yml -f version=1.2.3`), which tags main's head.
+# The tag is the version: versionName and versionCode come from it (build-logic SegueVersion.kt).
+# Pre-releases use -alpha.N, -beta.N or -rc.N and are marked as pre-releases on GitHub.
+#
 # Required repository secrets (Settings > Secrets and variables > Actions):
 #   SEGUE_KEYSTORE_BASE64    The release keystore (.jks), base64-encoded: `base64 -w0 release.jks`
 #   SEGUE_KEYSTORE_PASSWORD  The keystore password
@@ -14,6 +19,12 @@ on:
     push:
         tags:
             - "v*"
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version to release, e.g. 1.2.3 or 1.2.3-beta.1 (tags main's head as v<version>)"
+                required: true
+                type: string
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,6 +57,26 @@ jobs:
                       exit 1
                   fi
 
+            - name: Resolve tag
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  INPUT_VERSION: ${{ inputs.version }}
+              run: |
+                  if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+                      tag="$GITHUB_REF_NAME"
+                  else
+                      if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+                          echo "::error::Run the release workflow on main, not $GITHUB_REF."
+                          exit 1
+                      fi
+                      tag="v${INPUT_VERSION#v}"
+                      if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2> /dev/null; then
+                          echo "::error::Tag $tag already exists."
+                          exit 1
+                      fi
+                  fi
+                  echo "TAG=$tag" >> "$GITHUB_ENV"
+
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
@@ -67,11 +98,9 @@ jobs:
                   SEGUE_KEYSTORE_PASSWORD: ${{ secrets.SEGUE_KEYSTORE_PASSWORD }}
                   SEGUE_KEY_ALIAS: ${{ secrets.SEGUE_KEY_ALIAS }}
                   SEGUE_KEY_PASSWORD: ${{ secrets.SEGUE_KEY_PASSWORD }}
-              run: ./gradlew :app:assembleRelease :app:bundleRelease
+              run: ./gradlew :app:assembleRelease :app:bundleRelease "-PsegueVersion=${TAG#v}"
 
             - name: Collect release files
-              env:
-                  TAG: ${{ github.ref_name }}
               run: |
                   mkdir -p dist
                   cp app/build/outputs/apk/release/app-release.apk "dist/segue-${TAG}.apk"
@@ -89,15 +118,18 @@ jobs:
             - name: Create GitHub Release
               env:
                   GH_TOKEN: ${{ github.token }}
-                  TAG: ${{ github.ref_name }}
               run: |
                   prerelease=()
                   [[ "$TAG" == *-* ]] && prerelease=(--prerelease)
+                  # A pushed tag must already exist; a manual run creates it on the commit it built.
+                  # Tags created with the workflow token do not trigger this workflow again.
+                  tag_source=(--verify-tag)
+                  [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]] && tag_source=(--target "$GITHUB_SHA")
                   gh release create "$TAG" dist/* \
                       --repo "$GITHUB_REPOSITORY" \
                       --title "Segue $TAG" \
                       --generate-notes \
-                      --verify-tag \
+                      "${tag_source[@]}" \
                       "${prerelease[@]}"
 
             - name: Remove keystore

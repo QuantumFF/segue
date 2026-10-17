@@ -46,6 +46,8 @@ jobs:
             # `test` covers both kinds of module: JVM modules run `test`, and Android modules run only
             # testDebugUnitTest (AGP 9 creates unit tests for the tested build type only).
             - run: ./gradlew test --continue
+            # build-logic is a separate build, so the root `test` does not reach its tests.
+            - run: ./gradlew -p build-logic convention:test --continue
             - name: Publish test results
               if: ${{ !cancelled() }}
               uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1

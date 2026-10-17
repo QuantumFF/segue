@@ -80,6 +80,20 @@ Debug APKs are attached to every [CI run](https://github.com/QuantumFF/segue/act
 releases are published under [Releases](https://github.com/QuantumFF/segue/releases) when a
 `v*` tag is pushed.
 
+## Releasing
+
+The tag is the version; nothing in the repository needs bumping. Either push a tag, or let the
+release workflow tag main's head:
+
+```sh
+git tag v1.2.3 && git push origin v1.2.3
+gh workflow run release.yml -f version=1.2.3
+```
+
+Versions are `1.2.3`, or `1.2.3-alpha.N`, `-beta.N` or `-rc.N` for pre-releases. Both `versionName`
+and `versionCode` come from the tag (`build-logic/.../SegueVersion.kt`), and every pre-release gets
+a lower `versionCode` than its final release. Local builds report `0.0.0-dev`.
+
 > [!TIP]
 > No server yet? Try the public Navidrome demo: `https://demo.navidrome.org`, user `demo`,
 > password `demo`.
