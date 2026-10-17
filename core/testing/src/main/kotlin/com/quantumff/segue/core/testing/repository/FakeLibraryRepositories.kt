@@ -207,7 +207,11 @@ class FakeStarRatingRepository : StarRatingRepository {
     val ratings = mutableMapOf<Pair<MediaKind, String>, Int>()
     var error: RemoteException? = null
 
+    /** Every [setStarred] call, failed ones included. */
+    var starCalls = 0
+
     override suspend fun setStarred(kind: MediaKind, id: String, starred: Boolean) {
+        starCalls++
         error?.let { throw it }
         this.starred[kind to id] = starred
     }

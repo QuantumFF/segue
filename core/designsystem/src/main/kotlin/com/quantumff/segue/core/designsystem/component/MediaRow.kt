@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.designsystem.component
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,22 +46,27 @@ fun MediaRow(
     artShape: Shape = SegueShapes.sm,
     placeholderIcon: ImageVector = SegueIcons.Disc3,
     download: DownloadBadgeState? = null,
+    selected: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(SegueSizes.mediaRow)
+            .selectedRow(selected)
             .rowClickable(enabled = true, onClick = onClick, onLongClick = onLongClick)
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverArt(
-            coverArtId = coverArtId,
-            displaySize = SegueSizes.mediaRowArt,
-            shape = artShape,
-            placeholderIcon = placeholderIcon,
-            modifier = Modifier.size(SegueSizes.mediaRowArt),
-        )
+        Box {
+            CoverArt(
+                coverArtId = coverArtId,
+                displaySize = SegueSizes.mediaRowArt,
+                shape = artShape,
+                placeholderIcon = placeholderIcon,
+                modifier = Modifier.size(SegueSizes.mediaRowArt),
+            )
+            if (selected) SelectedArtOverlay(shape = artShape, modifier = Modifier.matchParentSize())
+        }
         Spacer(Modifier.width(SegueSpacing.md))
         Column(Modifier.weight(1f)) {
             Text(
@@ -109,6 +115,13 @@ private fun MediaRowPreview() {
                 onClick = {},
                 onMoreClick = {},
                 download = DownloadBadgeState.Done,
+            )
+            MediaRow(
+                title = PreviewData.album.title,
+                subtitle = PreviewData.album.subtitle,
+                coverArtId = null,
+                onClick = {},
+                selected = true,
             )
             MediaRow(
                 title = PreviewData.artist.name,

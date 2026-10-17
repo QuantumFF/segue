@@ -60,7 +60,7 @@ Shuffling happens when music is queued, never to a running queue.
 | --- | --- |
 | **Playback** | Gapless playback, ReplayGain (track/album, −18 or −23 LUFS normalisation, optional boost for quiet tracks), per-network streaming quality, sleep timer (time, end of track, end of album), instant mix, related songs |
 | **Offline** | Pin albums, playlists or artists. Wi-Fi/charging constraints, a storage limit, and offline mode. Plays made offline are scrobbled later |
-| **Library** | Favorites, ratings, playlist create/edit/reorder, synced lyrics (OpenSubsonic), scrobbling through Navidrome |
+| **Library** | Multi-select albums, artists or songs to play, queue, favorite or download them together. Favorites, ratings, playlist create/edit/reorder, synced lyrics (OpenSubsonic), scrobbling through Navidrome |
 | **Beyond the phone** | Android Auto (browse, voice search), home-screen widgets, and a tablet layout |
 | **Themes** | Dark, true-black (AMOLED) and light, with a fixed, Material You, or album-art accent |
 

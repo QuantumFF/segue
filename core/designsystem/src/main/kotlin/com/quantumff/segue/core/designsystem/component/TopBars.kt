@@ -223,6 +223,46 @@ fun SubScreenTopBar(
 }
 
 /**
+ * Multi-select's bar (DESIGN.md §5.10), in place of a [TopLevelTopBar] while items are selected:
+ * close (ends multi-select), the [title] ("3 selected") in `titleMedium`, then [actions].
+ * Same height as the bar it replaces, so the content does not move.
+ */
+@Composable
+fun SelectionTopBar(
+    title: String,
+    onCloseClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .height(SegueSizes.topBar)
+            .padding(horizontal = SegueSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SegueIconButton(
+            icon = SegueIcons.Close,
+            contentDescription = stringResource(R.string.ds_clear_selection),
+            onClick = onCloseClick,
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = SegueSpacing.sm)
+                .semantics { heading() },
+        )
+        actions()
+    }
+}
+
+/**
  * Pinned search field (DESIGN.md §4.6): 48 tall, `surfaceContainerHighest`, radius `full`,
  * leading search icon, trailing clear. Focuses itself when [autoFocus].
  */
@@ -352,6 +392,9 @@ private fun TopBarsPreview() {
             TopLevelTopBar(title = "Home") { AccountAction(serverName = "Navidrome", onClick = {}) }
             DetailTopBar(title = "In Rainbows", collapsed = true, onBackClick = {}, onPlayClick = {}, onMoreClick = {})
             SubScreenTopBar(title = "Up next", subtitle = "Playing from In Rainbows", onBackClick = {})
+            SelectionTopBar(title = "3 selected", onCloseClick = {}) {
+                SegueIconButton(icon = SegueIcons.MoreVertical, contentDescription = null, onClick = {})
+            }
             SearchTopBar(query = "", onQueryChange = {}, autoFocus = false)
         }
     }

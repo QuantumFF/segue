@@ -124,6 +124,94 @@ class MediaActionHandlerTest {
     }
 
     @Test
+    fun `every selection action offered is handled`() = runTest {
+        for (kind in MediaKind.entries) {
+            for (starred in BOOLEANS) {
+                val starredAt = 1L.takeIf { starred }
+                val albumList = listOf("al", "al2").map { TestData.album(it, starredAt = starredAt) }
+                val artistList = listOf("ar", "ar2").map { TestData.artist(it, starredAt = starredAt) }
+                val songList = listOf("s", "s2").map { TestData.song(it, starredAt = starredAt) }
+                for (downloaded in BOOLEANS) {
+                    val pinKind = PinKind.valueOf(kind.name)
+                    val pin = (pinKind to if (kind == MediaKind.Album) "al" else "ar").takeIf { downloaded }
+                    for (action in MediaActions.selection(kind, starred, downloaded)) {
+                        assertHandled("$kind selection", action, pin) {
+                            when (kind) {
+                                MediaKind.Album -> handler.albums(albumList, action, host)
+                                MediaKind.Artist -> handler.artists(artistList, action, host)
+                                MediaKind.Song -> handler.songs(songList, action, host)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `selected albums play in the order given, shuffle albums keeps each one whole`() = runTest {
+        val selected = listOf("c", "a", "b").map { TestData.album(it) }
+
+        handler.albums(selected, MediaAction.Play, host)
+        handler.albums(selected, MediaAction.AddToQueue, host)
+        handler.albums(selected, MediaAction.ShuffleAlbums, host)
+
+        val inOrder = PlayTarget.Each(listOf("c", "a", "b").map { PlayTarget.Album(it) })
+        assertThat(intents.plays.take(2)).containsExactly(
+            RecordingPlayIntents.Play(inOrder, QueuePlacement.Replace, false),
+            RecordingPlayIntents.Play(inOrder, QueuePlacement.End, false),
+        ).inOrder()
+        val shuffled = intents.plays[2]
+        assertThat(shuffled.shuffle).isFalse()
+        assertThat((shuffled.target as PlayTarget.Each).targets).containsExactlyElementsIn(inOrder.targets)
+    }
+
+    @Test
+    fun `selected songs play as one list`() = runTest {
+        val songs = listOf(TestData.song("s2"), TestData.song("s1"))
+
+        handler.songs(songs, MediaAction.Shuffle, host)
+
+        assertThat(intents.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(songs), QueuePlacement.Replace, true),
+        )
+    }
+
+    @Test
+    fun `a selection's favorite and download skip the items already starred or pinned`() = runTest {
+        downloads.pins.value = mapOf((PinKind.Album to "pinned") to DownloadStatus.Downloaded)
+        val selected = listOf(TestData.album("starred", starredAt = 1L), TestData.album("pinned"))
+
+        handler.albums(selected, MediaAction.Favorite, host)
+        handler.albums(selected, MediaAction.Download, host)
+
+        assertThat(stars.starred).containsExactly(MediaKind.Album to "pinned", true)
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Album to "pinned", PinKind.Album to "starred")
+    }
+
+    @Test
+    fun `a selection's remove download unpins every item`() = runTest {
+        downloads.pins.value = mapOf(
+            (PinKind.Artist to "a") to DownloadStatus.Downloaded,
+            (PinKind.Artist to "b") to DownloadStatus.Downloaded,
+        )
+
+        handler.artists(listOf(TestData.artist("a"), TestData.artist("b")), MediaAction.RemoveDownload, host)
+
+        assertThat(downloads.pins.value).isEmpty()
+    }
+
+    @Test
+    fun `a selection reports a failure once and still tries every item`() = runTest {
+        stars.error = RemoteException.Unreachable(IOException("down"))
+
+        val failure = handler.songs(listOf(TestData.song("a"), TestData.song("b")), MediaAction.Favorite, host)
+
+        assertThat(failure).isEqualTo(MediaActionFailure.FavoriteFailed)
+        assertThat(stars.starCalls).isEqualTo(2)
+    }
+
+    @Test
     fun `album play actions queue the album, shuffle albums queues its artist's`() = runTest {
         val album = TestData.album("al", artistId = "ar")
 

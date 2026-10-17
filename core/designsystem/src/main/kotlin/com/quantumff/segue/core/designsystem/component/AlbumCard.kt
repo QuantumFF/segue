@@ -50,8 +50,9 @@ fun AlbumCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     artDisplaySize: Dp = SegueSizes.albumCard,
+    selected: Boolean = false,
 ) {
-    Column(modifier = modifier.pressableCard(onClick = onClick, onLongClick = onLongClick)) {
+    Column(modifier = modifier.selectedCard(selected).pressableCard(onClick = onClick, onLongClick = onLongClick)) {
         Box {
             CoverArt(
                 coverArtId = state.coverArtId,
@@ -61,6 +62,7 @@ fun AlbumCard(
                     .fillMaxWidth()
                     .aspectRatio(1f),
             )
+            if (selected) SelectedArtOverlay(shape = SegueShapes.md, modifier = Modifier.matchParentSize())
             state.download?.let {
                 DownloadBadge(
                     state = it,
@@ -86,20 +88,24 @@ fun ArtistCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     artDisplaySize: Dp = SegueSizes.artistCircle,
+    selected: Boolean = false,
 ) {
     Column(
-        modifier = modifier.pressableCard(onClick = onClick, onLongClick = onLongClick),
+        modifier = modifier.selectedCard(selected).pressableCard(onClick = onClick, onLongClick = onLongClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CoverArt(
-            coverArtId = state.coverArtId,
-            displaySize = artDisplaySize,
-            shape = SegueShapes.full,
-            placeholderIcon = SegueIcons.Artist,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-        )
+        Box {
+            CoverArt(
+                coverArtId = state.coverArtId,
+                displaySize = artDisplaySize,
+                shape = SegueShapes.full,
+                placeholderIcon = SegueIcons.Artist,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+            )
+            if (selected) SelectedArtOverlay(shape = SegueShapes.full, modifier = Modifier.matchParentSize())
+        }
         Spacer(Modifier.height(SegueSpacing.sm))
         CardText(title = state.name, subtitle = state.subtitle, textAlign = TextAlign.Center)
     }
@@ -141,6 +147,12 @@ private fun AlbumCardPreview() {
             modifier = Modifier.padding(SegueSpacing.lg),
         ) {
             AlbumCard(state = PreviewData.album, onClick = {}, modifier = Modifier.width(SegueSizes.albumCard))
+            AlbumCard(
+                state = PreviewData.album,
+                onClick = {},
+                modifier = Modifier.width(SegueSizes.albumCard),
+                selected = true,
+            )
             ArtistCard(state = PreviewData.artist, onClick = {}, modifier = Modifier.width(SegueSizes.artistCircle))
         }
     }
