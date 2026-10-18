@@ -36,6 +36,7 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -428,16 +429,12 @@ private fun PhoneLayout(
         AnimatedContent(
             targetState = openPanel != null,
             transitionSpec = {
-                if (panelDrag.isClosing) {
-                    // Dragged down: the panel slides out the bottom and the art follows it down.
-                    val enter = slideInVertically(SegueMotion.longEnter()) { -it / PANEL_SLIDE_FRACTION } +
-                        fadeIn(SegueMotion.longEnter())
-                    enter.togetherWith(fadeOut(SegueMotion.longExit()))
-                } else {
-                    val enter = slideInVertically(SegueMotion.longEnter()) { it / PANEL_SLIDE_FRACTION } +
-                        fadeIn(SegueMotion.longEnter())
-                    enter.togetherWith(fadeOut(SegueMotion.medium()))
-                }
+                // Dragged down: the panel slides out the bottom and the art follows it down, from above.
+                val draggedDown = panelDrag.isClosing
+                val from = if (draggedDown) -1 else 1
+                val enter = slideInVertically(SegueMotion.longEnter()) { from * it / PANEL_SLIDE_FRACTION } +
+                    fadeIn(SegueMotion.longEnter())
+                enter.togetherWith(fadeOut(if (draggedDown) SegueMotion.longExit() else SegueMotion.medium()))
             },
             label = "panel",
             modifier = Modifier
@@ -459,6 +456,7 @@ private fun PhoneLayout(
                         }
                         .nestedScroll(panelDrag.nestedScroll),
                 ) {
+                    DisposableEffect(panelDrag) { onDispose(panelDrag::onPanelGone) }
                     CompactTrackHeader(track = track, onClick = { onOpenPanelChange(null) })
                     val pagerState = rememberPagerState(initialPage = (openPanel ?: NowPlayingPanel.Lyrics).ordinal) {
                         NowPlayingPanel.entries.size

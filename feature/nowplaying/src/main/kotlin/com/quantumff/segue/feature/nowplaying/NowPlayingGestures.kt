@@ -30,7 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
-/** Drag-down and predictive-back collapse, and drag-up to open Queue. */
+/** Drag-down and predictive-back collapse, drag-up to open Queue, and drag-down to close an open panel. */
 internal class DismissGestures(val modifier: Modifier, val predictiveBack: @Composable () -> Unit)
 
 /** While [panelDrag] is set, a drag down moves the open panel instead of the whole player. */
@@ -48,10 +48,10 @@ internal fun rememberDismissGestures(
     var rawDrag by remember { mutableFloatStateOf(0f) }
     val flingPx = with(density) { DISMISS_FLING_DP_PER_SECOND.dp.toPx() }
     val backShiftPx = with(density) { BACK_SHIFT.toPx() }
-    val panel by rememberUpdatedState(panelDrag)
+    val latestPanelDrag by rememberUpdatedState(panelDrag)
     val dragState = rememberDraggableState { delta ->
         rawDrag += delta
-        panel?.let {
+        latestPanelDrag?.let {
             it.dragBy(delta)
             return@rememberDraggableState
         }
@@ -78,7 +78,7 @@ internal fun rememberDismissGestures(
             onDragStarted = { rawDrag = 0f },
             onDragStopped = { velocity ->
                 val offset = dragOffset.value
-                val openPanel = panel
+                val openPanel = latestPanelDrag
                 when {
                     openPanel != null -> openPanel.release(velocity)
 
@@ -154,13 +154,18 @@ internal class PanelDrag(
             if (pulled > 0f && (pulled > height * PANEL_CLOSE_FRACTION || velocity > flingPx)) {
                 isClosing = true
                 onClose()
+                // Stays there until the panel has left: see onPanelGone.
                 offset.animateTo(height, SegueMotion.longExit())
-                offset.snapTo(0f)
-                isClosing = false
             } else {
                 offset.animateTo(0f, SegueMotion.player(), velocity)
             }
         }
+    }
+
+    /** The panel left the screen: the next one opens in place. */
+    fun onPanelGone() {
+        isClosing = false
+        scope.launch { offset.snapTo(0f) }
     }
 
     /** Takes the list's leftover downward scroll at its top, and gives a pulled panel back before the list scrolls. */

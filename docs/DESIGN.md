@@ -139,7 +139,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Secondary screens** (Settings, Downloads, Queue) use an opaque 56 top bar: back arrow, then the title in `titleMedium` (optional muted subtitle such as "Playing from <source>"), then actions.
 - Bar icons: Lucide outline when unselected, filled or bold when selected. Labels always shown. Indicator pill uses `primary` @ 16%.
 - **Mini player** (compact and medium): 64 tall, full width, `surfaceContainer`. A 2dp progress line sits at its top edge (`primary`, track `outlineVariant`).
-  - Hidden when the queue is empty, while Now Playing is open, and while the IME is visible (the nav bar hides then too).
+  - Hidden when the queue is empty and while the IME is visible (the nav bar hides then too). Open Now Playing covers it; it stays drawn underneath.
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
 - Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
 - Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
@@ -267,6 +267,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.7 Now Playing (full screen)
 - Opens from the mini player with a `player` spring. The art morphs from the mini thumbnail to full size (shared bounds). Drag down anywhere, or tap the chevron, to collapse.
+- It is an overlay over the whole shell, not a destination (ADR-0007). The screen it collapses to, with its chrome and mini player, stays drawn underneath, so a drag down or the back gesture reveals it.
 - Background, set by the "Now Playing background" setting:
   - **Blurred art** (default): pre-blurred bitmap, scaled to cover, plus a gradient from black 30% at the top to black 85% at the bottom (Feishin `overlay-header`), plus noise.
   - **Art tint**: a solid tint at the top fading into `background`.
@@ -284,6 +285,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
   - Swiping horizontally inside a panel moves between panels.
   - Tapping the active bottom button, or the compact header, returns to the art.
+  - Dragging down anywhere while a panel is open, or past the top of the panel's list, pulls the panel down (fading to 50% over its height) instead of collapsing Now Playing. Release past 25% of the panel height or 1000dp/s and the panel slides out the bottom (`long` exit) while the art comes in from above. Otherwise it settles back with the `player` spring.
 - **Gestures:**
   - Art swipe left/right: next/previous. Threshold 30% of the width or 1000dp/s. The art slides out and the next one slides in. Haptic tick at the threshold.
   - Tap on art: switch to the Lyrics panel.
