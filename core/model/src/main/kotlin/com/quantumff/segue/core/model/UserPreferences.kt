@@ -34,10 +34,10 @@ data class UserPreferences(
     val playOnBluetoothConnect: Boolean = false,
     /** Look for a newer release on GitHub once a day when the app starts. */
     val checkForUpdates: Boolean = true,
-    /** Card size of the Library's album grid; pinching the grid steps through the sizes. */
-    val albumGridSize: GridSize = GridSize.Medium,
+    /** Card size of the Library's album grid, which pinching the grid zooms. */
+    val albumGridSize: GridSize = GridSize.Default,
     /** Card size of the Library's artist grid, as [albumGridSize]. */
-    val artistGridSize: GridSize = GridSize.Medium,
+    val artistGridSize: GridSize = GridSize.Default,
 ) {
     companion object {
         const val DEFAULT_STREAM_CACHE_MB = 1024
@@ -80,21 +80,14 @@ enum class ReplayGainTarget(val lufs: Int) {
 }
 
 /**
- * A grid's card size, smallest first. [Medium] is the grid's usual column count; each step down
- * adds a column and each step up drops one.
+ * A grid's card size, as the columns it has beyond its usual count for the screen width: more,
+ * smaller cards when positive, fewer, larger ones when negative. [Default] is the usual count.
  */
-enum class GridSize {
-    ExtraSmall,
-    Small,
-    Medium,
-    Large,
-    ;
-
-    /** The next size up, or null at [Large]. */
-    val larger: GridSize? get() = entries.getOrNull(ordinal + 1)
-
-    /** The next size down, or null at [ExtraSmall]. */
-    val smaller: GridSize? get() = entries.getOrNull(ordinal - 1)
+@JvmInline
+value class GridSize(val extraColumns: Int) {
+    companion object {
+        val Default = GridSize(0)
+    }
 }
 
 enum class ThemeMode {

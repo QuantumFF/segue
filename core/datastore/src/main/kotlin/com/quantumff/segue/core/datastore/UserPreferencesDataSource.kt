@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.RecentSearches
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.UserPreferences
@@ -58,8 +59,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             prefs.putIfChanged(Keys.StopWhenPausedMinutes, old.stopWhenPausedMinutes, new.stopWhenPausedMinutes)
             prefs.putIfChanged(Keys.PlayOnBluetoothConnect, old.playOnBluetoothConnect, new.playOnBluetoothConnect)
             prefs.putIfChanged(Keys.CheckForUpdates, old.checkForUpdates, new.checkForUpdates)
-            prefs.putIfChanged(Keys.AlbumGridSize, old.albumGridSize, new.albumGridSize) { it.name }
-            prefs.putIfChanged(Keys.ArtistGridSize, old.artistGridSize, new.artistGridSize) { it.name }
+            prefs.putIfChanged(Keys.AlbumGridColumns, old.albumGridSize, new.albumGridSize) { it.extraColumns }
+            prefs.putIfChanged(Keys.ArtistGridColumns, old.artistGridSize, new.artistGridSize) { it.extraColumns }
         }
     }
 
@@ -119,8 +120,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             stopWhenPausedMinutes = this[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
             playOnBluetoothConnect = this[Keys.PlayOnBluetoothConnect] ?: defaults.playOnBluetoothConnect,
             checkForUpdates = this[Keys.CheckForUpdates] ?: defaults.checkForUpdates,
-            albumGridSize = enum(Keys.AlbumGridSize, defaults.albumGridSize),
-            artistGridSize = enum(Keys.ArtistGridSize, defaults.artistGridSize),
+            albumGridSize = this[Keys.AlbumGridColumns]?.let(::GridSize) ?: defaults.albumGridSize,
+            artistGridSize = this[Keys.ArtistGridColumns]?.let(::GridSize) ?: defaults.artistGridSize,
         )
     }
 
@@ -173,12 +174,16 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val RecentSearches = stringPreferencesKey("recent_searches")
         val CheckForUpdates = booleanPreferencesKey("check_for_updates")
         val LastUpdateCheck = longPreferencesKey("last_update_check_millis")
-        val AlbumGridSize = stringPreferencesKey("album_grid_size")
-        val ArtistGridSize = stringPreferencesKey("artist_grid_size")
+        val AlbumGridColumns = intPreferencesKey("album_grid_extra_columns")
+        val ArtistGridColumns = intPreferencesKey("artist_grid_extra_columns")
+
+        /** The named card sizes the GridColumns keys replaced; see [GridSizeMigration]. */
+        val LegacyAlbumGridSize = stringPreferencesKey("album_grid_size")
+        val LegacyArtistGridSize = stringPreferencesKey("artist_grid_size")
     }
 
     companion object {
         /** Run by the preferences DataStore before its first read. */
-        val MIGRATIONS: List<DataMigration<Preferences>> = listOf(ReplayGainPreampMigration)
+        val MIGRATIONS: List<DataMigration<Preferences>> = listOf(ReplayGainPreampMigration, GridSizeMigration)
     }
 }

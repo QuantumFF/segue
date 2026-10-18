@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImage
+import coil3.memory.MemoryCache
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.request.transformations
@@ -62,7 +63,8 @@ object CoverArtSize {
  * Album or artist art. The placeholder (`surfaceContainerHigh` plus a muted icon) is drawn under
  * the image and stays when loading fails: never a broken-image icon (DESIGN.md §5.8).
  *
- * @param displaySize the size the art is drawn at; picks the `size` bucket for the request.
+ * @param displaySize the size the art is drawn at; picks the `size` bucket for the request. When
+ *   the bucket changes, the art already shown stays until the new size loads.
  * @param crossfade crossfade in lists (`medium`); off for Now Playing art, which pages itself.
  */
 @Composable
@@ -89,10 +91,14 @@ fun CoverArt(
         if (coverArtId != null && !LocalInspectionMode.current) {
             val context = LocalContext.current
             val bucket = CoverArtSize.bucketFor(displaySize, LocalDensity.current)
+            // The last size shown, a placeholder while another size loads. Not state: it is read
+            // only when the bucket changes, and a load must not rebuild the request.
+            val shown = remember(coverArtId) { arrayOfNulls<MemoryCache.Key>(1) }
             val request = remember(context, coverArtId, bucket, crossfade) {
                 ImageRequest.Builder(context)
                     .data(CoverArtRequest(coverArtId, bucket))
                     .size(bucket)
+                    .placeholderMemoryCacheKey(shown[0])
                     .crossfade(if (crossfade) SegueMotion.MEDIUM_MS else 0)
                     .build()
             }
@@ -100,6 +106,7 @@ fun CoverArt(
                 model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                onSuccess = { shown[0] = it.result.memoryCacheKey },
                 modifier = Modifier.fillMaxSize(),
             )
         }

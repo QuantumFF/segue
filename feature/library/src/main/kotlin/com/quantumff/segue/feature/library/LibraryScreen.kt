@@ -597,6 +597,7 @@ private fun TabContent(
                 size = state.albumGridSize,
                 cell = SegueSizes.albumGridCell,
                 horizontalPadding = SegueSpacing.lg,
+                state = albumGridState,
                 onResize = { onEvent(LibraryEvent.SetGridSize(LibraryTab.Albums, it)) },
             ) { layout ->
                 PagedAlbumGrid(
@@ -620,9 +621,10 @@ private fun TabContent(
                     state = albumGridState,
                     selected = selected,
                     onAlbumLongClickLabel = stringResource(R.string.feature_library_select),
-                    columns = GridCells.Fixed(layout.columns),
+                    columns = layout.cells,
+                    horizontalArrangement = layout.arrangement,
                     artDisplaySize = layout.cellWidth,
-                    animatePlacement = layout.animatePlacement,
+                    zoom = layout.zoom,
                 )
             }
 
@@ -762,13 +764,14 @@ private fun ArtistGrid(
         size = size,
         cell = ARTIST_GRID_CELL,
         horizontalPadding = SegueSpacing.lg,
+        state = gridState,
         onResize = { onEvent(LibraryEvent.SetGridSize(LibraryTab.Artists, it)) },
     ) { layout ->
         LazyVerticalGrid(
-            columns = GridCells.Fixed(layout.columns),
+            columns = layout.cells,
             state = gridState,
             contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
+            horizontalArrangement = layout.arrangement,
             verticalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
             modifier = Modifier
                 .fillMaxSize()
@@ -781,7 +784,7 @@ private fun ArtistGrid(
                     startPadding = SegueSpacing.lg,
                 ),
         ) {
-            artistItems(artists, format, layout, picker, onEvent)
+            artistItems(artists, format, layout.cellWidth, layout.zoom, picker, onEvent)
         }
     }
 }
@@ -789,7 +792,8 @@ private fun ArtistGrid(
 private fun LazyGridScope.artistItems(
     artists: LazyPagingItems<Artist>,
     format: NumberFormat,
-    layout: GridLayout,
+    cellWidth: Dp,
+    zoom: GridZoom,
     picker: Picker,
     onEvent: (LibraryEvent) -> Unit,
 ) {
@@ -812,10 +816,10 @@ private fun LazyGridScope.artistItems(
                 onEvent(tapEvent(selected, LibraryItem.OfArtist(artist), LibraryEvent.OpenArtist(artist.id)))
             },
             onLongClick = { picker.longPress(index, LibraryItem.OfArtist(artist)) },
-            artDisplaySize = layout.cellWidth,
+            artDisplaySize = cellWidth,
             selected = artist.id in selected,
             onLongClickLabel = stringResource(R.string.feature_library_select),
-            modifier = cardPlacement(layout.animatePlacement),
+            modifier = Modifier.reflow(zoom, index),
         )
     }
 }

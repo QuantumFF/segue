@@ -72,8 +72,8 @@ import kotlinx.collections.immutable.persistentSetOf
 /**
  * Paged album grid (DESIGN.md §4.2): `GridCells.Adaptive(150)` unless [columns] says otherwise,
  * gutter 12, side margin 16. Placeholders keep the scroll position stable while pages load.
- * [selected] albums carry multi-select's mark. [artDisplaySize] should match the cell width. With
- * [animatePlacement] the cards move to new places with the `player` spring (after a resize).
+ * [selected] albums carry multi-select's mark. [artDisplaySize] should match the cell width. A
+ * [zoom] glides the cards to their new places when a pinch changes the columns.
  */
 @Composable
 internal fun PagedAlbumGrid(
@@ -87,14 +87,15 @@ internal fun PagedAlbumGrid(
     selected: ImmutableSet<String> = persistentSetOf(),
     onAlbumLongClickLabel: String? = null,
     columns: GridCells = GridCells.Adaptive(SegueSizes.albumGridCell),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(SegueSpacing.gutter),
     artDisplaySize: Dp = SegueSizes.albumGridCell,
-    animatePlacement: Boolean = false,
+    zoom: GridZoom? = null,
 ) {
     LazyVerticalGrid(
         columns = columns,
         state = state,
         contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
+        horizontalArrangement = horizontalArrangement,
         verticalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
         modifier = modifier,
     ) {
@@ -104,8 +105,9 @@ internal fun PagedAlbumGrid(
             contentType = albums.itemContentType { "album" },
         ) { index ->
             val album = albums[index]
+            val placement = if (zoom == null) Modifier else Modifier.reflow(zoom, index)
             if (album == null) {
-                AlbumPlaceholder()
+                AlbumPlaceholder(placement)
             } else {
                 val download = downloads[album.id]
                 AlbumCard(
@@ -115,7 +117,7 @@ internal fun PagedAlbumGrid(
                     artDisplaySize = artDisplaySize,
                     selected = album.id in selected,
                     onLongClickLabel = onAlbumLongClickLabel,
-                    modifier = cardPlacement(animatePlacement),
+                    modifier = placement,
                 )
             }
         }
