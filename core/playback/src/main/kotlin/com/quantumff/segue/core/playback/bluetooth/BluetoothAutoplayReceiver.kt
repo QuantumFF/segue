@@ -30,8 +30,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Hears Bluetooth audio (A2DP) devices connect, for [BluetoothAutoplay]. From Android 12 the
- * broadcast arrives only with the Nearby devices permission, and it lets the app start its playback
- * service from the background.
+ * broadcast arrives only with the Nearby devices permission. The Bluetooth stack sends it with a
+ * temporary allowance to start a foreground service (AOSP `Utils.getTempBroadcastOptions`, 20 s by
+ * default), so the playback service can go into the foreground from the background.
  */
 @AndroidEntryPoint
 class BluetoothAutoplayReceiver : BroadcastReceiver() {
@@ -56,7 +57,8 @@ class BluetoothAutoplayReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                autoplay.onConnectionState(state)
+                // Within goAsync's budget; nothing to resume never starts playing, so give up then.
+                withTimeoutOrNull(RECEIVE_TIMEOUT_MILLIS) { autoplay.onConnectionState(state) }
             } catch (e: CancellationException) {
                 throw e
             } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -78,8 +80,7 @@ class BluetoothAutoplayReceiver : BroadcastReceiver() {
         try {
             val controller = future.await()
             controller.play()
-            // Nothing to resume never starts playing: give up then.
-            withTimeoutOrNull(START_TIMEOUT_MILLIS) { controller.awaitPlaying() }
+            controller.awaitPlaying()
         } finally {
             MediaController.releaseFuture(future)
         }
@@ -101,6 +102,6 @@ class BluetoothAutoplayReceiver : BroadcastReceiver() {
 
     private companion object {
         const val TAG = "BluetoothAutoplay"
-        const val START_TIMEOUT_MILLIS = 10_000L
+        const val RECEIVE_TIMEOUT_MILLIS = 8_000L
     }
 }

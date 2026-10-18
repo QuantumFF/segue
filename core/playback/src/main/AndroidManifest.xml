@@ -47,8 +47,8 @@
             </intent-filter>
         </receiver>
 
-        <!-- "Play when Bluetooth connects". The system sends the broadcast, guarded by
-             BLUETOOTH_CONNECT; manifest receivers may take it despite the implicit-broadcast limits. -->
+        <!-- "Play when Bluetooth connects". The broadcast is guarded by BLUETOOTH_CONNECT and is
+             exempt from the implicit-broadcast limits on manifest receivers. -->
         <receiver
             android:name=".bluetooth.BluetoothAutoplayReceiver"
             android:exported="true">
