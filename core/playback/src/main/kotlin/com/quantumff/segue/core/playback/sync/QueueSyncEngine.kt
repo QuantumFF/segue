@@ -30,7 +30,7 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
 
 /**
  * Keeps the play queue in sync with the server and with the local Room snapshot. See
- * docs/PLAN.md, "Server queue sync".
+ * docs/adr/0004.
  *
  * - **Upload** is event-driven: the player reports [QueueEvent]s (track change, queue edit, pause,
  *   seek), which are debounced for [DEBOUNCE_MILLIS] and then saved in queue order.

@@ -9,7 +9,7 @@ Values are in dp/sp unless noted. "Feishin" values come from its v1.17.0 rendere
 - **Feishin's look, Symfonium's hands.** Visual language comes from Feishin (dark neutral palette, heavy 800-weight titles, album-art hero headers, blurred-art player, table-like track lists). Mobile ergonomics come from Symfonium (gesture-driven mini player and Now Playing, swipe actions in the queue, a customisable home, dense readable lists).
 - **Dense but calm.** 56dp rows, 1-line metadata, muted secondary text. One accent color, used sparingly: the active track, the primary action, selected state.
 - **Cheap to draw.** No real-time blur, no shadows inside scrolling lists, cover art fetched at display size. Animate with transform and alpha only.
-- **Offline is first-class.** Every screen renders from Room. Network problems show up as a small status chip, not as a blocking error.
+- **Offline is first-class.** Every screen renders from Room. Network problems show up as a small status chip, not as a blocking error (ADR-0001).
 
 | Taken from Feishin | Taken from Symfonium |
 |---|---|
@@ -279,7 +279,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill such as "FLAC · 16/44.1". In transcoding mode it reads "OPUS 128".
   - Transport row: an empty 48 slot · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One). The empty slot balances repeat, so play/pause stays centered.
   - Bottom row of 4 icon buttons, each 48 tall with a label, spread evenly: Lyrics · Queue · Related · ⋮ (Sleep timer, Speed, Add to playlist, Save queue as playlist, Go to album or artist, Info, Clear queue). The sleep timer shows a dot badge on ⋮ while it is active.
-- **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either.
+- **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either (ADR-0002).
 - **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
   - Swiping horizontally inside a panel moves between panels.
@@ -471,7 +471,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ## 6. Performance constraints that shape the design
 
-- **No real-time blur.** Every "blurred art" is built like this:
+- **No real-time blur** (ADR-0006). Every "blurred art" is built like this:
   1. Fetch `getCoverArt?size=128`. Reuse the row-size cache entry, so there is no extra request.
   2. Downscale to 32×32 and apply a CPU box blur (radius 3, 2 passes) in a Coil `Transformation` off the main thread.
   3. Cache under key `blur:<coverArtId>` in a memory LRU of 24 entries, and in the disk cache.

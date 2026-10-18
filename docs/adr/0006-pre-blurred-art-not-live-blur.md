@@ -1,0 +1,3 @@
+# Blurred art is a pre-blurred 32 px bitmap, never a live blur
+
+Feishin's look leans on blurred album art (Now Playing, hero headers, the feature carousel, widgets), but `Modifier.blur` and `RenderEffect` blur on the GPU every frame, which is too costly behind scrolling content and a playing Now Playing screen. Instead each blurred backdrop is the 128 px cover (the row-size cache entry, so no extra request), downscaled to 32×32 and box-blurred once on the CPU off the main thread. It's cached under `blur:<coverArtId>` and drawn scaled up with low filter quality, so bilinear upscaling does the rest. The same 32 px bitmap feeds palette extraction for the art color. The cost is a softer, blockier blur than a live one, which the noise overlay (DESIGN.md §2.4) hides.

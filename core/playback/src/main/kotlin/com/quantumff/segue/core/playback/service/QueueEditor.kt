@@ -16,7 +16,7 @@ import kotlin.random.Random
  * - **Offline:** only downloaded songs are queued, since nothing else can play (DESIGN.md §1). The
  *   start moves to the requested song if it is downloaded, else to the next downloaded song after
  *   it, else to the first one.
- * - **Shuffle at enqueue** (docs/PLAN.md, "Album shuffle"): a shuffled intent is queued in a fresh
+ * - **Shuffle at enqueue** (docs/adr/0002): a shuffled intent is queued in a fresh
  *   order, from its first song. A running queue is never reshuffled.
  * - **Placement:** replace (and play), next (right after the current item) or end. Into an empty
  *   queue, next and end set the queue and prepare it, without playing.

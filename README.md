@@ -118,7 +118,13 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 
 ## Architecture
 
-See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/DESIGN.md](docs/DESIGN.md) for the UI spec.
+Kotlin, Jetpack Compose and Material 3. Media3 (ExoPlayer and `MediaLibraryService`) plays, runs
+the media session and serves Android Auto. Room holds the library, OkHttp, Retrofit and
+kotlinx.serialization talk to the server, and Coil 3 loads cover art at the size it is drawn. Hilt,
+DataStore, WorkManager (downloads and library sync) and Paging 3 do the rest.
+
+[docs/DESIGN.md](docs/DESIGN.md) is the UI spec, and [docs/adr/](docs/adr/) records the decisions
+behind the architecture.
 
 <details>
 <summary>Modules</summary>

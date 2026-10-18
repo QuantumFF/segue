@@ -11,7 +11,7 @@ import kotlin.math.pow
  * [ReplayGainProcessor]. At most one of them is not 1.
  *
  * Without boost, ReplayGain is player volume. `AudioTrack` volume works in offload mode, so the
- * DSP keeps decoding with the screen off (docs/PLAN.md, "Battery"). Volume cannot exceed 1, so
+ * DSP keeps decoding with the screen off (docs/adr/0005). Volume cannot exceed 1, so
  * positive gains are capped at unity. The volume changes on the main thread at the track
  * transition, a few milliseconds late in a gapless transition.
  *

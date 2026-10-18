@@ -103,7 +103,7 @@ class PlaybackComponents @Inject constructor(
      *
      * [replayGain] runs in the audio sink for ReplayGain boost; it is skipped while offloaded.
      */
-    // Dynamic scheduling lets the playback thread sleep between renders (battery, PLAN.md).
+    // Dynamic scheduling lets the playback thread sleep between renders (battery).
     @OptIn(ExperimentalApi::class)
     fun createExoPlayer(context: Context, replayGain: ReplayGainProcessor): ExoPlayer {
         val dataSourceFactory = playbackDataSourceFactory(context, cacheDataSourceFactory, resolver)

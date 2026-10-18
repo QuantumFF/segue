@@ -32,7 +32,7 @@ sealed interface RemoteQueueDecision {
 }
 
 /**
- * Decides whether a remote play queue should replace the local one. See docs/PLAN.md, "Server queue sync".
+ * Decides whether a remote play queue should replace the local one. See docs/adr/0004.
  *
  * "Newer" never involves this device's clock. Only server timestamps are compared: the remote
  * queue's `changed` against `seen`, the server's `changed` of the newest queue this device has

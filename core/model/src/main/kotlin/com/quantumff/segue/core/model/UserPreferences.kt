@@ -10,7 +10,7 @@ data class UserPreferences(
     val wifiStreamingQuality: StreamingQuality = StreamingQuality.Original,
     val cellularStreamingQuality: StreamingQuality = StreamingQuality.Original,
     val queueSyncEnabled: Boolean = true,
-    /** Adopt a newer server play queue without asking. See PLAN.md, "Server queue sync". */
+    /** Adopt a newer server play queue without asking. See docs/adr/0004. */
     val adoptRemoteQueueAutomatically: Boolean = false,
     val replayGainMode: ReplayGainMode = ReplayGainMode.Track,
     /** The loudness ReplayGain levels to. Only applies when [replayGainMode] is not Off. */

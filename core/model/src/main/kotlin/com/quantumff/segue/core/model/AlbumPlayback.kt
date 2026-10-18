@@ -2,7 +2,10 @@ package com.quantumff.segue.core.model
 
 /** A set of albums to play whole: "Play albums" and "Shuffle albums" draw from one of these. */
 sealed interface AlbumSource {
-    /** Every album in the library, in no particular order. */
+    /**
+     * Every album in the library, in no particular order: Android Auto's "Shuffle albums", and a
+     * voice "play some music" with an empty queue.
+     */
     data object Library : AlbumSource
 
     /** The albums the Library Albums view shows for [sort] and [filter], in that order. */
