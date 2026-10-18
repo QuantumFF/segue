@@ -174,7 +174,7 @@ class SegueAppShellTest {
     }
 
     @Test
-    fun `the continue bar shows above the expanded player bar and hides on full-screen routes`() {
+    fun `the continue bar shows above the expanded player bar and hides under Now Playing`() {
         setShell(ShellLayout.Expanded, player = testPlayer.copy(remoteOffer = offer))
         assertShown("Continue from Feishin")
 

@@ -1,5 +1,6 @@
 package com.quantumff.segue.ui
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.quantumff.segue.core.designsystem.component.MiniPlayerState
@@ -14,7 +15,7 @@ internal val testPlayer = ShellPlayerState(
     durationMillis = 200_000,
 )
 
-/** The shell with a fixed player state and no-op player commands. */
+/** The shell with a fixed player state, no-op player commands, and a stand-in Now Playing. */
 @Composable
 internal fun TestShell(appState: SegueAppState, player: ShellPlayerState = testPlayer) {
     SegueApp(
@@ -22,5 +23,6 @@ internal fun TestShell(appState: SegueAppState, player: ShellPlayerState = testP
         player = player,
         positionMillis = remember { MutableStateFlow(50_000L) },
         playerActions = ShellPlayerActions.None,
+        nowPlaying = { if (appState.isNowPlayingOpen) Text("Now playing") },
     ) { TestNavHost(appState, it) }
 }

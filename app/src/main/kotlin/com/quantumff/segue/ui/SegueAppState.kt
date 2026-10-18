@@ -14,7 +14,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.quantumff.segue.feature.login.navigation.LoginRoute
-import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
 import com.quantumff.segue.navigation.TopLevelDestination
 
 /** How the shell lays out navigation and the player (DESIGN.md §3). */
@@ -35,8 +34,14 @@ fun rememberSegueAppState(
     navController: NavHostController = rememberNavController(),
 ): SegueAppState {
     val currentTab = rememberSaveable { mutableStateOf(TopLevelDestination.Home) }
-    return remember(navController, shellLayout, currentTab) {
-        SegueAppState(navController = navController, shellLayout = shellLayout, currentTabState = currentTab)
+    val nowPlayingOpen = rememberSaveable { mutableStateOf(false) }
+    return remember(navController, shellLayout, currentTab, nowPlayingOpen) {
+        SegueAppState(
+            navController = navController,
+            shellLayout = shellLayout,
+            currentTabState = currentTab,
+            nowPlayingOpenState = nowPlayingOpen,
+        )
     }
 }
 
@@ -47,14 +52,29 @@ fun rememberSegueAppState(
  * to the new tab's graph with `restoreState`. Only the current tab's stack is ever on the back
  * stack, and every tab, Home included, gets its saved stack back. Back at a non-Home tab root goes
  * to Home.
+ *
+ * Now Playing is not a destination: it opens over the shell, so the screen behind it stays drawn
+ * while it slides.
  */
 @Stable
 class SegueAppState(
     val navController: NavHostController,
     val shellLayout: ShellLayout,
     private val currentTabState: MutableState<TopLevelDestination>,
+    private val nowPlayingOpenState: MutableState<Boolean>,
 ) {
     val currentTab: TopLevelDestination by currentTabState
+
+    /** Now Playing is open over the shell. */
+    val isNowPlayingOpen: Boolean by nowPlayingOpenState
+
+    fun openNowPlaying() {
+        nowPlayingOpenState.value = true
+    }
+
+    fun closeNowPlaying() {
+        nowPlayingOpenState.value = false
+    }
 
     /** True while the last navigation was a tab switch: tab switches crossfade (DESIGN.md §2.5). */
     var isTabSwitch: Boolean by mutableStateOf(false)
@@ -105,6 +125,7 @@ class SegueAppState(
     /** No server is configured (first launch, or the last one was removed): show login alone. */
     fun navigateToLogin() {
         isTabSwitch = false
+        closeNowPlaying()
         currentTabState.value = TopLevelDestination.Home
         navController.navigate(LoginRoute()) {
             popUpTo(navController.graph.id) { inclusive = true }
@@ -128,6 +149,6 @@ class SegueAppState(
     }
 
     private companion object {
-        val FullScreenRoutes = listOf(NowPlayingRoute::class, LoginRoute::class)
+        val FullScreenRoutes = listOf(LoginRoute::class)
     }
 }
