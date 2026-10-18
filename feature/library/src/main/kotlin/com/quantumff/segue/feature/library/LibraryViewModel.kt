@@ -154,7 +154,7 @@ data class LibraryUiState(
     val tab: LibraryTab = LibraryTab.Albums,
     val sort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
     val viewMode: LibraryViewMode = LibraryViewMode.Grid,
-    /** Card size of the album and artist grids, which a pinch steps. */
+    /** Card size of the album and artist grids, which a pinch zooms. */
     val albumGridSize: GridSize = GridSize.Default,
     val artistGridSize: GridSize = GridSize.Default,
     val filter: AlbumFilter = AlbumFilter(),

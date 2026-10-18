@@ -177,7 +177,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val AlbumGridColumns = intPreferencesKey("album_grid_extra_columns")
         val ArtistGridColumns = intPreferencesKey("artist_grid_extra_columns")
 
-        /** The named card sizes GridColumns replaced; see [GridSizeMigration]. */
+        /** The named card sizes the GridColumns keys replaced; see [GridSizeMigration]. */
         val LegacyAlbumGridSize = stringPreferencesKey("album_grid_size")
         val LegacyArtistGridSize = stringPreferencesKey("artist_grid_size")
     }

@@ -53,22 +53,26 @@ fun Modifier.pinchToResize(
         .pointerInput(Unit) {
             awaitEachGesture {
                 var pinching = false
-                do {
-                    // The initial pass, so two fingers never reach the list's scroll.
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    if (event.changes.count { it.pressed } >= 2) {
-                        pinching = true
-                        val stepped = latestOnPinch(
-                            event.calculateCentroid(useCurrent = true),
-                            event.calculatePan(),
-                            event.calculateZoom(),
-                        )
-                        if (stepped) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                    }
-                    // Once pinching, the finger left behind does not scroll either.
-                    if (pinching) event.changes.forEach { it.consume() }
-                } while (event.changes.any { it.pressed })
-                if (pinching) latestOnPinchEnd()
+                // Ends the pinch even when the gesture is cancelled, so the grid never stays zoomed.
+                try {
+                    do {
+                        // The initial pass, so two fingers never reach the list's scroll.
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.changes.count { it.pressed } >= 2) {
+                            pinching = true
+                            val stepped = latestOnPinch(
+                                event.calculateCentroid(useCurrent = true),
+                                event.calculatePan(),
+                                event.calculateZoom(),
+                            )
+                            if (stepped) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                        }
+                        // Once pinching, the finger left behind does not scroll either.
+                        if (pinching) event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+                } finally {
+                    if (pinching) latestOnPinchEnd()
+                }
             }
         }
 }

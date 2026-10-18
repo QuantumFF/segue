@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -81,12 +82,13 @@ internal fun PinchResizableGrid(
 ) {
     // The kept size, shown until the stored size catches up so the cards do not jump back meanwhile.
     var pending by remember { mutableStateOf<GridSize?>(null) }
-    LaunchedEffect(size) { if (size == pending) pending = null }
+    LaunchedEffect(size, pending) { if (size == pending) pending = null }
     val shown = pending ?: size
     val scope = rememberCoroutineScope()
     val zoom = remember(state) { GridZoom(state, scope) }
     val reduceMotion = LocalReduceMotion.current
     val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth - horizontalPadding * 2
         val usual = usualColumns(width, cell, SegueSpacing.gutter)
@@ -99,6 +101,7 @@ internal fun PinchResizableGrid(
             zoom.maxColumns = maxColumns(usual)
             zoom.restColumns = columns
             zoom.reduceMotion = reduceMotion
+            zoom.layoutDirection = layoutDirection
             zoom.onKeep = { kept ->
                 val to = GridSize(kept - usual)
                 pending = to
@@ -163,6 +166,7 @@ internal class GridZoom(private val grid: LazyGridState, private val scope: Coro
     var maxColumns = 1
     var restColumns = 1
     var reduceMotion = false
+    var layoutDirection = LayoutDirection.Ltr
     var onKeep: (columns: Int) -> Unit = {}
 
     /** The live zoom while pinching or settling; null at rest, where the cards fill [restColumns]. */
@@ -216,7 +220,7 @@ internal class GridZoom(private val grid: LazyGridState, private val scope: Coro
     fun step(columns: Int): Boolean {
         if (pinching || columns !in 1..maxColumns || columns == restColumns) return false
         anchor = -1
-        rowExtra = measureRowExtra() ?: return false
+        measureRowExtra()?.let { rowExtra = it }
         onKeep(columns)
         settle(columns)
         return true
@@ -267,7 +271,8 @@ internal class GridZoom(private val grid: LazyGridState, private val scope: Coro
             return
         }
         // The card in the column under the fingers; only its row is held, but the glide keeps its column too.
-        val across = (centroid.x / info.viewportSize.width).coerceIn(0f, 1f)
+        val fromLeft = (centroid.x / info.viewportSize.width).coerceIn(0f, 1f)
+        val across = if (layoutDirection == LayoutDirection.Ltr) fromLeft else 1 - fromLeft
         val item = row.sortedBy { it.column }.let { it[(across * it.size).toInt().coerceAtMost(it.lastIndex)] }
         val pitch = row.rowPitch(info.mainAxisItemSpacing)
         anchor = item.index
