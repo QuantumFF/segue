@@ -56,6 +56,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             prefs.putIfChanged(Keys.ReplayGainBoost, old.replayGainBoost, new.replayGainBoost)
             prefs.putIfChanged(Keys.StreamCacheSizeMb, old.streamCacheSizeMb, new.streamCacheSizeMb)
             prefs.putIfChanged(Keys.StopWhenPausedMinutes, old.stopWhenPausedMinutes, new.stopWhenPausedMinutes)
+            prefs.putIfChanged(Keys.PlayOnBluetoothConnect, old.playOnBluetoothConnect, new.playOnBluetoothConnect)
             prefs.putIfChanged(Keys.CheckForUpdates, old.checkForUpdates, new.checkForUpdates)
             prefs.putIfChanged(Keys.AlbumGridSize, old.albumGridSize, new.albumGridSize) { it.name }
             prefs.putIfChanged(Keys.ArtistGridSize, old.artistGridSize, new.artistGridSize) { it.name }
@@ -116,6 +117,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             replayGainBoost = this[Keys.ReplayGainBoost] ?: defaults.replayGainBoost,
             streamCacheSizeMb = this[Keys.StreamCacheSizeMb] ?: defaults.streamCacheSizeMb,
             stopWhenPausedMinutes = this[Keys.StopWhenPausedMinutes] ?: defaults.stopWhenPausedMinutes,
+            playOnBluetoothConnect = this[Keys.PlayOnBluetoothConnect] ?: defaults.playOnBluetoothConnect,
             checkForUpdates = this[Keys.CheckForUpdates] ?: defaults.checkForUpdates,
             albumGridSize = enum(Keys.AlbumGridSize, defaults.albumGridSize),
             artistGridSize = enum(Keys.ArtistGridSize, defaults.artistGridSize),
@@ -167,6 +169,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val LegacyReplayGainPreamp = floatPreferencesKey("replay_gain_preamp_db")
         val StreamCacheSizeMb = intPreferencesKey("stream_cache_size_mb")
         val StopWhenPausedMinutes = intPreferencesKey("stop_when_paused_minutes")
+        val PlayOnBluetoothConnect = booleanPreferencesKey("play_on_bluetooth_connect")
         val RecentSearches = stringPreferencesKey("recent_searches")
         val CheckForUpdates = booleanPreferencesKey("check_for_updates")
         val LastUpdateCheck = longPreferencesKey("last_update_check_millis")

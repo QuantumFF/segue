@@ -49,6 +49,7 @@ class UserPreferencesDataSourceTest {
             replayGainBoost = true,
             streamCacheSizeMb = 256,
             stopWhenPausedMinutes = 30,
+            playOnBluetoothConnect = true,
             checkForUpdates = false,
             albumGridSize = GridSize.Large,
             artistGridSize = GridSize.Small,

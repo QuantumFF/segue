@@ -1,13 +1,17 @@
 package com.quantumff.segue.core.playback
 
+import android.Manifest
+import android.bluetooth.BluetoothA2dp
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import androidx.media3.session.MediaButtonReceiver
 import androidx.media3.session.MediaLibraryService
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.playback.bluetooth.BluetoothAutoplayReceiver
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -45,5 +49,28 @@ class PlaybackServiceManifestTest {
         val provider = context.packageManager.resolveContentProvider("${context.packageName}.artwork", 0)!!
         assertThat(provider.exported).isFalse()
         assertThat(provider.grantUriPermissions).isTrue()
+    }
+
+    @Test
+    fun `media buttons reach the service when it is not running`() {
+        val receivers = context.packageManager.queryBroadcastReceivers(
+            Intent(Intent.ACTION_MEDIA_BUTTON).setPackage(context.packageName),
+            PackageManager.MATCH_ALL,
+        )
+        assertThat(receivers.map { it.activityInfo.name }).contains(MediaButtonReceiver::class.java.name)
+    }
+
+    @Test
+    fun `Bluetooth audio connections reach the autoplay receiver`() {
+        val receivers = context.packageManager.queryBroadcastReceivers(
+            Intent(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED).setPackage(context.packageName),
+            PackageManager.MATCH_ALL,
+        )
+        assertThat(receivers.map { it.activityInfo.name }).contains(BluetoothAutoplayReceiver::class.java.name)
+        val requested = context.packageManager
+            .getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+            .requestedPermissions
+            .orEmpty()
+        assertThat(requested).asList().contains(Manifest.permission.BLUETOOTH_CONNECT)
     }
 }

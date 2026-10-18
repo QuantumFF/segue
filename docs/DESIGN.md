@@ -354,7 +354,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Groups:
   - **Servers:** list, add, switch.
   - **Appearance:** Theme, Accent source with preset swatches, Now Playing background, Hero style (Tint / Blurred art), Compact headers, Dense rows (48), Home sections.
-  - **Playback:** gapless; ReplayGain mode (Off, Track, Album), ReplayGain normalisation (−18 LUFS ReplayGain 2.0, the default, or −23 LUFS EBU; a picker), and "Boost quiet tracks" (a switch, off by default; its summary says it uses more battery). Normalisation and boost are disabled while the mode is Off. Audio offload, crossfade (later).
+  - **Playback:** gapless; ReplayGain mode (Off, Track, Album), ReplayGain normalisation (−18 LUFS ReplayGain 2.0, the default, or −23 LUFS EBU; a picker), and "Boost quiet tracks" (a switch, off by default; its summary says it uses more battery). Normalisation and boost are disabled while the mode is Off. "Play when Bluetooth connects" (a switch, off by default): a Bluetooth audio device connecting resumes the queue, or this device's saved queue, unless something is already playing; turning it on asks for the Nearby devices permission, and losing that permission turns it off. Audio offload, crossfade (later).
   - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
   - **Downloads & storage:** download quality, cache size, storage limit.
   - **Queue sync:** enabled, auto-continue from other devices.
