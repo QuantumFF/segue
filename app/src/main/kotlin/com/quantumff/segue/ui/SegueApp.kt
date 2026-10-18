@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.core.view.WindowCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -62,11 +63,13 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.util.openLink
+import com.quantumff.segue.feature.album.navigation.navigateToAlbum
+import com.quantumff.segue.feature.artist.navigation.navigateToArtist
 import com.quantumff.segue.feature.login.navigation.LoginRoute
-import com.quantumff.segue.feature.nowplaying.navigation.NowPlayingRoute
-import com.quantumff.segue.feature.nowplaying.navigation.navigateToNowPlaying
+import com.quantumff.segue.feature.nowplaying.NowPlayingOverlay
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
+import com.quantumff.segue.feature.queue.QueueContent
 import com.quantumff.segue.navigation.HomeGraph
 import com.quantumff.segue.navigation.SegueNavHost
 import com.quantumff.segue.navigation.TopLevelDestination
@@ -142,12 +145,9 @@ fun SegueApp(
     LaunchedEffect(hasServer, destination) {
         if (!hasServer && destination != null && !destination.hasRoute(LoginRoute::class)) appState.navigateToLogin()
     }
-    // A widget tap: open Now Playing once per request, unless it is already showing.
+    // A widget tap: open Now Playing once per request.
     LaunchedEffect(openNowPlayingRequest) {
-        val current = appState.navController.currentDestination
-        if (openNowPlayingRequest > 0 && hasServer && current?.hasRoute(NowPlayingRoute::class) != true) {
-            appState.navigate { navigateToNowPlaying() }
-        }
+        if (openNowPlayingRequest > 0 && hasServer) appState.openNowPlaying()
     }
 
     SegueApp(
@@ -158,6 +158,23 @@ fun SegueApp(
         modifier = modifier,
         sidebarPlaylists = sidebarPlaylists,
         onSidebarPlaylistClick = onSidebarPlaylistClick,
+        nowPlaying = {
+            NowPlayingOverlay(
+                visible = appState.isNowPlayingOpen,
+                onCollapse = appState::closeNowPlaying,
+                // Collapse first, so back from the album or artist returns to where the user was.
+                onAlbumClick = { id ->
+                    appState.closeNowPlaying()
+                    appState.navigate { navigateToAlbum(id) }
+                },
+                onArtistClick = { id ->
+                    appState.closeNowPlaying()
+                    appState.navigate { navigateToArtist(id) }
+                },
+                onAddToPlaylist = { addToPlaylist = it },
+                queueContent = { QueueContent() },
+            )
+        },
     ) { navModifier ->
         Box(navModifier) {
             SegueNavHost(
@@ -180,6 +197,7 @@ fun SegueApp(
 /**
  * The shell: navigation chrome, the player surface, and the nav host. Content draws edge to
  * edge and scrolls under the bottom chrome; screens read [LocalShellContentPadding].
+ * [nowPlaying] draws over all of it, which stays in place underneath.
  *
  * @param positionMillis collected only by a visible player surface (collecting it runs the position
  *   ticker) and read in the draw phase.
@@ -194,6 +212,7 @@ fun SegueApp(
     modifier: Modifier = Modifier,
     sidebarPlaylists: ImmutableList<SidebarPlaylist> = persistentListOf(),
     onSidebarPlaylistClick: (String) -> Unit = {},
+    nowPlaying: @Composable () -> Unit = {},
     navHost: @Composable (Modifier) -> Unit,
 ) {
     val destination = appState.currentDestination
@@ -216,9 +235,9 @@ fun SegueApp(
     BackHandler(enabled = appState.currentTab != TopLevelDestination.Home && appState.isAtTabRoot(destination)) {
         appState.navigateToTab(TopLevelDestination.Home)
     }
-    SystemBarAppearance(lightStatusIcons = SegueTheme.isDark || destination?.hasRoute(NowPlayingRoute::class) == true)
+    SystemBarAppearance(lightStatusIcons = SegueTheme.isDark || appState.isNowPlayingOpen)
 
-    val onOpenNowPlaying = remember(appState) { { appState.navigate { navigateToNowPlaying() } } }
+    val onOpenNowPlaying = remember(appState) { appState::openNowPlaying }
     val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
         ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
     }
@@ -230,22 +249,26 @@ fun SegueApp(
     ) {
         // Text and icons without an explicit color follow the theme, as under a Surface.
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
-            when (appState.shellLayout) {
-                ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, navHost)
+            // Under open Now Playing the shell is only a backdrop: screen readers skip it.
+            Box(if (appState.isNowPlayingOpen) Modifier.clearAndSetSemantics {} else Modifier) {
+                when (appState.shellLayout) {
+                    ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, navHost)
 
-                ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, navHost)
+                    ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, navHost)
 
-                ShellLayout.Expanded -> ExpandedShell(
-                    appState,
-                    chrome,
-                    shellPlayer,
-                    onTabClick,
-                    navHost,
-                    sidebarPlaylists,
-                    onSidebarPlaylistClick,
-                )
+                    ShellLayout.Expanded -> ExpandedShell(
+                        appState,
+                        chrome,
+                        shellPlayer,
+                        onTabClick,
+                        navHost,
+                        sidebarPlaylists,
+                        onSidebarPlaylistClick,
+                    )
+                }
             }
         }
+        nowPlaying()
     }
 }
 

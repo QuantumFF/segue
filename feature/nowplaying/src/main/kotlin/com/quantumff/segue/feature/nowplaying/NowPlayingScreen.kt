@@ -48,8 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
@@ -194,54 +196,36 @@ internal fun NowPlayingScreen(
 ) {
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
-    val gestures = rememberDismissGestures(
-        onDismiss = actions.onCollapse,
-        onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.Queue },
-    )
+    val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
 
-    BoxWithConstraints(
-        modifier
-            .fillMaxSize()
-            .then(gestures.modifier),
-    ) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH
         val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH || landscape
-        NowPlayingBackground(coverArtId = state.track?.coverArtId, modifier = Modifier.fillMaxSize())
-        val track = state.track
-        val panels = remember(actions, lyrics, activeLyricLine, related, queueContent) {
-            PanelContent(lyrics, activeLyricLine, related, actions, queueContent)
-        }
-        when {
-            track == null -> NothingPlaying(onCollapse = actions.onCollapse)
-
-            twoPane -> TwoPaneLayout(
+        val gestures = rememberDismissGestures(
+            onDismiss = actions.onCollapse,
+            onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.Queue },
+            // A drag down over an open phone panel closes the panel, not the player.
+            panelDrag = if (openPanel != null && !twoPane) panelDrag else null,
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .then(gestures.modifier),
+        ) {
+            NowPlayingContent(
                 state = state,
-                track = track,
                 positionMillis = positionMillis,
                 actions = actions,
-                panels = panels,
-                onMenuClick = { sheet = NowPlayingSheet.Menu },
-            )
-
-            else -> PhoneLayout(
-                state = state,
-                track = track,
-                positionMillis = positionMillis,
-                actions = actions,
-                panels = panels,
+                panels = remember(actions, lyrics, activeLyricLine, related, queueContent) {
+                    PanelContent(lyrics, activeLyricLine, related, actions, queueContent)
+                },
+                twoPane = twoPane,
                 openPanel = openPanel,
                 onOpenPanelChange = { openPanel = it },
+                panelDrag = panelDrag,
                 onMenuClick = { sheet = NowPlayingSheet.Menu },
+                snackbarHostState = snackbarHostState,
             )
-        }
-        SegueSnackbarHost(
-            snackbarHostState,
-            Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding(),
-        )
-        if (track != null && !twoPane) {
-            LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
         }
         gestures.predictiveBack()
         // Registered after the predictive collapse, so it wins while a panel is open.
@@ -304,6 +288,59 @@ internal fun NowPlayingScreen(
         )
 
         null -> Unit
+    }
+}
+
+/** The backdrop, the layout for this width, and the snackbar host. */
+@Composable
+private fun NowPlayingContent(
+    state: NowPlayingUiState,
+    positionMillis: () -> Long,
+    actions: NowPlayingActions,
+    panels: PanelContent,
+    twoPane: Boolean,
+    openPanel: NowPlayingPanel?,
+    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    panelDrag: PanelDrag,
+    onMenuClick: () -> Unit,
+    snackbarHostState: SnackbarHostState,
+) {
+    Box(Modifier.fillMaxSize()) {
+        NowPlayingBackground(coverArtId = state.track?.coverArtId, modifier = Modifier.fillMaxSize())
+        val track = state.track
+        when {
+            track == null -> NothingPlaying(onCollapse = actions.onCollapse)
+
+            twoPane -> TwoPaneLayout(
+                state = state,
+                track = track,
+                positionMillis = positionMillis,
+                actions = actions,
+                panels = panels,
+                onMenuClick = onMenuClick,
+            )
+
+            else -> PhoneLayout(
+                state = state,
+                track = track,
+                positionMillis = positionMillis,
+                actions = actions,
+                panels = panels,
+                openPanel = openPanel,
+                onOpenPanelChange = onOpenPanelChange,
+                panelDrag = panelDrag,
+                onMenuClick = onMenuClick,
+            )
+        }
+        SegueSnackbarHost(
+            snackbarHostState,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
+        )
+        if (track != null && !twoPane) {
+            LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
+        }
     }
 }
 
@@ -379,6 +416,7 @@ private fun PhoneLayout(
     panels: PanelContent,
     openPanel: NowPlayingPanel?,
     onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    panelDrag: PanelDrag,
     onMenuClick: () -> Unit,
 ) {
     Column(
@@ -390,17 +428,37 @@ private fun PhoneLayout(
         AnimatedContent(
             targetState = openPanel != null,
             transitionSpec = {
-                val enter = slideInVertically(SegueMotion.longEnter()) { it / PANEL_SLIDE_FRACTION } +
-                    fadeIn(SegueMotion.longEnter())
-                enter.togetherWith(fadeOut(SegueMotion.medium()))
+                if (panelDrag.isClosing) {
+                    // Dragged down: the panel slides out the bottom and the art follows it down.
+                    val enter = slideInVertically(SegueMotion.longEnter()) { -it / PANEL_SLIDE_FRACTION } +
+                        fadeIn(SegueMotion.longEnter())
+                    enter.togetherWith(fadeOut(SegueMotion.longExit()))
+                } else {
+                    val enter = slideInVertically(SegueMotion.longEnter()) { it / PANEL_SLIDE_FRACTION } +
+                        fadeIn(SegueMotion.longEnter())
+                    enter.togetherWith(fadeOut(SegueMotion.medium()))
+                }
             },
             label = "panel",
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .clipToBounds(),
         ) { showingPanel ->
             if (showingPanel) {
-                Column(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .onSizeChanged { panelDrag.height = it.height.toFloat() }
+                        .graphicsLayer {
+                            val pulled = panelDrag.value
+                            translationY = pulled
+                            if (panelDrag.height > 0f) {
+                                alpha = 1f - PANEL_DRAG_FADE * (pulled / panelDrag.height).coerceIn(0f, 1f)
+                            }
+                        }
+                        .nestedScroll(panelDrag.nestedScroll),
+                ) {
                     CompactTrackHeader(track = track, onClick = { onOpenPanelChange(null) })
                     val pagerState = rememberPagerState(initialPage = (openPanel ?: NowPlayingPanel.Lyrics).ordinal) {
                         NowPlayingPanel.entries.size
@@ -612,75 +670,10 @@ private fun SyncPager(
     }
 }
 
-/** Drag-down and predictive-back collapse, and drag-up to open Queue. */
-private class DismissGestures(val modifier: Modifier, val predictiveBack: @Composable () -> Unit)
-
-@Composable
-private fun rememberDismissGestures(onDismiss: () -> Unit, onSwipeUp: () -> Unit): DismissGestures {
-    val scope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    val dragOffset = remember { Animatable(0f) }
-    val backProgress = remember { Animatable(0f) }
-    var height by remember { mutableFloatStateOf(0f) }
-    var rawDrag by remember { mutableFloatStateOf(0f) }
-    val flingPx = with(density) { DISMISS_FLING_DP_PER_SECOND.dp.toPx() }
-    val backShiftPx = with(density) { BACK_SHIFT.toPx() }
-    val dragState = rememberDraggableState { delta ->
-        rawDrag += delta
-        // Undispatched, so a snap never lands after the release animation started and cancels it.
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            dragOffset.snapTo((dragOffset.value + delta).coerceAtLeast(0f))
-        }
-    }
-    val modifier = Modifier
-        .onSizeChanged { height = it.height.toFloat() }
-        .graphicsLayer {
-            val back = backProgress.value
-            translationY = dragOffset.value + back * backShiftPx
-            scaleX = 1f - back * BACK_SCALE
-            scaleY = 1f - back * BACK_SCALE
-            if (back > 0f) {
-                shape = SegueShapes.xl
-                clip = true
-            }
-        }
-        .draggable(
-            state = dragState,
-            orientation = Orientation.Vertical,
-            onDragStarted = { rawDrag = 0f },
-            onDragStopped = { velocity ->
-                val offset = dragOffset.value
-                when {
-                    offset > height * DISMISS_FRACTION || (offset > 0f && velocity > flingPx) -> onDismiss()
-
-                    rawDrag < -height * SWIPE_UP_FRACTION || velocity < -flingPx -> {
-                        onSwipeUp()
-                        dragOffset.animateTo(0f, SegueMotion.player())
-                    }
-
-                    else -> dragOffset.animateTo(0f, SegueMotion.player(), velocity)
-                }
-            },
-        )
-    val predictiveBack: @Composable () -> Unit = {
-        PredictiveBackHandler { progress ->
-            try {
-                progress.collect { backProgress.snapTo(it.progress) }
-                onDismiss()
-            } catch (e: CancellationException) {
-                scope.launch { backProgress.animateTo(0f, SegueMotion.player()) }
-                throw e
-            }
-        }
-    }
-    return DismissGestures(modifier, predictiveBack)
-}
-
 private val TWO_PANE_TABS = persistentListOf(NowPlayingPanel.Queue, NowPlayingPanel.Lyrics, NowPlayingPanel.Related)
 private val TWO_PANE_MIN_WIDTH = 840.dp
 private val LANDSCAPE_TWO_PANE_MIN_WIDTH = 600.dp
 private val INDICATOR_HEIGHT = 2.dp
-private val BACK_SHIFT = 48.dp
 
 /** Room under the art for the title, artists and heart. */
 private val METADATA_ALLOWANCE = 72.dp
@@ -689,10 +682,9 @@ private val METADATA_ALLOWANCE = 72.dp
 private val CONTROLS_ALLOWANCE = 180.dp
 private const val ART_PANE_WEIGHT = 0.45f
 private const val PANEL_SLIDE_FRACTION = 4
-private const val DISMISS_FRACTION = 0.25f
-private const val SWIPE_UP_FRACTION = 0.15f
-private const val DISMISS_FLING_DP_PER_SECOND = 1000
-private const val BACK_SCALE = 0.1f
+
+/** How much a panel fades when pulled down its whole height. */
+private const val PANEL_DRAG_FADE = 0.5f
 private const val TONAL_ON_ART_ALPHA = 0.16f
 private const val OUTLINE_ON_ART_ALPHA = 0.32f
 
