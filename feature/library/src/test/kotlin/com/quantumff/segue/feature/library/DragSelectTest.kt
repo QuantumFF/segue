@@ -68,12 +68,15 @@ class DragSelectTest {
     }
 
     @Test
-    fun `each grid size adds or drops a column from the adaptive count`() {
+    fun `a grid size adds columns to the adaptive count, from one up to eight`() {
         // 379 wide (a 411dp phone less its margins) fits two 150 cards with a 12 gutter.
-        val columns = GridSize.entries.map { gridColumns(379.dp, 150.dp, 12.dp, it) }
-        assertThat(columns).containsExactly(4, 3, 2, 1).inOrder()
-        // A tablet's usual count moves the same way, and the grid never drops below one column.
-        assertThat(gridColumns(800.dp, 150.dp, 12.dp, GridSize.ExtraSmall)).isEqualTo(7)
-        assertThat(gridColumns(140.dp, 150.dp, 12.dp, GridSize.Large)).isEqualTo(1)
+        val columns = (-2..7).map { gridColumns(379.dp, 150.dp, 12.dp, GridSize(it)) }
+        assertThat(columns).containsExactly(1, 1, 2, 3, 4, 5, 6, 7, 8, 8).inOrder()
+        // A tablet's usual count moves the same way, up to eight.
+        assertThat(gridColumns(800.dp, 150.dp, 12.dp, GridSize(2))).isEqualTo(7)
+        assertThat(gridColumns(800.dp, 150.dp, 12.dp, GridSize(4))).isEqualTo(8)
+        // A screen that already fits more than eight keeps them, but zooms no further out.
+        assertThat(gridColumns(1300.dp, 112.dp, 12.dp, GridSize.Default)).isEqualTo(10)
+        assertThat(gridColumns(1300.dp, 112.dp, 12.dp, GridSize(1))).isEqualTo(10)
     }
 }

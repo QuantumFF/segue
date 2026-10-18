@@ -51,8 +51,8 @@ class UserPreferencesDataSourceTest {
             stopWhenPausedMinutes = 30,
             playOnBluetoothConnect = true,
             checkForUpdates = false,
-            albumGridSize = GridSize.Large,
-            artistGridSize = GridSize.Small,
+            albumGridSize = GridSize(-1),
+            artistGridSize = GridSize(1),
         )
         val defaults = UserPreferences()
         UserPreferences::class.java.declaredFields

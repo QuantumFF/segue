@@ -311,14 +311,14 @@ class LibraryViewModelTest {
     @Test
     fun aPinchKeepsEachGridsSizeInPreferences() = runTest {
         viewModel.uiState.test {
-            viewModel.setGridSize(LibraryTab.Albums, GridSize.Small)
-            viewModel.setGridSize(LibraryTab.Artists, GridSize.Large)
+            viewModel.setGridSize(LibraryTab.Albums, GridSize(1))
+            viewModel.setGridSize(LibraryTab.Artists, GridSize(-1))
             val state = expectMostRecentItem()
-            assertThat(state.albumGridSize).isEqualTo(GridSize.Small)
-            assertThat(state.artistGridSize).isEqualTo(GridSize.Large)
+            assertThat(state.albumGridSize).isEqualTo(GridSize(1))
+            assertThat(state.artistGridSize).isEqualTo(GridSize(-1))
         }
-        assertThat(preferences.preferences.value.albumGridSize).isEqualTo(GridSize.Small)
-        assertThat(preferences.preferences.value.artistGridSize).isEqualTo(GridSize.Large)
+        assertThat(preferences.preferences.value.albumGridSize).isEqualTo(GridSize(1))
+        assertThat(preferences.preferences.value.artistGridSize).isEqualTo(GridSize(-1))
     }
 
     @Test

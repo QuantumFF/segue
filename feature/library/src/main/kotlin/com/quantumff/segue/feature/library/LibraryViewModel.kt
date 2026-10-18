@@ -155,8 +155,8 @@ data class LibraryUiState(
     val sort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
     val viewMode: LibraryViewMode = LibraryViewMode.Grid,
     /** Card size of the album and artist grids, which a pinch steps. */
-    val albumGridSize: GridSize = GridSize.Medium,
-    val artistGridSize: GridSize = GridSize.Medium,
+    val albumGridSize: GridSize = GridSize.Default,
+    val artistGridSize: GridSize = GridSize.Default,
     val filter: AlbumFilter = AlbumFilter(),
     val serverName: String? = null,
     /** Null until counted, so an empty state never flashes before Room answers. */

@@ -7,6 +7,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -84,20 +85,52 @@ class LibrarySelectionTest {
     }
 
     @Test
-    fun `pinching the album grid steps its card size`() {
+    fun `pinching the album grid zooms its card size`() {
         show()
 
         compose.onNodeWithText(albums[0].name).performTouchInput {
             pinch(center - PINCH_NEAR, center - PINCH_FAR, center + PINCH_NEAR, center + PINCH_FAR)
         }
-        // Medium is two columns here; Large is one, and there is nothing larger.
-        assertThat(events).containsExactly(LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize.Large))
+        // Two columns are usual here; spreading far zooms in to one, one fewer than usual.
+        assertThat(events).containsExactly(LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize(-1)))
 
         events.clear()
         compose.onNodeWithText(albums[0].name).performTouchInput {
             pinch(center - PINCH_FAR, center - PINCH_NEAR, center + PINCH_FAR, center + PINCH_NEAR)
         }
-        assertThat(events.first()).isEqualTo(LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize.Medium))
+        // Closing as far zooms out all the way, to eight columns.
+        assertThat(events).containsExactly(LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize(6)))
+        // Lets the cards settle: a test torn down mid-spring stalls the next one's paging.
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun `a small pinch springs back without changing the card size`() {
+        show()
+
+        compose.onNodeWithText(albums[0].name).performTouchInput {
+            pinch(center - PINCH_NEAR, center - PINCH_NEAR * 1.1f, center + PINCH_NEAR, center + PINCH_NEAR * 1.1f)
+        }
+        compose.waitForIdle()
+
+        assertThat(events).isEmpty()
+    }
+
+    @Test
+    fun `accessibility services step the card size a column at a time`() {
+        show()
+        val grid = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.CustomActions))
+
+        grid.performCustomAction("Smaller cards")
+        compose.waitForIdle()
+        grid.performCustomAction("Larger cards")
+        compose.waitForIdle()
+
+        // Two columns are usual here: three, then back to two.
+        assertThat(events).containsExactly(
+            LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize(1)),
+            LibraryEvent.SetGridSize(LibraryTab.Albums, GridSize.Default),
+        ).inOrder()
     }
 
     @Test
@@ -166,6 +199,11 @@ class LibrarySelectionTest {
         const val LONG_PRESS_MARGIN_MILLIS = 100L
         val PINCH_NEAR = Offset(10f, 10f)
         val PINCH_FAR = Offset(120f, 120f)
+    }
+
+    private fun SemanticsNodeInteraction.performCustomAction(label: String) {
+        val action = fetchSemanticsNode().config[SemanticsActions.CustomActions].single { it.label == label }
+        compose.runOnIdle { action.action() }
     }
 
     private fun show() {
