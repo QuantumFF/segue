@@ -15,7 +15,7 @@ interface QueueSyncSink {
 }
 
 /**
- * Turns player events into queue sync events (docs/PLAN.md, "Server queue sync"): track change,
+ * Turns player events into queue sync events (docs/adr/0004): track change,
  * queue edit, pause (also a transient one such as a call, and the end of the queue), and seek. App
  * backgrounding is reported by the app, not the player.
  *

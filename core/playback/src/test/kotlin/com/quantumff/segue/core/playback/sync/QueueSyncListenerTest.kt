@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
-/** The upload triggers of docs/PLAN.md against a real ExoPlayer. */
+/** The queue sync upload triggers (docs/adr/0004) against a real ExoPlayer. */
 @RunWith(RobolectricTestRunner::class)
 class QueueSyncListenerTest {
     private val exo = ExoPlayer.Builder(ApplicationProvider.getApplicationContext<Context>()).build()

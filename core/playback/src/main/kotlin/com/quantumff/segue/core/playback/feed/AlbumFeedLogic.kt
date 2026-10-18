@@ -4,7 +4,7 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.Song
 import kotlin.math.min
 
-/** Window sizes and the edit check of an album feed (docs/PLAN.md, "Album shuffle"). */
+/** Window sizes and the edit check of an album feed (docs/adr/0003). */
 object AlbumFeedPolicy {
     /** Tracks the first window queues: enough for a long session, small enough to queue at once. */
     const val WINDOW_TRACKS = 200

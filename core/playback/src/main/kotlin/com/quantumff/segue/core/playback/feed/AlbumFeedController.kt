@@ -25,7 +25,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * "Play albums" and "Shuffle albums" in the playback service (docs/PLAN.md, "Album shuffle").
+ * "Play albums" and "Shuffle albums" in the playback service (docs/adr/0003).
  *
  * [start] queues the first window of whole albums (about [AlbumFeedPolicy.WINDOW_TRACKS] tracks)
  * in the request's order and placement ([QueueEditor.place]). While those albums are the end of the queue, the running

@@ -9,8 +9,8 @@ import com.quantumff.segue.core.playback.sync.QueueState
 /**
  * The session's player: ExoPlayer with shuffle switched off for good.
  *
- * Segue shuffles only when songs are queued, by queueing them in shuffled order (docs/PLAN.md,
- * "Album shuffle"); a running queue is never reshuffled. So the queue order is always the play
+ * Segue shuffles only when songs are queued, by queueing them in shuffled order
+ * (docs/adr/0002); a running queue is never reshuffled. So the queue order is always the play
  * order. Generic controllers (notification, Bluetooth, Android Auto) are not offered a shuffle
  * toggle, and a stray shuffle request is ignored.
  */
