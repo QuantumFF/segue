@@ -9,7 +9,6 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.MoreExecutors
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.repository.ArtistRepository
@@ -21,6 +20,7 @@ import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.playback.browse.await
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.mix.InstantMix
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
@@ -33,8 +33,6 @@ import java.util.concurrent.ExecutionException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,7 +54,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 /**
@@ -402,22 +399,5 @@ class PlaybackController @Inject constructor(
         const val TAG = "PlaybackController"
         const val POSITION_TICK_MILLIS = 500L
         const val STOP_TIMEOUT_MILLIS = 5_000L
-    }
-}
-
-private suspend fun <T> ListenableFuture<T>.await(): T {
-    if (isDone) return get()
-    return suspendCancellableCoroutine { continuation ->
-        addListener(
-            {
-                try {
-                    continuation.resume(get())
-                } catch (e: ExecutionException) {
-                    continuation.resumeWithException(e)
-                }
-            },
-            MoreExecutors.directExecutor(),
-        )
-        continuation.invokeOnCancellation { cancel(false) }
     }
 }

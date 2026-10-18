@@ -43,6 +43,8 @@
     <string name="feature_settings_replay_gain_boost">Boost quiet tracks</string>
     <string name="feature_settings_replay_gain_boost_summary">Raises quiet tracks too, holding peaks below clipping. Uses more battery.</string>
     <string name="feature_settings_stop_when_paused">Stop when paused</string>
+    <string name="feature_settings_play_on_bluetooth_connect">Play when Bluetooth connects</string>
+    <string name="feature_settings_play_on_bluetooth_connect_summary">Resumes the queue when headphones or a car connect, unless something is already playing</string>
     <plurals name="feature_settings_minutes">
         <item quantity="one">After %d minute</item>
         <item quantity="other">After %d minutes</item>

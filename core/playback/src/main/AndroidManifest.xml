@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Hearing Bluetooth audio devices connect, for "Play when Bluetooth connects". -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!-- Browse callers checked against the allowlist (BrowseCallerPolicy) must be visible. -->
     <queries>
@@ -31,6 +36,26 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!-- Media buttons (a headset's play) reach the service even when it is not running. With
+             nothing queued, play resumes this device's saved queue. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- "Play when Bluetooth connects". The system sends the broadcast, guarded by
+             BLUETOOTH_CONNECT; manifest receivers may take it despite the implicit-broadcast limits. -->
+        <receiver
+            android:name=".bluetooth.BluetoothAutoplayReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Cover art for media browsers; read access is granted per browser. -->
         <provider

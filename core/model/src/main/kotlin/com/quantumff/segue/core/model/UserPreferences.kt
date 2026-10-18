@@ -27,6 +27,11 @@ data class UserPreferences(
     val streamCacheSizeMb: Int = DEFAULT_STREAM_CACHE_MB,
     /** The playback service stops itself after being paused this long. */
     val stopWhenPausedMinutes: Int = DEFAULT_STOP_WHEN_PAUSED_MINUTES,
+    /**
+     * Resume the queue when a Bluetooth audio device (headphones, a car) connects, unless something
+     * is already playing. Needs the Nearby devices permission from Android 12.
+     */
+    val playOnBluetoothConnect: Boolean = false,
     /** Look for a newer release on GitHub once a day when the app starts. */
     val checkForUpdates: Boolean = true,
     /** Card size of the Library's album grid; pinching the grid steps through the sizes. */

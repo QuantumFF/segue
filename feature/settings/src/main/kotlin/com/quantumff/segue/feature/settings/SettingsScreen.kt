@@ -1,5 +1,8 @@
 package com.quantumff.segue.feature.settings
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -40,6 +44,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -81,7 +86,20 @@ fun SettingsScreen(
     LaunchedEffect(viewModel, uriHandler) {
         viewModel.openRelease.collect { url -> uriHandler.openLink(url) }
     }
-    val actions = remember(viewModel, onDownloadsClick, onAddServerClick, onLicensesClick) {
+    val context = LocalContext.current
+    val playOnBluetoothConnect = { on: Boolean ->
+        viewModel.updatePreferences { it.copy(playOnBluetoothConnect = on) }
+    }
+    val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (it) playOnBluetoothConnect(true)
+    }
+    // Without the permission no connection is ever heard, so a revoked permission turns the switch off.
+    val playsOnBluetoothConnect = uiState.preferences.playOnBluetoothConnect
+    LifecycleResumeEffect(playsOnBluetoothConnect) {
+        if (playsOnBluetoothConnect && !hasBluetoothConnectPermission(context)) playOnBluetoothConnect(false)
+        onPauseOrDispose {}
+    }
+    val actions = remember(viewModel, onDownloadsClick, onAddServerClick, onLicensesClick, bluetoothPermission) {
         SettingsActions(
             onSwitchServer = viewModel::switchServer,
             onRemoveServer = viewModel::removeServer,
@@ -98,6 +116,13 @@ fun SettingsScreen(
             },
             onStreamCacheSize = { mb -> viewModel.updatePreferences { it.copy(streamCacheSizeMb = mb) } },
             onStopWhenPaused = { minutes -> viewModel.updatePreferences { it.copy(stopWhenPausedMinutes = minutes) } },
+            onPlayOnBluetoothConnect = { on ->
+                if (on && !hasBluetoothConnectPermission(context)) {
+                    bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                } else {
+                    playOnBluetoothConnect(on)
+                }
+            },
             onDownloads = onDownloadsClick,
             onQueueSync = { on -> viewModel.updatePreferences { it.copy(queueSyncEnabled = on) } },
             onAdoptRemoteQueue = { on -> viewModel.updatePreferences { it.copy(adoptRemoteQueueAutomatically = on) } },
@@ -146,6 +171,7 @@ class SettingsActions(
     val onStorageLimit: (StorageLimit) -> Unit = {},
     val onCheckForUpdates: () -> Unit = {},
     val onAutoUpdateCheck: (Boolean) -> Unit = {},
+    val onPlayOnBluetoothConnect: (Boolean) -> Unit = {},
 ) {
     companion object {
         val None = SettingsActions(
@@ -263,6 +289,14 @@ fun SettingsContent(
                     title = stringResource(R.string.feature_settings_stop_when_paused),
                     summary = minutesLabel(prefs.stopWhenPausedMinutes),
                     modifier = Modifier.clickable { picker = SettingsPicker.StopWhenPaused },
+                )
+            }
+            item(key = "playOnBluetoothConnect", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_play_on_bluetooth_connect),
+                    summary = stringResource(R.string.feature_settings_play_on_bluetooth_connect_summary),
+                    checked = prefs.playOnBluetoothConnect,
+                    onCheckedChange = actions.onPlayOnBluetoothConnect,
                 )
             }
 
