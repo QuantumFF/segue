@@ -99,7 +99,26 @@ fun SettingsScreen(
         if (playsOnBluetoothConnect && !hasBluetoothConnectPermission(context)) playOnBluetoothConnect(false)
         onPauseOrDispose {}
     }
-    val actions = remember(viewModel, onDownloadsClick, onAddServerClick, onLicensesClick, bluetoothPermission) {
+    val offerRemoteQueueInNotification = { on: Boolean ->
+        viewModel.updatePreferences { it.copy(offerRemoteQueueInNotification = on) }
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (it) offerRemoteQueueInNotification(true)
+    }
+    // Without the permission the notification never shows, so the switch shows off; turning it on asks.
+    val offersInNotification = uiState.preferences.offerRemoteQueueInNotification
+    LifecycleResumeEffect(offersInNotification) {
+        if (offersInNotification && !hasNotificationPermission(context)) offerRemoteQueueInNotification(false)
+        onPauseOrDispose {}
+    }
+    val actions = remember(
+        viewModel,
+        onDownloadsClick,
+        onAddServerClick,
+        onLicensesClick,
+        bluetoothPermission,
+        notificationPermission,
+    ) {
         SettingsActions(
             onSwitchServer = viewModel::switchServer,
             onRemoveServer = viewModel::removeServer,
@@ -121,6 +140,13 @@ fun SettingsScreen(
                     bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
                 } else {
                     playOnBluetoothConnect(on)
+                }
+            },
+            onOfferRemoteQueueInNotification = { on ->
+                if (on && !hasNotificationPermission(context)) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    offerRemoteQueueInNotification(on)
                 }
             },
             onDownloads = onDownloadsClick,
@@ -172,6 +198,7 @@ class SettingsActions(
     val onCheckForUpdates: () -> Unit = {},
     val onAutoUpdateCheck: (Boolean) -> Unit = {},
     val onPlayOnBluetoothConnect: (Boolean) -> Unit = {},
+    val onOfferRemoteQueueInNotification: (Boolean) -> Unit = {},
 ) {
     companion object {
         val None = SettingsActions(
@@ -393,6 +420,19 @@ fun SettingsContent(
                     enabled = prefs.queueSyncEnabled,
                     onCheckedChange = actions.onAdoptRemoteQueue,
                 )
+            }
+            item(key = "offerQueueInNotification", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_offer_queue_notification),
+                    summary = stringResource(R.string.feature_settings_offer_queue_notification_summary),
+                    checked = prefs.offerRemoteQueueInNotification,
+                    // Continue automatically plays the newer queue instead of asking.
+                    enabled = prefs.queueSyncEnabled && !prefs.adoptRemoteQueueAutomatically,
+                    onCheckedChange = actions.onOfferRemoteQueueInNotification,
+                )
+            }
+            item(key = "queueSyncNote", contentType = "note") {
+                SettingsNote(stringResource(R.string.feature_settings_queue_sync_note))
             }
 
             item(key = "about", contentType = "header") {

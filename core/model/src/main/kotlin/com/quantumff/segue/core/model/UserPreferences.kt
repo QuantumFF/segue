@@ -12,6 +12,12 @@ data class UserPreferences(
     val queueSyncEnabled: Boolean = true,
     /** Adopt a newer server play queue without asking. See docs/adr/0004. */
     val adoptRemoteQueueAutomatically: Boolean = false,
+    /**
+     * With [adoptRemoteQueueAutomatically] off, play pressed outside the app offers a newer server
+     * play queue in a "Continue from <device>" notification. Needs the notification permission from
+     * Android 13. See docs/adr/0004.
+     */
+    val offerRemoteQueueInNotification: Boolean = true,
     val replayGainMode: ReplayGainMode = ReplayGainMode.Track,
     /** The loudness ReplayGain levels to. Only applies when [replayGainMode] is not Off. */
     val replayGainTarget: ReplayGainTarget = ReplayGainTarget.ReplayGain2,

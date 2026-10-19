@@ -313,7 +313,7 @@ class QueueSyncEngineTest {
         remote.queue = remoteQueue(changedAt = 5_000)
         val engine = engine()
         engine.adoptions.test {
-            assertThat(engine.stageForResume()).isTrue()
+            assertThat(engine.syncForResume(canNotify = true)).isTrue()
             expectNoEvents() // No "Continued from" snackbar: it plays at once.
         }
         runCurrent()
@@ -325,12 +325,80 @@ class QueueSyncEngineTest {
     }
 
     @Test
-    fun `with auto adopt off, play outside the app does not ask the server`() = runTest {
+    fun `with auto adopt off, play outside the app plays on and offers a newer queue in a notification`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        runCurrent()
+
+        val offer = RemoteQueueOffer("Feishin", 2, "Title r2", positionMillis = 3_000, changedAt = 5_000)
+        assertThat(engine.remoteOffer.value).isEqualTo(offer)
+        assertThat(engine.notificationOffer.value).isEqualTo(offer)
+        assertThat(engine.takeAdoption()).isNull()
+    }
+
+    @Test
+    fun `the notification goes with the offer`() = runTest {
         remote.queue = remoteQueue()
         val engine = engine()
-        assertThat(engine.stageForResume()).isFalse()
-        assertThat(remote.fetches).isEqualTo(0)
-        assertThat(engine.takeAdoption()).isNull()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        engine.dismissOffer()
+
+        assertThat(engine.notificationOffer.value).isNull()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        runCurrent()
+        assertThat(engine.notificationOffer.value).isNull() // Dismissed: not offered again.
+    }
+
+    @Test
+    fun `continuing from the notification stages the offered queue`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        assertThat(engine.acceptOffer()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
+        assertThat(engine.notificationOffer.value).isNull()
+        assertThat(engine.takeAdoption()?.queue).isEqualTo(remoteQueue())
+    }
+
+    @Test
+    fun `the app checking again moves the offer from the notification to the banner`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        engine.checkRemote(isPlayingLocally = false)
+
+        assertThat(engine.remoteOffer.value).isNotNull()
+        assertThat(engine.notificationOffer.value).isNull()
+    }
+
+    @Test
+    fun `without notifications, or with the notification turned off, play outside the app does not ask the server`() =
+        runTest {
+            remote.queue = remoteQueue()
+            val engine = engine()
+            assertThat(engine.syncForResume(canNotify = false)).isFalse()
+            preferences.preferences.update { it.copy(offerRemoteQueueInNotification = false) }
+            assertThat(engine.syncForResume(canNotify = true)).isFalse()
+            runCurrent()
+
+            assertThat(remote.fetches).isEqualTo(0)
+            assertThat(engine.notificationOffer.value).isNull()
+        }
+
+    @Test
+    fun `with auto adopt on, play outside the app adopts and never notifies`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue()
+        val engine = engine()
+        assertThat(engine.syncForResume(canNotify = true)).isTrue()
+        runCurrent()
+        assertThat(engine.notificationOffer.value).isNull()
     }
 
     @Test
@@ -338,12 +406,12 @@ class QueueSyncEngineTest {
         preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
         remote.queue = remoteQueue(by = "Segue-own", changedAt = 5_000)
         val engine = engine()
-        assertThat(engine.stageForResume()).isFalse()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
         runCurrent()
         assertThat(snapshots.seen).isEqualTo(5_000)
 
         remote.queue = remoteQueue(changedAt = 4_000)
-        assertThat(engine.stageForResume()).isFalse()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
         assertThat(engine.takeAdoption()).isNull()
     }
 
@@ -353,12 +421,12 @@ class QueueSyncEngineTest {
         remote.queue = remoteQueue()
         remote.fetchDelayMillis = QueueSyncEngine.RESUME_CHECK_TIMEOUT_MILLIS + 1
         val engine = engine()
-        assertThat(engine.stageForResume()).isFalse()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
         assertThat(currentTime).isEqualTo(QueueSyncEngine.RESUME_CHECK_TIMEOUT_MILLIS)
 
         remote.fetchDelayMillis = 0
         remote.fetchError = RemoteException.Unreachable(IOException("offline"))
-        assertThat(engine.stageForResume()).isFalse()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
         assertThat(engine.takeAdoption()).isNull()
     }
 

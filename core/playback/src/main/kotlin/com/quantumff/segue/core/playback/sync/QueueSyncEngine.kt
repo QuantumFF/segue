@@ -45,7 +45,8 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  *   client that is newer than the last server change this device accounted for becomes
  *   [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions] with the local
  *   queue it replaces, which [takeAdoptionUndo] hands back once for Undo. Play pressed outside
- *   the app asks too ([stageForResume]), and with auto adopt on plays the newer queue instead.
+ *   the app asks too ([syncForResume]): with auto adopt on it plays the newer queue instead,
+ *   otherwise it offers it in a notification ([notificationOffer]).
  *   Only server timestamps are compared (see [RemoteQueuePolicy]), so a skewed device clock does
  *   not matter.
  * - **Adoption**: an accepted offer ([acceptOffer]) or an automatic adoption is staged for the
@@ -67,6 +68,7 @@ class QueueSyncEngine @Inject constructor(
 
     private val offeredQueue = MutableStateFlow<RemotePlayQueue?>(null)
     private val offer = MutableStateFlow<RemoteQueueOffer?>(null)
+    private val notifiedOffer = MutableStateFlow<RemoteQueueOffer?>(null)
     private val adoptionRequests = Channel<RemoteAdoption>(Channel.BUFFERED)
 
     /** The remote queue to put in the player next: the accepted offer or the latest automatic adoption. */
@@ -81,6 +83,12 @@ class QueueSyncEngine @Inject constructor(
 
     /** A newer queue from another device, for the "Continue from <device>" banner. */
     val remoteOffer: StateFlow<RemoteQueueOffer?> = offer.asStateFlow()
+
+    /**
+     * [remoteOffer] while it was found by play pressed outside the app ([syncForResume]), for the
+     * "Continue from <device>" notification. Null once the offer is gone, or the app checked again.
+     */
+    val notificationOffer: StateFlow<RemoteQueueOffer?> = notifiedOffer.asStateFlow()
 
     /**
      * Remote queues adopted without asking, when the user enabled that. Each is staged for the
@@ -136,17 +144,8 @@ class QueueSyncEngine @Inject constructor(
         if (!prefs.queueSyncEnabled) return
         val (queue, decision) = fetchCheck(prefs.adoptRemoteQueueAutomatically, isPlayingLocally) ?: return
         when (decision) {
-            RemoteQueueDecision.Offer -> {
-                val offered = checkNotNull(queue)
-                offeredQueue.value = offered
-                offer.value = RemoteQueueOffer(
-                    deviceName = offered.deviceName,
-                    trackCount = offered.songs.size,
-                    currentTitle = offered.songs.getOrNull(offered.currentIndex)?.title,
-                    positionMillis = offered.positionMillis,
-                    changedAt = offered.changedAt,
-                )
-            }
+            // The app shows it as the banner, so the notification goes.
+            RemoteQueueDecision.Offer -> showOffer(checkNotNull(queue), inNotification = false)
 
             RemoteQueueDecision.Adopt -> {
                 // The snapshot is the local queue: it is flushed when the app leaves the foreground.
@@ -159,14 +158,22 @@ class QueueSyncEngine @Inject constructor(
     }
 
     /**
-     * Play was pressed outside the app (notification, widget, Bluetooth), where no offer can be
-     * shown. With auto adopt on, a newer queue from another client is staged for the player
-     * ([takeAdoption]) to play instead of the local one; true if one was. It plays at once, so
-     * there is nothing to undo. Waits at most [RESUME_CHECK_TIMEOUT_MILLIS] for the server.
+     * Play was pressed outside the app (notification, widget, Bluetooth), where the banner cannot
+     * show. Call before playing.
+     * - With auto adopt on, a newer queue from another client is staged for the player
+     *   ([takeAdoption]) to play instead of the local one; true if one was. It plays at once, so
+     *   there is nothing to undo. Waits at most [RESUME_CHECK_TIMEOUT_MILLIS] for the server.
+     * - Otherwise false at once, so the local queue plays without waiting. If [canNotify] and the
+     *   notification offer is on, the server is asked meanwhile, and a newer queue becomes
+     *   [remoteOffer] and [notificationOffer].
      */
-    suspend fun stageForResume(): Boolean {
+    suspend fun syncForResume(canNotify: Boolean): Boolean {
         val prefs = preferences.preferences.first()
-        if (!prefs.queueSyncEnabled || !prefs.adoptRemoteQueueAutomatically) return false
+        if (!prefs.queueSyncEnabled) return false
+        if (!prefs.adoptRemoteQueueAutomatically) {
+            if (canNotify && prefs.offerRemoteQueueInNotification) scope.launch { offerInNotification() }
+            return false
+        }
         val (queue, decision) = withTimeoutOrNull(RESUME_CHECK_TIMEOUT_MILLIS) {
             fetchCheck(autoAdopt = true, isPlayingLocally = false)
         } ?: return false
@@ -181,6 +188,16 @@ class QueueSyncEngine @Inject constructor(
             RemoteQueueDecision.Offer -> Unit // Auto adopt takes any queue that is not playing here.
         }
         return false
+    }
+
+    /** The local queue is playing by now, so a newer queue can only be offered. */
+    private suspend fun offerInNotification() {
+        val (queue, decision) = fetchCheck(autoAdopt = false, isPlayingLocally = true) ?: return
+        when (decision) {
+            RemoteQueueDecision.Offer -> showOffer(checkNotNull(queue), inNotification = true)
+            is RemoteQueueDecision.Ignore -> ignore(queue, decision)
+            RemoteQueueDecision.Adopt -> Unit // Not without auto adopt.
+        }
     }
 
     /** The server's queue and what to do with it. */
@@ -216,8 +233,26 @@ class QueueSyncEngine @Inject constructor(
         val accountedFor = decision.reason == RemoteQueueDecision.IgnoreReason.OwnSave ||
             decision.reason == RemoteQueueDecision.IgnoreReason.SameQueue
         if (accountedFor) markSeen(RemoteQueuePolicy.seenKey(checkNotNull(queue)))
+        withdrawOffer()
+    }
+
+    private fun showOffer(queue: RemotePlayQueue, inNotification: Boolean) {
+        val shown = RemoteQueueOffer(
+            deviceName = queue.deviceName,
+            trackCount = queue.songs.size,
+            currentTitle = queue.songs.getOrNull(queue.currentIndex)?.title,
+            positionMillis = queue.positionMillis,
+            changedAt = queue.changedAt,
+        )
+        offeredQueue.value = queue
+        offer.value = shown
+        notifiedOffer.value = shown.takeIf { inNotification }
+    }
+
+    private fun withdrawOffer() {
         offeredQueue.value = null
         offer.value = null
+        notifiedOffer.value = null
     }
 
     /**
@@ -287,8 +322,7 @@ class QueueSyncEngine @Inject constructor(
     }
 
     private fun clearOffer(handled: RemotePlayQueue) {
-        offeredQueue.value = null
-        offer.value = null
+        withdrawOffer()
         val key = RemoteQueuePolicy.seenKey(handled)
         seenInMemory = maxOrNull(seenInMemory, key)
         scope.launch { markSeen(key) }

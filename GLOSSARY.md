@@ -44,7 +44,7 @@ A queue stored somewhere other than the player: on this device for restore after
 _Avoid_: Snapshot, backup
 
 **Adoption**:
-Replacing the local queue with another client's newer saved queue, either when the user taps *Continue from &lt;device&gt;* or automatically. It is adopted paused, and an automatic adoption can be undone, except when play pressed outside the app adopts it: then it plays at once.
+Replacing the local queue with another client's newer saved queue, either when the user taps *Continue from &lt;device&gt;* (in the banner or the notification) or automatically. It is adopted paused, and an automatic adoption can be undone, except when play pressed outside the app adopts it: then it plays at once. Continue in the notification also plays it.
 _Avoid_: Import, takeover
 
 ## Offline

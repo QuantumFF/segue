@@ -57,6 +57,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- The "Continue from <device>" notification's Continue, and its dismissal. -->
+        <receiver
+            android:name=".sync.RemoteQueueActionReceiver"
+            android:exported="false" />
+
         <!-- Cover art for media browsers; read access is granted per browser. -->
         <provider
             android:name=".browse.ArtworkProvider"

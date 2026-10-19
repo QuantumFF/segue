@@ -234,6 +234,15 @@ class PlaybackController @Inject constructor(
 
     fun dismissRemoteQueue() = queueSync.dismissOffer()
 
+    /**
+     * The "Continue from <device>" notification's Continue: the service takes over the offered
+     * queue at its saved position and plays it. False if it did not.
+     */
+    suspend fun continueRemoteQueue(): Boolean {
+        val adoption = queueSync.acceptOffer() ?: return false
+        return adopt(adoption, play = true)
+    }
+
     /** Has the service adopt a queue the auto-continue setting took over, then reports it for the snackbar. */
     internal suspend fun adoptAutomatically(adoption: RemoteAdoption) {
         if (!adopt(adoption)) return
@@ -244,8 +253,8 @@ class PlaybackController @Inject constructor(
      * Has the service adopt [adoption], which queue sync staged. False if it did not: offline none
      * of its songs is downloaded, or the service could not be asked, and then it is unstaged.
      */
-    private suspend fun adopt(adoption: RemoteAdoption): Boolean {
-        val adopted = send(SegueSessionCommands.ADOPT_QUEUE, Bundle.EMPTY)
+    private suspend fun adopt(adoption: RemoteAdoption, play: Boolean = false): Boolean {
+        val adopted = send(SegueSessionCommands.ADOPT_QUEUE, SegueSessionCommands.adoptArgs(play))
         if (!adopted) queueSync.abandonAdoption(adoption)
         return adopted
     }

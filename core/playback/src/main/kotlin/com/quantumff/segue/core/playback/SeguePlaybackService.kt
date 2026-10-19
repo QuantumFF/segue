@@ -2,6 +2,7 @@ package com.quantumff.segue.core.playback
 
 import android.app.PendingIntent
 import android.os.Bundle
+import androidx.core.app.NotificationManagerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -100,7 +101,8 @@ class SeguePlaybackService : MediaLibraryService() {
         library = components.createSessionLibrary(this, scope)
 
         val sessionPlayer = SessionPlayer(player, scope, components::shouldSyncBeforePlay) {
-            if (components.queueSync.stageForResume()) savedQueues.adopt()
+            val canNotify = NotificationManagerCompat.from(this).areNotificationsEnabled()
+            if (components.queueSync.syncForResume(canNotify)) savedQueues.adopt()
         }
         session = MediaLibrarySession.Builder(this, sessionPlayer, SessionCallback())
             .setBitmapLoader(components.createBitmapLoader(this))
@@ -273,10 +275,10 @@ class SeguePlaybackService : MediaLibraryService() {
                 SegueSessionCommands.ADOPT_QUEUE -> {
                     albumFeed.cancelPending()
                     return scope.launchFuture {
-                        SessionResult(
-                            SessionResult.RESULT_SUCCESS,
-                            SegueSessionCommands.startedResult(savedQueues.adopt()),
-                        )
+                        val adopted = savedQueues.adopt()
+                        // The service's own player: queue sync just took the queue it plays.
+                        if (adopted && SegueSessionCommands.adoptPlays(args)) player.play()
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(adopted))
                     }
                 }
 

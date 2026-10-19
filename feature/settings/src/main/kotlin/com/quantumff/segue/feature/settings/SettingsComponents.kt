@@ -47,6 +47,19 @@ internal fun SettingsSectionHeader(title: String, modifier: Modifier = Modifier)
     )
 }
 
+/** A note under a section's rows: `bodySmall` in `onSurfaceVariant`, aligned with the row text. */
+@Composable
+internal fun SettingsNote(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm),
+    )
+}
+
 /** An M3 [ListItem] on the background: 56 tall with one line, 72 with a summary. */
 @Composable
 internal fun SettingsRow(
