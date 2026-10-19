@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Prepares a new worktree of this repo. Orca (orca.yaml) and T3 Code (the segue project's
+# setup script) both run it when they make a worktree; it sets up the checkout it lives in.
+#
+# local.properties is gitignored, but Gradle needs its sdk.dir, so a new worktree takes the main
+# checkout's copy. Build outputs are not copied: Gradle's build cache lives in ~/.gradle and every
+# checkout shares it, so a new worktree's first assembleDebug is mostly cache hits.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+main=$(dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd -P)")
+
+if [[ ! -f local.properties ]]; then
+  if [[ -f $main/local.properties ]]; then
+    cp "$main/local.properties" local.properties
+  elif [[ -n ${ANDROID_HOME:-} ]]; then
+    echo "sdk.dir=$ANDROID_HOME" >local.properties
+  else
+    echo "setup-worktree: no local.properties in $main and ANDROID_HOME is unset;" \
+      "write sdk.dir to local.properties by hand" >&2
+    exit 1
+  fi
+fi
