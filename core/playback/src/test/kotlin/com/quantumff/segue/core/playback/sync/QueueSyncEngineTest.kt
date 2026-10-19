@@ -353,6 +353,38 @@ class QueueSyncEngineTest {
     }
 
     @Test
+    fun `playing on keeps the notification's offer, and play does not ask the server again`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        engine.onLocalPlaybackStarted()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        assertThat(engine.notificationOffer.value).isNotNull()
+        assertThat(remote.fetches).isEqualTo(1)
+        assertThat(engine.acceptOffer()?.queue).isEqualTo(remoteQueue())
+    }
+
+    @Test
+    fun `the notification's offer outlives this device's own saves and moves to the banner`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        // Playing on uploaded this device's queue over it.
+        remote.queue = remoteQueue(by = "Segue-own", changedAt = 6_000)
+        engine.checkRemote(isPlayingLocally = true)
+
+        assertThat(engine.remoteOffer.value?.deviceName).isEqualTo("Feishin")
+        assertThat(engine.notificationOffer.value).isNull()
+        assertThat(engine.acceptOffer()?.queue).isEqualTo(remoteQueue(changedAt = 5_000))
+    }
+
+    @Test
     fun `continuing from the notification stages the offered queue`() = runTest {
         remote.queue = remoteQueue()
         val engine = engine()

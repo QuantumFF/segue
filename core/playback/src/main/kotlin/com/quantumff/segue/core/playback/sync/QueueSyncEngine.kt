@@ -68,7 +68,7 @@ class QueueSyncEngine @Inject constructor(
 
     private val offeredQueue = MutableStateFlow<RemotePlayQueue?>(null)
     private val offer = MutableStateFlow<RemoteQueueOffer?>(null)
-    private val notifiedOffer = MutableStateFlow<RemoteQueueOffer?>(null)
+    private val offerToNotify = MutableStateFlow<RemoteQueueOffer?>(null)
     private val adoptionRequests = Channel<RemoteAdoption>(Channel.BUFFERED)
 
     /** The remote queue to put in the player next: the accepted offer or the latest automatic adoption. */
@@ -88,7 +88,7 @@ class QueueSyncEngine @Inject constructor(
      * [remoteOffer] while it was found by play pressed outside the app ([syncForResume]), for the
      * "Continue from <device>" notification. Null once the offer is gone, or the app checked again.
      */
-    val notificationOffer: StateFlow<RemoteQueueOffer?> = notifiedOffer.asStateFlow()
+    val notificationOffer: StateFlow<RemoteQueueOffer?> = offerToNotify.asStateFlow()
 
     /**
      * Remote queues adopted without asking, when the user enabled that. Each is staged for the
@@ -121,10 +121,12 @@ class QueueSyncEngine @Inject constructor(
 
     /**
      * Local playback started: the banner goes (DESIGN.md §4.8), and the offered queue counts as
-     * declined. This device's next upload replaces it on the server anyway.
+     * declined. This device's next upload replaces it on the server anyway. The notification's
+     * offer stays: it was found with the local queue already playing, so playing on declines
+     * nothing.
      */
     override fun onLocalPlaybackStarted() {
-        offeredQueue.value?.let(::clearOffer)
+        if (offerToNotify.value == null) offeredQueue.value?.let(::clearOffer)
         // Playing on means keeping the adopted queue: Undo no longer applies.
         adoptionUndo.set(null)
     }
@@ -142,7 +144,7 @@ class QueueSyncEngine @Inject constructor(
     suspend fun checkRemote(isPlayingLocally: Boolean) {
         val prefs = preferences.preferences.first()
         if (!prefs.queueSyncEnabled) return
-        val (queue, decision) = fetchCheck(prefs.adoptRemoteQueueAutomatically, isPlayingLocally) ?: return
+        val (queue, decision) = fetchDecision(prefs.adoptRemoteQueueAutomatically, isPlayingLocally) ?: return
         when (decision) {
             // The app shows it as the banner, so the notification goes.
             RemoteQueueDecision.Offer -> showOffer(checkNotNull(queue), inNotification = false)
@@ -153,7 +155,17 @@ class QueueSyncEngine @Inject constructor(
                 adoptionRequests.send(stageAutomaticAdoption(checkNotNull(queue), undo = previous))
             }
 
-            is RemoteQueueDecision.Ignore -> ignore(queue, decision)
+            is RemoteQueueDecision.Ignore -> {
+                val unanswered = offeredQueue.value?.takeIf { offerToNotify.value != null }
+                if (unanswered != null && decision.reason == RemoteQueueDecision.IgnoreReason.OwnSave) {
+                    // Playing on since the notification saved this device's queue over it, but the
+                    // user has not answered yet: the banner asks instead.
+                    markSeen(RemoteQueuePolicy.seenKey(checkNotNull(queue)))
+                    showOffer(unanswered, inNotification = false)
+                } else {
+                    ignore(queue, decision)
+                }
+            }
         }
     }
 
@@ -171,11 +183,13 @@ class QueueSyncEngine @Inject constructor(
         val prefs = preferences.preferences.first()
         if (!prefs.queueSyncEnabled) return false
         if (!prefs.adoptRemoteQueueAutomatically) {
-            if (canNotify && prefs.offerRemoteQueueInNotification) scope.launch { offerInNotification() }
+            // An offer already in the notification stays until acted on: no need to ask again.
+            val ask = canNotify && prefs.offerRemoteQueueInNotification && offerToNotify.value == null
+            if (ask) scope.launch { offerInNotification() }
             return false
         }
         val (queue, decision) = withTimeoutOrNull(RESUME_CHECK_TIMEOUT_MILLIS) {
-            fetchCheck(autoAdopt = true, isPlayingLocally = false)
+            fetchDecision(autoAdopt = true, isPlayingLocally = false)
         } ?: return false
         when (decision) {
             RemoteQueueDecision.Adopt -> {
@@ -192,7 +206,7 @@ class QueueSyncEngine @Inject constructor(
 
     /** The local queue is playing by now, so a newer queue can only be offered. */
     private suspend fun offerInNotification() {
-        val (queue, decision) = fetchCheck(autoAdopt = false, isPlayingLocally = true) ?: return
+        val (queue, decision) = fetchDecision(autoAdopt = false, isPlayingLocally = true) ?: return
         when (decision) {
             RemoteQueueDecision.Offer -> showOffer(checkNotNull(queue), inNotification = true)
             is RemoteQueueDecision.Ignore -> ignore(queue, decision)
@@ -204,7 +218,7 @@ class QueueSyncEngine @Inject constructor(
     private data class RemoteCheck(val queue: RemotePlayQueue?, val decision: RemoteQueueDecision)
 
     /** Null when the server cannot be reached. */
-    private suspend fun fetchCheck(autoAdopt: Boolean, isPlayingLocally: Boolean): RemoteCheck? {
+    private suspend fun fetchDecision(autoAdopt: Boolean, isPlayingLocally: Boolean): RemoteCheck? {
         val (queue, ownName, seen) = try {
             Triple(remote.fetch(), remote.deviceClientName(), maxOrNull(snapshots.seenRemoteChange(), seenInMemory))
         } catch (_: RemoteException) {
@@ -246,13 +260,13 @@ class QueueSyncEngine @Inject constructor(
         )
         offeredQueue.value = queue
         offer.value = shown
-        notifiedOffer.value = shown.takeIf { inNotification }
+        offerToNotify.value = shown.takeIf { inNotification }
     }
 
     private fun withdrawOffer() {
         offeredQueue.value = null
         offer.value = null
-        notifiedOffer.value = null
+        offerToNotify.value = null
     }
 
     /**

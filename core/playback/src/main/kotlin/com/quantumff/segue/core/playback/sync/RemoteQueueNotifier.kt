@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.text.format.DateUtils
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.core.playback.R
@@ -18,7 +20,7 @@ import kotlinx.coroutines.launch
 /**
  * The "Continue from <device>" notification (docs/adr/0004), on its own low-importance channel:
  * shown while [QueueSyncEngine.notificationOffer] holds a newer queue that play pressed outside
- * the app found. Continue takes it over and plays it ([RemoteQueueActionReceiver]); a tap opens
+ * the app found, unless the app is showing by then. Continue takes it over and plays it ([RemoteQueueActionReceiver]); a tap opens
  * the app, which shows the same offer as the banner; swiping it away dismisses the offer. It goes
  * when the offer does, and a new process clears one left by the last. Call [start] once.
  */
@@ -46,7 +48,9 @@ class RemoteQueueNotifier @Inject constructor(
     }
 
     private fun show(offer: RemoteQueueOffer) {
-        if (!manager.areNotificationsEnabled()) return
+        // The app came forward while the server was asked: its own check shows the banner.
+        val appShowing = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        if (appShowing || !manager.areNotificationsEnabled()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(androidx.media3.session.R.drawable.media3_notification_small_icon)
             .setContentTitle(context.getString(R.string.playback_continue_from, offer.deviceName))

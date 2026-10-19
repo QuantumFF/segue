@@ -1,6 +1,8 @@
 package com.quantumff.segue.core.playback.service
 
+import android.util.Log
 import androidx.media3.common.ForwardingPlayer
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -35,7 +37,14 @@ class SessionPlayer(
         }
         playAfterSync = true
         sync = scope.launch {
-            syncQueue()
+            try {
+                syncQueue()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                // The press still plays: the local queue, as if there had been no sync.
+                Log.w(TAG, "Could not sync the queue before playing", e)
+            }
             if (playAfterSync) player.play()
         }
     }
@@ -50,5 +59,9 @@ class SessionPlayer(
     override fun stop() {
         playAfterSync = false
         player.stop()
+    }
+
+    private companion object {
+        const val TAG = "SessionPlayer"
     }
 }

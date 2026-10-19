@@ -102,14 +102,17 @@ fun SettingsScreen(
     val offerRemoteQueueInNotification = { on: Boolean ->
         viewModel.updatePreferences { it.copy(offerRemoteQueueInNotification = on) }
     }
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) offerRemoteQueueInNotification(true)
-    }
-    // Without the permission the notification never shows, so the switch shows off; turning it on asks.
-    val offersInNotification = uiState.preferences.offerRemoteQueueInNotification
-    LifecycleResumeEffect(offersInNotification) {
-        if (offersInNotification && !hasNotificationPermission(context)) offerRemoteQueueInNotification(false)
+    // Without the permission the notification never shows, so the switch reads off and turning it on
+    // asks. The choice itself is kept: granting the permission later, here or in system settings,
+    // brings it back.
+    var canNotify by remember { mutableStateOf(hasNotificationPermission(context)) }
+    LifecycleResumeEffect(context) {
+        canNotify = hasNotificationPermission(context)
         onPauseOrDispose {}
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        canNotify = it
+        if (it) offerRemoteQueueInNotification(true)
     }
     val actions = remember(
         viewModel,
@@ -168,6 +171,7 @@ fun SettingsScreen(
         actions = actions,
         onBackClick = onBackClick,
         modifier = modifier,
+        canNotify = canNotify,
     )
 }
 
@@ -221,7 +225,10 @@ private enum class SettingsPicker {
     StorageLimit,
 }
 
-/** The stateless settings screen. */
+/**
+ * The stateless settings screen. [canNotify]: whether Segue may post notifications, which "Ask in
+ * a notification" needs.
+ */
 @Composable
 fun SettingsContent(
     uiState: SettingsUiState,
@@ -229,6 +236,7 @@ fun SettingsContent(
     actions: SettingsActions,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    canNotify: Boolean = true,
 ) {
     var picker by rememberSaveable { mutableStateOf<SettingsPicker?>(null) }
     var removing by remember { mutableStateOf<Server?>(null) }
@@ -425,7 +433,7 @@ fun SettingsContent(
                 SwitchRow(
                     title = stringResource(R.string.feature_settings_offer_queue_notification),
                     summary = stringResource(R.string.feature_settings_offer_queue_notification_summary),
-                    checked = prefs.offerRemoteQueueInNotification,
+                    checked = prefs.offerRemoteQueueInNotification && canNotify,
                     // Continue automatically plays the newer queue instead of asking.
                     enabled = prefs.queueSyncEnabled && !prefs.adoptRemoteQueueAutomatically,
                     onCheckedChange = actions.onOfferRemoteQueueInNotification,

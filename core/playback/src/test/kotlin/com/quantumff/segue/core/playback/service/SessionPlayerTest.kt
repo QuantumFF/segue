@@ -22,6 +22,7 @@ class SessionPlayerTest {
     private var outsideApp = true
     private var checks = 0
     private var serverAnswer = CompletableDeferred<Unit>()
+    private var syncError: Exception? = null
 
     @After
     fun tearDown() = exo.release()
@@ -31,6 +32,7 @@ class SessionPlayerTest {
         exo.prepare()
         return SessionPlayer(player, backgroundScope, { outsideApp }) {
             checks++
+            syncError?.let { throw it }
             serverAnswer.await()
             exo.setMediaItems(listOf(TestData.song("remote").toMediaItem()))
         }
@@ -88,6 +90,18 @@ class SessionPlayerTest {
 
         assertThat(checks).isEqualTo(1)
         assertThat(exo.playWhenReady).isTrue()
+    }
+
+    @Test
+    fun `a sync that fails still plays the local queue`() = runTest {
+        syncError = IllegalStateException("broken")
+        val session = sessionPlayer()
+
+        session.play()
+        runCurrent()
+
+        assertThat(exo.playWhenReady).isTrue()
+        assertThat(exo.currentMediaItem?.mediaId).isEqualTo("local")
     }
 
     @Test
