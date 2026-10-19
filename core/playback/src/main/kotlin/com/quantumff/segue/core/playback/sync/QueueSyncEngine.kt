@@ -134,7 +134,7 @@ class QueueSyncEngine @Inject constructor(
     suspend fun checkRemote(isPlayingLocally: Boolean) {
         val prefs = preferences.preferences.first()
         if (!prefs.queueSyncEnabled) return
-        val (queue, decision) = fetchDecision(prefs.adoptRemoteQueueAutomatically, isPlayingLocally) ?: return
+        val (queue, decision) = fetchCheck(prefs.adoptRemoteQueueAutomatically, isPlayingLocally) ?: return
         when (decision) {
             RemoteQueueDecision.Offer -> {
                 val offered = checkNotNull(queue)
@@ -149,14 +149,9 @@ class QueueSyncEngine @Inject constructor(
             }
 
             RemoteQueueDecision.Adopt -> {
-                val adopted = checkNotNull(queue)
-                clearOffer(handled = adopted)
                 // The snapshot is the local queue: it is flushed when the app leaves the foreground.
                 val previous = snapshots.snapshot.first()?.takeIf { it.songIds.isNotEmpty() }
-                adoptionUndo.set(previous)
-                val adoption = RemoteAdoption(adopted, previous)
-                pendingAdoption.set(adoption)
-                adoptionRequests.send(adoption)
+                adoptionRequests.send(stageAutomaticAdoption(checkNotNull(queue), undo = previous))
             }
 
             is RemoteQueueDecision.Ignore -> ignore(queue, decision)
@@ -173,14 +168,11 @@ class QueueSyncEngine @Inject constructor(
         val prefs = preferences.preferences.first()
         if (!prefs.queueSyncEnabled || !prefs.adoptRemoteQueueAutomatically) return false
         val (queue, decision) = withTimeoutOrNull(RESUME_CHECK_TIMEOUT_MILLIS) {
-            fetchDecision(autoAdopt = true, isPlayingLocally = false)
+            fetchCheck(autoAdopt = true, isPlayingLocally = false)
         } ?: return false
         when (decision) {
             RemoteQueueDecision.Adopt -> {
-                val adopted = checkNotNull(queue)
-                clearOffer(handled = adopted)
-                adoptionUndo.set(null)
-                pendingAdoption.set(RemoteAdoption(adopted, undo = null))
+                stageAutomaticAdoption(checkNotNull(queue), undo = null)
                 return true
             }
 
@@ -191,11 +183,11 @@ class QueueSyncEngine @Inject constructor(
         return false
     }
 
-    /** The server's queue and what to do with it; null when the server cannot be reached. */
-    private suspend fun fetchDecision(
-        autoAdopt: Boolean,
-        isPlayingLocally: Boolean,
-    ): Pair<RemotePlayQueue?, RemoteQueueDecision>? {
+    /** The server's queue and what to do with it. */
+    private data class RemoteCheck(val queue: RemotePlayQueue?, val decision: RemoteQueueDecision)
+
+    /** Null when the server cannot be reached. */
+    private suspend fun fetchCheck(autoAdopt: Boolean, isPlayingLocally: Boolean): RemoteCheck? {
         val (queue, ownName, seen) = try {
             Triple(remote.fetch(), remote.deviceClientName(), maxOrNull(snapshots.seenRemoteChange(), seenInMemory))
         } catch (_: RemoteException) {
@@ -209,7 +201,14 @@ class QueueSyncEngine @Inject constructor(
             isPlayingLocally = isPlayingLocally,
             seen = seen,
         )
-        return queue to decision
+        return RemoteCheck(queue, decision)
+    }
+
+    /** Stages [adopted] for the player ([takeAdoption]), with [undo] for the snackbar's Undo. */
+    private fun stageAutomaticAdoption(adopted: RemotePlayQueue, undo: QueueSnapshot?): RemoteAdoption {
+        clearOffer(handled = adopted)
+        adoptionUndo.set(undo)
+        return RemoteAdoption(adopted, undo).also(pendingAdoption::set)
     }
 
     private suspend fun ignore(queue: RemotePlayQueue?, decision: RemoteQueueDecision.Ignore) {

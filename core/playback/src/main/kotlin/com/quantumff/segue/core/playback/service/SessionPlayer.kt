@@ -10,45 +10,45 @@ import kotlinx.coroutines.launch
  * notification, widgets, Bluetooth and Android Auto. The service's own modules use [player]
  * directly.
  *
- * When [checkFirst] says so (play pressed outside the app, online), play waits for [beforePlay],
- * which lets queue sync put another device's newer queue in the player (docs/adr/0004), and then
- * plays whatever is queued. A pause meanwhile wins: the check still finishes, but nothing plays.
- * Call on the player's thread.
+ * When [shouldSyncFirst] says so (play pressed outside the app, online), play waits for
+ * [syncQueue], which lets queue sync put another device's newer queue in the player
+ * (docs/adr/0004), and then plays whatever is queued. A pause meanwhile wins: the sync still
+ * finishes, but nothing plays. Call on the player's thread.
  */
 class SessionPlayer(
     private val player: SeguePlayer,
     private val scope: CoroutineScope,
-    private val checkFirst: () -> Boolean,
-    private val beforePlay: suspend () -> Unit,
+    private val shouldSyncFirst: () -> Boolean,
+    private val syncQueue: suspend () -> Unit,
 ) : ForwardingPlayer(player) {
-    private var check: Job? = null
-    private var playWhenChecked = false
+    private var sync: Job? = null
+    private var playAfterSync = false
 
     override fun play() {
-        if (check?.isActive == true) {
-            playWhenChecked = true
+        if (sync?.isActive == true) {
+            playAfterSync = true
             return
         }
-        if (player.playWhenReady || !checkFirst()) {
+        if (player.playWhenReady || !shouldSyncFirst()) {
             player.play()
             return
         }
-        playWhenChecked = true
-        check = scope.launch {
-            beforePlay()
-            if (playWhenChecked) player.play()
+        playAfterSync = true
+        sync = scope.launch {
+            syncQueue()
+            if (playAfterSync) player.play()
         }
     }
 
     override fun setPlayWhenReady(playWhenReady: Boolean) = if (playWhenReady) play() else pause()
 
     override fun pause() {
-        playWhenChecked = false
+        playAfterSync = false
         player.pause()
     }
 
     override fun stop() {
-        playWhenChecked = false
+        playAfterSync = false
         player.stop()
     }
 }

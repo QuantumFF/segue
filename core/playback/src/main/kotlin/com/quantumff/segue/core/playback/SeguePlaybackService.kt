@@ -99,7 +99,7 @@ class SeguePlaybackService : MediaLibraryService() {
         replayGain = ReplayGainController(exoPlayer, replayGainProcessor, offload)
         library = components.createSessionLibrary(this, scope)
 
-        val sessionPlayer = SessionPlayer(player, scope, components::checkServerBeforePlay) {
+        val sessionPlayer = SessionPlayer(player, scope, components::shouldSyncBeforePlay) {
             if (components.queueSync.stageForResume()) savedQueues.adopt()
         }
         session = MediaLibrarySession.Builder(this, sessionPlayer, SessionCallback())

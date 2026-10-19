@@ -92,7 +92,7 @@ class PlaybackComponents @Inject constructor(
      * Play pressed while no screen of the app is showing, online: queue sync checks the server for
      * a newer queue first. In the app the check ran when it came to the foreground.
      */
-    fun checkServerBeforePlay(): Boolean = !offlineMode.isOffline.value &&
+    fun shouldSyncBeforePlay(): Boolean = !offlineMode.isOffline.value &&
         !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     /** What is downloaded, while offline; null online. Everything the service queues is narrowed to it. */
