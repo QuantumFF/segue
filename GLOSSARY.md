@@ -36,7 +36,7 @@ _Avoid_: Radio, similar songs
 ## Queue sync
 
 **Queue sync**:
-Saving the queue to the server when it changes, and noticing on start or return that another client saved a newer one.
+Saving the queue to the server when it changes, and noticing on start, on return, or on play pressed outside the app that another client saved a newer one.
 _Avoid_: Queue backup, polling
 
 **Saved queue**:
@@ -44,7 +44,7 @@ A queue stored somewhere other than the player: on this device for restore after
 _Avoid_: Snapshot, backup
 
 **Adoption**:
-Replacing the local queue with another client's newer saved queue, paused, either when the user taps *Continue from &lt;device&gt;* or automatically. An automatic adoption can be undone.
+Replacing the local queue with another client's newer saved queue, either when the user taps *Continue from &lt;device&gt;* (in the banner or the notification) or automatically. It is adopted paused, and an automatic adoption can be undone, except when play pressed outside the app adopts it: then it plays at once. Continue in the notification also plays it.
 _Avoid_: Import, takeover
 
 ## Offline

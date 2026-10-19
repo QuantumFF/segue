@@ -44,6 +44,7 @@ class UserPreferencesDataSourceTest {
             cellularStreamingQuality = StreamingQuality(maxBitRateKbps = 128, format = "opus"),
             queueSyncEnabled = false,
             adoptRemoteQueueAutomatically = true,
+            offerRemoteQueueInNotification = false,
             replayGainMode = ReplayGainMode.Album,
             replayGainTarget = ReplayGainTarget.Ebu,
             replayGainBoost = true,

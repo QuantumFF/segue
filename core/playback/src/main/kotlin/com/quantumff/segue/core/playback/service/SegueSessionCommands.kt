@@ -20,7 +20,8 @@ internal object SegueSessionCommands {
 
     /**
      * Adopts the remote queue queue sync staged (QueueSyncEngine.acceptOffer or an automatic
-     * adoption), paused; see SavedQueueLoader.adopt. Answers [ARG_STARTED].
+     * adoption), paused; see SavedQueueLoader.adopt. With [adoptArgs] `play`, it then plays. Answers
+     * [ARG_STARTED].
      */
     const val ADOPT_QUEUE = PREFIX + "ADOPT_QUEUE"
 
@@ -56,6 +57,7 @@ internal object SegueSessionCommands {
     private const val ARG_SHUFFLE = "shuffle"
     private const val ARG_ITEM = "item"
     private const val ARG_INDEX = "index"
+    private const val ARG_PLAY = "play"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -74,6 +76,11 @@ internal object SegueSessionCommands {
             .map { SessionCommand(it, Bundle.EMPTY) }
 
     fun command(action: String) = SessionCommand(action, Bundle.EMPTY)
+
+    /** [ADOPT_QUEUE]'s args: whether to play the adopted queue. [adoptPlays] reads it back. */
+    fun adoptArgs(play: Boolean) = Bundle().apply { putBoolean(ARG_PLAY, play) }
+
+    fun adoptPlays(args: Bundle): Boolean = args.getBoolean(ARG_PLAY)
 
     /**
      * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state

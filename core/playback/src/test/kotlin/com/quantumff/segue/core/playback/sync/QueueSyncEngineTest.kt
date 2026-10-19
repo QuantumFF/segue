@@ -15,6 +15,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -301,6 +302,164 @@ class QueueSyncEngineTest {
         engine.checkRemote(isPlayingLocally = false)
         assertThat(engine.remoteOffer.value).isNull()
         assertThat(remote.fetches).isEqualTo(0)
+    }
+
+    // --- Play pressed outside the app ---------------------------------------------------------
+
+    @Test
+    fun `with auto adopt on, play outside the app stages a newer queue to play, with nothing to undo`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.adoptions.test {
+            assertThat(engine.syncForResume(canNotify = true)).isTrue()
+            expectNoEvents() // No "Continued from" snackbar: it plays at once.
+        }
+        runCurrent()
+
+        assertThat(engine.takeAdoption()).isEqualTo(RemoteAdoption(remoteQueue(changedAt = 5_000), undo = null))
+        assertThat(engine.takeAdoptionUndo()).isNull()
+        assertThat(engine.remoteOffer.value).isNull()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+    }
+
+    @Test
+    fun `with auto adopt off, play outside the app plays on and offers a newer queue in a notification`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        runCurrent()
+
+        val offer = RemoteQueueOffer("Feishin", 2, "Title r2", positionMillis = 3_000, changedAt = 5_000)
+        assertThat(engine.remoteOffer.value).isEqualTo(offer)
+        assertThat(engine.notificationOffer.value).isEqualTo(offer)
+        assertThat(engine.takeAdoption()).isNull()
+    }
+
+    @Test
+    fun `the notification goes with the offer`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        engine.dismissOffer()
+
+        assertThat(engine.notificationOffer.value).isNull()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        runCurrent()
+        assertThat(engine.notificationOffer.value).isNull() // Dismissed: not offered again.
+    }
+
+    @Test
+    fun `playing on keeps the notification's offer, and play does not ask the server again`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        engine.onLocalPlaybackStarted()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        assertThat(engine.notificationOffer.value).isNotNull()
+        assertThat(remote.fetches).isEqualTo(1)
+        assertThat(engine.acceptOffer()?.queue).isEqualTo(remoteQueue())
+    }
+
+    @Test
+    fun `the notification's offer outlives this device's own saves and moves to the banner`() = runTest {
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        // Playing on uploaded this device's queue over it.
+        remote.queue = remoteQueue(by = "Segue-own", changedAt = 6_000)
+        engine.checkRemote(isPlayingLocally = true)
+
+        assertThat(engine.remoteOffer.value?.deviceName).isEqualTo("Feishin")
+        assertThat(engine.notificationOffer.value).isNull()
+        assertThat(engine.acceptOffer()?.queue).isEqualTo(remoteQueue(changedAt = 5_000))
+    }
+
+    @Test
+    fun `continuing from the notification stages the offered queue`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        assertThat(engine.acceptOffer()).isEqualTo(RemoteAdoption(remoteQueue(), undo = null))
+        assertThat(engine.notificationOffer.value).isNull()
+        assertThat(engine.takeAdoption()?.queue).isEqualTo(remoteQueue())
+    }
+
+    @Test
+    fun `the app checking again moves the offer from the notification to the banner`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        engine.syncForResume(canNotify = true)
+        runCurrent()
+
+        engine.checkRemote(isPlayingLocally = false)
+
+        assertThat(engine.remoteOffer.value).isNotNull()
+        assertThat(engine.notificationOffer.value).isNull()
+    }
+
+    @Test
+    fun `without notifications, or with the notification turned off, play outside the app does not ask the server`() =
+        runTest {
+            remote.queue = remoteQueue()
+            val engine = engine()
+            assertThat(engine.syncForResume(canNotify = false)).isFalse()
+            preferences.preferences.update { it.copy(offerRemoteQueueInNotification = false) }
+            assertThat(engine.syncForResume(canNotify = true)).isFalse()
+            runCurrent()
+
+            assertThat(remote.fetches).isEqualTo(0)
+            assertThat(engine.notificationOffer.value).isNull()
+        }
+
+    @Test
+    fun `with auto adopt on, play outside the app adopts and never notifies`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue()
+        val engine = engine()
+        assertThat(engine.syncForResume(canNotify = true)).isTrue()
+        runCurrent()
+        assertThat(engine.notificationOffer.value).isNull()
+    }
+
+    @Test
+    fun `play outside the app plays on when the server queue is ours or already seen`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue(by = "Segue-own", changedAt = 5_000)
+        val engine = engine()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        runCurrent()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+
+        remote.queue = remoteQueue(changedAt = 4_000)
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        assertThat(engine.takeAdoption()).isNull()
+    }
+
+    @Test
+    fun `play outside the app plays on when the server is slow or unreachable`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue()
+        remote.fetchDelayMillis = QueueSyncEngine.RESUME_CHECK_TIMEOUT_MILLIS + 1
+        val engine = engine()
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        assertThat(currentTime).isEqualTo(QueueSyncEngine.RESUME_CHECK_TIMEOUT_MILLIS)
+
+        remote.fetchDelayMillis = 0
+        remote.fetchError = RemoteException.Unreachable(IOException("offline"))
+        assertThat(engine.syncForResume(canNotify = true)).isFalse()
+        assertThat(engine.takeAdoption()).isNull()
     }
 
     // --- By hand ------------------------------------------------------------------------------

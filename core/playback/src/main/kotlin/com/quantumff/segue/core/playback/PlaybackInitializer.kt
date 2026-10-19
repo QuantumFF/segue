@@ -12,6 +12,7 @@ import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.playback.cache.StreamCache
 import com.quantumff.segue.core.playback.service.PlaybackServiceBridge
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
+import com.quantumff.segue.core.playback.sync.RemoteQueueNotifier
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -25,7 +26,8 @@ import kotlinx.coroutines.withContext
  *
  * - App start and return to the foreground: check the server for a newer queue.
  * - App to the background: flush queue sync at once.
- * - Auto-adopted remote queues are handed to the player.
+ * - Auto-adopted remote queues are handed to the player; newer queues found by play pressed
+ *   outside the app are offered in a notification ([RemoteQueueNotifier]).
  * - Back online (connectivity callback or offline mode turned off): a queue save that failed
  *   while offline is uploaded. Pending scrobbles flush by themselves: their WorkManager job waits
  *   for a network.
@@ -37,6 +39,7 @@ class PlaybackInitializer @Inject constructor(
     private val queueSync: QueueSyncEngine,
     private val bridge: PlaybackServiceBridge,
     private val controller: PlaybackController,
+    private val remoteQueueNotifier: RemoteQueueNotifier,
     private val offlineMode: OfflineModeRepository,
     @StreamCache private val streamCache: Provider<Cache>,
     @ApplicationScope private val appScope: CoroutineScope,
@@ -69,6 +72,7 @@ class PlaybackInitializer @Inject constructor(
             },
         )
         appScope.launch { queueSync.adoptions.collect { controller.adoptAutomatically(it) } }
+        remoteQueueNotifier.start()
         appScope.launch {
             var wasOffline = offlineMode.isOffline.value
             offlineMode.isOffline.collect { isOffline ->

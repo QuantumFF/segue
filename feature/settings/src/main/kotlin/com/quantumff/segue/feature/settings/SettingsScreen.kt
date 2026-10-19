@@ -99,7 +99,29 @@ fun SettingsScreen(
         if (playsOnBluetoothConnect && !hasBluetoothConnectPermission(context)) playOnBluetoothConnect(false)
         onPauseOrDispose {}
     }
-    val actions = remember(viewModel, onDownloadsClick, onAddServerClick, onLicensesClick, bluetoothPermission) {
+    val offerRemoteQueueInNotification = { on: Boolean ->
+        viewModel.updatePreferences { it.copy(offerRemoteQueueInNotification = on) }
+    }
+    // Without the permission the notification never shows, so the switch reads off and turning it on
+    // asks. The choice itself is kept: granting the permission later, here or in system settings,
+    // brings it back.
+    var canNotify by remember { mutableStateOf(hasNotificationPermission(context)) }
+    LifecycleResumeEffect(context) {
+        canNotify = hasNotificationPermission(context)
+        onPauseOrDispose {}
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        canNotify = it
+        if (it) offerRemoteQueueInNotification(true)
+    }
+    val actions = remember(
+        viewModel,
+        onDownloadsClick,
+        onAddServerClick,
+        onLicensesClick,
+        bluetoothPermission,
+        notificationPermission,
+    ) {
         SettingsActions(
             onSwitchServer = viewModel::switchServer,
             onRemoveServer = viewModel::removeServer,
@@ -123,6 +145,13 @@ fun SettingsScreen(
                     playOnBluetoothConnect(on)
                 }
             },
+            onOfferRemoteQueueInNotification = { on ->
+                if (on && !hasNotificationPermission(context)) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    offerRemoteQueueInNotification(on)
+                }
+            },
             onDownloads = onDownloadsClick,
             onQueueSync = { on -> viewModel.updatePreferences { it.copy(queueSyncEnabled = on) } },
             onAdoptRemoteQueue = { on -> viewModel.updatePreferences { it.copy(adoptRemoteQueueAutomatically = on) } },
@@ -142,6 +171,7 @@ fun SettingsScreen(
         actions = actions,
         onBackClick = onBackClick,
         modifier = modifier,
+        canNotify = canNotify,
     )
 }
 
@@ -172,6 +202,7 @@ class SettingsActions(
     val onCheckForUpdates: () -> Unit = {},
     val onAutoUpdateCheck: (Boolean) -> Unit = {},
     val onPlayOnBluetoothConnect: (Boolean) -> Unit = {},
+    val onOfferRemoteQueueInNotification: (Boolean) -> Unit = {},
 ) {
     companion object {
         val None = SettingsActions(
@@ -194,7 +225,10 @@ private enum class SettingsPicker {
     StorageLimit,
 }
 
-/** The stateless settings screen. */
+/**
+ * The stateless settings screen. [canNotify]: whether Segue may post notifications, which "Ask in
+ * a notification" needs.
+ */
 @Composable
 fun SettingsContent(
     uiState: SettingsUiState,
@@ -202,6 +236,7 @@ fun SettingsContent(
     actions: SettingsActions,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    canNotify: Boolean = true,
 ) {
     var picker by rememberSaveable { mutableStateOf<SettingsPicker?>(null) }
     var removing by remember { mutableStateOf<Server?>(null) }
@@ -393,6 +428,19 @@ fun SettingsContent(
                     enabled = prefs.queueSyncEnabled,
                     onCheckedChange = actions.onAdoptRemoteQueue,
                 )
+            }
+            item(key = "offerQueueInNotification", contentType = "switch") {
+                SwitchRow(
+                    title = stringResource(R.string.feature_settings_offer_queue_notification),
+                    summary = stringResource(R.string.feature_settings_offer_queue_notification_summary),
+                    checked = prefs.offerRemoteQueueInNotification && canNotify,
+                    // Continue automatically plays the newer queue instead of asking.
+                    enabled = prefs.queueSyncEnabled && !prefs.adoptRemoteQueueAutomatically,
+                    onCheckedChange = actions.onOfferRemoteQueueInNotification,
+                )
+            }
+            item(key = "queueSyncNote", contentType = "note") {
+                SettingsNote(stringResource(R.string.feature_settings_queue_sync_note))
             }
 
             item(key = "about", contentType = "header") {

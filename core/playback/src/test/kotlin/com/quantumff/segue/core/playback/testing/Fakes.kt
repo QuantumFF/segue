@@ -6,17 +6,20 @@ import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.playback.sync.QueueState
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakePlayQueueRemoteRepository(private val clientName: String) : PlayQueueRemoteRepository {
     var queue: RemotePlayQueue? = null
     var fetchError: Exception? = null
     var saveError: Exception? = null
+    var fetchDelayMillis = 0L
     var fetches = 0
     val saves = mutableListOf<QueueState>()
 
     override suspend fun fetch(): RemotePlayQueue? {
         fetches++
+        delay(fetchDelayMillis)
         fetchError?.let { throw it }
         return queue
     }

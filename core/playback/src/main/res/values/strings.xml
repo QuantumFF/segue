@@ -2,4 +2,7 @@
 <resources>
     <string name="playback_favorite">Add to favorites</string>
     <string name="playback_unfavorite">Remove from favorites</string>
+    <string name="playback_remote_queue_channel">Continue from another device</string>
+    <string name="playback_continue_from">Continue from %1$s</string>
+    <string name="playback_continue">Continue</string>
 </resources>

@@ -52,6 +52,11 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
                 old.adoptRemoteQueueAutomatically,
                 new.adoptRemoteQueueAutomatically,
             )
+            prefs.putIfChanged(
+                Keys.OfferRemoteQueueInNotification,
+                old.offerRemoteQueueInNotification,
+                new.offerRemoteQueueInNotification,
+            )
             prefs.putIfChanged(Keys.ReplayGainMode, old.replayGainMode, new.replayGainMode) { it.name }
             prefs.putIfChanged(Keys.ReplayGainTarget, old.replayGainTarget, new.replayGainTarget) { it.name }
             prefs.putIfChanged(Keys.ReplayGainBoost, old.replayGainBoost, new.replayGainBoost)
@@ -113,6 +118,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             ),
             queueSyncEnabled = this[Keys.QueueSyncEnabled] ?: defaults.queueSyncEnabled,
             adoptRemoteQueueAutomatically = this[Keys.AdoptRemoteQueue] ?: defaults.adoptRemoteQueueAutomatically,
+            offerRemoteQueueInNotification = this[Keys.OfferRemoteQueueInNotification]
+                ?: defaults.offerRemoteQueueInNotification,
             replayGainMode = enum(Keys.ReplayGainMode, defaults.replayGainMode),
             replayGainTarget = enum(Keys.ReplayGainTarget, defaults.replayGainTarget),
             replayGainBoost = this[Keys.ReplayGainBoost] ?: defaults.replayGainBoost,
@@ -161,6 +168,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val CellularFormat = stringPreferencesKey("cellular_format")
         val QueueSyncEnabled = booleanPreferencesKey("queue_sync_enabled")
         val AdoptRemoteQueue = booleanPreferencesKey("adopt_remote_queue_automatically")
+        val OfferRemoteQueueInNotification = booleanPreferencesKey("offer_remote_queue_in_notification")
         val DeviceId = stringPreferencesKey("device_id")
         val ReplayGainMode = stringPreferencesKey("replay_gain_mode")
         val ReplayGainTarget = stringPreferencesKey("replay_gain_target")

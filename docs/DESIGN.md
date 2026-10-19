@@ -331,6 +331,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Text: "Continue from **Feishin**" in `titleSmall`, then "Nude · 2:31 · 5 min ago" in `bodySmall` muted.
   - Buttons: `FilledTonalButton` "Continue" and `TextButton` "Dismiss".
   - Placement: at the top of the queue. On app start, a compact one-line version also docks above the mini player. When the local queue is empty it replaces the mini player. It stays until acted on or until local playback starts. Not shown if auto-adopt is on; show a snackbar "Continued from Feishin · Undo" instead.
+- **Continue from another device** notification, for a newer queue found by play pressed outside the app while auto-adopt is off (ADR-0004): title "Continue from Feishin", text "Nude · 2:31" and the save time as the notification's own time. One action, **Continue**, which takes the queue over and plays it. A tap opens the app, where the banner shows the same offer; swiping it away dismisses the offer. It goes whenever the offer does. Playing on does not decline it, unlike the banner, because the local queue was already playing when it was offered. It is not posted while the app is showing; the banner shows the offer there. Its own low-importance channel, so it makes no sound over the music, and the waveform small icon.
 - List:
   - Collapsed history row at the top: "N played", tap to expand.
   - The current track: `primaryContainer` background, animated 3-bar equalizer over its art (paused = static bars).
@@ -359,7 +360,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Playback:** gapless; ReplayGain mode (Off, Track, Album), ReplayGain normalisation (−18 LUFS ReplayGain 2.0, the default, or −23 LUFS EBU; a picker), and "Boost quiet tracks" (a switch, off by default; its summary says it uses more battery). Normalisation and boost are disabled while the mode is Off. "Play when Bluetooth connects" (a switch, off by default): a Bluetooth audio device connecting resumes the queue, or this device's saved queue, unless something is already playing; turning it on asks for the Nearby devices permission, and losing that permission turns it off. Audio offload, crossfade (later).
   - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
   - **Downloads & storage:** download quality, cache size, storage limit.
-  - **Queue sync:** enabled, auto-continue from other devices.
+  - **Queue sync:** "Sync play queue"; "Continue automatically" (auto-continue from other devices); "Ask in a notification" (a switch, on by default, disabled while Continue automatically is on): play pressed outside the app offers a newer queue in the *Continue from another device* notification (§4.8). Turning it on asks for the notification permission. Without that permission it reads off, but the choice is kept, so granting the permission later brings it back. A `bodySmall` note under the section says what play pressed outside the app does.
   - **Lyrics**, **Scrobbling**.
   - **About:** version; "Check for updates" (asks GitHub for the latest release and opens its page when it is newer; the summary says "Up to date" or that the check failed); "Check for updates automatically" (a switch, on by default: once a day on app start, a newer release shows a snackbar with **View**); licenses.
 - Pickers open as bottom sheets with radio rows. Do not use dialogs for pickers.
@@ -517,4 +518,4 @@ The mark is **Wave on vinyl**: a dark, grooved record with a seven-bar waveform 
 
 - Everything stays inside the 66 safe circle, so no launcher mask clips it.
 - **Status bar:** the media notification's small icon (`media3_notification_small_icon`, in `app` so it outranks Media3's own alias) is the waveform alone, white, with no record. The record would read as a blob at 24.
-- The download notification keeps the system download icon, because it says what the notification is about.
+- The download notification keeps the system download icon, because it says what the notification is about. The *Continue from another device* notification uses the waveform.

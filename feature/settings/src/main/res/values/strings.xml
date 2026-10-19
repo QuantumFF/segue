@@ -71,6 +71,9 @@
     <string name="feature_settings_queue_sync_enabled_summary">Save the queue to the server so other devices can continue it</string>
     <string name="feature_settings_adopt_queue">Continue automatically</string>
     <string name="feature_settings_adopt_queue_summary">Take over a newer queue from another device without asking</string>
+    <string name="feature_settings_offer_queue_notification">Ask in a notification</string>
+    <string name="feature_settings_offer_queue_notification_summary">Offer a newer queue from another device in a notification when you press play outside the app</string>
+    <string name="feature_settings_queue_sync_note">Play pressed outside the app, on the notification, a widget or Bluetooth, also looks for a newer queue from another device. With Continue automatically on, it waits up to 2 seconds and plays that queue instead. Otherwise this device\'s queue plays at once, and the newer one can be offered in a notification.</string>
 
     <string name="feature_settings_about">About</string>
     <string name="feature_settings_version">Version</string>
