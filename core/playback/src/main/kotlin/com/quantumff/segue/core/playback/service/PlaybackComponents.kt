@@ -2,6 +2,8 @@ package com.quantumff.segue.core.playback.service
 
 import android.content.Context
 import androidx.annotation.OptIn
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.BitmapLoader
@@ -85,6 +87,13 @@ class PlaybackComponents @Inject constructor(
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) {
     val networkType get() = network.networkType
+
+    /**
+     * Play pressed while no screen of the app is showing, online: queue sync checks the server for
+     * a newer queue first. In the app the check ran when it came to the foreground.
+     */
+    fun checkServerBeforePlay(): Boolean = !offlineMode.isOffline.value &&
+        !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     /** What is downloaded, while offline; null online. Everything the service queues is narrowed to it. */
     private suspend fun downloadedWhileOffline(): DownloadedLibrary? =

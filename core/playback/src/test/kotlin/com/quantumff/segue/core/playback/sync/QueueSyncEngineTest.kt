@@ -15,6 +15,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -301,6 +302,64 @@ class QueueSyncEngineTest {
         engine.checkRemote(isPlayingLocally = false)
         assertThat(engine.remoteOffer.value).isNull()
         assertThat(remote.fetches).isEqualTo(0)
+    }
+
+    // --- Play pressed outside the app ---------------------------------------------------------
+
+    @Test
+    fun `with auto adopt on, play outside the app stages a newer queue to play, with nothing to undo`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        snapshots.save(listOf("x"), 0, 0)
+        remote.queue = remoteQueue(changedAt = 5_000)
+        val engine = engine()
+        engine.adoptions.test {
+            assertThat(engine.stageForResume()).isTrue()
+            expectNoEvents() // No "Continued from" snackbar: it plays at once.
+        }
+        runCurrent()
+
+        assertThat(engine.takeAdoption()).isEqualTo(RemoteAdoption(remoteQueue(changedAt = 5_000), undo = null))
+        assertThat(engine.takeAdoptionUndo()).isNull()
+        assertThat(engine.remoteOffer.value).isNull()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+    }
+
+    @Test
+    fun `with auto adopt off, play outside the app does not ask the server`() = runTest {
+        remote.queue = remoteQueue()
+        val engine = engine()
+        assertThat(engine.stageForResume()).isFalse()
+        assertThat(remote.fetches).isEqualTo(0)
+        assertThat(engine.takeAdoption()).isNull()
+    }
+
+    @Test
+    fun `play outside the app plays on when the server queue is ours or already seen`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue(by = "Segue-own", changedAt = 5_000)
+        val engine = engine()
+        assertThat(engine.stageForResume()).isFalse()
+        runCurrent()
+        assertThat(snapshots.seen).isEqualTo(5_000)
+
+        remote.queue = remoteQueue(changedAt = 4_000)
+        assertThat(engine.stageForResume()).isFalse()
+        assertThat(engine.takeAdoption()).isNull()
+    }
+
+    @Test
+    fun `play outside the app plays on when the server is slow or unreachable`() = runTest {
+        preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = true) }
+        remote.queue = remoteQueue()
+        remote.fetchDelayMillis = QueueSyncEngine.RESUME_CHECK_TIMEOUT_MILLIS + 1
+        val engine = engine()
+        assertThat(engine.stageForResume()).isFalse()
+        assertThat(currentTime).isEqualTo(QueueSyncEngine.RESUME_CHECK_TIMEOUT_MILLIS)
+
+        remote.fetchDelayMillis = 0
+        remote.fetchError = RemoteException.Unreachable(IOException("offline"))
+        assertThat(engine.stageForResume()).isFalse()
+        assertThat(engine.takeAdoption()).isNull()
     }
 
     // --- By hand ------------------------------------------------------------------------------

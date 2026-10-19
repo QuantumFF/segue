@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * A remote queue to adopt, and [undo], the local queue an automatic adoption replaces, for the
@@ -43,8 +44,10 @@ data class RemoteAdoption(val queue: RemotePlayQueue, val undo: QueueSnapshot?)
  * - **Download** happens in [checkRemote] (app start and foreground). A queue saved by another
  *   client that is newer than the last server change this device accounted for becomes
  *   [remoteOffer] for the banner, or, with auto adopt on, goes to [adoptions] with the local
- *   queue it replaces, which [takeAdoptionUndo] hands back once for Undo. Only server
- *   timestamps are compared (see [RemoteQueuePolicy]), so a skewed device clock does not matter.
+ *   queue it replaces, which [takeAdoptionUndo] hands back once for Undo. Play pressed outside
+ *   the app asks too ([stageForResume]), and with auto adopt on plays the newer queue instead.
+ *   Only server timestamps are compared (see [RemoteQueuePolicy]), so a skewed device clock does
+ *   not matter.
  * - **Adoption**: an accepted offer ([acceptOffer]) or an automatic adoption is staged for the
  *   player, which takes it with [takeAdoption] ([SavedQueueLoader]). Whatever the player loads
  *   from a saved queue it reports through [markRestored] or [markAdopted].
@@ -131,19 +134,7 @@ class QueueSyncEngine @Inject constructor(
     suspend fun checkRemote(isPlayingLocally: Boolean) {
         val prefs = preferences.preferences.first()
         if (!prefs.queueSyncEnabled) return
-        val (queue, ownName, seen) = try {
-            Triple(remote.fetch(), remote.deviceClientName(), maxOrNull(snapshots.seenRemoteChange(), seenInMemory))
-        } catch (_: RemoteException) {
-            return
-        }
-        val decision = RemoteQueuePolicy.decide(
-            remote = queue,
-            local = snapshots.snapshot.first(),
-            ownClientName = ownName,
-            autoAdopt = prefs.adoptRemoteQueueAutomatically,
-            isPlayingLocally = isPlayingLocally,
-            seen = seen,
-        )
+        val (queue, decision) = fetchDecision(prefs.adoptRemoteQueueAutomatically, isPlayingLocally) ?: return
         when (decision) {
             RemoteQueueDecision.Offer -> {
                 val offered = checkNotNull(queue)
@@ -168,15 +159,66 @@ class QueueSyncEngine @Inject constructor(
                 adoptionRequests.send(adoption)
             }
 
-            is RemoteQueueDecision.Ignore -> {
-                // Our own save, or the queue we already have: the server state is accounted for.
-                val accountedFor = decision.reason == RemoteQueueDecision.IgnoreReason.OwnSave ||
-                    decision.reason == RemoteQueueDecision.IgnoreReason.SameQueue
-                if (accountedFor) markSeen(RemoteQueuePolicy.seenKey(checkNotNull(queue)))
-                offeredQueue.value = null
-                offer.value = null
-            }
+            is RemoteQueueDecision.Ignore -> ignore(queue, decision)
         }
+    }
+
+    /**
+     * Play was pressed outside the app (notification, widget, Bluetooth), where no offer can be
+     * shown. With auto adopt on, a newer queue from another client is staged for the player
+     * ([takeAdoption]) to play instead of the local one; true if one was. It plays at once, so
+     * there is nothing to undo. Waits at most [RESUME_CHECK_TIMEOUT_MILLIS] for the server.
+     */
+    suspend fun stageForResume(): Boolean {
+        val prefs = preferences.preferences.first()
+        if (!prefs.queueSyncEnabled || !prefs.adoptRemoteQueueAutomatically) return false
+        val (queue, decision) = withTimeoutOrNull(RESUME_CHECK_TIMEOUT_MILLIS) {
+            fetchDecision(autoAdopt = true, isPlayingLocally = false)
+        } ?: return false
+        when (decision) {
+            RemoteQueueDecision.Adopt -> {
+                val adopted = checkNotNull(queue)
+                clearOffer(handled = adopted)
+                adoptionUndo.set(null)
+                pendingAdoption.set(RemoteAdoption(adopted, undo = null))
+                return true
+            }
+
+            is RemoteQueueDecision.Ignore -> ignore(queue, decision)
+
+            RemoteQueueDecision.Offer -> Unit // Auto adopt takes any queue that is not playing here.
+        }
+        return false
+    }
+
+    /** The server's queue and what to do with it; null when the server cannot be reached. */
+    private suspend fun fetchDecision(
+        autoAdopt: Boolean,
+        isPlayingLocally: Boolean,
+    ): Pair<RemotePlayQueue?, RemoteQueueDecision>? {
+        val (queue, ownName, seen) = try {
+            Triple(remote.fetch(), remote.deviceClientName(), maxOrNull(snapshots.seenRemoteChange(), seenInMemory))
+        } catch (_: RemoteException) {
+            return null
+        }
+        val decision = RemoteQueuePolicy.decide(
+            remote = queue,
+            local = snapshots.snapshot.first(),
+            ownClientName = ownName,
+            autoAdopt = autoAdopt,
+            isPlayingLocally = isPlayingLocally,
+            seen = seen,
+        )
+        return queue to decision
+    }
+
+    private suspend fun ignore(queue: RemotePlayQueue?, decision: RemoteQueueDecision.Ignore) {
+        // Our own save, or the queue we already have: the server state is accounted for.
+        val accountedFor = decision.reason == RemoteQueueDecision.IgnoreReason.OwnSave ||
+            decision.reason == RemoteQueueDecision.IgnoreReason.SameQueue
+        if (accountedFor) markSeen(RemoteQueuePolicy.seenKey(checkNotNull(queue)))
+        offeredQueue.value = null
+        offer.value = null
     }
 
     /**
@@ -283,6 +325,9 @@ class QueueSyncEngine @Inject constructor(
 
     companion object {
         const val DEBOUNCE_MILLIS = 2_000L
+
+        /** How long play pressed outside the app waits for the server's queue before playing on. */
+        const val RESUME_CHECK_TIMEOUT_MILLIS = 2_000L
         private const val UNKNOWN_DEVICE = "another device"
 
         /** The client that saved the queue, for "Continue from <device>". */

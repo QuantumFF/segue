@@ -38,6 +38,7 @@ import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.ScreenOffOffload
 import com.quantumff.segue.core.playback.service.SeguePlayer
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
+import com.quantumff.segue.core.playback.service.SessionPlayer
 import com.quantumff.segue.core.playback.sleep.SleepTimerController
 import com.quantumff.segue.core.playback.sync.QueueSyncListener
 import com.quantumff.segue.core.playback.sync.SavedQueueLoader
@@ -55,7 +56,8 @@ import kotlinx.coroutines.launch
  * - Media3 runs it in the foreground only while playing; after [UserPreferences.stopWhenPausedMinutes]
  *   paused it stops itself.
  * - Saved queues reach the player through [SavedQueueLoader]: this device's at start (paused,
- *   offline-capable) and for playback resumption, and another client's on adoption.
+ *   offline-capable) and for playback resumption, and another client's on adoption. Play pressed
+ *   outside the app first checks for another client's newer queue ([SessionPlayer]).
  * - Player events drive queue sync ([com.quantumff.segue.core.playback.sync.QueueSyncEngine]),
  *   scrobbling, ReplayGain, prefetching, and the sleep timer. None of them polls.
  */
@@ -97,7 +99,10 @@ class SeguePlaybackService : MediaLibraryService() {
         replayGain = ReplayGainController(exoPlayer, replayGainProcessor, offload)
         library = components.createSessionLibrary(this, scope)
 
-        session = MediaLibrarySession.Builder(this, player, SessionCallback())
+        val sessionPlayer = SessionPlayer(player, scope, components::checkServerBeforePlay) {
+            if (components.queueSync.stageForResume()) savedQueues.adopt()
+        }
+        session = MediaLibrarySession.Builder(this, sessionPlayer, SessionCallback())
             .setBitmapLoader(components.createBitmapLoader(this))
             .apply { launchIntent()?.let(::setSessionActivity) }
             .build()
