@@ -9,9 +9,7 @@ import com.quantumff.segue.core.data.testing.inMemoryDatabase
 import com.quantumff.segue.core.data.testing.libraryWriter
 import com.quantumff.segue.core.data.testing.networkAlbum
 import com.quantumff.segue.core.data.testing.networkSong
-import com.quantumff.segue.core.model.AlbumFeed
 import com.quantumff.segue.core.model.AlbumFilter
-import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.StreamingQuality
@@ -217,32 +215,6 @@ class PlaybackRepositoriesTest {
         )
 
         assertThat(repository.albumIds(AlbumSource.Genre("Rock"))).containsExactly("rock-a", "rock-b").inOrder()
-    }
-
-    @Test
-    fun `an album feed round-trips per server and clears`() = runTest {
-        val repository = RoomAlbumFeedRepository(clients, db.queueDao())
-        val feeds = listOf(
-            AlbumFeed(
-                source = AlbumSource.Albums(AlbumSortOrder.Year, AlbumFilter(true, "Rock", 1999, true)),
-                order = AlbumOrder.InOrder,
-                seed = 7,
-                cursor = 12,
-                queueFingerprint = -3,
-            ),
-            AlbumFeed(AlbumSource.Library, AlbumOrder.Shuffled, seed = 1, cursor = 0, queueFingerprint = 9),
-            AlbumFeed(AlbumSource.Artist("ar1"), AlbumOrder.Shuffled, seed = 2, cursor = 1, queueFingerprint = 9),
-            AlbumFeed(AlbumSource.Genre("Jazz"), AlbumOrder.Shuffled, seed = 3, cursor = 2, queueFingerprint = 9),
-            AlbumFeed(AlbumSource.Playlist("p1"), AlbumOrder.InOrder, seed = 4, cursor = 3, queueFingerprint = 9),
-        )
-
-        assertThat(repository.feed()).isNull()
-        for (feed in feeds) {
-            repository.save(feed)
-            assertThat(repository.feed()).isEqualTo(feed)
-        }
-        repository.clear()
-        assertThat(repository.feed()).isNull()
     }
 
     @Test

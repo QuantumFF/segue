@@ -34,7 +34,7 @@ enum class AlbumOrder {
     /** The source's own order: for [AlbumSource.Albums], the order on screen. */
     InOrder,
 
-    /** A seeded shuffle of the source's albums (albums shuffle). */
+    /** A seeded shuffle of the source's albums, all queued at once (albums shuffle): "Shuffle albums". */
     Shuffled,
 
     /** A shuffle of every song of the source's albums, all queued at once (tracks shuffle): "Shuffle all". */
@@ -58,24 +58,4 @@ data class AlbumPlayRequest(
     val source: AlbumSource,
     val order: AlbumOrder,
     val placement: QueuePlacement = QueuePlacement.Replace,
-)
-
-/**
- * A running album feed: an album play queued in windows. The first window is queued at once; more
- * albums are appended as playback nears the end of what is queued, so a library of thousands of
- * albums never has to be loaded up front. Persisted, so it survives process death. A tracks
- * shuffle ([AlbumOrder.ShuffledTracks]) queues every song at once and is never a feed.
- *
- * The feed only extends a queue it built: [queueFingerprint] identifies the queue (its song IDs in
- * order) as the feed last left it, and any other edit (a track added, removed or moved, the queue
- * replaced or cleared) ends the feed.
- */
-data class AlbumFeed(
-    val source: AlbumSource,
-    val order: AlbumOrder,
-    /** Seeds the album shuffle, so the same feed always yields the same order. */
-    val seed: Long,
-    /** How many albums of the source's order are used up (queued, or skipped as unplayable). */
-    val cursor: Int,
-    val queueFingerprint: Long,
 )

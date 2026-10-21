@@ -59,8 +59,8 @@ data class PlayRequest(val songs: List<Song>, val startIndex: Int = 0, val shuff
  *
  * Lists the database can page are read one page at a time; short lists (an artist's albums, an
  * album's tracks, playlists, genres) are read whole and sliced. Albums show as a grid, tracks and
- * everything else as a list. Shuffle albums is an album feed run by the playback service
- * (see [SessionPlayResolver]), which picks downloaded albums only while offline.
+ * everything else as a list. Shuffle albums is queued by the playback service (see
+ * [SessionPlayResolver]), which picks downloaded albums only while offline.
  */
 class BrowseTree(
     private val repository: MediaBrowseRepository,
@@ -145,7 +145,7 @@ class BrowseTree(
 
     /**
      * What playing [mediaId] queues, or null if it is not playable or there is nothing to play.
-     * "Shuffle albums" is an album feed instead ([SessionPlayResolver]).
+     * "Shuffle albums" is queued by the playback service instead ([SessionPlayResolver]).
      */
     suspend fun playRequest(mediaId: String): PlayRequest? {
         val request = when (val id = BrowseId.parse(mediaId)) {

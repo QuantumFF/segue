@@ -86,6 +86,27 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `4 to 5 drops the album feed and keeps the queue it was growing`() {
+        helper.createDatabase(DB_NAME, 4).use { db ->
+            db.execSQL("INSERT INTO queue_items VALUES ('s1', 0, 'a'), ('s1', 1, 'b')")
+            db.execSQL(
+                "INSERT INTO album_feed VALUES ('s1', 'Albums', NULL, 'Name', 1, NULL, NULL, NULL, 'InOrder', 7, 3, 42)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 5, true, SegueMigrations.MIGRATION_4_5).use { db ->
+            db.query("SELECT COUNT(*) FROM sqlite_master WHERE name = 'album_feed'").use { cursor ->
+                cursor.moveToFirst()
+                assertThat(cursor.getInt(0)).isEqualTo(0)
+            }
+            db.query("SELECT COUNT(*) FROM queue_items").use { cursor ->
+                cursor.moveToFirst()
+                assertThat(cursor.getInt(0)).isEqualTo(2)
+            }
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

@@ -17,7 +17,6 @@ import com.quantumff.segue.core.data.download.WorkManagerDownloadScheduler
 import com.quantumff.segue.core.data.image.ActiveServerCoverArtUrlResolver
 import com.quantumff.segue.core.data.image.CoverArtUrlResolver
 import com.quantumff.segue.core.data.repository.AccountServerRepository
-import com.quantumff.segue.core.data.repository.AlbumFeedRepository
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.AppUpdateRepository
@@ -43,7 +42,6 @@ import com.quantumff.segue.core.data.repository.PlayQueueRemoteRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.PreferencesDeviceClientName
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
-import com.quantumff.segue.core.data.repository.RoomAlbumFeedRepository
 import com.quantumff.segue.core.data.repository.RoomAlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.RoomMediaBrowseRepository
 import com.quantumff.segue.core.data.repository.RoomQueueSnapshotRepository
@@ -132,9 +130,6 @@ internal interface DataModule {
 
     @Binds
     fun albumShuffleRepository(impl: RoomAlbumShuffleRepository): AlbumShuffleRepository
-
-    @Binds
-    fun albumFeedRepository(impl: RoomAlbumFeedRepository): AlbumFeedRepository
 
     @Binds
     fun appUpdateRepository(impl: GitHubAppUpdateRepository): AppUpdateRepository

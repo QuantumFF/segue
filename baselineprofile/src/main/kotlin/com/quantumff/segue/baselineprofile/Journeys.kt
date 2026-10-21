@@ -116,8 +116,8 @@ fun MacrobenchmarkScope.scrollAlbumGrid() {
 }
 
 /**
- * Taps the floating "Play albums" pill over the album grid: the album feed queues the first window
- * of whole albums and starts playing. Then opens and closes the Shuffle pill's queue options menu.
+ * Taps the floating "Play albums" pill over the album grid: every album is queued whole and starts
+ * playing. Then opens and closes the Shuffle pill's queue options menu.
  */
 fun MacrobenchmarkScope.playLibraryAlbums() {
     device.waitFor(By.desc("Play albums")).click()

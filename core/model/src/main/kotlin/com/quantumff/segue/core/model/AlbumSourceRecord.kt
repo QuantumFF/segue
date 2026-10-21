@@ -1,11 +1,9 @@
 package com.quantumff.segue.core.model
 
 /**
- * An [AlbumSource] flattened to plain fields: the one codec for every place a source leaves memory
- * (the album_feed Room row, the PLAY_ALBUMS session command). [kind] names the variant, [id] holds
- * an artist ID, genre or playlist ID, and the sort and filter fields hold an `Albums` source's view.
- *
- * The strings are persisted in Room, so [kind] values and enum-by-name encodings must not change.
+ * An [AlbumSource] flattened to plain fields, for the PLAY_ALBUMS session command. [kind] names the
+ * variant, [id] holds an artist ID, genre or playlist ID, and the sort and filter fields hold an
+ * `Albums` source's view.
  */
 data class AlbumSourceRecord(
     val kind: String,

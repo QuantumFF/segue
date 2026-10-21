@@ -453,7 +453,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Then a 1 × 20 divider in the content color at 24%.
   - Then a chevron part: a 20 `chevron-down`, 8 start padding, 12 end padding.
 - **Play** (filled `play` icon): `primary` fill, `onPrimary` content. **Shuffle** (shuffle-albums icon): `surfaceContainerHighest` fill, `onSurface` content, 1dp `outlineVariant` border. The visible labels are "Play" and "Shuffle"; content descriptions are "Play albums" and "Shuffle albums".
-- Tap: play now. The queue is replaced and playback starts. Play keeps the albums in the order shown; Shuffle queues them in a fresh seeded album order. Either way the albums are written into the queue in that order (no player shuffle mode), each whole, in disc and track order.
+- Tap: play now. The queue is replaced and playback starts. Play keeps the albums in the order shown; Shuffle queues them in a fresh album order. Either way every album is written into the queue at once, in that order (no player shuffle mode), each whole, in disc and track order.
 - Long-press (with a haptic), or tap the chevron: a `DropdownMenu` anchored to the pill (radius `lg`, `surfaceContainerHigh`) with 48-tall rows: **Play next** (`list-start`) and **Add to queue** (`list-end`).
 - While the list scrolls down, the labels collapse so only icons and chevrons show. They come back on scroll up. The label animates with expand/shrink + fade (`medium`), or a plain fade with reduce motion.
 - Hidden while the keyboard is up and when the list is empty. Fades in and out with `medium`.

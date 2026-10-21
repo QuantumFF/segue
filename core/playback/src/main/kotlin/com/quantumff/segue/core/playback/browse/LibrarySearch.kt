@@ -30,7 +30,7 @@ class LibrarySearch(
     /**
      * What a voice request plays. [extras] are the platform's play-from-search extras: the focus
      * (artist, album, song) and the recognized fields. Null when nothing matched, and for an empty
-     * query ("play some music"), which is an album feed ([SessionPlayResolver]).
+     * query ("play some music"), which shuffles the library's albums ([SessionPlayResolver]).
      */
     suspend fun playRequest(query: String, extras: Bundle): PlayRequest? {
         if (query.isBlank()) return null

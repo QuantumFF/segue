@@ -139,7 +139,7 @@ behind the architecture.
 | `core:data` | Repositories, incremental library sync, downloads |
 | `core:datastore` | Settings and Keystore-encrypted server accounts |
 | `core:designsystem` | Theme, tokens, Inter + Lucide, shared components |
-| `core:playback` | Media3 `MediaLibraryService`, album feeds, queue sync, scrobbling, Android Auto |
+| `core:playback` | Media3 `MediaLibraryService`, album plays, queue sync, scrobbling, Android Auto |
 | `core:testing` | Shared test utilities |
 | `feature:*` | Screens: home, library, album, artist, playlist, search, nowplaying, queue, downloads, settings, login, widget |
 | `baselineprofile` | Baseline Profile generator and startup/scroll Macrobenchmarks |

@@ -96,29 +96,29 @@ class SessionPlayResolverTest {
     }
 
     @Test
-    fun `shuffle albums starts a library album feed, appended when added`() = runTest {
+    fun `shuffle albums shuffles the library's albums, appended when added`() = runTest {
         val shuffleAlbums = node(BrowseId.ShuffleAlbums)
 
-        assertThat(set(shuffleAlbums)).isEqualTo(SessionPlay.AlbumFeed(shuffleLibrary))
+        assertThat(set(shuffleAlbums)).isEqualTo(SessionPlay.Albums(shuffleLibrary))
         assertThat(resolver.resolveAdd(listOf(shuffleAlbums), allowed = true))
-            .isEqualTo(SessionPlay.AlbumFeed(shuffleLibrary.copy(placement = QueuePlacement.End)))
+            .isEqualTo(SessionPlay.Albums(shuffleLibrary.copy(placement = QueuePlacement.End)))
     }
 
     @Test
-    fun `shuffle albums among other items is a feed after their songs`() = runTest {
+    fun `shuffle albums among other items comes after their songs`() = runTest {
         val shuffleAlbums = node(BrowseId.ShuffleAlbums)
         val items = listOf(song("x"), shuffleAlbums, node(BrowseId.Album("al-1")))
 
-        val added = resolver.resolveAdd(items, allowed = true) as SessionPlay.AlbumFeed
+        val added = resolver.resolveAdd(items, allowed = true) as SessionPlay.Albums
         assertThat(added.request).isEqualTo(shuffleLibrary.copy(placement = QueuePlacement.End))
         assertThat(added.songs.map { it.mediaId }).containsExactly("x", "a", "b", "c").inOrder()
 
         val set = resolver.resolveSet(items, startIndex = 2, startPositionMs = 0, allowed = true, hasQueue = true)
-        assertThat((set as SessionPlay.AlbumFeed).request).isEqualTo(shuffleLibrary)
+        assertThat((set as SessionPlay.Albums).request).isEqualTo(shuffleLibrary)
         assertThat(set.songs.map { it.mediaId }).containsExactly("x", "a", "b", "c").inOrder()
-        // Only the feed: as "Shuffle albums" alone.
+        // Only the albums: as "Shuffle albums" alone.
         assertThat(set(listOf(shuffleAlbums, node(BrowseId.Album("missing")))))
-            .isEqualTo(SessionPlay.AlbumFeed(shuffleLibrary))
+            .isEqualTo(SessionPlay.Albums(shuffleLibrary))
     }
 
     @Test
@@ -136,7 +136,7 @@ class SessionPlayResolverTest {
 
     @Test
     fun `voice play music shuffles albums, or with a queue keeps it`() = runTest {
-        assertThat(set(voice(""), hasQueue = false)).isEqualTo(SessionPlay.AlbumFeed(shuffleLibrary))
+        assertThat(set(voice(""), hasQueue = false)).isEqualTo(SessionPlay.Albums(shuffleLibrary))
         assertThat(set(voice(" "), hasQueue = true)).isEqualTo(SessionPlay.KeepQueue)
     }
 

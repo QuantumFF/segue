@@ -47,7 +47,7 @@ private const val MILLIS_PER_SECOND = 1_000L
 
 /**
  * A playable item for [this] song. Metadata extras carry what the player needs later: the album ID
- * for album feeds and "end of album", ReplayGain values, and the starred state.
+ * for "end of album", ReplayGain values, and the starred state.
  */
 fun Song.toMediaItem(): MediaItem {
     val extras = Bundle().apply {
