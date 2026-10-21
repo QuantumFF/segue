@@ -35,6 +35,16 @@ class AlbumFeedOrderTest {
     }
 
     @Test
+    fun `a tracks shuffle is a seeded permutation too`() {
+        val songs = (1..40).map { "s$it" }
+        val first = AlbumFeedOrder.order(songs, AlbumOrder.ShuffledTracks, seed = 42)
+
+        assertThat(first).containsExactlyElementsIn(songs)
+        assertThat(first).isNotEqualTo(songs)
+        assertThat(AlbumFeedOrder.order(songs.reversed(), AlbumOrder.ShuffledTracks, seed = 42)).isEqualTo(first)
+    }
+
+    @Test
     fun `duplicates collapse to one album`() {
         assertThat(AlbumFeedOrder.order(listOf("a", "b", "a"), AlbumOrder.InOrder, 0)).containsExactly("a", "b")
         assertThat(AlbumFeedOrder.order(listOf("a", "b", "a"), AlbumOrder.Shuffled, 0)).hasSize(2)
@@ -54,7 +64,7 @@ class AlbumFeedWindowsTest {
         ("empty" to emptyList())
 
     private val requests = mutableListOf<List<String>>()
-    private val windows = AlbumFeedWindows { albumIds ->
+    private val windows = AlbumFeedWindows.albums { albumIds ->
         requests += albumIds
         albumIds.flatMap { library[it].orEmpty() }.shuffled()
     }
@@ -118,6 +128,24 @@ class AlbumFeedWindowsTest {
         windows.next(order, cursor = 0, minTracks = 3)
 
         assertThat(requests.flatten().size).isAtMost(AlbumFeedWindows.BATCH_ALBUMS)
+    }
+
+    @Test
+    fun `a window of songs takes them one by one in the order's order, skipping queued ones`() = runTest {
+        val songs = library.values.flatten().associateBy { it.id }
+        val read = mutableListOf<List<String>>()
+        val songWindows = AlbumFeedWindows.songs { ids ->
+            read += ids
+            ids.mapNotNull { songs[it] }.shuffled()
+        }
+        val order = listOf("al4-t2", "missing", "al1-t1", "d2t1", "al4-t1", "al3-t3")
+
+        val window = songWindows.next(order, cursor = 0, minTracks = 3, skip = setOf("al1-t1"))
+
+        assertThat(window.songs.map { it.id }).containsExactly("al4-t2", "d2t1", "al4-t1").inOrder()
+        assertThat(window.cursor).isEqualTo(5)
+        assertThat(window.exhausted).isFalse()
+        assertThat(read.single()).doesNotContain("al1-t1")
     }
 }
 

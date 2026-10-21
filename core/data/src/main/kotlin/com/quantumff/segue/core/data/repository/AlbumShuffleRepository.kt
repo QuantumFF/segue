@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /**
- * Reads the local library for "Play albums" and "Shuffle albums". Which albums to queue, in what
- * order and how many at a time is the playback layer's policy. Reads only Room, so it works
- * offline; empty when signed out.
+ * Reads the local library for "Play albums", "Shuffle albums" and "Shuffle all". Which albums or
+ * songs to queue, in what order and how many at a time is the playback layer's policy. Reads only
+ * Room, so it works offline; empty when signed out.
  */
 interface AlbumShuffleRepository {
     /**
@@ -34,6 +34,15 @@ interface AlbumShuffleRepository {
      * which gives only the playlist's own tracks of those albums.
      */
     suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song>
+
+    /**
+     * The songs a tracks shuffle of [source] draws from, in no particular order: every song of its
+     * albums, or for a playlist only the playlist's own tracks. IDs only, as for [albumIds].
+     */
+    suspend fun songIds(source: AlbumSource): List<String>
+
+    /** Songs for [songIds], in no particular order. IDs not in the library are skipped. */
+    suspend fun songsByIds(songIds: List<String>): List<Song>
 }
 
 internal class RoomAlbumShuffleRepository @Inject constructor(
@@ -86,5 +95,23 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
             songDao.getByAlbumIds(serverId, albumIds)
         }
         songs.map { it.asExternalModel() }
+    }
+
+    override suspend fun songIds(source: AlbumSource): List<String> = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext emptyList()
+        when (source) {
+            // Directly, so songs without an album are included too.
+            AlbumSource.Library -> songDao.ids(serverId)
+
+            is AlbumSource.Playlist ->
+                playlistDao.observeSongs(serverId, source.playlistId).first().map { it.id }.distinct()
+
+            else -> songDao.idsOfAlbums(serverId, albumIds(source))
+        }
+    }
+
+    override suspend fun songsByIds(songIds: List<String>): List<Song> = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext emptyList()
+        songDao.getByIds(serverId, songIds).map { it.asExternalModel() }
     }
 }

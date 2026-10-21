@@ -127,6 +127,26 @@ class PlaybackRepositoriesTest {
     }
 
     @Test
+    fun `a tracks shuffle draws on every song of the source`() = runTest {
+        libraryWriter(db).writeAlbums(
+            SERVER_ID,
+            listOf(networkAlbum("a1", artistId = "ar1", songs = 3), networkAlbum("a2", artistId = "ar2", songs = 2)),
+        )
+        val repository = RoomAlbumShuffleRepository(
+            clients,
+            db.albumDao(),
+            db.songDao(),
+            db.playlistDao(),
+            StandardTestDispatcher(testScheduler),
+        )
+
+        assertThat(repository.songIds(AlbumSource.Library)).containsExactly("a1-s1", "a1-s2", "a1-s3", "a2-s1", "a2-s2")
+        assertThat(repository.songIds(AlbumSource.Artist("ar2"))).containsExactly("a2-s1", "a2-s2")
+        assertThat(repository.songsByIds(listOf("a2-s2", "missing", "a1-s1")).map { it.id })
+            .containsExactly("a1-s1", "a2-s2")
+    }
+
+    @Test
     fun `an artist's albums come in the artist page's order - their own newest first, then appearances`() = runTest {
         val guest = listOf(NetworkArtistRef("ar1", "Artist ar1"), NetworkArtistRef("ar2", "Artist ar2"))
         libraryWriter(db).writeAlbums(
@@ -215,6 +235,7 @@ class PlaybackRepositoriesTest {
             AlbumFeed(AlbumSource.Artist("ar1"), AlbumOrder.Shuffled, seed = 2, cursor = 1, queueFingerprint = 9),
             AlbumFeed(AlbumSource.Genre("Jazz"), AlbumOrder.Shuffled, seed = 3, cursor = 2, queueFingerprint = 9),
             AlbumFeed(AlbumSource.Playlist("p1"), AlbumOrder.InOrder, seed = 4, cursor = 3, queueFingerprint = 9),
+            AlbumFeed(AlbumSource.Library, AlbumOrder.ShuffledTracks, seed = 5, cursor = 4, queueFingerprint = 9),
         )
 
         assertThat(repository.feed()).isNull()
@@ -233,7 +254,6 @@ class PlaybackRepositoriesTest {
             clients,
             db.songDao(),
             db.genreDao(),
-            libraryWriter(db),
             StandardTestDispatcher(testScheduler),
         )
 

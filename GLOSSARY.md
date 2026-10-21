@@ -22,11 +22,11 @@ A change in order made once, when songs are queued. **Tracks** shuffle reorders 
 _Avoid_: Shuffle mode
 
 **Album source**:
-Where a "Play albums" or "Shuffle albums" intent takes its albums from: the library's albums as sorted and filtered, an artist, a genre, a playlist, or the whole library.
+Where a "Play albums", "Shuffle albums" or "Shuffle all" intent takes its albums from: the library's albums as sorted and filtered, an artist, a genre, a playlist, or the whole library. "Shuffle all" is a tracks shuffle of every song in the whole library.
 _Avoid_: Album list, feed source
 
 **Album feed**:
-An album source being queued a window of whole albums at a time as the user listens. It ends for good when anything else changes the queue.
+An album source being queued a window at a time as the user listens: whole albums, or single songs in a tracks shuffle. It ends for good when anything else changes the queue.
 _Avoid_: Lazy queue, auto-queue
 
 **Instant mix**:

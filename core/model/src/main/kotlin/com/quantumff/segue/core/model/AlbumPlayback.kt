@@ -1,10 +1,13 @@
 package com.quantumff.segue.core.model
 
-/** A set of albums to play whole: "Play albums" and "Shuffle albums" draw from one of these. */
+/**
+ * A set of albums to play: "Play albums" and "Shuffle albums" queue them whole, and "Shuffle all"
+ * queues their songs in a tracks shuffle.
+ */
 sealed interface AlbumSource {
     /**
-     * Every album in the library, in no particular order: Android Auto's "Shuffle albums", and a
-     * voice "play some music" with an empty queue.
+     * Every album in the library, in no particular order: Library's "Shuffle all", Android Auto's
+     * "Shuffle albums", and a voice "play some music" with an empty queue.
      */
     data object Library : AlbumSource
 
@@ -23,13 +26,19 @@ sealed interface AlbumSource {
     data class Playlist(val playlistId: String) : AlbumSource
 }
 
-/** The order albums are queued in. Inside an album, tracks always keep disc and track order. */
+/**
+ * The order a source's songs are queued in. Except in [ShuffledTracks], each album is queued whole,
+ * in disc and track order.
+ */
 enum class AlbumOrder {
     /** The source's own order: for [AlbumSource.Albums], the order on screen. */
     InOrder,
 
-    /** A seeded shuffle of the source's albums. */
+    /** A seeded shuffle of the source's albums (albums shuffle). */
     Shuffled,
+
+    /** A seeded shuffle of every song of the source's albums, each album's songs spread out (tracks shuffle). */
+    ShuffledTracks,
 }
 
 /** Where new songs go in the queue. */
@@ -44,7 +53,7 @@ enum class QueuePlacement {
     End,
 }
 
-/** "Play albums" or "Shuffle albums" of [source], placed by [placement]. */
+/** "Play albums", "Shuffle albums" or "Shuffle all" of [source], placed by [placement]. */
 data class AlbumPlayRequest(
     val source: AlbumSource,
     val order: AlbumOrder,
@@ -53,8 +62,9 @@ data class AlbumPlayRequest(
 
 /**
  * A running album feed: an album play queued in windows. The first window is queued at once; more
- * albums are appended as playback nears the end of what is queued, so a library of thousands of
- * albums never has to be loaded up front. Persisted, so it survives process death.
+ * albums (or songs, in a tracks shuffle) are appended as playback nears the end of what is queued,
+ * so a library of thousands of albums never has to be loaded up front. Persisted, so it survives
+ * process death.
  *
  * The feed only extends a queue it built: [queueFingerprint] identifies the queue (its song IDs in
  * order) as the feed last left it, and any other edit (a track added, removed or moved, the queue
@@ -63,9 +73,12 @@ data class AlbumPlayRequest(
 data class AlbumFeed(
     val source: AlbumSource,
     val order: AlbumOrder,
-    /** Seeds the album shuffle, so the same feed always yields the same order. */
+    /** Seeds the shuffle, so the same feed always yields the same order. */
     val seed: Long,
-    /** How many albums of the source's order are used up (queued, or skipped as unplayable). */
+    /**
+     * How many albums of the source's order (songs, in a tracks shuffle) are used up: queued, or
+     * skipped as unplayable.
+     */
     val cursor: Int,
     val queueFingerprint: Long,
 )

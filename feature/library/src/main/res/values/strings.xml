@@ -72,7 +72,6 @@
     <string name="feature_library_downloads_message">Pin albums or playlists to listen offline</string>
     <string name="feature_library_open_downloads">Open downloads</string>
 
-    <string name="feature_library_error_load">Couldn\'t load the songs. Check your connection.</string>
     <string name="feature_library_error_refresh">Couldn\'t start a library sync</string>
     <string name="feature_library_filter_downloaded">Downloaded</string>
     <string name="feature_library_offline_empty_title">You\'re offline</string>

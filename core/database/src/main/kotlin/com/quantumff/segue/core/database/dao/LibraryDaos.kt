@@ -336,6 +336,9 @@ abstract class SongDao {
     @Query("SELECT COUNT(*) FROM songs WHERE serverId = :serverId")
     abstract fun observeCount(serverId: String): Flow<Int>
 
+    @Query("SELECT id FROM songs WHERE serverId = :serverId")
+    abstract suspend fun ids(serverId: String): List<String>
+
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
     abstract fun observeStarred(serverId: String): Flow<List<SongEntity>>
 
@@ -346,6 +349,10 @@ abstract class SongDao {
     /** Songs of [albumIds], each album in disc then track order; albums in no particular order. */
     open suspend fun getByAlbumIds(serverId: String, albumIds: Collection<String>): List<SongEntity> =
         albumIds.distinct().chunked(SQL_CHUNK).flatMap { getByAlbumIdsChunk(serverId, it) }
+
+    /** IDs of the songs of [albumIds], in no particular order. */
+    open suspend fun idsOfAlbums(serverId: String, albumIds: Collection<String>): List<String> =
+        albumIds.distinct().chunked(SQL_CHUNK).flatMap { idsOfAlbumsChunk(serverId, it) }
 
     @Upsert
     abstract suspend fun upsertAll(songs: List<SongEntity>)

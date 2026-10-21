@@ -25,10 +25,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * "Play albums" and "Shuffle albums" in the playback service (docs/adr/0003).
+ * "Play albums", "Shuffle albums" and "Shuffle all" in the playback service (docs/adr/0003).
  *
- * [start] queues the first window of whole albums (about [AlbumFeedPolicy.WINDOW_TRACKS] tracks)
- * in the request's order and placement ([QueueEditor.place]). While those albums are the end of the queue, the running
+ * [start] queues the first window of whole albums (about [AlbumFeedPolicy.WINDOW_TRACKS] tracks),
+ * or of single songs in a tracks shuffle ([AlbumOrder.ShuffledTracks]), in the request's order and
+ * placement ([QueueEditor.place]). While those albums are the end of the queue, the running
  * [AlbumFeed] appends the next window whenever playback gets within
  * [AlbumFeedPolicy.LOW_WATER_TRACKS] of the end, and persists its cursor so it survives process
  * death ([restore]). Queue sync needs nothing special: it uploads whatever is queued.
@@ -48,7 +49,7 @@ class AlbumFeedController(
     private val scope: CoroutineScope,
     /** What is downloaded, while offline; null online. Only downloaded songs can play offline. */
     private val offline: suspend () -> DownloadedLibrary?,
-    /** A fresh seed per started feed: shuffled feeds rebuild their album order from it. */
+    /** A fresh seed per started feed: shuffled feeds rebuild their order from it. */
     private val newSeed: () -> Long = Random.Default::nextLong,
 ) : Player.Listener {
     /** The running feed, or null when the queue is not (or no longer) an album feed's. */
@@ -201,10 +202,12 @@ class AlbumFeedController(
 
     private suspend fun extend(feed: AlbumFeed) {
         val downloaded = offline()
-        val order = albumOrder(feed.source, feed.order, feed.seed, downloaded)
-        // Albums already queued are skipped, in case the library changed and the order shifted.
-        val queued = List(player.mediaItemCount) { player.getMediaItemAt(it).albumKey }.filterNotNull().toSet()
-        val window = windows(feed.source, downloaded)
+        val order = feedOrder(feed.source, feed.order, feed.seed, downloaded)
+        // Albums (or songs) already queued are skipped, in case the library changed and the order shifted.
+        val tracks = feed.order == AlbumOrder.ShuffledTracks
+        val queued = List(player.mediaItemCount) { player.getMediaItemAt(it) }
+            .mapNotNullTo(HashSet()) { if (tracks) it.mediaId else it.albumKey }
+        val window = windows(feed.source, feed.order, downloaded)
             .next(order, feed.cursor, AlbumFeedPolicy.EXTENSION_TRACKS, skip = queued)
         // The queue may have been edited while the songs were read.
         if (current !== feed || feed.queueFingerprint != fingerprint()) return
@@ -243,21 +246,31 @@ class AlbumFeedController(
 
     private suspend fun firstWindow(request: AlbumPlayRequest, seed: Long): AlbumFeedWindows.Window {
         val downloaded = offline()
-        val order = albumOrder(request.source, request.order, seed, downloaded)
-        return windows(request.source, downloaded).next(order, cursor = 0, AlbumFeedPolicy.WINDOW_TRACKS)
+        val order = feedOrder(request.source, request.order, seed, downloaded)
+        return windows(request.source, request.order, downloaded).next(order, cursor = 0, AlbumFeedPolicy.WINDOW_TRACKS)
     }
 
-    private suspend fun albumOrder(
+    /** The source's album IDs in [order], or its song IDs in a tracks shuffle. */
+    private suspend fun feedOrder(
         source: AlbumSource,
         order: AlbumOrder,
         seed: Long,
         downloaded: DownloadedLibrary?,
-    ): List<String> =
-        AlbumFeedOrder.order(OfflineLibrary.shuffleAlbumIds(albums.albumIds(source), downloaded), order, seed)
-
-    private fun windows(source: AlbumSource, downloaded: DownloadedLibrary?) = AlbumFeedWindows { ids ->
-        OfflineLibrary.shuffleSongs(albums.songs(source, ids), downloaded)
+    ): List<String> {
+        val ids = if (order == AlbumOrder.ShuffledTracks) {
+            OfflineLibrary.shuffleSongIds(albums.songIds(source), downloaded)
+        } else {
+            OfflineLibrary.shuffleAlbumIds(albums.albumIds(source), downloaded)
+        }
+        return AlbumFeedOrder.order(ids, order, seed)
     }
+
+    private fun windows(source: AlbumSource, order: AlbumOrder, downloaded: DownloadedLibrary?) =
+        if (order == AlbumOrder.ShuffledTracks) {
+            AlbumFeedWindows.songs { ids -> OfflineLibrary.shuffleSongs(albums.songsByIds(ids), downloaded) }
+        } else {
+            AlbumFeedWindows.albums { ids -> OfflineLibrary.shuffleSongs(albums.songs(source, ids), downloaded) }
+        }
 
     /** Tracks after the current one. */
     private fun remaining(): Int = player.mediaItemCount - 1 - player.currentMediaItemIndex

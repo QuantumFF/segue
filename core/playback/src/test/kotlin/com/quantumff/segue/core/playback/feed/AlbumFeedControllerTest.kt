@@ -398,6 +398,62 @@ class AlbumFeedControllerTest {
     }
 
     @Test
+    fun `shuffle all queues songs from across the library in its seed's order`() = runTest(UnconfinedTestDispatcher()) {
+        val allSongs = library.values.flatten().map { it.id }
+
+        controller().start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)
+
+        assertThat(queueIds()).isEqualTo(AlbumFeedOrder.order(allSongs, AlbumOrder.ShuffledTracks, 3).take(200))
+        // Songs, not whole albums: a window of 200 reaches far more than 20 albums.
+        assertThat(albumsInQueue().size).isGreaterThan(40)
+        assertThat(feeds.stored?.order).isEqualTo(AlbumOrder.ShuffledTracks)
+        assertThat(feeds.stored?.cursor).isEqualTo(200)
+    }
+
+    @Test
+    fun `shuffle all keeps appending until every song of the library is queued once`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
+            feed.start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)
+
+            while (feed.current != null) {
+                player.seekTo(exo.mediaItemCount - 1, 0)
+                advanceUntilIdle()
+            }
+
+            assertThat(queueIds()).containsExactlyElementsIn(library.values.flatten().map { it.id })
+            assertThat(feeds.stored).isNull()
+        }
+
+    @Test
+    fun `a restored shuffle all skips songs already queued`() = runTest(UnconfinedTestDispatcher()) {
+        controller().start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)
+        // Process death, after which the saved cursor is behind what is queued.
+        feeds.stored = feeds.stored!!.copy(cursor = 150)
+        exo.removeListener(controller!!)
+        val restored = controller()
+        restored.restore()
+
+        player.seekTo(190, 0)
+        advanceUntilIdle()
+
+        assertThat(queueIds()).containsNoDuplicates()
+        assertThat(exo.mediaItemCount).isEqualTo(AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
+    }
+
+    @Test
+    fun `offline shuffle all queues only downloaded songs`() = runTest(UnconfinedTestDispatcher()) {
+        val downloaded = DownloadedLibrary(songIds = setOf("al2-t1", "al9-t4", "al40-t10"), albumIds = setOf("al2"))
+
+        controller(offline = downloaded).start(
+            AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks),
+            seed = 1,
+        )
+
+        assertThat(queueIds()).containsExactly("al2-t1", "al9-t4", "al40-t10")
+    }
+
+    @Test
     fun `nothing to play leaves the queue alone`() = runTest(UnconfinedTestDispatcher()) {
         player.setMediaItems(listOf(song("x1", "x").toMediaItem()))
         albums.ids = emptyList()
@@ -413,6 +469,14 @@ class FakeAlbumShuffleRepository(private val library: Map<String, List<Song>>, v
 
     override suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song> =
         albumIds.flatMap { library[it].orEmpty() }.reversed()
+
+    override suspend fun songIds(source: AlbumSource): List<String> =
+        ids.flatMap { library[it].orEmpty() }.map { it.id }
+
+    override suspend fun songsByIds(songIds: List<String>): List<Song> {
+        val wanted = songIds.toSet()
+        return library.values.flatten().filter { it.id in wanted }.reversed()
+    }
 }
 
 class FakeAlbumFeedRepository : AlbumFeedRepository {

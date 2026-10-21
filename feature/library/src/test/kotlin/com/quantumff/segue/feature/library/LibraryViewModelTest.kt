@@ -206,12 +206,11 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun shuffleAllPlaysRandomSongsInServerOrder() = runTest {
-        library.randomSongs = listOf(TestData.song("r1"), TestData.song("r2"))
-
+    fun shuffleAllPlaysEverySongOfTheLibraryInATracksShuffle() = runTest {
         viewModel.shuffleAll()
 
-        assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(library.randomSongs))
+        assertThat(play.albumRequests.single())
+            .isEqualTo(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks))
     }
 
     @Test

@@ -36,7 +36,11 @@ object OfflineLibrary {
     fun shuffleAlbumIds(albumIds: List<String>, offline: DownloadedLibrary?): List<String> =
         if (offline == null) albumIds else albumIds.filter { it in offline.albumIds }
 
-    /** "Shuffle albums" songs: offline only the downloaded ones, since nothing else can play. */
+    /** "Shuffle all" candidates: offline only downloaded songs. */
+    fun shuffleSongIds(songIds: List<String>, offline: DownloadedLibrary?): List<String> =
+        if (offline == null) songIds else songIds.filter { it in offline.songIds }
+
+    /** "Shuffle albums" and "Shuffle all" songs: offline only the downloaded ones, since nothing else can play. */
     fun shuffleSongs(songs: List<Song>, offline: DownloadedLibrary?): List<Song> =
         if (offline == null) songs else songs.filter { it.id in offline.songIds }
 }

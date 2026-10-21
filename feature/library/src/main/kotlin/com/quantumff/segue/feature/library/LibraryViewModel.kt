@@ -80,9 +80,6 @@ sealed interface LibraryMessage {
     /** A menu action failed. */
     data class ActionFailed(val failure: MediaActionFailure) : LibraryMessage
 
-    /** Shuffle all could not fetch random songs. */
-    data object LoadFailed : LibraryMessage
-
     data object RefreshFailed : LibraryMessage
 }
 
@@ -417,17 +414,10 @@ class LibraryViewModel @Inject constructor(
         message.value = null
     }
 
-    /** Random songs from the whole library, played in the server's random order. */
+    /** Every song in the library, in a tracks shuffle; downloaded songs only while offline. */
     fun shuffleAll() {
-        viewModelScope.launch {
-            val songs = try {
-                libraryRepository.randomSongs()
-            } catch (_: RemoteException) {
-                message.value = LibraryMessage.LoadFailed
-                return@launch
-            }
-            playIntents.play(PlayTarget.Songs(songs))
-        }
+        val request = AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks)
+        viewModelScope.launch { playIntents.playAlbums(request) }
     }
 
     /**
