@@ -36,13 +36,10 @@ interface AlbumShuffleRepository {
     suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song>
 
     /**
-     * The songs a tracks shuffle of [source] draws from, in no particular order: every song of its
-     * albums, or for a playlist only the playlist's own tracks. IDs only, as for [albumIds].
+     * Every song of [source], for a tracks shuffle, in no particular order: the songs of all its
+     * albums, or for a playlist only the playlist's own tracks, each once.
      */
-    suspend fun songIds(source: AlbumSource): List<String>
-
-    /** Songs for [songIds], in no particular order. IDs not in the library are skipped. */
-    suspend fun songsByIds(songIds: List<String>): List<Song>
+    suspend fun allSongs(source: AlbumSource): List<Song>
 }
 
 internal class RoomAlbumShuffleRepository @Inject constructor(
@@ -97,21 +94,17 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
         songs.map { it.asExternalModel() }
     }
 
-    override suspend fun songIds(source: AlbumSource): List<String> = withContext(ioDispatcher) {
+    override suspend fun allSongs(source: AlbumSource): List<Song> = withContext(ioDispatcher) {
         val serverId = clients.activeServerId.first() ?: return@withContext emptyList()
-        when (source) {
+        val songs = when (source) {
             // Directly, so songs without an album are included too.
-            AlbumSource.Library -> songDao.ids(serverId)
+            AlbumSource.Library -> songDao.getAll(serverId)
 
             is AlbumSource.Playlist ->
-                playlistDao.observeSongs(serverId, source.playlistId).first().map { it.id }.distinct()
+                playlistDao.observeSongs(serverId, source.playlistId).first().distinctBy { it.id }
 
-            else -> songDao.idsOfAlbums(serverId, albumIds(source))
+            else -> songDao.getByAlbumIds(serverId, albumIds(source))
         }
-    }
-
-    override suspend fun songsByIds(songIds: List<String>): List<Song> = withContext(ioDispatcher) {
-        val serverId = clients.activeServerId.first() ?: return@withContext emptyList()
-        songDao.getByIds(serverId, songIds).map { it.asExternalModel() }
+        songs.map { it.asExternalModel() }
     }
 }

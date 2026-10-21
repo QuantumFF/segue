@@ -198,7 +198,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - The cards follow the fingers' spread continuously, and the row under the fingers stays under them (moving both fingers scrolls). When the card width comes nearer another column count's width (in proportion, with a 4% margin against flicker), the grid reflows with a haptic tick, and the cards glide from their old places to their new ones (`player`). Cards wider than their row overflow both sides alike until then.
   - On release, the cards spring to fill the row (`player`) and the column count is kept. With reduce motion, the cards still follow the fingers but neither glide nor spring.
   - Each tab keeps its own size across launches. Accessibility services get "Larger cards" and "Smaller cards" as custom actions on the grid, each a column, with the same motion.
-- **Songs:** track rows (§5.2), paged, with a "Shuffle all" button in the filter row. It replaces the queue with every song in the library in a tracks shuffle (downloaded songs only while offline), queued as an album feed.
+- **Songs:** track rows (§5.2), paged, with a "Shuffle all" button in the filter row. It replaces the queue with every song in the library at once, in a tracks shuffle (downloaded songs only while offline).
 - **Playlists:** 64-tall rows with 48 art, name, and "N tracks · 1 h 12 m". A "+" in the top bar creates a playlist.
 - **Genres:** 2-column tiles, 72 tall, radius `md`. Background is a color hashed from the genre name, clamped like a hero tint. Name in `titleSmall`, counts in `bodySmall`.
 - Name sorts get a fast scroller: a 4dp thumb on the right and a 56dp letter bubble while dragging.

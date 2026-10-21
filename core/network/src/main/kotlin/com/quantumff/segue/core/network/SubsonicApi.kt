@@ -1,12 +1,18 @@
 package com.quantumff.segue.core.network
 
 import com.quantumff.segue.core.network.model.SubsonicEnvelope
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Query
 
 /**
  * The Subsonic REST endpoints. Auth and `f=json` are added by the interceptor. Null parameters are
  * omitted; list parameters repeat (`id=a&id=b`).
+ *
+ * Saving the queue posts its song IDs as a form (OpenSubsonic `formPost`): a queue of thousands of
+ * songs is far too long for a URL.
  */
 internal interface SubsonicApi {
     @GET("rest/ping.view")
@@ -128,22 +134,24 @@ internal interface SubsonicApi {
     @GET("rest/getPlayQueue.view")
     suspend fun getPlayQueue(): SubsonicEnvelope
 
-    @GET("rest/savePlayQueue.view")
+    @FormUrlEncoded
+    @POST("rest/savePlayQueue.view")
     suspend fun savePlayQueue(
-        @Query("id") ids: List<String>,
-        @Query("current") current: String?,
-        @Query("position") positionMillis: Long?,
+        @Field("id") ids: List<String>,
+        @Field("current") current: String?,
+        @Field("position") positionMillis: Long?,
         @Query("c") clientName: String?,
     ): SubsonicEnvelope
 
     @GET("rest/getPlayQueueByIndex.view")
     suspend fun getPlayQueueByIndex(): SubsonicEnvelope
 
-    @GET("rest/savePlayQueueByIndex.view")
+    @FormUrlEncoded
+    @POST("rest/savePlayQueueByIndex.view")
     suspend fun savePlayQueueByIndex(
-        @Query("id") ids: List<String>,
-        @Query("currentIndex") currentIndex: Int?,
-        @Query("position") positionMillis: Long?,
+        @Field("id") ids: List<String>,
+        @Field("currentIndex") currentIndex: Int?,
+        @Field("position") positionMillis: Long?,
         @Query("c") clientName: String?,
     ): SubsonicEnvelope
 

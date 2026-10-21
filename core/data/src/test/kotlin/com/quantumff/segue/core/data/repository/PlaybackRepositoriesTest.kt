@@ -140,10 +140,9 @@ class PlaybackRepositoriesTest {
             StandardTestDispatcher(testScheduler),
         )
 
-        assertThat(repository.songIds(AlbumSource.Library)).containsExactly("a1-s1", "a1-s2", "a1-s3", "a2-s1", "a2-s2")
-        assertThat(repository.songIds(AlbumSource.Artist("ar2"))).containsExactly("a2-s1", "a2-s2")
-        assertThat(repository.songsByIds(listOf("a2-s2", "missing", "a1-s1")).map { it.id })
-            .containsExactly("a1-s1", "a2-s2")
+        assertThat(repository.allSongs(AlbumSource.Library).map { it.id })
+            .containsExactly("a1-s1", "a1-s2", "a1-s3", "a2-s1", "a2-s2")
+        assertThat(repository.allSongs(AlbumSource.Artist("ar2")).map { it.id }).containsExactly("a2-s1", "a2-s2")
     }
 
     @Test
@@ -235,7 +234,6 @@ class PlaybackRepositoriesTest {
             AlbumFeed(AlbumSource.Artist("ar1"), AlbumOrder.Shuffled, seed = 2, cursor = 1, queueFingerprint = 9),
             AlbumFeed(AlbumSource.Genre("Jazz"), AlbumOrder.Shuffled, seed = 3, cursor = 2, queueFingerprint = 9),
             AlbumFeed(AlbumSource.Playlist("p1"), AlbumOrder.InOrder, seed = 4, cursor = 3, queueFingerprint = 9),
-            AlbumFeed(AlbumSource.Library, AlbumOrder.ShuffledTracks, seed = 5, cursor = 4, queueFingerprint = 9),
         )
 
         assertThat(repository.feed()).isNull()

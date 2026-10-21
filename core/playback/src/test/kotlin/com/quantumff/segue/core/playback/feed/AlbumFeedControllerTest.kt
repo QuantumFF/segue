@@ -398,48 +398,35 @@ class AlbumFeedControllerTest {
     }
 
     @Test
-    fun `shuffle all queues songs from across the library in its seed's order`() = runTest(UnconfinedTestDispatcher()) {
-        val allSongs = library.values.flatten().map { it.id }
-
-        controller().start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)
-
-        assertThat(queueIds()).isEqualTo(AlbumFeedOrder.order(allSongs, AlbumOrder.ShuffledTracks, 3).take(200))
-        // Songs, not whole albums: a window of 200 reaches far more than 20 albums.
-        assertThat(albumsInQueue().size).isGreaterThan(40)
-        assertThat(feeds.stored?.order).isEqualTo(AlbumOrder.ShuffledTracks)
-        assertThat(feeds.stored?.cursor).isEqualTo(200)
-    }
-
-    @Test
-    fun `shuffle all keeps appending until every song of the library is queued once`() =
+    fun `shuffle all queues every song of the library at once, in its seed's order, with no feed`() =
         runTest(UnconfinedTestDispatcher()) {
+            player.setMediaItems(listOf(song("x", null).toMediaItem()))
+            val allSongs = library.values.flatten().map { it.id }
             val feed = controller()
-            feed.start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)
 
-            while (feed.current != null) {
-                player.seekTo(exo.mediaItemCount - 1, 0)
-                advanceUntilIdle()
-            }
+            assertThat(feed.start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)).isTrue()
 
-            assertThat(queueIds()).containsExactlyElementsIn(library.values.flatten().map { it.id })
+            assertThat(queueIds()).isEqualTo(AlbumFeedOrder.order(allSongs, AlbumOrder.ShuffledTracks, 3))
+            assertThat(exo.playWhenReady).isTrue()
+            assertThat(feed.current).isNull()
             assertThat(feeds.stored).isNull()
         }
 
     @Test
-    fun `a restored shuffle all skips songs already queued`() = runTest(UnconfinedTestDispatcher()) {
-        controller().start(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), seed = 3)
-        // Process death, after which the saved cursor is behind what is queued.
-        feeds.stored = feeds.stored!!.copy(cursor = 150)
-        exo.removeListener(controller!!)
-        val restored = controller()
-        restored.restore()
+    fun `a media browser's shuffle all gets every song and leaves nothing pending`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val feed = controller()
 
-        player.seekTo(190, 0)
-        advanceUntilIdle()
+            val items = feed.firstWindowForSession(
+                AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks),
+                seed = 3,
+            )
+            player.setMediaItems(items, 0, 0)
 
-        assertThat(queueIds()).containsNoDuplicates()
-        assertThat(exo.mediaItemCount).isEqualTo(AlbumFeedPolicy.WINDOW_TRACKS + AlbumFeedPolicy.EXTENSION_TRACKS)
-    }
+            assertThat(items).hasSize(library.values.sumOf { it.size })
+            assertThat(feed.current).isNull()
+            assertThat(feeds.stored).isNull()
+        }
 
     @Test
     fun `offline shuffle all queues only downloaded songs`() = runTest(UnconfinedTestDispatcher()) {
@@ -470,13 +457,7 @@ class FakeAlbumShuffleRepository(private val library: Map<String, List<Song>>, v
     override suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song> =
         albumIds.flatMap { library[it].orEmpty() }.reversed()
 
-    override suspend fun songIds(source: AlbumSource): List<String> =
-        ids.flatMap { library[it].orEmpty() }.map { it.id }
-
-    override suspend fun songsByIds(songIds: List<String>): List<Song> {
-        val wanted = songIds.toSet()
-        return library.values.flatten().filter { it.id in wanted }.reversed()
-    }
+    override suspend fun allSongs(source: AlbumSource): List<Song> = ids.flatMap { library[it].orEmpty() }.reversed()
 }
 
 class FakeAlbumFeedRepository : AlbumFeedRepository {

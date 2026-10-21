@@ -26,7 +26,7 @@ Where a "Play albums", "Shuffle albums" or "Shuffle all" intent takes its albums
 _Avoid_: Album list, feed source
 
 **Album feed**:
-An album source being queued a window at a time as the user listens: whole albums, or single songs in a tracks shuffle. It ends for good when anything else changes the queue.
+An album source being queued a window of whole albums at a time as the user listens. It ends for good when anything else changes the queue. "Shuffle all" is never a feed: it queues every song at once.
 _Avoid_: Lazy queue, auto-queue
 
 **Instant mix**:

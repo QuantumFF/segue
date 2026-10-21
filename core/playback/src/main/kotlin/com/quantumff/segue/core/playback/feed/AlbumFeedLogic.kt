@@ -39,7 +39,7 @@ private object Fnv1a {
     fun mix(hash: Long, text: String): Long = text.fold(hash) { acc, char -> mix(acc, char.code) }
 }
 
-/** The order a feed queues albums (or songs, in a tracks shuffle) in. */
+/** The order an album play queues albums in, or songs in a tracks shuffle. */
 object AlbumFeedOrder {
     /**
      * [ids] (duplicates dropped) as [order] has them: unchanged, or shuffled by [seed]. The shuffle
@@ -77,38 +77,32 @@ object AlbumFeedOrder {
 }
 
 /**
- * Cuts an order of albums ([albums]) or songs ([songs]) into windows. [songsOf] reads the playable
- * songs of some IDs of the order (any order); it is called for a few at a time, so a window never
- * reads more of the library than it queues.
+ * Cuts an album order into windows of whole albums. [songsOf] reads the playable songs of some
+ * albums (any order); it is called for a few albums at a time, so a window never reads more of
+ * the library than it queues.
  */
-class AlbumFeedWindows private constructor(
-    private val songsOf: suspend (ids: List<String>) -> List<Song>,
-    /** The order's ID a song belongs to: its album, or the song itself. */
-    private val idOf: (Song) -> String?,
-    /** IDs read per query. */
-    private val batchSize: Int,
-) {
+class AlbumFeedWindows(private val songsOf: suspend (albumIds: List<String>) -> List<Song>) {
     /**
-     * Songs to queue, album after album, each in disc and track order (or song after song). [cursor]
-     * is the next unused position in the order; [exhausted] is true once every ID is used up.
+     * Songs to queue, album after album, each in disc and track order. [cursor] is the next unused
+     * position in the album order; [exhausted] is true once every album is used up.
      */
     data class Window(val songs: List<Song>, val cursor: Int, val exhausted: Boolean)
 
     /**
-     * Whole albums (or songs) of [order] from [cursor] until the window holds at least [minTracks]
-     * tracks or the order runs out. IDs in [skip] (already queued) and albums with nothing to play
-     * are passed over, but still used up.
+     * Whole albums of [order] from [cursor] until the window holds at least [minTracks] tracks or
+     * the order runs out. Albums in [skip] (already queued) and albums with nothing to play are
+     * passed over, but still used up.
      */
     suspend fun next(order: List<String>, cursor: Int, minTracks: Int, skip: Set<String> = emptySet()): Window {
         val songs = ArrayList<Song>()
         var next = cursor.coerceIn(0, order.size)
         while (next < order.size && songs.size < minTracks) {
-            val batch = order.subList(next, min(next + batchSize, order.size)).toList()
+            val batch = order.subList(next, min(next + BATCH_ALBUMS, order.size)).toList()
             val wanted = batch.filterNot { it in skip }
-            val loaded = if (wanted.isEmpty()) emptyMap() else songsOf(wanted).groupBy(idOf)
-            for (id in batch) {
+            val loaded = if (wanted.isEmpty()) emptyMap() else songsOf(wanted).groupBy { it.albumId }
+            for (albumId in batch) {
                 next++
-                if (id !in skip) songs += loaded[id].orEmpty().sortedWith(DISC_AND_TRACK)
+                if (albumId !in skip) songs += loaded[albumId].orEmpty().sortedWith(DISC_AND_TRACK)
                 if (songs.size >= minTracks) break
             }
         }
@@ -118,17 +112,6 @@ class AlbumFeedWindows private constructor(
     companion object {
         /** Albums read per query: a typical album has about ten tracks. */
         const val BATCH_ALBUMS = 8
-
-        /** Songs read per query, in a tracks shuffle. */
-        const val BATCH_SONGS = 100
-
-        /** Windows of whole albums: [songsOf] reads the songs of some album IDs. */
-        fun albums(songsOf: suspend (albumIds: List<String>) -> List<Song>) =
-            AlbumFeedWindows(songsOf, Song::albumId, BATCH_ALBUMS)
-
-        /** Windows of songs, for a tracks shuffle: [songsOf] reads the songs of some song IDs. */
-        fun songs(songsOf: suspend (songIds: List<String>) -> List<Song>) =
-            AlbumFeedWindows(songsOf, Song::id, BATCH_SONGS)
 
         /** Each album is queued whole, in disc and track order. */
         private val DISC_AND_TRACK = compareBy<Song>({ it.discNumber ?: 0 }, { it.track ?: 0 })
