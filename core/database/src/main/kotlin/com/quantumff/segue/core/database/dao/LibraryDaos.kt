@@ -336,6 +336,9 @@ abstract class SongDao {
     @Query("SELECT COUNT(*) FROM songs WHERE serverId = :serverId")
     abstract fun observeCount(serverId: String): Flow<Int>
 
+    @Query("SELECT * FROM songs WHERE serverId = :serverId")
+    abstract suspend fun getAll(serverId: String): List<SongEntity>
+
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
     abstract fun observeStarred(serverId: String): Flow<List<SongEntity>>
 

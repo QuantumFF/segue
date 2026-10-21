@@ -73,7 +73,7 @@ class ServerDataDaoTest {
     fun `deleting a server clears every table with a serverId column and nothing of other servers`() = runTest {
         val tables = serverTables()
         // Guards against the schema query silently finding nothing.
-        assertThat(tables).containsAtLeast("songs", "downloads", "album_feed", "server_capabilities")
+        assertThat(tables).containsAtLeast("songs", "downloads", "queue_items", "server_capabilities")
         tables.forEach { table ->
             seed(table, "s1", n = 1)
             seed(table, "s2", n = 2)

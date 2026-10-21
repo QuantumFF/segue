@@ -303,10 +303,10 @@ class PlaybackController @Inject constructor(
     // --- Generated queues ----------------------------------------------------------------------------
 
     /**
-     * "Play albums" / "Shuffle albums" ([request]): whole albums in disc and track order, the
-     * albums in the source's order or a fresh seeded shuffle, replacing the queue or placed in it.
-     * The service queues a first window and appends more as playback nears its end (see
-     * [com.quantumff.segue.core.playback.feed.AlbumFeedController]). Reads Room only; offline only
+     * "Play albums" / "Shuffle albums" / "Shuffle all" ([request]): every album of the source whole
+     * in disc and track order, the albums in the source's order or shuffled, or every song shuffled,
+     * replacing the queue or placed in it. The service reads the songs and queues them all at once
+     * ([com.quantumff.segue.core.playback.album.AlbumPlays]). Reads Room only; offline only
      * downloaded songs are queued. False if there is nothing to play.
      */
     suspend fun playAlbums(request: AlbumPlayRequest): Boolean =

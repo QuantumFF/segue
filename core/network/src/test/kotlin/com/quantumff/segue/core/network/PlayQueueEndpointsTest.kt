@@ -35,7 +35,7 @@ class PlayQueueEndpointsTest {
     }
 
     @Test
-    fun `savePlayQueue sends repeated ids, the current id, and the position`() = runTest {
+    fun `savePlayQueue posts repeated ids, the current id, and the position as a form`() = runTest {
         rule.enqueueOk()
 
         rule.client.savePlayQueue(
@@ -46,11 +46,13 @@ class PlayQueueEndpointsTest {
         )
 
         val request = rule.takeRequest()
+        assertThat(request.method).isEqualTo("POST")
         assertThat(request.url.encodedPath).endsWith("/rest/savePlayQueue.view")
-        assertThat(request.params("id")).containsExactly("a", "b", "a").inOrder()
-        assertThat(request.param("current")).isEqualTo("b")
-        assertThat(request.param("position")).isEqualTo("4200")
+        assertThat(request.formParams("id")).containsExactly("a", "b", "a").inOrder()
+        assertThat(request.formParam("current")).isEqualTo("b")
+        assertThat(request.formParam("position")).isEqualTo("4200")
         assertThat(request.param("c")).isEqualTo("Segue-3f2a")
+        assertThat(request.params("id")).isEmpty()
     }
 
     @Test
@@ -75,7 +77,7 @@ class PlayQueueEndpointsTest {
     }
 
     @Test
-    fun `savePlayQueueByIndex sends ids, the index, and the position`() = runTest {
+    fun `savePlayQueueByIndex posts ids, the index, and the position as a form`() = runTest {
         rule.enqueueOk()
 
         rule.client.savePlayQueueByIndex(
@@ -86,10 +88,11 @@ class PlayQueueEndpointsTest {
         )
 
         val request = rule.takeRequest()
+        assertThat(request.method).isEqualTo("POST")
         assertThat(request.url.encodedPath).endsWith("/rest/savePlayQueueByIndex.view")
-        assertThat(request.params("id")).containsExactly("a", "b", "a").inOrder()
-        assertThat(request.param("currentIndex")).isEqualTo("2")
-        assertThat(request.param("position")).isEqualTo("1200")
+        assertThat(request.formParams("id")).containsExactly("a", "b", "a").inOrder()
+        assertThat(request.formParam("currentIndex")).isEqualTo("2")
+        assertThat(request.formParam("position")).isEqualTo("1200")
     }
 
     @Test
@@ -99,9 +102,9 @@ class PlayQueueEndpointsTest {
         rule.client.savePlayQueueByIndex(songIds = emptyList(), currentIndex = 0, positionMillis = 0, clientName = null)
 
         val request = rule.takeRequest()
-        assertThat(request.params("id")).isEmpty()
-        assertThat(request.param("currentIndex")).isNull()
-        assertThat(request.param("position")).isNull()
+        assertThat(request.formParams("id")).isEmpty()
+        assertThat(request.formParam("currentIndex")).isNull()
+        assertThat(request.formParam("position")).isNull()
     }
 
     @Test

@@ -142,7 +142,6 @@ class FakeArtistRepository : ArtistRepository {
 class FakeLibraryRepository : LibraryRepository {
     val genresState = MutableStateFlow<List<Genre>>(emptyList())
     val songsState = MutableStateFlow<List<Song>>(emptyList())
-    var randomSongs: List<Song> = emptyList()
 
     override val genres: Flow<ImmutableList<Genre>> = genresState.map { it.toImmutableList() }
 
@@ -164,8 +163,6 @@ class FakeLibraryRepository : LibraryRepository {
 
     override val starredSongs: Flow<ImmutableList<Song>> =
         songsState.map { all -> all.filter { it.isStarred }.toImmutableList() }
-
-    override suspend fun randomSongs(size: Int): ImmutableList<Song> = randomSongs.take(size).toImmutableList()
 
     override suspend fun songsByIds(ids: List<String>): ImmutableList<Song> {
         val byId = songsState.value.associateBy { it.id }

@@ -22,7 +22,7 @@ import kotlin.random.Random
  *   queue, next and end set the queue and prepare it, without playing.
  *
  * [queue] does all three. A media session applies set and add requests itself; [playable] gives it
- * what to apply. [place] is the bare placement, for the album feed, which queues playable songs.
+ * what to apply. [place] is the bare placement, for album plays, which queue playable songs.
  * [putBack] undoes a removal, which is no play intent and keeps none of these rules.
  * Call on the player's thread.
  */

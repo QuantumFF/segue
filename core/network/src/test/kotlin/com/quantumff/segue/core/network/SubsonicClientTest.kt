@@ -243,16 +243,14 @@ class SubsonicClientTest {
     }
 
     @Test
-    fun `song lists decode random, genre, similar, and top songs`() = runTest {
+    fun `song lists decode genre, similar, and top songs`() = runTest {
         val songs = """{"subsonic-response":{"status":"ok","version":"1.16.1",""" +
-            """"randomSongs":{"song":[{"id":"r","isDir":false,"title":"R"}]},""" +
             """"songsByGenre":{"song":[{"id":"g","isDir":false,"title":"G"}]},""" +
             """"similarSongs2":{"song":[{"id":"s","isDir":false,"title":"S"}]},""" +
             """"topSongs":{"song":[{"id":"t","isDir":false,"title":"T"}]},""" +
             """"song":{"id":"one","isDir":false,"title":"One"}}}"""
-        repeat(5) { rule.enqueueBody(songs) }
+        repeat(4) { rule.enqueueBody(songs) }
 
-        assertThat(rule.client.getRandomSongs(size = 50).single().id).isEqualTo("r")
         assertThat(rule.client.getSongsByGenre("Jazz", count = 10, offset = 0).single().id).isEqualTo("g")
         assertThat(rule.client.getSimilarSongs2(artistId = "ar", count = 20).single().id).isEqualTo("s")
         assertThat(
@@ -260,7 +258,6 @@ class SubsonicClientTest {
         ).isEqualTo("t")
         assertThat(rule.client.getSong("one").title).isEqualTo("One")
 
-        assertThat(rule.takeRequest().param("size")).isEqualTo("50")
         assertThat(rule.takeRequest().param("genre")).isEqualTo("Jazz")
         assertThat(rule.takeRequest().param("id")).isEqualTo("ar")
         rule.takeRequest().let {

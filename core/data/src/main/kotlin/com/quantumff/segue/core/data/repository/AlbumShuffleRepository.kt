@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /**
- * Reads the local library for "Play albums" and "Shuffle albums". Which albums to queue, in what
- * order and how many at a time is the playback layer's policy. Reads only Room, so it works
+ * Reads the local library for "Play albums", "Shuffle albums" and "Shuffle all". Which albums or
+ * songs to queue, and in what order, is the playback layer's policy. Reads only Room, so it works
  * offline; empty when signed out.
  */
 interface AlbumShuffleRepository {
@@ -34,6 +34,12 @@ interface AlbumShuffleRepository {
      * which gives only the playlist's own tracks of those albums.
      */
     suspend fun songs(source: AlbumSource, albumIds: List<String>): List<Song>
+
+    /**
+     * Every song of [source], for a tracks shuffle, in no particular order: the songs of all its
+     * albums, or for a playlist only the playlist's own tracks, each once.
+     */
+    suspend fun allSongs(source: AlbumSource): List<Song>
 }
 
 internal class RoomAlbumShuffleRepository @Inject constructor(
@@ -84,6 +90,20 @@ internal class RoomAlbumShuffleRepository @Inject constructor(
             playlistDao.observeSongs(serverId, source.playlistId).first().filter { it.albumId in wanted }
         } else {
             songDao.getByAlbumIds(serverId, albumIds)
+        }
+        songs.map { it.asExternalModel() }
+    }
+
+    override suspend fun allSongs(source: AlbumSource): List<Song> = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext emptyList()
+        val songs = when (source) {
+            // Directly, so songs without an album are included too.
+            AlbumSource.Library -> songDao.getAll(serverId)
+
+            is AlbumSource.Playlist ->
+                playlistDao.observeSongs(serverId, source.playlistId).first().distinctBy { it.id }
+
+            else -> songDao.getByAlbumIds(serverId, albumIds(source))
         }
         songs.map { it.asExternalModel() }
     }

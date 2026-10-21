@@ -28,7 +28,7 @@ internal object SegueSessionCommands {
     /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
 
-    /** "Play albums" / "Shuffle albums": starts an album feed (see AlbumFeedController). Answers [ARG_STARTED]. */
+    /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_STARTED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
     /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_STARTED]. */

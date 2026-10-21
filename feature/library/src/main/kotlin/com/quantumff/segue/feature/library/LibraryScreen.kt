@@ -1248,7 +1248,6 @@ internal val AlbumSortOrder.label: Int
 private val LibraryMessage.text: Int
     get() = when (this) {
         is LibraryMessage.ActionFailed -> failure.text
-        LibraryMessage.LoadFailed -> R.string.feature_library_error_load
         LibraryMessage.RefreshFailed -> R.string.feature_library_error_refresh
     }
 

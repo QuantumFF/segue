@@ -3,11 +3,7 @@ package com.quantumff.segue.core.data.repository
 import androidx.paging.PagingData
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
-import com.quantumff.segue.core.data.model.asEntity
-import com.quantumff.segue.core.data.remote
 import com.quantumff.segue.core.data.session.SubsonicClientProvider
-import com.quantumff.segue.core.data.session.requireActiveServerId
-import com.quantumff.segue.core.data.sync.LibraryWriter
 import com.quantumff.segue.core.database.dao.GenreDao
 import com.quantumff.segue.core.database.dao.SongDao
 import com.quantumff.segue.core.database.model.GenreEntity
@@ -46,20 +42,12 @@ interface LibraryRepository {
 
     /** Songs for [ids] in that order, duplicates kept. IDs not in the local library are skipped. */
     suspend fun songsByIds(ids: List<String>): ImmutableList<Song>
-
-    /** Random songs from the server, for "shuffle all". Also stored in Room. Throws RemoteException. */
-    suspend fun randomSongs(size: Int = DEFAULT_RANDOM_SIZE): ImmutableList<Song>
-
-    companion object {
-        const val DEFAULT_RANDOM_SIZE = 100
-    }
 }
 
 internal class OfflineFirstLibraryRepository @Inject constructor(
     private val clients: SubsonicClientProvider,
     private val songDao: SongDao,
     private val genreDao: GenreDao,
-    private val writer: LibraryWriter,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : LibraryRepository {
     override val genres: Flow<ImmutableList<Genre>> =
@@ -89,12 +77,5 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
         val serverId = clients.activeServerId.first() ?: return@withContext persistentListOf()
         val byId = songDao.getByIds(serverId, ids).associateBy { it.id }
         ids.mapNotNull { byId[it]?.asExternalModel() }.toImmutableList()
-    }
-
-    override suspend fun randomSongs(size: Int): ImmutableList<Song> = withContext(ioDispatcher) {
-        val serverId = clients.requireActiveServerId()
-        val songs = remote { clients.client(serverId).getRandomSongs(size) }
-        writer.writeSongs(serverId, songs)
-        songs.filterNot { it.isDir }.map { it.asEntity(serverId).asExternalModel() }.toImmutableList()
     }
 }

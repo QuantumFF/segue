@@ -67,7 +67,6 @@ class FakeSubsonicClient : SubsonicClient {
     val starCalls = mutableListOf<String>()
     val lyrics = mutableMapOf<String, List<NetworkStructuredLyrics>>()
     val lyricsRequests = mutableListOf<String>()
-    var randomSongs = listOf<NetworkChild>()
 
     data class SavedQueue(
         val indexBased: Boolean,
@@ -164,9 +163,6 @@ class FakeSubsonicClient : SubsonicClient {
 
     override suspend fun getSong(id: String): NetworkChild =
         albums.values.flatMap { it.song }.firstOrNull { it.id == id } ?: throw SubsonicException.NotFound("no song")
-
-    override suspend fun getRandomSongs(size: Int, genre: String?, fromYear: Int?, toYear: Int?) =
-        randomSongs.take(size)
 
     override suspend fun getGenres() = genres
 

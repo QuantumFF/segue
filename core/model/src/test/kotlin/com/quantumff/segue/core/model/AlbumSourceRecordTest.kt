@@ -36,7 +36,7 @@ class AlbumSourceRecordTest {
     }
 
     @Test
-    fun `records match what album_feed rows already hold`() {
+    fun `records flatten each source to its kind and fields`() {
         assertThat(AlbumSourceRecord.of(AlbumSource.Library)).isEqualTo(AlbumSourceRecord("Library"))
         assertThat(AlbumSourceRecord.of(AlbumSource.Albums(AlbumSortOrder.Artist, AlbumFilter(true, "Jazz", 1971))))
             .isEqualTo(AlbumSourceRecord("Albums", sort = "Artist", starred = true, genre = "Jazz", year = 1971))

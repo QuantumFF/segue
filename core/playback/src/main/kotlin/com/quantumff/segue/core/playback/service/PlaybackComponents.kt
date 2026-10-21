@@ -25,7 +25,6 @@ import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
 import com.quantumff.segue.core.data.download.downloadedWhileOffline
-import com.quantumff.segue.core.data.repository.AlbumFeedRepository
 import com.quantumff.segue.core.data.repository.AlbumShuffleRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.MediaBrowseRepository
@@ -35,13 +34,13 @@ import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.playback.album.AlbumPlays
 import com.quantumff.segue.core.playback.browse.SessionLibrary
 import com.quantumff.segue.core.playback.cache.AdjustableLruCacheEvictor
 import com.quantumff.segue.core.playback.cache.NetworkMonitor
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.SegueUriResolver
 import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
-import com.quantumff.segue.core.playback.feed.AlbumFeedController
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingPublisher
 import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
 import com.quantumff.segue.core.playback.scrobble.Scrobbler
@@ -71,8 +70,6 @@ class PlaybackComponents @Inject constructor(
     /** Android Auto browsing and search. */
     private val mediaBrowse: MediaBrowseRepository,
     private val albumShuffle: AlbumShuffleRepository,
-    /** "Play albums" / "Shuffle albums" feeds, persisted with the queue. */
-    private val albumFeeds: AlbumFeedRepository,
     private val search: SearchRepository,
     private val offlineMode: OfflineModeRepository,
     private val downloads: DownloadRepository,
@@ -157,8 +154,7 @@ class PlaybackComponents @Inject constructor(
 
     fun createQueueEditor(player: SeguePlayer) = QueueEditor(player, offline = ::downloadedWhileOffline)
 
-    fun createAlbumFeed(player: SeguePlayer, editor: QueueEditor, scope: CoroutineScope) =
-        AlbumFeedController(player, editor, albumShuffle, albumFeeds, scope, offline = ::downloadedWhileOffline)
+    fun createAlbumPlays(editor: QueueEditor) = AlbumPlays(editor, albumShuffle, offline = ::downloadedWhileOffline)
 
     fun createSavedQueueLoader(player: SeguePlayer, editor: QueueEditor) =
         SavedQueueLoader(player, queueSync, snapshots, library, editor)
