@@ -18,8 +18,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * Reads the local library for "Play albums", "Shuffle albums" and "Shuffle all". Which albums or
- * songs to queue, in what order and how many at a time is the playback layer's policy. Reads only
- * Room, so it works offline; empty when signed out.
+ * songs to queue, and in what order, is the playback layer's policy. Reads only Room, so it works
+ * offline; empty when signed out.
  */
 interface AlbumShuffleRepository {
     /**

@@ -54,14 +54,6 @@ internal interface SubsonicApi {
     @GET("rest/getSong.view")
     suspend fun getSong(@Query("id") id: String): SubsonicEnvelope
 
-    @GET("rest/getRandomSongs.view")
-    suspend fun getRandomSongs(
-        @Query("size") size: Int,
-        @Query("genre") genre: String?,
-        @Query("fromYear") fromYear: Int?,
-        @Query("toYear") toYear: Int?,
-    ): SubsonicEnvelope
-
     @GET("rest/getGenres.view")
     suspend fun getGenres(): SubsonicEnvelope
 

@@ -27,7 +27,6 @@ data class SubsonicResponse(
     val album: NetworkAlbum? = null,
     val song: NetworkChild? = null,
     val albumList2: NetworkAlbumList? = null,
-    val randomSongs: NetworkSongList? = null,
     val songsByGenre: NetworkSongList? = null,
     val similarSongs2: NetworkSongList? = null,
     val topSongs: NetworkSongList? = null,

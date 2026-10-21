@@ -51,7 +51,7 @@ Shuffling happens when music is queued, never to a running queue.
 - *Play albums* and *Shuffle albums* sit above the mini player in the Library's Albums view. They
   queue the albums you see, in that order or shuffled, each album whole and in track order.
 - Tap to play now, or long-press to play next or add to your queue.
-- Big libraries are queued a window at a time as you listen.
+- Every album goes into the queue at once, however big the library.
 - *Shuffle albums* also works for an artist, a genre, or a playlist.
 
 ## Features

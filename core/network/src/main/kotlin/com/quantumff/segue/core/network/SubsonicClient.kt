@@ -62,13 +62,6 @@ interface SubsonicClient {
 
     suspend fun getSong(id: String): NetworkChild
 
-    suspend fun getRandomSongs(
-        size: Int,
-        genre: String? = null,
-        fromYear: Int? = null,
-        toYear: Int? = null,
-    ): List<NetworkChild>
-
     suspend fun getGenres(): List<NetworkGenre>
 
     suspend fun getSongsByGenre(genre: String, count: Int, offset: Int): List<NetworkChild>

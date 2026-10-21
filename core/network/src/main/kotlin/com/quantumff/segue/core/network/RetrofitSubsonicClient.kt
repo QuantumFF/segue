@@ -99,9 +99,6 @@ internal class RetrofitSubsonicClient(
 
     override suspend fun getSong(id: String): NetworkChild = call { getSong(id) }.song.required("song")
 
-    override suspend fun getRandomSongs(size: Int, genre: String?, fromYear: Int?, toYear: Int?): List<NetworkChild> =
-        call { getRandomSongs(size, genre, fromYear, toYear) }.randomSongs?.song.orEmpty()
-
     override suspend fun getGenres(): List<NetworkGenre> = call { getGenres() }.genres?.genre.orEmpty()
 
     override suspend fun getSongsByGenre(genre: String, count: Int, offset: Int): List<NetworkChild> =
