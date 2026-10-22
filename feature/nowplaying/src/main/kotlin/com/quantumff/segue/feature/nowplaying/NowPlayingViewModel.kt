@@ -167,6 +167,12 @@ class NowPlayingViewModel @Inject constructor(
 
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
 
+    /** The playback error's Skip: plays the next item. */
+    fun skipPastError() = playback.skipPastError()
+
+    /** The playback error's Retry, for a network error: prepares the song again and plays it. */
+    fun retryPlayback() = playback.retry()
+
     fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.next())
 
     fun toggleFavorite() = playback.toggleFavorite()

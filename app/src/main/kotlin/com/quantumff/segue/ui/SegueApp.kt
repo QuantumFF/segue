@@ -54,6 +54,7 @@ import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBar
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
+import com.quantumff.segue.core.designsystem.component.PlaybackErrorSnackbar
 import com.quantumff.segue.core.designsystem.component.PlayerBar
 import com.quantumff.segue.core.designsystem.component.PlayerBarActions
 import com.quantumff.segue.core.designsystem.component.PlayerBarState
@@ -126,6 +127,13 @@ fun SegueApp(
             }
         }
     }
+    // DESIGN.md §4.7: a song that failed to play, with Skip, and Retry for a network error.
+    PlaybackErrorSnackbar(
+        error = player.playbackError,
+        hostState = snackbarHostState,
+        onSkip = playerViewModel::skipPastError,
+        onRetry = playerViewModel::retryPlayback,
+    )
     val update by appUpdateViewModel.availableUpdate.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     LaunchedEffect(update) {

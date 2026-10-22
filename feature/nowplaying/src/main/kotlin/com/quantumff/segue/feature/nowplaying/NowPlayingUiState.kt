@@ -2,6 +2,7 @@ package com.quantumff.segue.feature.nowplaying
 
 import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.model.ArtistRef
+import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RepeatMode
@@ -61,6 +62,8 @@ data class NowPlayingUiState(
     val details: TrackDetails? = null,
     /** Tracks in the queue, for "Clear queue". */
     val queueSize: Int = 0,
+    /** The current song failed to play: "Couldn't play <title>", with Skip and maybe Retry. */
+    val error: PlaybackError? = null,
 )
 
 /** The details sheet. Missing values are null and their rows are left out. */
@@ -141,6 +144,7 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         quality = librarySong?.let { qualityLabel(it.suffix, it.bitRate, file?.samplingRate, file?.bitDepth) },
         details = librarySong?.let { it.toDetails(file) },
         queueSize = queue.size,
+        error = playbackError,
     )
 }
 

@@ -1,6 +1,8 @@
 package com.quantumff.segue.playback
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemoteQueueOffer
@@ -43,6 +45,14 @@ class ShellPlayerStateTest {
 
         assertThat(PlayerUiState(remoteQueue = offer).toShellPlayerState().remoteOffer).isEqualTo(offer)
         assertThat(state(3, 1).copy(remoteQueue = offer).toShellPlayerState().remoteOffer).isEqualTo(offer)
+    }
+
+    @Test
+    fun `a playback error reaches the shell`() {
+        val error = PlaybackError(songId = "s1", title = "Song 1", kind = PlaybackErrorKind.NotFound)
+
+        assertThat(state(3, 1).copy(playbackError = error).toShellPlayerState().playbackError).isEqualTo(error)
+        assertThat(state(3, 1).toShellPlayerState().playbackError).isNull()
     }
 
     @Test

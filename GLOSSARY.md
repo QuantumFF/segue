@@ -21,6 +21,10 @@ _Avoid_: Play request, command
 A change in order made once, when songs are queued. **Tracks** shuffle reorders songs; **albums** shuffle reorders whole albums and keeps each album's disc and track order. A running queue is never reshuffled.
 _Avoid_: Shuffle mode
 
+**Playback error**:
+A song in the queue failed to play, and why: the network, a format the device can't play, a file that is missing, or something else. The user can skip to the next song, or retry a network error. It clears when playback moves to another song or a retry plays.
+_Avoid_: Player error, playback failure
+
 **Album source**:
 Where a "Play albums", "Shuffle albums" or "Shuffle all" intent takes its albums from: the library's albums as sorted and filtered, an artist, a genre, a playlist, or the whole library. Every album it covers is queued at once; "Shuffle all" is a tracks shuffle of every song in the whole library.
 _Avoid_: Album list, album feed
