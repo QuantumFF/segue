@@ -123,6 +123,35 @@ class PlaybackErrorReporterTest {
     }
 
     @Test
+    fun `skip plays the item after the failed one`() {
+        queue("a", "b")
+        exo.prepare()
+        reporter.onPlayerError(failure(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED))
+
+        reporter.skip()
+
+        assertThat(exo.currentMediaItem?.mediaId).isEqualTo("b")
+        assertThat(exo.playWhenReady).isTrue()
+        assertThat(reporter.error).isNull()
+    }
+
+    @Test
+    fun `skip on the last item clears the error and leaves the player stopped`() {
+        queue("a", "b")
+        exo.seekToNextMediaItem()
+        exo.play()
+        reporter.onPlayerError(failure(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED))
+        val before = changes
+
+        reporter.skip()
+
+        assertThat(reporter.error).isNull()
+        assertThat(changes).isEqualTo(before + 1)
+        assertThat(exo.currentMediaItem?.mediaId).isEqualTo("b")
+        assertThat(exo.playWhenReady).isFalse()
+    }
+
+    @Test
     fun `nothing changes without an error to clear`() {
         queue("a", "b")
         exo.seekToNextMediaItem()

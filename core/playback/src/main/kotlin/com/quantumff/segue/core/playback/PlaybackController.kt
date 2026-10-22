@@ -207,8 +207,9 @@ class PlaybackController @Inject constructor(
 
     override fun pause() = command { it.pause() }
 
+    /** Pauses while the player plays or buffers towards playing ([playsWhenReady]); otherwise plays. */
     fun togglePlayPause() = command { controller ->
-        if (controller.isPlaying) {
+        if (controller.playsWhenReady) {
             controller.pause()
         } else {
             if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
@@ -223,14 +224,12 @@ class PlaybackController @Inject constructor(
     fun skipToPrevious() = command { it.seekToPrevious() }
 
     /**
-     * A playback error's Skip ([PlayerUiState.playbackError]): plays the next item. A failed player
-     * stays idle, so it is prepared again. Does nothing after the last item.
+     * A playback error's Skip ([PlayerUiState.playbackError]): plays the next item. After the last
+     * item it clears the error and leaves the player stopped
+     * ([com.quantumff.segue.core.playback.service.PlaybackErrorReporter.skip]).
      */
     fun skipPastError() = command { controller ->
-        if (!controller.hasNextMediaItem()) return@command
-        controller.seekToNextMediaItem()
-        if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
-        controller.play()
+        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.SKIP_PAST_ERROR), Bundle.EMPTY)
     }
 
     /** A playback error's Retry: prepares the failed song again and plays it. Success clears the error. */

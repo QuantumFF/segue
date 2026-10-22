@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongAvailability
 
 // Domain model to component state, shared by every browse screen so cards and rows read the same.
 
@@ -50,6 +51,18 @@ fun Song.toTrackRowState(
     isCurrent = current?.isOf(this) == true,
     isPlaying = current?.isOf(this) == true && current.isPlaying,
 )
+
+/**
+ * The song's row on a page that knows the library's [availability]: its download badge, whether it
+ * plays (offline, only downloaded songs do), and whether it is [current]'s song.
+ */
+fun Song.toTrackRowState(availability: SongAvailability, current: CurrentSong?, rowKey: String = id): TrackRowState =
+    toTrackRowState(
+        rowKey = rowKey,
+        download = availability.downloads[id]?.status?.toBadgeState(),
+        isAvailable = availability.isAvailable(this),
+        current = current,
+    )
 
 /** The badge for a download status (DESIGN.md §4.9). Paused and failed show no badge. */
 fun DownloadStatus.toBadgeState(): DownloadBadgeState? = when (this) {

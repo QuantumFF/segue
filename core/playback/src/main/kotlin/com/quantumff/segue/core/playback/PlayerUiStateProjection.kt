@@ -34,8 +34,9 @@ internal class PlayerUiStateProjection {
         return PlayerUiState(
             currentItem = current,
             currentQueueIndex = queueIndex,
-            isPlaying = player.isPlaying,
+            isPlaying = player.playsWhenReady,
             isBuffering = player.playbackState == Player.STATE_BUFFERING,
+            hasEnded = player.playbackState == Player.STATE_ENDED,
             positionMillis = player.currentPosition,
             durationMillis = durationMillis,
             queue = queue,
@@ -62,6 +63,14 @@ internal class PlayerUiStateProjection {
         return queue
     }
 }
+
+/**
+ * Whether the player plays as the user sees it: it will play when ready, and it is neither stopped
+ * (idle, as after an error) nor at the end of its queue. Unlike [Player.isPlaying] it stays true
+ * while buffering, so play/pause buttons keep showing Pause and a toggle pauses.
+ */
+internal val Player.playsWhenReady: Boolean
+    get() = playWhenReady && playbackState != Player.STATE_IDLE && playbackState != Player.STATE_ENDED
 
 /** Media3's repeat mode for this one. */
 internal val RepeatMode.playerRepeatMode: Int

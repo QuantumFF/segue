@@ -15,6 +15,16 @@ sealed interface QueueSource {
      */
     val id: String?
 
+    /**
+     * Whether the source is [page]'s album, playlist or artist. IDs are unique per kind only, so the
+     * kind counts too.
+     */
+    fun opens(page: SourcePage): Boolean = when (page) {
+        is SourcePage.Album -> this is Album && id == page.albumId
+        is SourcePage.Playlist -> this is Playlist && id == page.playlistId
+        is SourcePage.Artist -> this is Artist && id == page.artistId
+    }
+
     data class Album(override val id: String, override val name: String) : QueueSource
 
     data class Playlist(override val id: String, override val name: String) : QueueSource
@@ -58,42 +68,51 @@ sealed interface QueueSource {
  * library source's.
  */
 data class QueueSourceRecord(
-    val kind: String,
+    val kind: Kind,
     val id: String? = null,
     val name: String? = null,
     val shuffled: Boolean = false,
 ) {
     /** [QueueSource.Unknown] for a record this version cannot read: an unknown kind or a missing field. */
     fun toSource(): QueueSource = when (kind) {
-        KIND_ALBUM -> if (id != null && name != null) QueueSource.Album(id, name) else null
-        KIND_PLAYLIST -> if (id != null && name != null) QueueSource.Playlist(id, name) else null
-        KIND_ARTIST -> if (id != null && name != null) QueueSource.Artist(id, name) else null
-        KIND_GENRE -> name?.let(QueueSource::Genre)
-        KIND_LIBRARY -> QueueSource.Library(shuffled)
-        KIND_INSTANT_MIX -> name?.let(QueueSource::InstantMix)
-        KIND_ADOPTED -> name?.let(QueueSource::Adopted)
-        else -> null
+        Kind.Album -> if (id != null && name != null) QueueSource.Album(id, name) else null
+        Kind.Playlist -> if (id != null && name != null) QueueSource.Playlist(id, name) else null
+        Kind.Artist -> if (id != null && name != null) QueueSource.Artist(id, name) else null
+        Kind.Genre -> name?.let(QueueSource::Genre)
+        Kind.Library -> QueueSource.Library(shuffled)
+        Kind.InstantMix -> name?.let(QueueSource::InstantMix)
+        Kind.Adopted -> name?.let(QueueSource::Adopted)
+        Kind.Unknown -> null
     } ?: QueueSource.Unknown
 
-    companion object {
-        private const val KIND_ALBUM = "Album"
-        private const val KIND_PLAYLIST = "Playlist"
-        private const val KIND_ARTIST = "Artist"
-        private const val KIND_GENRE = "Genre"
-        private const val KIND_LIBRARY = "Library"
-        private const val KIND_INSTANT_MIX = "InstantMix"
-        private const val KIND_ADOPTED = "Adopted"
-        private const val KIND_UNKNOWN = "Unknown"
+    /** The variant of a [QueueSource]. [value] is what is stored and sent: keep it when renaming a kind. */
+    enum class Kind(val value: String) {
+        Album("Album"),
+        Playlist("Playlist"),
+        Artist("Artist"),
+        Genre("Genre"),
+        Library("Library"),
+        InstantMix("InstantMix"),
+        Adopted("Adopted"),
+        Unknown("Unknown"),
+        ;
 
+        companion object {
+            /** The kind stored as [value]; [Unknown] for one this version does not know. */
+            fun of(value: String): Kind = entries.firstOrNull { it.value == value } ?: Unknown
+        }
+    }
+
+    companion object {
         fun of(source: QueueSource): QueueSourceRecord = when (source) {
-            is QueueSource.Album -> QueueSourceRecord(KIND_ALBUM, source.id, source.name)
-            is QueueSource.Playlist -> QueueSourceRecord(KIND_PLAYLIST, source.id, source.name)
-            is QueueSource.Artist -> QueueSourceRecord(KIND_ARTIST, source.id, source.name)
-            is QueueSource.Genre -> QueueSourceRecord(KIND_GENRE, name = source.name)
-            is QueueSource.Library -> QueueSourceRecord(KIND_LIBRARY, shuffled = source.shuffled)
-            is QueueSource.InstantMix -> QueueSourceRecord(KIND_INSTANT_MIX, name = source.seedName)
-            is QueueSource.Adopted -> QueueSourceRecord(KIND_ADOPTED, name = source.deviceName)
-            QueueSource.Unknown -> QueueSourceRecord(KIND_UNKNOWN)
+            is QueueSource.Album -> QueueSourceRecord(Kind.Album, source.id, source.name)
+            is QueueSource.Playlist -> QueueSourceRecord(Kind.Playlist, source.id, source.name)
+            is QueueSource.Artist -> QueueSourceRecord(Kind.Artist, source.id, source.name)
+            is QueueSource.Genre -> QueueSourceRecord(Kind.Genre, name = source.name)
+            is QueueSource.Library -> QueueSourceRecord(Kind.Library, shuffled = source.shuffled)
+            is QueueSource.InstantMix -> QueueSourceRecord(Kind.InstantMix, name = source.seedName)
+            is QueueSource.Adopted -> QueueSourceRecord(Kind.Adopted, name = source.deviceName)
+            QueueSource.Unknown -> QueueSourceRecord(Kind.Unknown)
         }
     }
 }

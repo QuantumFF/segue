@@ -11,7 +11,7 @@ import com.quantumff.segue.core.model.PlaybackErrorKind
  * The playback error the app shows ("Couldn't play <title>"), read from the player's error
  * callback, where the cause still carries the HTTP status: the song that was current, and why it
  * failed. It clears when playback moves to another item, or when a retry gets the player ready or
- * playing. [onChange] runs after each change, for the service to put
+ * playing. [skip] is the error's Skip. [onChange] runs after each change, for the service to put
  * [error] in the session extras. Call on the player's thread.
  */
 internal class PlaybackErrorReporter(private val player: Player, private val onChange: () -> Unit) : Player.Listener {
@@ -21,6 +21,22 @@ internal class PlaybackErrorReporter(private val player: Player, private val onC
     override fun onPlayerError(error: PlaybackException) {
         val item = player.currentMediaItem ?: return
         report(PlaybackError(item.mediaId, item.mediaMetadata.title?.toString().orEmpty(), kindOf(error)))
+    }
+
+    /**
+     * The error's Skip: plays the item after the failed one. A failed player is idle, so it is
+     * prepared again. After the last item there is nothing to play: the error clears and the player
+     * stays stopped.
+     */
+    fun skip() {
+        if (player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            player.play()
+        } else {
+            player.pause()
+            report(null)
+        }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = report(null)

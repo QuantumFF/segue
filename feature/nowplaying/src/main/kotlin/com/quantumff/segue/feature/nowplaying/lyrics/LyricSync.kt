@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.transformLatest
 
-/** Where playback was when the sample was taken. */
+/** Where playback was when the sample was taken; [isPlaying] while the position moves (not while buffering). */
 data class PlaybackSample(val positionMillis: Long, val isPlaying: Boolean)
 
 /** Lyrics as Now Playing shows them: synced lines with start times, or plain lines. */

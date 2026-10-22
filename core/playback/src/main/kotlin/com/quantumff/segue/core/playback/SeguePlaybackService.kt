@@ -297,6 +297,8 @@ class SeguePlaybackService : MediaLibraryService() {
 
                 SegueSessionCommands.SET_SLEEP_TIMER -> sleepTimer.set(SegueSessionCommands.sleepTimer(args))
 
+                SegueSessionCommands.SKIP_PAST_ERROR -> playbackErrors.skip()
+
                 SegueSessionCommands.ADOPT_QUEUE -> {
                     return scope.launchFuture {
                         val adopted = savedQueues.adopt()

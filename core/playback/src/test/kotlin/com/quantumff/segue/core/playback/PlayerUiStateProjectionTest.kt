@@ -92,6 +92,48 @@ class PlayerUiStateProjectionTest {
     }
 
     @Test
+    fun `buffering after play still reads as playing`() {
+        exo.setMediaItems(items("a"))
+        exo.prepare()
+        exo.play()
+
+        val state = project()
+
+        assertThat(state.isPlaying).isTrue()
+        assertThat(state.hasEnded).isFalse()
+    }
+
+    @Test
+    fun `a paused player is not playing`() {
+        exo.setMediaItems(items("a"))
+        exo.prepare()
+
+        assertThat(project().isPlaying).isFalse()
+    }
+
+    @Test
+    fun `a queue that played to its end has ended and is not playing`() {
+        exo.setMediaItems(items("a"))
+        exo.play()
+
+        val state = projection.project(inState(Player.STATE_ENDED), Bundle.EMPTY)
+
+        assertThat(state.isPlaying).isFalse()
+        assertThat(state.hasEnded).isTrue()
+    }
+
+    @Test
+    fun `a failed player is idle and not playing, though it would play when ready`() {
+        exo.setMediaItems(items("a"))
+        exo.play()
+
+        val state = projection.project(inState(Player.STATE_IDLE), Bundle.EMPTY)
+
+        assertThat(state.isPlaying).isFalse()
+        assertThat(state.hasEnded).isFalse()
+    }
+
+    @Test
     fun `repeat modes map both ways`() {
         for (mode in RepeatMode.entries) {
             exo.repeatMode = mode.playerRepeatMode
@@ -229,6 +271,11 @@ class PlayerUiStateProjectionTest {
 
     private fun requested(songId: String, request: StreamRequest) =
         SegueSessionCommands.streamRequestArgs(songId, request)
+
+    /** [exo], reporting [playbackState] (such as ended, which a test player does not reach by itself). */
+    private fun inState(playbackState: Int): Player = object : ForwardingPlayer(exo) {
+        override fun getPlaybackState() = playbackState
+    }
 
     /** [exo] with [format] as its selected audio track, as once the current song has loaded. */
     private fun playing(format: Format): Player = object : ForwardingPlayer(exo) {

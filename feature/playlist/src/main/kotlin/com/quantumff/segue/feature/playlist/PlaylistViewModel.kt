@@ -11,10 +11,11 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.play.PlayerTransport
+import com.quantumff.segue.core.data.play.heroPlay
+import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.designsystem.component.TrackRowState
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
@@ -29,8 +30,7 @@ import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
-import com.quantumff.segue.core.model.currentSong
-import com.quantumff.segue.core.model.heroPlayback
+import com.quantumff.segue.core.model.SourcePage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -40,8 +40,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -84,12 +82,8 @@ data class PlaylistUiState(
     val songs: List<Song> get() = entries.map { it.song }
 
     /** [entry]'s track row: its download badge, whether it is available, and whether it is playing. */
-    fun trackRow(entry: PlaylistEntry): TrackRowState = entry.song.toTrackRowState(
-        rowKey = entry.key,
-        download = availability.downloads[entry.song.id]?.status?.toBadgeState(),
-        isAvailable = availability.isAvailable(entry.song),
-        current = currentSong,
-    )
+    fun trackRow(entry: PlaylistEntry): TrackRowState =
+        entry.song.toTrackRowState(availability, currentSong, rowKey = entry.key)
 }
 
 /**
@@ -111,9 +105,7 @@ class PlaylistViewModel @Inject constructor(
     private val local = MutableStateFlow(LocalState())
 
     /** The current song, and whether this playlist is the queue source and plays. */
-    private val player = playerState.state
-        .map { it.currentSong to it.heroPlayback(::isThisPlaylist) }
-        .distinctUntilChanged()
+    private val player = playerState.pagePlayback(SourcePage.Playlist(playlistId))
 
     val uiState: StateFlow<PlaylistUiState> = combine(
         playlistRepository.playlist(playlistId),
@@ -121,12 +113,12 @@ class PlaylistViewModel @Inject constructor(
         local,
         combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
         player,
-    ) { playlist, songs, local, (download, availability), (currentSong, heroPlayback) ->
+    ) { playlist, songs, local, (download, availability), player ->
         PlaylistUiState(
             download = download,
             availability = availability,
-            currentSong = currentSong,
-            heroPlayback = heroPlayback,
+            currentSong = player.currentSong,
+            heroPlayback = player.hero,
             playlist = playlist,
             entries = local.working ?: songs.toEntries(),
             loadState = when {
@@ -237,11 +229,7 @@ class PlaylistViewModel @Inject constructor(
      * and plays, resumes it while it is the paused queue source, and otherwise plays it from the start.
      */
     fun onHeroPlay() {
-        when (uiState.value.heroPlayback) {
-            HeroPlayback.Playing -> transport.pause()
-            HeroPlayback.Paused -> transport.play()
-            HeroPlayback.NotSource -> play()
-        }
+        transport.heroPlay(uiState.value.heroPlayback) { play() }
     }
 
     /** The playlist's "Shuffle albums": its tracks grouped by album. */
@@ -254,9 +242,6 @@ class PlaylistViewModel @Inject constructor(
     /** The playlist, as the queue source its plays record; unknown until it has loaded. */
     private fun queueSource(): QueueSource =
         uiState.value.playlist?.let { QueueSource.Playlist(it.id, it.name) } ?: QueueSource.Unknown
-
-    /** Whether [source] is this playlist. Ids are unique per kind only, so the kind counts too. */
-    private fun isThisPlaylist(source: QueueSource) = source is QueueSource.Playlist && source.id == playlistId
 
     /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {

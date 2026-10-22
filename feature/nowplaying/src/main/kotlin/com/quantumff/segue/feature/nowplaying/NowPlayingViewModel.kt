@@ -126,7 +126,10 @@ class NowPlayingViewModel @Inject constructor(
             if (synced == null) {
                 flowOf(-1)
             } else {
-                val samples = player.tickingState.map { PlaybackSample(it.positionMillis, it.isPlaying) }
+                // The next-line timer runs only while the position moves, not while buffering.
+                val samples = player.tickingState.map { state ->
+                    PlaybackSample(state.positionMillis, isPlaying = state.isPlaying && !state.isBuffering)
+                }
                 LyricSync.activeLines(samples, synced.starts, synced.offsetMillis)
             }
         }

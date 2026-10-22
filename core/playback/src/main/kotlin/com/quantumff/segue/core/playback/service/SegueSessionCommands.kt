@@ -34,6 +34,9 @@ internal object SegueSessionCommands {
     /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
 
+    /** A playback error's Skip (PlaybackErrorReporter.skip). */
+    const val SKIP_PAST_ERROR = PREFIX + "SKIP_PAST_ERROR"
+
     /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_STARTED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
@@ -90,6 +93,7 @@ internal object SegueSessionCommands {
             PLAY_ALBUMS,
             QUEUE_SONGS,
             UNDO_REMOVE,
+            SKIP_PAST_ERROR,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
@@ -136,7 +140,7 @@ internal object SegueSessionCommands {
     fun queueSource(bundle: Bundle): QueueSource {
         val kind = bundle.getString(ARG_QUEUE_SOURCE_KIND) ?: return QueueSource.Unknown
         return QueueSourceRecord(
-            kind = kind,
+            kind = QueueSourceRecord.Kind.of(kind),
             id = bundle.getString(ARG_QUEUE_SOURCE_ID),
             name = bundle.getString(ARG_QUEUE_SOURCE_NAME),
             shuffled = bundle.getBoolean(ARG_QUEUE_SOURCE_SHUFFLED),
@@ -145,7 +149,7 @@ internal object SegueSessionCommands {
 
     private fun Bundle.putQueueSource(source: QueueSource) {
         val record = QueueSourceRecord.of(source)
-        putString(ARG_QUEUE_SOURCE_KIND, record.kind)
+        putString(ARG_QUEUE_SOURCE_KIND, record.kind.value)
         putString(ARG_QUEUE_SOURCE_ID, record.id)
         putString(ARG_QUEUE_SOURCE_NAME, record.name)
         putBoolean(ARG_QUEUE_SOURCE_SHUFFLED, record.shuffled)

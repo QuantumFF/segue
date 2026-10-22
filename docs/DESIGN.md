@@ -280,6 +280,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
   - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill describing what is actually playing: the stream format the player decoded or requested, so a server transcode reads "OPUS · 128" and a downloaded song describes the downloaded file. Lossless streams show bit depth and sample rate ("FLAC · 16/44.1"), lossy ones the bit rate. Until the stream format is known it describes the library song's file.
   - Transport row: an empty 48 slot · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One). The empty slot balances repeat, so play/pause stays centered.
+    While the stream buffers, play/pause keeps its icon (Pause, if playback was asked for) and a buffering ring circles it: an 80 ring, 2 clear of the 72 circle, in the light on-art color. See **Buffering ring** in §5.5.
   - Bottom row of 4 icon buttons, each 48 tall with a label, spread evenly: Lyrics · Queue · Related · ⋮ (Sleep timer, Speed, Add to playlist, Save queue as playlist, Go to album or artist, Info, Clear queue). The sleep timer shows a dot badge on ⋮ while it is active.
 - **Source copy.** The top bar names the queue source: what the last play intent that replaced the queue played. Play next and Add to queue keep it, so it does not change as songs are added.
 
@@ -446,6 +447,10 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Left: 56 art, title, artists.
   - Center: transport (prev, 40 play circle, next, repeat; no shuffle, see §4.7) above a seekbar with times.
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
+- **Buffering ring:** while the stream buffers, an indeterminate `CircularProgressIndicator` (stroke 2) circles play/pause. It shows only once buffering has lasted 300ms, so quick rebuffers don't flash it, and goes the moment buffering ends. The button keeps its icon: Pause while playback was asked for, so a tap pauses. The ring never moves the layout.
+  - Mini player: 40, `onSurface`, around the 24 icon inside its 48 target.
+  - Player bar: 48, `onSurface`, 2 clear of the 40 play circle.
+  - Now Playing: 80 around the 72 circle (§4.7).
 
 ### 5.6 Chips and pills
 - **Filter chip:** M3 `FilterChip`, 32 tall, radius `full`, `labelMedium`. Unselected: transparent with an `outlineVariant` border. Selected: `surfaceContainerHighest`, no border, leading check. An inverted chip (it hides what it names) looks selected with a leading ✕ instead.
