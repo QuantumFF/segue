@@ -48,7 +48,7 @@ Saving the queue to the server when it changes, and noticing on start, on return
 _Avoid_: Queue backup, polling
 
 **Saved queue**:
-A queue stored somewhere other than the player: on this device for restore after process death, or on the server by queue sync.
+A queue stored somewhere other than the player: on this device for restore after process death, or on the server by queue sync. The one on this device keeps its queue source too; the server's has no place for it.
 _Avoid_: Snapshot, backup
 
 **Adoption**:

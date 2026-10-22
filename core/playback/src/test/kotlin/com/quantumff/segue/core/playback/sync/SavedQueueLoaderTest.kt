@@ -5,6 +5,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSnapshot
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RemotePlayQueue
@@ -53,6 +54,11 @@ class SavedQueueLoaderTest {
     private val local = QueueSnapshot(persistentListOf("x", "y", "z"), currentIndex = 1, positionMillis = 9_000, 0)
     private val localState = QueueState(listOf("x", "y", "z"), 1, 9_000)
     private val remoteState = QueueState(listOf("r1", "r2"), 1, 3_000)
+    private val feishin = QueueSource.Adopted("Feishin")
+
+    /** [remoteState] once adopted: its source names the device it came from. */
+    private val adoptedState = remoteState.copy(source = feishin)
+    private val album = QueueSource.Album("al", "In Rainbows")
 
     private fun remoteQueue() = RemotePlayQueue(
         songs = remoteState.songIds.map { TestData.song(it) }.toImmutableList(),
@@ -82,9 +88,9 @@ class SavedQueueLoaderTest {
     private fun queueIds() = List(exo.mediaItemCount) { exo.getMediaItemAt(it).mediaId }
 
     /** This device's saved queue is in the player, playing, and another client saved a newer one. */
-    private suspend fun TestScope.playingLocalQueue(autoAdopt: Boolean) {
+    private suspend fun TestScope.playingLocalQueue(autoAdopt: Boolean, source: QueueSource = QueueSource.Unknown) {
         preferences.preferences.update { it.copy(adoptRemoteQueueAutomatically = autoAdopt) }
-        snapshots.snapshot.value = local
+        snapshots.snapshot.value = local.copy(source = source)
         start()
         loader.restore()
         exo.play()
@@ -146,25 +152,64 @@ class SavedQueueLoaderTest {
 
         assertThat(loader.adopt()).isTrue()
 
-        assertThat(player.queueState()).isEqualTo(remoteState)
+        assertThat(player.queueState()).isEqualTo(adoptedState)
         assertThat(exo.playWhenReady).isFalse()
         settle()
         assertThat(remote.saves).isEmpty()
-        assertThat(snapshots.saves).containsExactly(remoteState)
+        assertThat(snapshots.saves).containsExactly(adoptedState)
     }
 
     @Test
-    fun `an adopted queue, or the one undo puts back, keeps no stale queue source`() = runTest {
-        playingLocalQueue(autoAdopt = true)
-        editor.setSource(QueueSource.Album("al", "In Rainbows"))
+    fun `an adopted queue's source is the device it came from, and undo brings back the replaced source`() = runTest {
+        playingLocalQueue(autoAdopt = true, source = album)
         queueSync.checkRemote(isPlayingLocally = false)
 
         loader.adopt()
-        assertThat(editor.source.value).isNotEqualTo(QueueSource.Album("al", "In Rainbows"))
+        assertThat(player.queueSource.value).isEqualTo(feishin)
+        settle()
+        assertThat(snapshots.saves.last().source).isEqualTo(feishin)
 
-        editor.setSource(QueueSource.Playlist("p", "Road trip"))
         loader.undoAdoption()
-        assertThat(editor.source.value).isNotEqualTo(QueueSource.Playlist("p", "Road trip"))
+        assertThat(player.queueSource.value).isEqualTo(album)
+        settle()
+        assertThat(snapshots.saves.last().source).isEqualTo(album)
+    }
+
+    @Test
+    fun `the saved queue comes back with its source, which is not saved back`() = runTest {
+        snapshots.snapshot.value = local.copy(source = album)
+        start()
+
+        loader.restore()
+
+        assertThat(player.queueSource.value).isEqualTo(album)
+        settle()
+        assertThat(snapshots.saves).isEmpty()
+        assertThat(remote.saves).isEmpty()
+    }
+
+    @Test
+    fun `playback resumption brings back the saved queue's source`() = runTest {
+        snapshots.snapshot.value = local.copy(source = album)
+        start()
+        player.setQueueSource(QueueSource.Unknown)
+
+        val resumed = checkNotNull(loader.resumption())
+        player.setMediaItems(resumed.mediaItems, resumed.startIndex, resumed.startPositionMs)
+
+        assertThat(player.queueSource.value).isEqualTo(album)
+        settle()
+        assertThat(snapshots.saves).isEmpty()
+    }
+
+    @Test
+    fun `a replaced queue is saved with its source`() = runTest {
+        start()
+
+        editor.queue(listOf("x", "y").map { TestData.song(it).toMediaItem() }, QueuePlacement.Replace, source = album)
+        settle()
+
+        assertThat(snapshots.saves.last()).isEqualTo(QueueState(listOf("x", "y"), 0, 0, album))
     }
 
     @Test
@@ -197,12 +242,12 @@ class SavedQueueLoaderTest {
 
         assertThat(loader.adopt()).isTrue()
 
-        assertThat(player.queueState()).isEqualTo(remoteState)
+        assertThat(player.queueState()).isEqualTo(adoptedState)
         assertThat(exo.playWhenReady).isFalse()
         settle()
         assertThat(remote.saves).isEmpty()
         loader.undoAdoption()
-        assertThat(player.queueState()).isEqualTo(remoteState)
+        assertThat(player.queueState()).isEqualTo(adoptedState)
     }
 
     @Test
@@ -213,7 +258,7 @@ class SavedQueueLoaderTest {
 
         assertThat(loader.adopt()).isTrue()
 
-        assertThat(player.queueState()).isEqualTo(QueueState(listOf("r2"), 0, 3_000))
+        assertThat(player.queueState()).isEqualTo(QueueState(listOf("r2"), 0, 3_000, feishin))
         settle()
         assertThat(remote.saves).isEmpty()
     }

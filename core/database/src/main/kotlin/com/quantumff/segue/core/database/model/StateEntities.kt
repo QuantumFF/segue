@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.database.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -9,6 +10,8 @@ import com.quantumff.segue.core.model.PinKind
 /**
  * The local play queue snapshot: where playback was, so it can resume offline. [currentIndex]
  * points into the queue items, which are in play order (queues are never shuffled in place).
+ * The source columns are the queue source's `QueueSourceRecord`; [sourceKind] is null for a queue
+ * saved before the source was kept.
  */
 @Entity(tableName = "queue_state")
 data class QueueStateEntity(
@@ -16,6 +19,10 @@ data class QueueStateEntity(
     val currentIndex: Int,
     val positionMillis: Long,
     val updatedAt: Long,
+    val sourceKind: String? = null,
+    val sourceId: String? = null,
+    val sourceName: String? = null,
+    @ColumnInfo(defaultValue = "0") val sourceShuffled: Boolean = false,
 )
 
 /** The snapshot's tracks by position. The same song may appear more than once. */

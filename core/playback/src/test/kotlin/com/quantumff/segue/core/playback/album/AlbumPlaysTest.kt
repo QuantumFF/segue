@@ -168,7 +168,7 @@ class AlbumPlaysTest {
         plays.start(request(AlbumOrder.ShuffledTracks), QueueSource.Library(shuffled = true))
         plays.start(request(AlbumOrder.InOrder, QueuePlacement.End), QueueSource.Genre("Rock"))
 
-        assertThat(editor.source.value).isEqualTo(QueueSource.Library(shuffled = true))
+        assertThat(player.queueSource.value).isEqualTo(QueueSource.Library(shuffled = true))
     }
 }
 

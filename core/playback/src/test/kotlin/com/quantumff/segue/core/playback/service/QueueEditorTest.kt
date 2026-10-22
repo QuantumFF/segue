@@ -186,17 +186,17 @@ class QueueEditorTest {
     @Test
     fun `a replaced queue takes its play intent's source, play next and add to queue keep it`() = runTest {
         val album = QueueSource.Album("al", "In Rainbows")
-        assertThat(editor.source.value).isEqualTo(QueueSource.Unknown)
+        assertThat(player.queueSource.value).isEqualTo(QueueSource.Unknown)
 
         editor.queue(items("a", "b"), QueuePlacement.Replace, source = album)
-        assertThat(editor.source.value).isEqualTo(album)
+        assertThat(player.queueSource.value).isEqualTo(album)
 
         editor.queue(items("n"), QueuePlacement.Next, source = QueueSource.Playlist("p", "Road trip"))
         editor.queue(items("e"), QueuePlacement.End, source = QueueSource.Unknown)
-        assertThat(editor.source.value).isEqualTo(album)
+        assertThat(player.queueSource.value).isEqualTo(album)
 
         editor.place(items("r"), QueuePlacement.Replace, source = QueueSource.Library(shuffled = true))
-        assertThat(editor.source.value).isEqualTo(QueueSource.Library(shuffled = true))
+        assertThat(player.queueSource.value).isEqualTo(QueueSource.Library(shuffled = true))
     }
 
     @Test
@@ -207,13 +207,6 @@ class QueueEditorTest {
         downloaded = emptySet()
         editor.queue(items("b"), QueuePlacement.Replace, source = QueueSource.Genre("Rock"))
 
-        assertThat(editor.source.value).isEqualTo(album)
-    }
-
-    @Test
-    fun `a queue set some other way names its own source`() {
-        editor.setSource(QueueSource.Adopted("Feishin"))
-
-        assertThat(editor.source.value).isEqualTo(QueueSource.Adopted("Feishin"))
+        assertThat(player.queueSource.value).isEqualTo(album)
     }
 }

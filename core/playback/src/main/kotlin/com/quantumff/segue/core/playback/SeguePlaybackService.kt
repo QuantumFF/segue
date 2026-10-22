@@ -140,7 +140,7 @@ class SeguePlaybackService : MediaLibraryService() {
         scope.launch { components.networkType.drop(1).collect { updatePrefetch() } }
         scope.launch { savedQueues.restore() }
         // A replaced queue publishes its source with its timeline change; this catches the rest.
-        scope.launch { queueEditor.source.drop(1).collect { updateSessionState() } }
+        scope.launch { player.queueSource.drop(1).collect { updateSessionState() } }
         updateSessionState()
     }
 
@@ -174,7 +174,7 @@ class SeguePlaybackService : MediaLibraryService() {
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) return
             // A cleared queue came from nowhere; songs added to it next keep that.
-            if (timeline.isEmpty) queueEditor.setSource(QueueSource.Unknown)
+            if (timeline.isEmpty) player.setQueueSource(QueueSource.Unknown)
             updatePrefetch()
             updateSessionState()
         }
@@ -207,7 +207,7 @@ class SeguePlaybackService : MediaLibraryService() {
     /** Everything the app's controller reads from the session extras, in one bundle: add to it, never replace it. */
     private fun sessionExtras() = Bundle().apply {
         putAll(SegueSessionCommands.sleepArgs(sleepTimer.timer))
-        putAll(SegueSessionCommands.queueSourceArgs(queueEditor.source.value))
+        putAll(SegueSessionCommands.queueSourceArgs(player.queueSource.value))
         streamRequestArgs()?.let(::putAll)
         putAll(SegueSessionCommands.playbackErrorArgs(playbackErrors.error))
     }
@@ -377,11 +377,11 @@ class SeguePlaybackService : MediaLibraryService() {
                 when (val play = library.plays.resolveSet(mediaItems, startIndex, startPositionMs, allowed, hasQueue)) {
                     is SessionPlay.Items ->
                         queueEditor.playable(play.items, play.startIndex, play.startPositionMs, play.shuffle)
-                            ?.also { queueEditor.setSource(QueueSource.Unknown) }
+                            ?.also { player.setQueueSource(QueueSource.Unknown) }
 
                     is SessionPlay.Albums ->
                         albumItems(play)?.let { items ->
-                            queueEditor.setSource(sourceOf(play.request))
+                            player.setQueueSource(sourceOf(play.request))
                             MediaSession.MediaItemsWithStartPosition(items, 0, 0)
                         }
 
@@ -440,9 +440,7 @@ class SeguePlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             isForPlayback: Boolean,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.launchFuture {
-            val resumed = savedQueues.resumption() ?: throw UnsupportedOperationException("Nothing to resume")
-            queueEditor.setSource(QueueSource.Unknown)
-            resumed
+            savedQueues.resumption() ?: throw UnsupportedOperationException("Nothing to resume")
         }
     }
 

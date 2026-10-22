@@ -362,7 +362,7 @@ class QueueSyncEngine @Inject constructor(
     }
 
     private suspend fun saveSnapshot(state: QueueState): Boolean = try {
-        snapshots.save(state.songIds, state.currentIndex, state.positionMillis)
+        snapshots.save(state.songIds, state.currentIndex, state.positionMillis, state.source)
         true
     } catch (_: RemoteException) {
         false // Signed out: there is no server to file the snapshot under.

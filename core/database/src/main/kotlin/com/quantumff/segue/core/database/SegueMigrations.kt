@@ -76,5 +76,18 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+    /**
+     * 5 → 6: the queue snapshot keeps its queue source (`QueueSourceRecord`'s fields), so it comes
+     * back with the queue. A queue saved before this has none: its source is unknown.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE queue_state ADD COLUMN `sourceKind` TEXT")
+            db.execSQL("ALTER TABLE queue_state ADD COLUMN `sourceId` TEXT")
+            db.execSQL("ALTER TABLE queue_state ADD COLUMN `sourceName` TEXT")
+            db.execSQL("ALTER TABLE queue_state ADD COLUMN `sourceShuffled` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 }

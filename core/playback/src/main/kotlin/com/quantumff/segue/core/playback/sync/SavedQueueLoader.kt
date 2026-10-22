@@ -9,6 +9,7 @@ import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
+import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import kotlinx.coroutines.flow.first
 
 /**
@@ -17,14 +18,15 @@ import kotlinx.coroutines.flow.first
  * saved is not saved or uploaded straight back:
  *
  * - **Restore** ([restore] at service start, [resumption] for the system's "resume playback"): this
- *   device's saved queue, from Room only, so it works offline. Songs no longer in the library are
- *   dropped ([QueueRestore]). It is already saved everywhere.
+ *   device's saved queue, with its queue source, from Room only, so it works offline. Songs no
+ *   longer in the library are dropped ([QueueRestore]). It is already saved everywhere.
  * - **Adoption** ([adopt]): the remote queue [QueueSyncEngine] staged, accepted from the "Continue
- *   from <device>" offer or adopted automatically, paused at its saved position. Offline only its
+ *   from <device>" offer or adopted automatically, paused at its saved position. Its source is
+ *   that device ([QueueSource.Adopted]). Offline only its
  *   downloaded songs ([QueueEditor.playable]). It is already on the server; this device's saved
  *   queue follows it. If the player cannot take it, there is nothing to undo.
- * - **Undo** ([undoAdoption]): the local queue the last automatic adoption replaced, paused. That is
- *   a queue edit like any other: saved and uploaded.
+ * - **Undo** ([undoAdoption]): the local queue the last automatic adoption replaced, paused, with
+ *   its source. That is a queue edit like any other: saved and uploaded.
  *
  * Call on the player's thread.
  */
@@ -33,7 +35,7 @@ class SavedQueueLoader(
     private val queueSync: QueueSyncEngine,
     private val snapshots: QueueSnapshotRepository,
     private val library: LibraryRepository,
-    /** Narrows an adopted queue to what can play now, and keeps the queue source. */
+    /** Narrows an adopted queue to what can play now. */
     private val editor: QueueEditor,
 ) {
     /** At service start: this device's saved queue, paused, unless something was queued meanwhile. */
@@ -50,7 +52,9 @@ class SavedQueueLoader(
      */
     suspend fun resumption(): MediaItemsWithStartPosition? {
         val restored = loadSaved() ?: return null
-        // The session sets the items after this returns, so mark the state it will then report.
+        // The session sets the items after this returns, so name their source and mark the state
+        // the player will then report.
+        player.setQueueSource(restored.state.source)
         queueSync.markRestored(restored.state)
         return MediaItemsWithStartPosition(restored.items, restored.state.currentIndex, restored.state.positionMillis)
     }
@@ -72,7 +76,7 @@ class SavedQueueLoader(
             return false
         }
         player.pause()
-        editor.setSource(QueueSource.Unknown)
+        player.setQueueSource(QueueSource.Adopted(queue.deviceName))
         player.setMediaItems(playable.mediaItems, playable.startIndex, playable.startPositionMs)
         queueSync.markAdopted(player.queueState())
         return true
@@ -83,7 +87,6 @@ class SavedQueueLoader(
         val previous = queueSync.takeAdoptionUndo() ?: return
         val restored = load(previous) ?: return
         player.pause()
-        editor.setSource(QueueSource.Unknown)
         player.restore(restored.items, restored.state)
     }
 
