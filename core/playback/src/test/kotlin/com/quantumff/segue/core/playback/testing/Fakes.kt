@@ -3,6 +3,7 @@ package com.quantumff.segue.core.playback.testing
 import com.quantumff.segue.core.data.repository.PlayQueueRemoteRepository
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.model.QueueSnapshot
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.playback.sync.QueueState
 import kotlinx.collections.immutable.toImmutableList
@@ -39,9 +40,9 @@ class FakeQueueSnapshotRepository : QueueSnapshotRepository {
     var now = 0L
     var seen: Long? = null
 
-    override suspend fun save(songIds: List<String>, currentIndex: Int, positionMillis: Long) {
-        saves += QueueState(songIds, currentIndex, positionMillis)
-        snapshot.value = QueueSnapshot(songIds.toImmutableList(), currentIndex, positionMillis, updatedAt = now)
+    override suspend fun save(songIds: List<String>, currentIndex: Int, positionMillis: Long, source: QueueSource) {
+        saves += QueueState(songIds, currentIndex, positionMillis, source)
+        snapshot.value = QueueSnapshot(songIds.toImmutableList(), currentIndex, positionMillis, updatedAt = now, source)
     }
 
     override suspend fun seenRemoteChange(): Long? = seen

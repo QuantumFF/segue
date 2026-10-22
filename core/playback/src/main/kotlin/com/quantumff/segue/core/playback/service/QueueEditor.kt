@@ -2,16 +2,12 @@ package com.quantumff.segue.core.playback.service
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.playback.media.withPlayableUri
 import kotlin.random.Random
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Turns a play intent into a queue edit, in the playback service. Every play intent that reaches the
@@ -24,8 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *   order, from its first song. A running queue is never reshuffled.
  * - **Placement:** replace (and play), next (right after the current item) or end. Into an empty
  *   queue, next and end set the queue and prepare it, without playing.
- * - **Queue source:** a play intent that replaces the queue makes its source the queue's [source].
- *   Play next and Add to queue leave it alone.
+ * - **Queue source:** a play intent that replaces the queue makes its source the queue's source
+ *   ([SeguePlayer.queueSource]). Play next and Add to queue leave it alone.
  *
  * [queue] does all three. A media session applies set and add requests itself; [playable] gives it
  * what to apply. [place] is the bare placement, for album plays, which queue playable songs.
@@ -33,16 +29,11 @@ import kotlinx.coroutines.flow.asStateFlow
  * Call on the player's thread.
  */
 class QueueEditor(
-    private val player: Player,
+    private val player: SeguePlayer,
     /** What is downloaded, while offline; null online. */
     private val offline: suspend () -> DownloadedLibrary?,
     private val random: Random = Random.Default,
 ) {
-    private val mutableSource = MutableStateFlow<QueueSource>(QueueSource.Unknown)
-
-    /** Where the queue came from: the source of the last play intent that replaced it. */
-    val source: StateFlow<QueueSource> = mutableSource.asStateFlow()
-
     /**
      * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]); replacing the queue
      * makes [source] its source. False if none of them can play; the queue is then left alone.
@@ -58,14 +49,6 @@ class QueueEditor(
         if (playable == null || playable.mediaItems.isEmpty()) return false
         place(playable.mediaItems, placement, playable.startIndex, source)
         return true
-    }
-
-    /**
-     * Names the source of a queue that came some other way than a play intent here: a controller's
-     * own set, an adoption, a restore, or an emptied queue.
-     */
-    fun setSource(source: QueueSource) {
-        mutableSource.value = source
     }
 
     /**
@@ -115,7 +98,7 @@ class QueueEditor(
     ): Int = when {
         placement == QueuePlacement.Replace -> {
             // Before the new queue, so its timeline change already reports the new source.
-            mutableSource.value = source
+            player.setQueueSource(source)
             player.setMediaItems(items, startIndex, 0)
             player.prepare()
             player.play()
