@@ -611,6 +611,7 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
         )
         TransportRow(
             isPlaying = state.isPlaying,
+            isBuffering = state.isBuffering,
             repeatMode = state.repeatMode,
             onPreviousClick = actions.onPrevious,
             onPlayPauseClick = actions.onPlayPause,

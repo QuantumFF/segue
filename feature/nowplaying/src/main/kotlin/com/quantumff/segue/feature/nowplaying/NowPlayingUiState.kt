@@ -53,6 +53,8 @@ data class NowPlayingUiState(
     val previous: AdjacentArt? = null,
     val next: AdjacentArt? = null,
     val isPlaying: Boolean = false,
+    /** The stream is loading: a ring surrounds play/pause. */
+    val isBuffering: Boolean = false,
     val durationMillis: Long = 0,
     val repeatMode: RepeatMode = RepeatMode.Off,
     val sleepTimer: SleepTimer? = null,
@@ -135,6 +137,7 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         previous = neighbor(-1),
         next = neighbor(+1),
         isPlaying = isPlaying,
+        isBuffering = isBuffering,
         durationMillis = durationMillis,
         repeatMode = repeatMode,
         sleepTimer = sleepTimer,

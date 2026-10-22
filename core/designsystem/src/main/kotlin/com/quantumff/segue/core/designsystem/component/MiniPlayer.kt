@@ -32,7 +32,14 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 
 /** What the mini player and the player bar show about the current track. */
 @Immutable
-data class MiniPlayerState(val title: String, val artist: String, val coverArtId: String?, val isPlaying: Boolean)
+data class MiniPlayerState(
+    val title: String,
+    val artist: String,
+    val coverArtId: String?,
+    val isPlaying: Boolean,
+    /** The stream is loading: a [BufferingRing] surrounds play/pause. */
+    val isBuffering: Boolean = false,
+)
 
 /**
  * Mini player (DESIGN.md §3, §5.5): 64 tall, `surfaceContainer`, a 2dp progress line on its top
@@ -83,7 +90,13 @@ fun MiniPlayer(
                 onSwipeToNext = onSwipeToNext,
                 modifier = Modifier.weight(1f),
             )
-            PlayPauseButton(isPlaying = state.isPlaying, onClick = onPlayPauseClick)
+            BufferingRing(
+                isBuffering = state.isBuffering,
+                diameter = SegueSizes.miniPlayerBufferingRing,
+                color = MaterialTheme.colorScheme.onSurface,
+            ) {
+                PlayPauseButton(isPlaying = state.isPlaying, onClick = onPlayPauseClick)
+            }
             SegueIconButton(
                 icon = SegueIcons.SkipNext,
                 contentDescription = stringResource(R.string.ds_next),
