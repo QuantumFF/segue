@@ -23,11 +23,33 @@ class QueueSourceRecordTest {
     }
 
     @Test
-    fun `a record this version cannot read is an unknown source`() {
-        assertThat(QueueSourceRecord("Radio", id = "r1", name = "KEXP").toSource()).isEqualTo(QueueSource.Unknown)
-        assertThat(QueueSourceRecord("Album", name = "No id").toSource()).isEqualTo(QueueSource.Unknown)
-        assertThat(QueueSourceRecord("Playlist", id = "p1").toSource()).isEqualTo(QueueSource.Unknown)
+    fun `each kind is stored as the same string as when it was first saved`() {
+        val stored = mapOf(
+            QueueSource.Album("al1", "In Rainbows") to "Album",
+            QueueSource.Playlist("p1", "Road trip") to "Playlist",
+            QueueSource.Artist("ar1", "Radiohead") to "Artist",
+            QueueSource.Genre("Rock") to "Genre",
+            QueueSource.Library(shuffled = true) to "Library",
+            QueueSource.InstantMix("Nude") to "InstantMix",
+            QueueSource.Adopted("Feishin") to "Adopted",
+            QueueSource.Unknown to "Unknown",
+        )
+        for ((source, kind) in stored) {
+            assertThat(QueueSourceRecord.of(source).kind.value).isEqualTo(kind)
+            assertThat(QueueSourceRecord.Kind.of(kind)).isEqualTo(QueueSourceRecord.of(source).kind)
+        }
     }
+
+    @Test
+    fun `a record this version cannot read is an unknown source`() {
+        assertThat(record("Radio", id = "r1", name = "KEXP").toSource()).isEqualTo(QueueSource.Unknown)
+        assertThat(record("Album", name = "No id").toSource()).isEqualTo(QueueSource.Unknown)
+        assertThat(record("Playlist", id = "p1").toSource()).isEqualTo(QueueSource.Unknown)
+        assertThat(record("Unknown", id = "x", name = "y").toSource()).isEqualTo(QueueSource.Unknown)
+    }
+
+    private fun record(kind: String, id: String? = null, name: String? = null) =
+        QueueSourceRecord(QueueSourceRecord.Kind.of(kind), id, name)
 
     @Test
     fun `a source names the page it opens`() {

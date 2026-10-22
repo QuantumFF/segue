@@ -70,7 +70,7 @@ internal class RoomQueueSnapshotRepository @Inject constructor(
             currentIndex = currentIndex,
             positionMillis = positionMillis,
             updatedAt = clock.nowMillis(),
-            sourceKind = record.kind,
+            sourceKind = record.kind.value,
             sourceId = record.id,
             sourceName = record.name,
             sourceShuffled = record.shuffled,
@@ -85,5 +85,6 @@ internal class RoomQueueSnapshotRepository @Inject constructor(
 }
 
 /** The saved queue source; unknown for a queue saved before the source was kept. */
-private fun QueueStateEntity.source(): QueueSource =
-    sourceKind?.let { QueueSourceRecord(it, sourceId, sourceName, sourceShuffled).toSource() } ?: QueueSource.Unknown
+private fun QueueStateEntity.source(): QueueSource = sourceKind?.let { kind ->
+    QueueSourceRecord(QueueSourceRecord.Kind.of(kind), sourceId, sourceName, sourceShuffled).toSource()
+} ?: QueueSource.Unknown
