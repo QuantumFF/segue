@@ -11,6 +11,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
+import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
@@ -28,7 +29,11 @@ import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import com.quantumff.segue.core.playback.sync.RemoteAdoption
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.ExecutionException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,7 +63,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * The one way features control playback. Wraps a Media3 [MediaController] to
- * [SeguePlaybackService], connected on first use, and exposes [state] for the UI.
+ * [SeguePlaybackService], connected on first use. It is also the [PlayerStateSource] screens read
+ * player state from.
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
  * commands take queue positions ([com.quantumff.segue.core.model.QueueItem.timelineIndex]). The
@@ -72,7 +78,7 @@ class PlaybackController @Inject constructor(
     private val queueSync: QueueSyncEngine,
     private val artists: ArtistRepository,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
-) {
+) : PlayerStateSource {
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -95,12 +101,11 @@ class PlaybackController @Inject constructor(
 
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
-     * For surfaces that show no position, so observing them never runs the position ticker.
      * Observing it connects to the service. While disconnected it is empty; the next command
      * reconnects.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val eventState: StateFlow<PlayerUiState> = flow {
+    override val state: StateFlow<PlayerUiState> = flow {
         try {
             controller()
         } catch (e: CancellationException) {
@@ -119,15 +124,15 @@ class PlaybackController @Inject constructor(
             },
         )
     }
-        .combine(queueSync.remoteOffer) { state, offer -> state.copy(remoteQueue = offer) }
+        .combine(queueSync.remoteOffer) { player, offer -> player.copy(remoteQueue = offer) }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
 
     /**
-     * [eventState] plus a position that updates every [POSITION_TICK_MILLIS] while someone observes
+     * [state] plus a position that updates every [POSITION_TICK_MILLIS] while someone observes
      * and music plays (the battery rule: the ticker runs only for a visible position).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<PlayerUiState> = eventState
+    override val tickingState: StateFlow<PlayerUiState> = state
         .flatMapLatest { snapshot ->
             val controller = connected.value
             if (snapshot.isPlaying && controller != null) ticking(controller, snapshot) else flowOf(snapshot)
@@ -269,7 +274,7 @@ class PlaybackController @Inject constructor(
      * could not be reached. Throws RemoteException.
      */
     suspend fun uploadQueue(): Boolean = withContext(mainDispatcher) {
-        val state = try {
+        val queueState = try {
             val controller = controller()
             QueueState(
                 songIds = List(controller.mediaItemCount) { controller.getMediaItemAt(it).mediaId },
@@ -282,8 +287,8 @@ class PlaybackController @Inject constructor(
             Log.w(TAG, "Could not read the queue to upload", e)
             null
         }
-        if (state == null || state.songIds.isEmpty()) return@withContext false
-        queueSync.uploadNow(state)
+        if (queueState == null || queueState.songIds.isEmpty()) return@withContext false
+        queueSync.uploadNow(queueState)
         true
     }
 
@@ -409,4 +414,11 @@ class PlaybackController @Inject constructor(
         const val POSITION_TICK_MILLIS = 500L
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal interface PlayerStateModule {
+    @Binds
+    fun playerStateSource(impl: PlaybackController): PlayerStateSource
 }

@@ -31,7 +31,7 @@ sealed interface PlayerMessage {
 @HiltViewModel
 class PlayerViewModel @Inject constructor(private val playback: PlaybackController, playIntents: PlayIntents) :
     ViewModel() {
-    val player: StateFlow<ShellPlayerState> = playback.eventState
+    val player: StateFlow<ShellPlayerState> = playback.state
         .map { it.toShellPlayerState() }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ShellPlayerState())
@@ -40,7 +40,7 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
      * Position in milliseconds. Collect it only inside a visible player surface and read it in the
      * draw phase: collecting it is what runs the position ticker while music plays.
      */
-    val positionMillis: StateFlow<Long> = playback.state
+    val positionMillis: StateFlow<Long> = playback.tickingState
         .map { it.positionMillis }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
