@@ -22,7 +22,7 @@ const val BUFFERING_RING_DELAY_MILLIS = 300L
 
 /**
  * Draws an indeterminate ring around a play/pause button while the stream is loading
- * (DESIGN.md §5.8). The ring shows once [isBuffering] has stayed true for
+ * (DESIGN.md §5.5, and §4.7 for Now Playing). The ring shows once [isBuffering] has stayed true for
  * [BUFFERING_RING_DELAY_MILLIS] and goes as soon as it turns false.
  *
  * The ring is centered on [content] at [diameter] and never changes the layout: a ring larger
