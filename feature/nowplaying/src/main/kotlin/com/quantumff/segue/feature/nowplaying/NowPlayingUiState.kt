@@ -9,6 +9,7 @@ import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
+import com.quantumff.segue.core.model.StreamFormat
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
 import java.util.Locale
 import kotlinx.collections.immutable.ImmutableList
@@ -56,7 +57,10 @@ data class NowPlayingUiState(
     val durationMillis: Long = 0,
     val repeatMode: RepeatMode = RepeatMode.Off,
     val sleepTimer: SleepTimer? = null,
-    /** "FLAC · 16/44.1" or "MP3 · 320"; null when the format is unknown. */
+    /**
+     * "FLAC · 16/44.1" or "OPUS · 128": the stream format when known, else the library file; null
+     * when neither is known.
+     */
     val quality: String? = null,
     val details: TrackDetails? = null,
     /** Tracks in the queue, for "Clear queue". */
@@ -138,7 +142,7 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         durationMillis = durationMillis,
         repeatMode = repeatMode,
         sleepTimer = sleepTimer,
-        quality = librarySong?.let { qualityLabel(it.suffix, it.bitRate, file?.samplingRate, file?.bitDepth) },
+        quality = qualityLabel(streamFormat, librarySong, file),
         details = librarySong?.let { it.toDetails(file) },
         queueSize = queue.size,
     )
@@ -161,6 +165,18 @@ private fun Song.toDetails(file: SongFileInfo?) = TrackDetails(
     replayGain = replayGain,
     path = file?.path,
 )
+
+/**
+ * The quality pill: what is actually playing ([stream], a server transcode or a downloaded file)
+ * when known, else the library song's file. A stream that declares no bit rate borrows the
+ * library file's when it has the same codec, so it is presumably that file.
+ */
+private fun qualityLabel(stream: StreamFormat?, song: Song?, file: SongFileInfo?): String? {
+    if (stream == null) return song?.let { qualityLabel(it.suffix, it.bitRate, file?.samplingRate, file?.bitDepth) }
+    val sameFile = song?.suffix?.equals(stream.codec, ignoreCase = true) == true
+    val bitRate = stream.bitRateKbps ?: song?.bitRate?.takeIf { sameFile }
+    return qualityLabel(stream.codec, bitRate, stream.sampleRateHz, stream.bitDepth)
+}
 
 /**
  * The quality pill (DESIGN.md §4.7): bit depth and sample rate for lossless files
