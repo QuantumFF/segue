@@ -60,7 +60,6 @@ import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -257,21 +256,14 @@ fun PlaylistScreenContent(
                     key = { _, entry -> entry.key },
                     contentType = { _, _ -> "track" },
                 ) { index, entry ->
-                    val download = uiState.availability.downloads[entry.song.id]
-                    val available = uiState.availability.isAvailable(entry.song)
+                    val row = remember(entry, uiState.availability, uiState.currentSong) { uiState.trackRow(entry) }
                     TrackSwipeBox(
                         onPlayNext = { onTrackAction(index, entry.song, MediaAction.PlayNext) },
                         onAddToQueue = { onTrackAction(index, entry.song, MediaAction.AddToQueue) },
-                        enabled = available,
+                        enabled = row.isAvailable,
                     ) {
                         TrackRow(
-                            state = remember(entry, download, available) {
-                                entry.song.toTrackRowState(
-                                    rowKey = entry.key,
-                                    download = download?.status?.toBadgeState(),
-                                    isAvailable = available,
-                                )
-                            },
+                            state = row,
                             onClick = { onTrackClick(index) },
                             leading = TrackRowLeading.Art,
                             onLongClick = { trackMenu = index to entry.song },

@@ -17,11 +17,13 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
@@ -49,6 +51,7 @@ class AlbumViewModelTest {
     private val downloads = FakeDownloadRepository()
     private val offlineMode = FakeOfflineModeRepository()
     private val play = RecordingPlayIntents()
+    private val player = FakePlayerStateSource()
 
     private val album = TestData.album("album-1", songCount = 3, genre = "Rock")
         .copy(discTitles = persistentListOf(DiscTitle(2, "Bonus")))
@@ -66,6 +69,7 @@ class AlbumViewModelTest {
         downloadRepository = downloads,
         offlineView = offlineLibraryView(offlineMode, downloads),
         playIntents = play,
+        playerState = player,
         mediaActions = mediaActionHandler(play, downloads, stars, albums),
     )
 
@@ -83,6 +87,36 @@ class AlbumViewModelTest {
             assertThat(state.discs.map { it.number }).containsExactly(1, 2).inOrder()
             assertThat(state.discs[1].title).isEqualTo("Bonus")
             assertThat(state.discs[1].tracks.single().index).isEqualTo(2)
+        }
+    }
+
+    @Test
+    fun theCurrentSongsRowIsMarkedAndFollowsThePlayer() = runTest {
+        seed()
+        viewModel().uiState.test {
+            fun marks(state: AlbumUiState) = (state as AlbumUiState.Success).let { success ->
+                success.songs.map { success.trackRow(it) }.map { it.isCurrent to it.isPlaying }
+            }
+            assertThat(marks(awaitItem())).containsExactly(false to false, false to false, false to false).inOrder()
+
+            player.state.value = TestData.playerOn("s2", isPlaying = true)
+            assertThat(marks(awaitItem())).containsExactly(false to false, true to true, false to false).inOrder()
+
+            player.state.value = TestData.playerOn("s2", isPlaying = false)
+            assertThat(marks(awaitItem())).containsExactly(false to false, true to false, false to false).inOrder()
+
+            player.state.value = TestData.playerOn("s3", isPlaying = true)
+            assertThat(marks(awaitItem())).containsExactly(false to false, false to false, true to true).inOrder()
+
+            player.state.value = TestData.playerOn("elsewhere", isPlaying = true)
+            assertThat(marks(awaitItem())).containsExactly(false to false, false to false, false to false).inOrder()
+
+            // Other player events leave the rows alone.
+            player.state.value = TestData.playerOn("elsewhere", isPlaying = true).copy(positionMillis = 5_000)
+            expectNoEvents()
+
+            player.state.value = PlayerUiState()
+            assertThat(marks(awaitItem())).containsExactly(false to false, false to false, false to false).inOrder()
         }
     }
 

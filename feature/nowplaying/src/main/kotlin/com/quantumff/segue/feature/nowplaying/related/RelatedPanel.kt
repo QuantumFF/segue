@@ -27,9 +27,10 @@ import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.TrackRow
-import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.feature.nowplaying.R
@@ -78,13 +79,18 @@ internal fun RelatedPanel(state: RelatedUiState, actions: RelatedActions, modifi
                 modifier = modifier,
             )
         } else {
-            RelatedSongs(state.songs, actions, modifier)
+            RelatedSongs(state.songs, state.currentSong, actions, modifier)
         }
     }
 }
 
 @Composable
-private fun RelatedSongs(songs: List<Song>, actions: RelatedActions, modifier: Modifier = Modifier) {
+private fun RelatedSongs(
+    songs: List<Song>,
+    currentSong: CurrentSong?,
+    actions: RelatedActions,
+    modifier: Modifier = Modifier,
+) {
     var menuFor by remember { mutableStateOf<Song?>(null) }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = SegueSpacing.lg)) {
         item(key = "actions", contentType = "actions") {
@@ -112,7 +118,9 @@ private fun RelatedSongs(songs: List<Song>, actions: RelatedActions, modifier: M
             "$index:${song.id}"
         }, contentType = { _, _ -> "song" }) { index, song ->
             TrackRow(
-                state = song.toTrackRow(),
+                state = remember(song, currentSong) {
+                    song.toTrackRowState(current = currentSong)
+                },
                 onClick = { actions.onPlay(index) },
                 onLongClick = { menuFor = song },
                 onMoreClick = { menuFor = song },
@@ -145,12 +153,3 @@ private fun RelatedSongs(songs: List<Song>, actions: RelatedActions, modifier: M
         )
     }
 }
-
-private fun Song.toTrackRow() = TrackRowState(
-    id = id,
-    title = title,
-    artist = artist.orEmpty(),
-    album = album,
-    durationSeconds = durationSeconds.toLong(),
-    coverArtId = coverArtId,
-)

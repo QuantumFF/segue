@@ -14,11 +14,13 @@ import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
+import com.quantumff.segue.core.model.currentSong
 import com.quantumff.segue.core.playback.PlaybackController
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricSync
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
@@ -130,6 +132,9 @@ class NowPlayingViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), -1)
 
+    private val markedSong: Flow<CurrentSong?> = player.state.map { it.currentSong }.distinctUntilChanged()
+
+    /** Songs similar to the current artist's, without the current song (see [shownWhile]). */
     val related: StateFlow<RelatedUiState> = combine(
         currentSong.map { it?.artistId to (it != null) }.distinctUntilChanged(),
         visibility(NowPlayingPanel.Related),
@@ -143,6 +148,8 @@ class NowPlayingViewModel @Inject constructor(
             }
         }
         .holdLastNonNull(RelatedUiState.Loading)
+        .combine(markedSong) { related, current -> related.shownWhile(current) }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
     private val messageChannel = Channel<NowPlayingMessage>(Channel.BUFFERED)

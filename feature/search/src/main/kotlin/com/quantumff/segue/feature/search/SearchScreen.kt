@@ -70,6 +70,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.SearchResult
@@ -181,6 +182,7 @@ fun SearchContent(
                     query = query.trim(),
                     results = results,
                     filter = uiState.filter,
+                    currentSong = uiState.currentSong,
                     callbacks = callbacks,
                     onSongMoreClick = { menuSong = it },
                 )
@@ -292,6 +294,7 @@ private fun ResultsContent(
     query: String,
     results: SearchResults.Ready,
     filter: SearchFilter,
+    currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onSongMoreClick: (Song) -> Unit,
 ) {
@@ -317,8 +320,8 @@ private fun ResultsContent(
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
             when (filter) {
-                SearchFilter.All -> allResults(result, callbacks, onSongMoreClick)
-                SearchFilter.Songs -> songRows(result.songs, callbacks, onSongMoreClick)
+                SearchFilter.All -> allResults(result, currentSong, callbacks, onSongMoreClick)
+                SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onSongMoreClick)
                 SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick)
                 SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick)
             }
@@ -359,6 +362,7 @@ private fun FilterRow(filter: SearchFilter, results: SearchResults.Ready, onFilt
 
 private fun LazyListScope.allResults(
     result: SearchResult,
+    currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onSongMoreClick: (Song) -> Unit,
 ) {
@@ -413,18 +417,23 @@ private fun LazyListScope.allResults(
                 },
             )
         }
-        songRows(result.songs.take(ALL_SONG_LIMIT), callbacks, onSongMoreClick)
+        songRows(result.songs.take(ALL_SONG_LIMIT), currentSong, callbacks, onSongMoreClick)
     }
 }
 
-private fun LazyListScope.songRows(songs: List<Song>, callbacks: SearchCallbacks, onSongMoreClick: (Song) -> Unit) {
+private fun LazyListScope.songRows(
+    songs: List<Song>,
+    currentSong: CurrentSong?,
+    callbacks: SearchCallbacks,
+    onSongMoreClick: (Song) -> Unit,
+) {
     itemsIndexed(songs, key = { _, song -> "song:${song.id}" }, contentType = { _, _ -> "song" }) { index, song ->
         TrackSwipeBox(
             onPlayNext = { callbacks.onSongAction(song, MediaAction.PlayNext) },
             onAddToQueue = { callbacks.onSongAction(song, MediaAction.AddToQueue) },
         ) {
             TrackRow(
-                state = song.toTrackRowState(),
+                state = song.toTrackRowState(current = currentSong),
                 onClick = { callbacks.onSongClick(index) },
                 onLongClick = { onSongMoreClick(song) },
                 onMoreClick = { onSongMoreClick(song) },

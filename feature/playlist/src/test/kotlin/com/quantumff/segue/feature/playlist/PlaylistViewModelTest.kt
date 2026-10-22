@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
@@ -38,6 +39,7 @@ class PlaylistViewModelTest {
     }
     private val stars = FakeStarRatingRepository()
     private val play = RecordingPlayIntents()
+    private val player = FakePlayerStateSource()
 
     private fun TestScope.viewModel(): PlaylistViewModel {
         val viewModel = PlaylistViewModel(
@@ -46,6 +48,7 @@ class PlaylistViewModelTest {
             downloads,
             offlineLibraryView(offlineMode, downloads, playlists = playlists),
             play,
+            player,
             mediaActionHandler(play, downloads, stars, playlists = playlists),
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -70,6 +73,28 @@ class PlaylistViewModelTest {
         val keys = viewModel().uiState.value.entries.map { it.key }
 
         assertThat(keys).containsNoDuplicates()
+    }
+
+    private val PlaylistViewModel.marks
+        get() = uiState.value.let { state ->
+            state.entries.map { state.trackRow(it) }.map { it.isCurrent to it.isPlaying }
+        }
+
+    @Test
+    fun theCurrentSongsRowsAreMarkedEvenWhenListedTwice() = runTest {
+        playlists.songsByPlaylist.value =
+            mapOf("p1" to listOf(TestData.song("a"), TestData.song("b"), TestData.song("a")))
+        val viewModel = viewModel()
+        assertThat(viewModel.marks).containsExactly(false to false, false to false, false to false).inOrder()
+
+        player.state.value = TestData.playerOn("a", isPlaying = true)
+        assertThat(viewModel.marks).containsExactly(true to true, false to false, true to true).inOrder()
+
+        player.state.value = TestData.playerOn("a", isPlaying = false)
+        assertThat(viewModel.marks).containsExactly(true to false, false to false, true to false).inOrder()
+
+        player.state.value = TestData.playerOn("b", isPlaying = true)
+        assertThat(viewModel.marks).containsExactly(false to false, true to true, false to false).inOrder()
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
+import com.quantumff.segue.core.model.StreamFormat
 import kotlinx.collections.immutable.toImmutableList
 import org.junit.Test
 
@@ -51,6 +52,14 @@ class NowPlayingUiStateTest {
         assertThat(player.toNowPlayingUiState(null, null).next?.timelineIndex).isEqualTo(1)
         val wrapping = player.copy(repeatMode = RepeatMode.All).toNowPlayingUiState(null, null)
         assertThat(wrapping.previous?.timelineIndex).isEqualTo(2)
+    }
+
+    @Test
+    fun aLoadingStreamReachesThePlayButton() {
+        val loading = player(currentQueueIndex = 0).copy(isBuffering = true)
+
+        assertThat(loading.toNowPlayingUiState(null, null).isBuffering).isTrue()
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(null, null).isBuffering).isFalse()
     }
 
     @Test
@@ -130,6 +139,56 @@ class NowPlayingUiStateTest {
 
     private fun sourceLabel(source: QueueSource) =
         player(currentQueueIndex = 0).copy(queueSource = source).toNowPlayingUiState(null, null).source
+
+    @Test
+    fun thePillDescribesTheStreamFormatOverTheLibraryFile() {
+        val transcoded = player(currentQueueIndex = 0).copy(streamFormat = StreamFormat("OPUS", bitRateKbps = 128))
+
+        assertThat(transcoded.toNowPlayingUiState(flac, flacFile).quality).isEqualTo("OPUS · 128")
+        assertThat(transcoded.toNowPlayingUiState(null, null).quality).isEqualTo("OPUS · 128")
+    }
+
+    @Test
+    fun withoutAStreamFormatThePillDescribesTheLibraryFile() {
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(flac, flacFile).quality)
+            .isEqualTo("FLAC · 16/44.1")
+    }
+
+    @Test
+    fun aLosslessStreamShowsItsBitDepthAndSampleRate() {
+        val hiRes = StreamFormat("FLAC", bitRateKbps = 4_608, sampleRateHz = 96_000, bitDepth = 24)
+
+        assertThat(player(currentQueueIndex = 0).copy(streamFormat = hiRes).toNowPlayingUiState(flac, flacFile).quality)
+            .isEqualTo("FLAC · 24/96")
+    }
+
+    @Test
+    fun aDownloadedTranscodeIsDescribedAsTheDownloadedFile() {
+        val download = player(currentQueueIndex = 0).copy(streamFormat = StreamFormat("MP3", bitRateKbps = 192))
+
+        assertThat(download.toNowPlayingUiState(flac, flacFile).quality).isEqualTo("MP3 · 192")
+    }
+
+    @Test
+    fun theOriginalFileLendsItsBitRateToAStreamOfTheSameCodecThatDeclaresNone() {
+        val opusSong = flac.copy(suffix = "opus", bitRate = 160)
+        val original = player(currentQueueIndex = 0).copy(streamFormat = StreamFormat("OPUS"))
+
+        assertThat(original.toNowPlayingUiState(opusSong, null).quality).isEqualTo("OPUS · 160")
+        assertThat(original.toNowPlayingUiState(flac, flacFile).quality).isEqualTo("OPUS")
+    }
+
+    private val flac = Song(
+        id = "s0",
+        title = "Song 0",
+        albumId = null,
+        album = null,
+        artist = "Artist",
+        artistId = "ar-1",
+        suffix = "flac",
+        bitRate = 900,
+    )
+    private val flacFile = SongFileInfo("a/b.flac", 44_100, 16, 2)
 
     private fun player(currentQueueIndex: Int, repeatMode: RepeatMode = RepeatMode.Off): PlayerUiState {
         val queue = (0..2).map { index ->

@@ -40,6 +40,7 @@ import com.quantumff.segue.core.playback.cache.AdjustableLruCacheEvictor
 import com.quantumff.segue.core.playback.cache.NetworkMonitor
 import com.quantumff.segue.core.playback.cache.NextTrackPrefetcher
 import com.quantumff.segue.core.playback.cache.SegueUriResolver
+import com.quantumff.segue.core.playback.cache.StreamRequest
 import com.quantumff.segue.core.playback.cache.playbackDataSourceFactory
 import com.quantumff.segue.core.playback.nowplaying.NowPlayingPublisher
 import com.quantumff.segue.core.playback.replaygain.ReplayGainProcessor
@@ -84,6 +85,9 @@ class PlaybackComponents @Inject constructor(
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) {
     val networkType get() = network.networkType
+
+    /** What the player last asked for when it opened [songId], or null if it has not. */
+    internal fun streamRequest(songId: String): StreamRequest? = resolver.requests[songId]
 
     /**
      * Play pressed while no screen of the app is showing, online: queue sync checks the server for

@@ -56,6 +56,14 @@ class ShellPlayerStateTest {
     }
 
     @Test
+    fun `the mini player and player bar know when the stream is loading`() {
+        val loading = state(count = 3, current = 1).copy(isBuffering = true).toShellPlayerState()
+
+        assertThat(loading.current?.isBuffering).isTrue()
+        assertThat(state(count = 3, current = 1).toShellPlayerState().current?.isBuffering).isFalse()
+    }
+
+    @Test
     fun `adjacent tracks are the neighbors in the queue and carry their index`() {
         val player = state(count = 3, current = 1).toShellPlayerState()
 

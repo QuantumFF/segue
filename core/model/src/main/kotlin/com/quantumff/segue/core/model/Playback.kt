@@ -19,8 +19,25 @@ data class PlayerUiState(
     /** A newer queue saved by another device, to offer as "Continue from <device>". */
     val remoteQueue: RemoteQueueOffer? = null,
     val sleepTimer: SleepTimer? = null,
+    /** What the player is actually playing for [currentItem]; null until it is known. */
+    val streamFormat: StreamFormat? = null,
     /** Where the queue came from, for Now Playing's top bar. */
     val queueSource: QueueSource = QueueSource.Unknown,
+)
+
+/**
+ * The stream format: the codec and bit rate of what the player decoded or requested for the
+ * current song. A server transcode ("OPUS", 128) or a downloaded file, which may differ from the
+ * library song's own file. Unknown values are null.
+ */
+data class StreamFormat(
+    /** "FLAC", "MP3", "OPUS". */
+    val codec: String,
+    val bitRateKbps: Int? = null,
+    /** Hz; for lossless streams. */
+    val sampleRateHz: Int? = null,
+    /** Bits per sample; null for lossy streams. */
+    val bitDepth: Int? = null,
 )
 
 /**

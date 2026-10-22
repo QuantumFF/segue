@@ -91,6 +91,13 @@ object SegueSizes {
     val playerBar = 80.dp
     val playerBarArt = 56.dp
     val playerBarPlay = 40.dp
+
+    /** Around the player bar's 40 play circle, 2 clear of it. */
+    val playerBarBufferingRing = 48.dp
+
+    /** Around the mini player's 24 play/pause icon, inside its 48 target. */
+    val miniPlayerBufferingRing = 40.dp
+    val bufferingRingStroke = 2.dp
     val volumeSlider = 96.dp
 
     val heroArtCompact = 220.dp

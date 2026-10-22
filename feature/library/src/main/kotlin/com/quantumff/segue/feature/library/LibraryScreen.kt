@@ -96,6 +96,7 @@ import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
@@ -678,7 +679,7 @@ private fun TabContent(
         LibraryTab.Songs -> when {
             state.songCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
             state.songCount == 0 -> LibraryEmpty(listPadding, onEvent)
-            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, picker)
+            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, state.currentSong, picker)
         }
 
         LibraryTab.Playlists -> if (state.isOffline && state.playlists?.isEmpty() == true) {
@@ -880,6 +881,7 @@ private fun SongList(
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, SongDownload>,
+    currentSong: CurrentSong?,
     picker: Picker,
 ) {
     val selected = picker.selected
@@ -912,8 +914,11 @@ private fun SongList(
                     enabled = selected.isEmpty(),
                 ) {
                     TrackRow(
-                        state = remember(song, download) {
-                            song.toTrackRowState(download = download?.status?.toBadgeState())
+                        state = remember(song, download, currentSong) {
+                            song.toTrackRowState(
+                                download = download?.status?.toBadgeState(),
+                                current = currentSong,
+                            )
                         },
                         onClick = {
                             onEvent(tapEvent(selected, LibraryItem.OfSong(song), LibraryEvent.PlaySong(song)))

@@ -12,6 +12,8 @@ import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.QueueSourceRecord
 import com.quantumff.segue.core.model.SleepTimer
+import com.quantumff.segue.core.model.StreamingQuality
+import com.quantumff.segue.core.playback.cache.StreamRequest
 
 /** Custom session commands and session extras shared by the service and [com.quantumff.segue.core.playback.PlaybackController]. */
 internal object SegueSessionCommands {
@@ -65,6 +67,11 @@ internal object SegueSessionCommands {
     private const val ARG_QUEUE_SOURCE_NAME = "queueSourceName"
     private const val ARG_QUEUE_SOURCE_SHUFFLED = "queueSourceShuffled"
 
+    private const val ARG_STREAM_SONG_ID = "streamSongId"
+    private const val ARG_STREAM_SIZE = "streamSize"
+    private const val ARG_STREAM_MAX_BIT_RATE = "streamMaxBitRate"
+    private const val ARG_STREAM_FORMAT = "streamFormat"
+
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
     private const val SLEEP_END_OF_ALBUM = "endOfAlbum"
@@ -115,12 +122,10 @@ internal object SegueSessionCommands {
     }
 
     /**
-     * The session extras: the sleep timer ([sleepArgs]) and the queue source, which Media3's player
-     * state cannot carry. [sleepTimer] and [queueSource] read them back.
+     * Session extras: the queue source, which Media3's player state cannot carry. [queueSource]
+     * reads it back.
      */
-    fun sessionExtras(timer: SleepTimer?, source: QueueSource) = sleepArgs(timer).apply {
-        putQueueSource(source)
-    }
+    fun queueSourceArgs(source: QueueSource) = Bundle().apply { putQueueSource(source) }
 
     /** The queue source in [bundle]: the session extras or a play intent's args. Unknown if none. */
     fun queueSource(bundle: Bundle): QueueSource {
@@ -139,6 +144,34 @@ internal object SegueSessionCommands {
         putString(ARG_QUEUE_SOURCE_ID, record.id)
         putString(ARG_QUEUE_SOURCE_NAME, record.name)
         putBoolean(ARG_QUEUE_SOURCE_SHUFFLED, record.shuffled)
+    }
+
+    /**
+     * Session extras: what the player asked for when it opened [songId] (see
+     * [com.quantumff.segue.core.playback.cache.SegueUriResolver]), which Media3's tracks cannot
+     * carry. [streamRequest] reads it back.
+     */
+    fun streamRequestArgs(songId: String, request: StreamRequest) = Bundle().apply {
+        putString(ARG_STREAM_SONG_ID, songId)
+        when (request) {
+            is StreamRequest.Download -> putLong(ARG_STREAM_SIZE, request.sizeBytes)
+
+            is StreamRequest.Stream -> {
+                putInt(ARG_STREAM_MAX_BIT_RATE, request.quality.maxBitRateKbps)
+                putString(ARG_STREAM_FORMAT, request.quality.format)
+            }
+        }
+    }
+
+    /** The request of [streamRequestArgs] if it is for [songId], else null. */
+    fun streamRequest(bundle: Bundle, songId: String): StreamRequest? = when {
+        bundle.getString(ARG_STREAM_SONG_ID) != songId -> null
+
+        bundle.containsKey(ARG_STREAM_SIZE) -> StreamRequest.Download(bundle.getLong(ARG_STREAM_SIZE))
+
+        else -> StreamRequest.Stream(
+            StreamingQuality(bundle.getInt(ARG_STREAM_MAX_BIT_RATE), bundle.getString(ARG_STREAM_FORMAT)),
+        )
     }
 
     /**
