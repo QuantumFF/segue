@@ -34,6 +34,9 @@ internal object SegueSessionCommands {
     /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
 
+    /** A playback error's Skip (PlaybackErrorReporter.skip). */
+    const val SKIP_PAST_ERROR = PREFIX + "SKIP_PAST_ERROR"
+
     /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_STARTED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
@@ -90,6 +93,7 @@ internal object SegueSessionCommands {
             PLAY_ALBUMS,
             QUEUE_SONGS,
             UNDO_REMOVE,
+            SKIP_PAST_ERROR,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
