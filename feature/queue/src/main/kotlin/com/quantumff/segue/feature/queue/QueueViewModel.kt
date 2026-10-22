@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
@@ -64,14 +65,17 @@ data class QueueUiState(
  * server's saved queue by hand, and the "Continue from <device>" banner. Clear and Save as
  * playlist are Now Playing's.
  * Queues are shuffled only when music is added, never in place, so the queue order is the play
- * order.
+ * order. It reads the queue from [PlayerStateSource] and edits it through [PlaybackController].
  */
 @HiltViewModel
-class QueueViewModel @Inject constructor(private val playback: PlaybackController) : ViewModel() {
+class QueueViewModel @Inject constructor(
+    private val player: PlayerStateSource,
+    private val playback: PlaybackController,
+) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
-    val uiState: StateFlow<QueueUiState> = combine(playback.eventState, local) { player, local ->
-        player.toUiState(local)
+    val uiState: StateFlow<QueueUiState> = combine(player.state, local) { state, local ->
+        state.toUiState(local)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), QueueUiState())
 
     fun skipTo(track: QueueListItem.Track) = playback.skipTo(track.position)
@@ -79,8 +83,8 @@ class QueueViewModel @Inject constructor(private val playback: PlaybackControlle
     fun move(move: QueueMove) = playback.move(move.from, move.to)
 
     fun playNext(track: QueueListItem.Track) {
-        val player = playback.eventState.value
-        QueueList.playNextMove(player.queue.size, player.currentQueueIndex, track.position)?.let(::move)
+        val state = player.state.value
+        QueueList.playNextMove(state.queue.size, state.currentQueueIndex, track.position)?.let(::move)
     }
 
     fun remove(track: QueueListItem.Track) {
@@ -114,7 +118,7 @@ class QueueViewModel @Inject constructor(private val playback: PlaybackControlle
         when {
             queue == null -> QueueMessage.NothingToDownload
 
-            playback.eventState.value.queue.isEmpty() -> adoptDownloaded(queue)
+            player.state.value.queue.isEmpty() -> adoptDownloaded(queue)
 
             else -> {
                 local.update { it.copy(pendingDownload = queue) }
