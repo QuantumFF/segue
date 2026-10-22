@@ -8,6 +8,10 @@ data class PlayerUiState(
     val currentItem: QueueItem? = null,
     /** Index of [currentItem] in [queue], or -1 when the queue is empty. */
     val currentQueueIndex: Int = -1,
+    /**
+     * The player plays as the user sees it: it will play when ready and is neither stopped nor at
+     * the end of the queue. True while [isBuffering] towards playing, when the position stands still.
+     */
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     /** Updated about twice a second while the UI observes this state and playback runs; otherwise on events. */

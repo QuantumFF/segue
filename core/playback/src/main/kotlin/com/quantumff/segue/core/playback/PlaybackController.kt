@@ -207,8 +207,9 @@ class PlaybackController @Inject constructor(
 
     override fun pause() = command { it.pause() }
 
+    /** Pauses while the player plays or buffers towards playing ([playsWhenReady]); otherwise plays. */
     fun togglePlayPause() = command { controller ->
-        if (controller.isPlaying) {
+        if (controller.playsWhenReady) {
             controller.pause()
         } else {
             if (controller.playbackState == Player.STATE_IDLE) controller.prepare()

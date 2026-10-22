@@ -628,7 +628,8 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
         NowPlayingSeekbar(
             positionMillis = positionMillis,
             durationMillis = state.durationMillis,
-            isPlaying = state.isPlaying,
+            // The bar glides only while the position moves, not while buffering.
+            isPlaying = state.isPlaying && !state.isBuffering,
             quality = state.quality,
             onSeek = actions.onSeek,
             modifier = Modifier.padding(horizontal = SegueSpacing.xl, vertical = SegueSpacing.xs),
