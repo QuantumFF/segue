@@ -313,6 +313,14 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
 - **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
+- **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). Now Playing shows it in its own snackbar host, and the shell shows the same one above the mini player. It goes away when playback moves to another item or a retry plays.
+
+  | Kind | Copy | Actions |
+  |---|---|---|
+  | Network (no connection, timeout, server error) | "Couldn't play <title>. Check your connection." | Skip · Retry |
+  | Unsupported (the device can't parse or decode it) | "Couldn't play <title>. This device can't play its format." | Skip |
+  | Not found (404 or 410 from the server, or a missing download) | "Couldn't play <title>. Its file is missing." | Skip |
+  | Other | "Couldn't play <title>." | Skip |
 - Landscape and Expanded: art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art.
 
 ```

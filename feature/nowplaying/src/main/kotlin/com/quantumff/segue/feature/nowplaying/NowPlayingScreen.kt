@@ -64,6 +64,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
+import com.quantumff.segue.core.designsystem.component.PlaybackErrorSnackbar
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -174,6 +175,8 @@ fun NowPlayingScreen(
             onAddToQueue = viewModel::addToQueue,
             onSaveQueueAsPlaylist = viewModel::saveQueueAsPlaylist,
             onClearQueue = viewModel::clearQueue,
+            onSkipPastError = viewModel::skipPastError,
+            onRetryPlayback = viewModel::retryPlayback,
         )
     }
     NowPlayingScreen(
@@ -218,6 +221,7 @@ internal fun NowPlayingScreen(
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
+    PlaybackErrorSnackbar(state.error, snackbarHostState, actions.onSkipPastError, actions.onRetryPlayback)
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH

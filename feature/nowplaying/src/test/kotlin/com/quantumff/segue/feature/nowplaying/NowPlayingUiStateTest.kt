@@ -1,6 +1,8 @@
 package com.quantumff.segue.feature.nowplaying
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.QueueSource
@@ -43,6 +45,15 @@ class NowPlayingUiStateTest {
         assertThat(SleepTimerChoice.Minutes(30).toSleepTimer(nowMillis = 1_000))
             .isEqualTo(SleepTimer.AtTime(1_000 + 30 * 60_000L))
         assertThat(SleepTimerChoice.EndOfAlbum.toSleepTimer(nowMillis = 0)).isEqualTo(SleepTimer.EndOfAlbum)
+    }
+
+    @Test
+    fun aPlaybackErrorReachesNowPlaying() {
+        val error = PlaybackError(songId = "s0", title = "Song 0", kind = PlaybackErrorKind.Network)
+
+        assertThat(player(currentQueueIndex = 0).copy(playbackError = error).toNowPlayingUiState(null, null).error)
+            .isEqualTo(error)
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(null, null).error).isNull()
     }
 
     @Test

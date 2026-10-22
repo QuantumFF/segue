@@ -220,6 +220,23 @@ class PlaybackController @Inject constructor(
 
     fun skipToPrevious() = command { it.seekToPrevious() }
 
+    /**
+     * A playback error's Skip ([PlayerUiState.playbackError]): plays the next item. A failed player
+     * stays idle, so it is prepared again. Does nothing after the last item.
+     */
+    fun skipPastError() = command { controller ->
+        if (!controller.hasNextMediaItem()) return@command
+        controller.seekToNextMediaItem()
+        if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
+        controller.play()
+    }
+
+    /** A playback error's Retry: prepares the failed song again and plays it. Success clears the error. */
+    fun retry() = command { controller ->
+        controller.prepare()
+        controller.play()
+    }
+
     fun setRepeatMode(mode: RepeatMode) = command { it.repeatMode = mode.playerRepeatMode }
 
     /** Starts, replaces, or (with null) cancels the sleep timer. */

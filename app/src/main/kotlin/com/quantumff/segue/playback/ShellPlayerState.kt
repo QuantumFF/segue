@@ -2,6 +2,7 @@ package com.quantumff.segue.playback
 
 import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.designsystem.component.MiniPlayerState
+import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemoteQueueOffer
@@ -25,6 +26,8 @@ data class ShellPlayerState(
     val repeatMode: RepeatMode = RepeatMode.Off,
     /** A newer queue from another device: the "Continue from <device>" bar. Independent of [current]. */
     val remoteOffer: RemoteQueueOffer? = null,
+    /** The current song failed to play: the "Couldn't play <title>" snackbar. */
+    val playbackError: PlaybackError? = null,
 )
 
 /** A neighbor of the current track in play order, and the timeline index to skip to it. */
@@ -60,6 +63,7 @@ internal fun PlayerUiState.toShellPlayerState(): ShellPlayerState {
         durationMillis = durationMillis,
         repeatMode = repeatMode,
         remoteOffer = remoteQueue,
+        playbackError = playbackError,
     )
 }
 
