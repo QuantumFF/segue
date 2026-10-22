@@ -18,6 +18,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -38,8 +39,13 @@ class MediaActionHandler @Inject constructor(
     private val stars: StarRatingRepository,
 ) {
     suspend fun album(album: Album, action: MediaAction, host: MediaActionHost): MediaActionFailure? = when (action) {
-        MediaAction.ShuffleArtistAlbums -> album.artistId?.let { shuffleAlbums(AlbumSource.Artist(it)) }
+        MediaAction.ShuffleArtistAlbums -> album.artistId?.let { artistId ->
+            val source = album.artist?.let { QueueSource.Artist(artistId, it) } ?: QueueSource.Unknown
+            shuffleAlbums(AlbumSource.Artist(artistId), source)
+        }
+
         MediaAction.GoToArtist -> done { album.artistId?.let(host.onArtistClick) }
+
         else -> common(action, Subject.of(album), host)
     }
 
@@ -81,9 +87,9 @@ class MediaActionHandler @Inject constructor(
     /** The actions every kind handles alike: play intents, Add to playlist, Favorite, downloads, the screen's own. */
     private suspend fun common(action: MediaAction, subject: Subject, host: MediaActionHost): MediaActionFailure? =
         when (action) {
-            in SONGS_ACTIONS -> songsAction(action, subject.target, host)
+            in SONGS_ACTIONS -> songsAction(action, subject.target, host, subject.source)
 
-            MediaAction.ShuffleAlbums -> subject.albums?.let { shuffleAlbums(it) }
+            MediaAction.ShuffleAlbums -> subject.albums?.let { shuffleAlbums(it, subject.source) }
 
             MediaAction.Favorite, MediaAction.Unfavorite -> subject.starKind?.let { kind ->
                 val starred = action == MediaAction.Favorite
@@ -138,18 +144,23 @@ class MediaActionHandler @Inject constructor(
         else -> null
     }
 
-    /** The [SONGS_ACTIONS], which take [target]'s songs. */
-    private suspend fun songsAction(action: MediaAction, target: PlayTarget, host: MediaActionHost) = when (action) {
-        MediaAction.Play -> done { playIntents.play(target) }
-        MediaAction.Shuffle -> done { playIntents.play(target, shuffle = true) }
-        MediaAction.PlayNext -> done { playIntents.play(target, QueuePlacement.Next) }
-        MediaAction.AddToQueue -> done { playIntents.play(target, QueuePlacement.End) }
+    /** The [SONGS_ACTIONS], which take [target]'s songs; [source] is the queue source a replaced queue gets. */
+    private suspend fun songsAction(
+        action: MediaAction,
+        target: PlayTarget,
+        host: MediaActionHost,
+        source: QueueSource = QueueSource.Unknown,
+    ) = when (action) {
+        MediaAction.Play -> done { playIntents.play(target, source = source) }
+        MediaAction.Shuffle -> done { playIntents.play(target, shuffle = true, source = source) }
+        MediaAction.PlayNext -> done { playIntents.play(target, QueuePlacement.Next, source = source) }
+        MediaAction.AddToQueue -> done { playIntents.play(target, QueuePlacement.End, source = source) }
         MediaAction.AddToPlaylist -> addToPlaylist(target, host)
         else -> null
     }
 
-    private suspend fun shuffleAlbums(source: AlbumSource) =
-        done { playIntents.playAlbums(AlbumPlayRequest(source, AlbumOrder.Shuffled)) }
+    private suspend fun shuffleAlbums(albums: AlbumSource, source: QueueSource) =
+        done { playIntents.playAlbums(AlbumPlayRequest(albums, AlbumOrder.Shuffled), source) }
 
     private suspend fun addToPlaylist(target: PlayTarget, host: MediaActionHost): MediaActionFailure? {
         val songs = try {
@@ -180,10 +191,17 @@ class MediaActionHandler @Inject constructor(
         val isStarred: Boolean,
         /** Where Shuffle albums takes its albums from; null on menus without it. */
         val albums: AlbumSource? = null,
+        /** The queue source its plays record: unknown for a song, which comes from no page of its own. */
+        val source: QueueSource = QueueSource.Unknown,
     ) {
         companion object {
-            fun of(album: Album) =
-                Subject(PlayTarget.Album(album.id), PinTarget.of(album), MediaKind.Album, album.isStarred)
+            fun of(album: Album) = Subject(
+                PlayTarget.Album(album.id),
+                PinTarget.of(album),
+                MediaKind.Album,
+                album.isStarred,
+                source = QueueSource.Album(album.id, album.name),
+            )
 
             fun of(song: Song) =
                 Subject(PlayTarget.Songs(listOf(song)), PinTarget.of(song), MediaKind.Song, song.isStarred)
@@ -194,6 +212,7 @@ class MediaActionHandler @Inject constructor(
                 MediaKind.Artist,
                 artist.isStarred,
                 albums = AlbumSource.Artist(artist.id),
+                source = QueueSource.Artist(artist.id, artist.name),
             )
 
             fun of(playlist: Playlist) = Subject(
@@ -202,6 +221,7 @@ class MediaActionHandler @Inject constructor(
                 starKind = null,
                 isStarred = false,
                 albums = AlbumSource.Playlist(playlist.id),
+                source = QueueSource.Playlist(playlist.id, playlist.name),
             )
         }
     }

@@ -19,6 +19,7 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -182,7 +183,8 @@ class HomeViewModel @Inject constructor(
 
     /** A card's play button. */
     fun playAlbum(album: Album) {
-        viewModelScope.launch { playIntents.play(PlayTarget.Album(album.id)) }
+        val source = QueueSource.Album(album.id, album.name)
+        viewModelScope.launch { playIntents.play(PlayTarget.Album(album.id), source = source) }
     }
 
     fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {

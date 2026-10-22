@@ -4,6 +4,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -14,6 +15,10 @@ import kotlinx.coroutines.flow.Flow
  * raised it; a caller that stops waiting does not cancel it. Each call returns once the intent has
  * queued something or given up. Offline only downloaded songs are queued, and there is no instant
  * mix. When an intent queues nothing, [messages] says why; screens do not report it themselves.
+ *
+ * An intent that replaces the queue records its queue source, which Now Playing names: the caller
+ * passes it, since only the caller knows the name and where the songs came from (an album page plays
+ * its songs). Play next and Add to queue leave the queue source alone.
  */
 interface PlayIntents {
     /** Why an intent queued nothing, for the shell to show. */
@@ -21,14 +26,22 @@ interface PlayIntents {
 
     /**
      * Queues [target] at [placement]. [shuffle] queues the songs in a fresh shuffled order (tracks
-     * shuffle); it and [PlayTarget.Songs.startIndex] apply when replacing the queue.
+     * shuffle); it, [PlayTarget.Songs.startIndex] and [source] apply when replacing the queue.
      */
-    suspend fun play(target: PlayTarget, placement: QueuePlacement = QueuePlacement.Replace, shuffle: Boolean = false)
+    suspend fun play(
+        target: PlayTarget,
+        placement: QueuePlacement = QueuePlacement.Replace,
+        shuffle: Boolean = false,
+        source: QueueSource = QueueSource.Unknown,
+    )
 
-    /** "Play albums" or "Shuffle albums" (albums shuffle) of an album source. */
-    suspend fun playAlbums(request: AlbumPlayRequest)
+    /**
+     * "Play albums" or "Shuffle albums" (albums shuffle) of an album source; [source] applies when
+     * replacing the queue.
+     */
+    suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource)
 
-    /** Replaces the queue with an instant mix from [seed]. */
+    /** Replaces the queue with an instant mix from [seed], its queue source named after the seed. */
     suspend fun instantMix(seed: InstantMixSeed)
 }
 

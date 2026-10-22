@@ -274,12 +274,27 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Plain**: `background` only. Black theme defaults to Plain.
 - Text and icons on this screen are always light (`#FFFFFF` at 100% for primary, 70% for secondary), except with Plain on the Light theme.
 - Layout, top to bottom:
-  - Top bar, 56 tall: chevron-down · "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮.
+  - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below).
   - Art: square, width = screen − 48, radius `lg`, shadow.
   - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
   - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill describing what is actually playing: the stream format the player decoded or requested, so a server transcode reads "OPUS · 128" and a downloaded song describes the downloaded file. Lossless streams show bit depth and sample rate ("FLAC · 16/44.1"), lossy ones the bit rate. Until the stream format is known it describes the library song's file.
   - Transport row: an empty 48 slot · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One). The empty slot balances repeat, so play/pause stays centered.
   - Bottom row of 4 icon buttons, each 48 tall with a label, spread evenly: Lyrics · Queue · Related · ⋮ (Sleep timer, Speed, Add to playlist, Save queue as playlist, Go to album or artist, Info, Clear queue). The sleep timer shows a dot badge on ⋮ while it is active.
+- **Source copy.** The top bar names the queue source: what the last play intent that replaced the queue played. Play next and Add to queue keep it, so it does not change as songs are added.
+
+  | Queue source | Overline | Name | Tapping the name opens |
+  |---|---|---|---|
+  | Album | PLAYING FROM ALBUM | the album | the album |
+  | Playlist | PLAYING FROM PLAYLIST | the playlist | the playlist |
+  | Artist (top songs, Play albums, Shuffle albums) | PLAYING FROM ARTIST | the artist | the artist |
+  | Genre (Play albums, Shuffle albums) | PLAYING FROM GENRE | the genre | the genre |
+  | Library, Shuffle all or shuffled albums | SHUFFLED LIBRARY | none | nothing |
+  | Library, Play albums in order | PLAYING FROM LIBRARY | none | nothing |
+  | Instant mix | INSTANT MIX | the seed song or artist | nothing |
+  | Another device's queue (adoption) | CONTINUED FROM | the device, such as "Feishin" | nothing |
+  | Anything else (search results, a single song, Related, Android Auto) | PLAYING FROM QUEUE | none | nothing |
+
+  When the name opens a page, the whole overline-and-name block is the tap target (48 tall), and Now Playing collapses before it navigates. A queue that empties forgets its source.
 - **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either (ADR-0002).
 - **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.

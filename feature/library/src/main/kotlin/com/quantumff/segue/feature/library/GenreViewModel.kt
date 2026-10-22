@@ -14,6 +14,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -45,7 +46,7 @@ class GenreViewModel @Inject constructor(
     /** "Play albums" or "Shuffle albums" of the grid as shown: the genre's albums by name. */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
         val request = AlbumPlayRequest(AlbumSource.Genre(genre), order, placement)
-        viewModelScope.launch { playIntents.playAlbums(request) }
+        viewModelScope.launch { playIntents.playAlbums(request, QueueSource.Genre(genre)) }
     }
 
     internal companion object {

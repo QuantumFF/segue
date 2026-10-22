@@ -35,6 +35,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -134,12 +136,15 @@ class ArtistViewModel @Inject constructor(
      * Plays the artist ([PlayTarget.Artist]): their top songs, or their albums when the server has
      * no top songs. [shuffle] shuffles the tracks.
      */
-    fun play(shuffle: Boolean) = preparing { playIntents.play(PlayTarget.Artist(artistId), shuffle = shuffle) }
+    fun play(shuffle: Boolean) = preparing {
+        playIntents.play(PlayTarget.Artist(artistId), shuffle = shuffle, source = queueSource())
+    }
 
     /** Plays the top song at [index] and the rest of the top songs after it. */
     fun playTopSong(index: Int) {
         val songs = remote.value.topSongs
-        if (index in songs.indices) viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index)) }
+        if (index !in songs.indices) return
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index), source = queueSource()) }
     }
 
     /** The hero's "Shuffle albums": the floating Shuffle pill's tap. */
@@ -151,11 +156,18 @@ class ArtistViewModel @Inject constructor(
      */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
         val request = AlbumPlayRequest(AlbumSource.Artist(artistId), order, placement)
-        viewModelScope.launch { playIntents.playAlbums(request) }
+        viewModelScope.launch { playIntents.playAlbums(request, queueSource()) }
     }
 
     /** Plays songs similar to the artist (`getSimilarSongs2`), topped up with their top songs. */
-    fun startInstantMix() = preparing { playIntents.instantMix(InstantMixSeed.OfArtist(artistId)) }
+    fun startInstantMix() = preparing {
+        val name = artistRepository.artist(artistId).first()?.name.orEmpty()
+        playIntents.instantMix(InstantMixSeed.OfArtist(artistId, name))
+    }
+
+    /** The artist, as the queue source their plays record; unknown while the library does not have them. */
+    private suspend fun queueSource(): QueueSource =
+        artistRepository.artist(artistId).first()?.let { QueueSource.Artist(it.id, it.name) } ?: QueueSource.Unknown
 
     /** The artist's ⋮ menu ([MediaActionHandler]). */
     fun onArtistAction(action: MediaAction, host: MediaActionHost) {

@@ -17,6 +17,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
@@ -145,10 +146,18 @@ class PlaybackController @Inject constructor(
      * Queues [songs] at [placement]. Replacing the queue plays them: in order from [startIndex], or
      * with [shuffle] in a fresh shuffled order from its first song. The service queues them
      * ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
-     * running queue, and offline only the downloaded songs. False if there is nothing to play.
+     * running queue, and offline only the downloaded songs. Replacing the queue makes [source] the
+     * queue source. False if there is nothing to play.
      */
-    suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean): Boolean {
-        val request = SegueSessionCommands.QueueSongs(songs.map { it.toMediaItem() }, placement, startIndex, shuffle)
+    suspend fun queue(
+        songs: List<Song>,
+        placement: QueuePlacement,
+        startIndex: Int,
+        shuffle: Boolean,
+        source: QueueSource = QueueSource.Unknown,
+    ): Boolean {
+        val items = songs.map { it.toMediaItem() }
+        val request = SegueSessionCommands.QueueSongs(items, placement, startIndex, shuffle, source)
         return send(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
     }
 
@@ -329,22 +338,23 @@ class PlaybackController @Inject constructor(
      * in disc and track order, the albums in the source's order or shuffled, or every song shuffled,
      * replacing the queue or placed in it. The service reads the songs and queues them all at once
      * ([com.quantumff.segue.core.playback.album.AlbumPlays]). Reads Room only; offline only
-     * downloaded songs are queued. False if there is nothing to play.
+     * downloaded songs are queued. Replacing the queue makes [source] the queue source. False if
+     * there is nothing to play.
      */
-    suspend fun playAlbums(request: AlbumPlayRequest): Boolean =
-        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request))
+    suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Boolean =
+        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request, source))
 
     /**
      * Instant mix: [seed] if given, then songs similar to [artistId] (`getSimilarSongs2`), topped
-     * up with the artist's top songs, replacing the queue. Throws RemoteException. False if
-     * nothing came back.
+     * up with the artist's top songs, replacing the queue with [source] as its source. Throws
+     * RemoteException. False if nothing came back.
      */
-    suspend fun playInstantMix(seed: Song?, artistId: String): Boolean {
+    suspend fun playInstantMix(seed: Song?, artistId: String, source: QueueSource): Boolean {
         val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
         if (mix.size <= (if (seed == null) 0 else 1)) return false
-        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false)
+        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false, source = source)
     }
 
     // --- Connection ----------------------------------------------------------------------------------

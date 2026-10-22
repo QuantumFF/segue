@@ -74,6 +74,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.ArtistRef
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.feature.nowplaying.component.ArtPager
 import com.quantumff.segue.feature.nowplaying.component.CompactTrackHeader
@@ -108,6 +109,8 @@ fun NowPlayingScreen(
     onCollapse: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
+    onPlaylistClick: (String) -> Unit,
+    onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -131,7 +134,15 @@ fun NowPlayingScreen(
             snackbarHostState.showSnackbar(text)
         }
     }
-    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist) {
+    val actions = remember(
+        viewModel,
+        onCollapse,
+        onAlbumClick,
+        onArtistClick,
+        onPlaylistClick,
+        onGenreClick,
+        onAddToPlaylist,
+    ) {
         NowPlayingActions(
             onCollapse = onCollapse,
             onPlayPause = viewModel::togglePlayPause,
@@ -146,6 +157,15 @@ fun NowPlayingScreen(
             onInstantMix = viewModel::startInstantMix,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
+            onSourceClick = { source ->
+                when (source) {
+                    is QueueSource.Album -> onAlbumClick(source.id)
+                    is QueueSource.Playlist -> onPlaylistClick(source.id)
+                    is QueueSource.Artist -> onArtistClick(source.id)
+                    is QueueSource.Genre -> onGenreClick(source.name)
+                    else -> Unit
+                }
+            },
             onAddToPlaylist = onAddToPlaylist,
             onVisiblePanelsChange = viewModel::setVisiblePanels,
             onRetryLyrics = { viewModel.retryLyrics() },
@@ -429,7 +449,7 @@ private fun PhoneLayout(
             .fillMaxSize()
             .navigationBarsPadding(),
     ) {
-        TopBar(track, actions.onCollapse, onMenuClick)
+        TopBar(state.source, actions, onMenuClick)
         AnimatedContent(
             targetState = openPanel != null,
             transitionSpec = {
@@ -529,7 +549,7 @@ private fun TwoPaneLayout(
             .navigationBarsPadding(),
     ) {
         Column(Modifier.weight(ART_PANE_WEIGHT)) {
-            TopBar(track, actions.onCollapse, onMenuClick)
+            TopBar(state.source, actions, onMenuClick)
             // Art, metadata and controls stay together, centered, instead of the art floating in a
             // tall pane far from its title and controls.
             BoxWithConstraints(
@@ -627,12 +647,14 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
 }
 
 @Composable
-private fun TopBar(track: NowPlayingTrack, onCollapse: () -> Unit, onMenuClick: () -> Unit) {
+private fun TopBar(source: SourceLabel, actions: NowPlayingActions, onMenuClick: () -> Unit) {
     NowPlayingTopBar(
-        sourceLabel = stringResource(R.string.feature_nowplaying_source_label),
-        sourceName = track.album ?: track.title,
-        onCollapseClick = onCollapse,
+        sourceLabel = stringResource(source.overline),
+        sourceName = source.name,
+        onCollapseClick = actions.onCollapse,
         onMoreClick = onMenuClick,
+        onSourceClick = source.opens?.let { opens -> { actions.onSourceClick(opens) } },
+        sourceClickLabel = source.name?.let { stringResource(R.string.feature_nowplaying_open_source, it) },
     )
 }
 

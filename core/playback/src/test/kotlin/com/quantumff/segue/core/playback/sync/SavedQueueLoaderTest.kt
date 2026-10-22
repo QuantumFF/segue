@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueueSnapshot
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.QueueEditor
@@ -150,6 +151,20 @@ class SavedQueueLoaderTest {
         settle()
         assertThat(remote.saves).isEmpty()
         assertThat(snapshots.saves).containsExactly(remoteState)
+    }
+
+    @Test
+    fun `an adopted queue, or the one undo puts back, keeps no stale queue source`() = runTest {
+        playingLocalQueue(autoAdopt = true)
+        editor.setSource(QueueSource.Album("al", "In Rainbows"))
+        queueSync.checkRemote(isPlayingLocally = false)
+
+        loader.adopt()
+        assertThat(editor.source.value).isNotEqualTo(QueueSource.Album("al", "In Rainbows"))
+
+        editor.setSource(QueueSource.Playlist("p", "Road trip"))
+        loader.undoAdoption()
+        assertThat(editor.source.value).isNotEqualTo(QueueSource.Playlist("p", "Road trip"))
     }
 
     @Test

@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
@@ -160,12 +161,17 @@ class ArtistViewModelTest {
         viewModel.playTopSong(index = 1)
         viewModel.shuffleAlbums()
 
+        val source = QueueSource.Artist("artist-1", "Artist artist-1")
         assertThat(play.plays).containsExactly(
-            RecordingPlayIntents.Play(PlayTarget.Artist("artist-1"), QueuePlacement.Replace, shuffle = true),
-            RecordingPlayIntents.Play(PlayTarget.Songs(top, 1), QueuePlacement.Replace, shuffle = false),
+            RecordingPlayIntents.Play(PlayTarget.Artist("artist-1"), QueuePlacement.Replace, shuffle = true, source),
+            RecordingPlayIntents.Play(PlayTarget.Songs(top, 1), QueuePlacement.Replace, shuffle = false, source),
         ).inOrder()
-        assertThat(play.albumRequests)
-            .containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
+        assertThat(play.albumPlays).containsExactly(
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled),
+                source,
+            ),
+        )
     }
 
     @Test
@@ -175,7 +181,7 @@ class ArtistViewModelTest {
 
         viewModel.startInstantMix()
 
-        assertThat(play.mixes).containsExactly(InstantMixSeed.OfArtist("artist-1"))
+        assertThat(play.mixes).containsExactly(InstantMixSeed.OfArtist("artist-1", "Artist artist-1"))
         viewModel.uiState.test {
             assertThat((awaitItem() as ArtistUiState.Success).isPreparingPlayback).isFalse()
         }

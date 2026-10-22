@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -193,6 +194,7 @@ class HomeViewModelTest {
         viewModel().playAlbum(TestData.album("a1"))
 
         assertThat(play.plays.single().target).isEqualTo(PlayTarget.Album("a1"))
+        assertThat(play.plays.single().source).isEqualTo(QueueSource.Album("a1", "Album a1"))
     }
 
     @Test

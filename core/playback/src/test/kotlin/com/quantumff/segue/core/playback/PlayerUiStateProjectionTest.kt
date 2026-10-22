@@ -16,6 +16,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.PlayerUiState
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.StreamFormat
@@ -127,6 +128,20 @@ class PlayerUiStateProjectionTest {
 
         assertThat(state.sleepTimer).isEqualTo(SleepTimer.EndOfTrack)
         assertThat(state.playbackError).isEqualTo(error)
+    }
+
+    @Test
+    fun `the queue source comes from the session extras`() {
+        val extras = Bundle().apply {
+            putAll(SegueSessionCommands.sleepArgs(SleepTimer.EndOfTrack))
+            putAll(SegueSessionCommands.queueSourceArgs(QueueSource.Playlist("p1", "Road trip")))
+        }
+
+        val state = project(extras)
+
+        assertThat(state.queueSource).isEqualTo(QueueSource.Playlist("p1", "Road trip"))
+        assertThat(state.sleepTimer).isEqualTo(SleepTimer.EndOfTrack)
+        assertThat(project().queueSource).isEqualTo(QueueSource.Unknown)
     }
 
     @Test

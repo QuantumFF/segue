@@ -1,11 +1,13 @@
 package com.quantumff.segue.feature.nowplaying
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.SleepTimer
@@ -72,7 +74,16 @@ data class NowPlayingUiState(
     val queueSize: Int = 0,
     /** The current song failed to play: "Couldn't play <title>", with Skip and maybe Retry. */
     val error: PlaybackError? = null,
+    /** The top bar's overline and name: where the queue came from. */
+    val source: SourceLabel = SourceLabel(R.string.feature_nowplaying_source_queue),
 )
+
+/**
+ * The top bar's source (DESIGN.md §4.7): an [overline] such as "Playing from playlist", over the
+ * source's [name] when it has one. [opens] is the album, playlist, artist or genre the name opens.
+ */
+@Immutable
+data class SourceLabel(@param:StringRes val overline: Int, val name: String? = null, val opens: QueueSource? = null)
 
 /** The details sheet. Missing values are null and their rows are left out. */
 @Immutable
@@ -168,7 +179,35 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         details = librarySong?.let { it.toDetails(file) },
         queueSize = queue.size,
         error = playbackError,
+        source = queueSource.toSourceLabel(),
     )
+}
+
+internal fun QueueSource.toSourceLabel(): SourceLabel {
+    val name = name?.takeIf { it.isNotBlank() }
+    return when (this) {
+        is QueueSource.Album -> SourceLabel(R.string.feature_nowplaying_source_album, name, opens = this)
+
+        is QueueSource.Playlist -> SourceLabel(R.string.feature_nowplaying_source_playlist, name, opens = this)
+
+        is QueueSource.Artist -> SourceLabel(R.string.feature_nowplaying_source_artist, name, opens = this)
+
+        is QueueSource.Genre -> SourceLabel(R.string.feature_nowplaying_source_genre, name, opens = this)
+
+        is QueueSource.InstantMix -> SourceLabel(R.string.feature_nowplaying_source_instant_mix, name)
+
+        is QueueSource.Adopted -> SourceLabel(R.string.feature_nowplaying_source_adopted, name)
+
+        is QueueSource.Library -> SourceLabel(
+            if (shuffled) {
+                R.string.feature_nowplaying_source_shuffled_library
+            } else {
+                R.string.feature_nowplaying_source_library
+            },
+        )
+
+        QueueSource.Unknown -> SourceLabel(R.string.feature_nowplaying_source_queue)
+    }
 }
 
 private fun Song.creditedArtists(): ImmutableList<ArtistRef> {

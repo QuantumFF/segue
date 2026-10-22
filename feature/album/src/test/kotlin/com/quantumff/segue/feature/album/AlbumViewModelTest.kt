@@ -19,6 +19,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
@@ -187,19 +188,29 @@ class AlbumViewModelTest {
         viewModel.play(startIndex = 2)
         viewModel.play(shuffle = true)
 
+        val source = QueueSource.Album("album-1", "Album album-1")
         assertThat(play.plays).containsExactly(
-            RecordingPlayIntents.Play(PlayTarget.Songs(songs, 2), QueuePlacement.Replace, shuffle = false),
-            RecordingPlayIntents.Play(PlayTarget.Songs(songs, 0), QueuePlacement.Replace, shuffle = true),
+            RecordingPlayIntents.Play(PlayTarget.Songs(songs, 2), QueuePlacement.Replace, shuffle = false, source),
+            RecordingPlayIntents.Play(PlayTarget.Songs(songs, 0), QueuePlacement.Replace, shuffle = true, source),
         ).inOrder()
     }
 
     @Test
     fun shuffleAlbumsByArtist() = runTest {
-        viewModel().shuffleAlbums(ShuffleAlbumsOption.ByArtist("artist-1", "Artist 1"))
+        val viewModel = viewModel()
+        viewModel.shuffleAlbums(ShuffleAlbumsOption.ByArtist("artist-1", "Artist 1"))
+        viewModel.shuffleAlbums(ShuffleAlbumsOption.ByGenre("Rock"))
 
-        assertThat(
-            play.albumRequests,
-        ).containsExactly(AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled))
+        assertThat(play.albumPlays).containsExactly(
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(AlbumSource.Artist("artist-1"), AlbumOrder.Shuffled),
+                QueueSource.Artist("artist-1", "Artist 1"),
+            ),
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(AlbumSource.Genre("Rock"), AlbumOrder.Shuffled),
+                QueueSource.Genre("Rock"),
+            ),
+        ).inOrder()
     }
 
     @Test

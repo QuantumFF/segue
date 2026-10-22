@@ -23,6 +23,8 @@ data class PlayerUiState(
     val playbackError: PlaybackError? = null,
     /** What the player is actually playing for [currentItem]; null until it is known. */
     val streamFormat: StreamFormat? = null,
+    /** Where the queue came from, for Now Playing's top bar. */
+    val queueSource: QueueSource = QueueSource.Unknown,
 )
 
 /**

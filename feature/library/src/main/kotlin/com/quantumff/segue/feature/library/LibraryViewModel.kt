@@ -36,6 +36,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.SyncProgress
@@ -429,7 +430,7 @@ class LibraryViewModel @Inject constructor(
     /** Every song in the library, in a tracks shuffle; downloaded songs only while offline. */
     fun shuffleAll() {
         val request = AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks)
-        viewModelScope.launch { playIntents.playAlbums(request) }
+        viewModelScope.launch { playIntents.playAlbums(request, QueueSource.Library(shuffled = true)) }
     }
 
     /**
@@ -439,13 +440,14 @@ class LibraryViewModel @Inject constructor(
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
         val stored = AlbumFilter(starredFilter.value, genreFilter.value, yearFilter.value, downloadedFilter.value)
         val view = AlbumSource.Albums(sort.value, offlineView.albumFilter(stored))
-        viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(view, order, placement)) }
+        val source = QueueSource.Library(shuffled = order != AlbumOrder.InOrder)
+        viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(view, order, placement), source) }
     }
 
     /** A genre's "Shuffle albums". */
     fun shuffleGenreAlbums(genre: String) {
         val request = AlbumPlayRequest(AlbumSource.Genre(genre), AlbumOrder.Shuffled)
-        viewModelScope.launch { playIntents.playAlbums(request) }
+        viewModelScope.launch { playIntents.playAlbums(request, QueueSource.Genre(genre)) }
     }
 
     /** A tap on a song row plays that song alone. */

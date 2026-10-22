@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import kotlin.random.Random
@@ -180,5 +181,39 @@ class QueueEditorTest {
         val reset = editor.playable(stripped, C.INDEX_UNSET, C.TIME_UNSET)!!
         assertThat(reset.startIndex).isEqualTo(C.INDEX_UNSET)
         assertThat(reset.startPositionMs).isEqualTo(C.TIME_UNSET)
+    }
+
+    @Test
+    fun `a replaced queue takes its play intent's source, play next and add to queue keep it`() = runTest {
+        val album = QueueSource.Album("al", "In Rainbows")
+        assertThat(editor.source.value).isEqualTo(QueueSource.Unknown)
+
+        editor.queue(items("a", "b"), QueuePlacement.Replace, source = album)
+        assertThat(editor.source.value).isEqualTo(album)
+
+        editor.queue(items("n"), QueuePlacement.Next, source = QueueSource.Playlist("p", "Road trip"))
+        editor.queue(items("e"), QueuePlacement.End, source = QueueSource.Unknown)
+        assertThat(editor.source.value).isEqualTo(album)
+
+        editor.place(items("r"), QueuePlacement.Replace, source = QueueSource.Library(shuffled = true))
+        assertThat(editor.source.value).isEqualTo(QueueSource.Library(shuffled = true))
+    }
+
+    @Test
+    fun `a play intent that queues nothing keeps the source`() = runTest {
+        val album = QueueSource.Album("al", "In Rainbows")
+        editor.queue(items("a"), QueuePlacement.Replace, source = album)
+
+        downloaded = emptySet()
+        editor.queue(items("b"), QueuePlacement.Replace, source = QueueSource.Genre("Rock"))
+
+        assertThat(editor.source.value).isEqualTo(album)
+    }
+
+    @Test
+    fun `a queue set some other way names its own source`() {
+        editor.setSource(QueueSource.Adopted("Feishin"))
+
+        assertThat(editor.source.value).isEqualTo(QueueSource.Adopted("Feishin"))
     }
 }

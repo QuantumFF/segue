@@ -30,6 +30,7 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
@@ -121,12 +122,14 @@ class AlbumViewModel @Inject constructor(
         viewModelScope.launch { refresh.value = remoteOutcome { albumRepository.refreshAlbum(albumId) } }
     }
 
-    /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. */
+    /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. The album is the queue source. */
     fun play(startIndex: Int = 0, shuffle: Boolean = false) {
-        val songs = (uiState.value as? AlbumUiState.Success)?.songs ?: return
+        val success = uiState.value as? AlbumUiState.Success ?: return
+        val songs = success.songs
         if (songs.isEmpty()) return
         val target = PlayTarget.Songs(songs, startIndex.coerceIn(songs.indices))
-        viewModelScope.launch { playIntents.play(target, shuffle = shuffle) }
+        val source = QueueSource.Album(success.album.id, success.album.name)
+        viewModelScope.launch { playIntents.play(target, shuffle = shuffle, source = source) }
     }
 
     /** Pins the album for offline use. */
@@ -147,7 +150,8 @@ class AlbumViewModel @Inject constructor(
     }
 
     fun shuffleAlbums(option: ShuffleAlbumsOption) {
-        viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(option.source, AlbumOrder.Shuffled)) }
+        val request = AlbumPlayRequest(option.source, AlbumOrder.Shuffled)
+        viewModelScope.launch { playIntents.playAlbums(request, option.queueSource) }
     }
 
     /** The album's ⋮ menu ([MediaActionHandler]). */
@@ -256,12 +260,17 @@ data class IndexedSong(val index: Int, val song: Song)
 sealed interface ShuffleAlbumsOption {
     val source: AlbumSource
 
+    /** What Now Playing says the shuffled albums came from. */
+    val queueSource: QueueSource
+
     data class ByArtist(val artistId: String, val artistName: String) : ShuffleAlbumsOption {
         override val source get() = AlbumSource.Artist(artistId)
+        override val queueSource get() = QueueSource.Artist(artistId, artistName)
     }
 
     data class ByGenre(val genre: String) : ShuffleAlbumsOption {
         override val source get() = AlbumSource.Genre(genre)
+        override val queueSource get() = QueueSource.Genre(genre)
     }
 }
 

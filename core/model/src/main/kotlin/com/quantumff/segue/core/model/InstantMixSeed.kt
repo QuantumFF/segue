@@ -11,6 +11,6 @@ sealed interface InstantMixSeed {
      */
     data class OfLibrarySong(val songId: String) : InstantMixSeed
 
-    /** Songs similar to the artist. */
-    data class OfArtist(val artistId: String) : InstantMixSeed
+    /** Songs similar to the artist, called [name]. */
+    data class OfArtist(val artistId: String, val name: String) : InstantMixSeed
 }
