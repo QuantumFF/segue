@@ -53,7 +53,7 @@ class ShellPlayerActions(
 internal fun PlayerUiState.toShellPlayerState(): ShellPlayerState {
     val item = currentItem ?: return ShellPlayerState(remoteOffer = remoteQueue)
     return ShellPlayerState(
-        current = item.toMiniPlayer(isPlaying),
+        current = item.toMiniPlayer(isPlaying).copy(isBuffering = isBuffering),
         currentTimelineIndex = item.timelineIndex,
         previous = neighbor(-1),
         next = neighbor(+1),
