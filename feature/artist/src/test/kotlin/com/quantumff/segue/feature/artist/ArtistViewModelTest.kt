@@ -17,6 +17,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
@@ -39,6 +40,7 @@ class ArtistViewModelTest {
     private val artists = FakeArtistRepository()
     private val stars = FakeStarRatingRepository()
     private val play = RecordingPlayIntents()
+    private val player = FakePlayerStateSource()
 
     private val ownAlbum = TestData.album("own", artistId = "artist-1", songCount = 10)
     private val guestAlbum = TestData.album("guest", artistId = "someone-else", songCount = 12)
@@ -50,6 +52,7 @@ class ArtistViewModelTest {
         downloadRepository = downloads,
         offlineView = offlineLibraryView(offlineMode, downloads),
         playIntents = play,
+        playerState = player,
         mediaActions = mediaActionHandler(play, downloads, stars, artists = artists),
     )
 
@@ -82,6 +85,30 @@ class ArtistViewModelTest {
             assertThat(state.topSongs.map { it.id }).containsExactly("t1", "t2").inOrder()
             assertThat(state.similarArtists.map { it.id }).containsExactly("artist-2")
             assertThat(state.biography).isEqualTo("Bio")
+        }
+    }
+
+    @Test
+    fun theCurrentSongsTopSongRowIsMarkedAndFollowsThePlayer() = runTest {
+        seed()
+        artists.topSongs = listOf(TestData.song("t1"), TestData.song("t2"))
+        viewModel().uiState.test {
+            fun marks(state: ArtistUiState) = (state as ArtistUiState.Success).let { success ->
+                success.topSongs.map { success.trackRow(it) }.map { it.isCurrent to it.isPlaying }
+            }
+            assertThat(marks(awaitItem())).containsExactly(false to false, false to false).inOrder()
+
+            player.state.value = TestData.playerOn("t2", isPlaying = true)
+            assertThat(marks(awaitItem())).containsExactly(false to false, true to true).inOrder()
+
+            player.state.value = TestData.playerOn("t2", isPlaying = false)
+            assertThat(marks(awaitItem())).containsExactly(false to false, true to false).inOrder()
+
+            player.state.value = TestData.playerOn("t1", isPlaying = true)
+            assertThat(marks(awaitItem())).containsExactly(true to true, false to false).inOrder()
+
+            player.state.value = TestData.playerOn("elsewhere", isPlaying = true)
+            assertThat(marks(awaitItem())).containsExactly(false to false, false to false).inOrder()
         }
     }
 

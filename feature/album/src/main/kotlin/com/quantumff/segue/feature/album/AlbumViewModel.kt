@@ -11,14 +11,19 @@ import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.designsystem.component.TrackRowState
+import com.quantumff.segue.core.designsystem.model.toBadgeState
+import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
@@ -27,6 +32,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
+import com.quantumff.segue.core.model.currentSong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -55,6 +61,7 @@ class AlbumViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
+    playerState: PlayerStateSource,
     private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
@@ -64,6 +71,8 @@ class AlbumViewModel @Inject constructor(
     private val message = MutableStateFlow<AlbumMessage?>(null)
 
     private val album = albumRepository.album(albumId)
+
+    private val currentSong = playerState.state.map { it.currentSong }.distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val moreByArtist = album
@@ -78,9 +87,9 @@ class AlbumViewModel @Inject constructor(
         album,
         albumRepository.albumSongs(albumId),
         moreByArtist,
-        combine(refresh, message, ::Pair),
+        combine(refresh, message, currentSong, ::Triple),
         combine(downloadRepository.pinStatus(PinKind.Album, albumId), offlineView.songAvailability, ::Pair),
-    ) { album, songs, more, (refresh, message), (download, availability) ->
+    ) { album, songs, more, (refresh, message, currentSong), (download, availability) ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
@@ -91,6 +100,7 @@ class AlbumViewModel @Inject constructor(
                 message = message,
                 download = download,
                 availability = availability,
+                currentSong = currentSong,
             )
 
             refresh == null -> AlbumUiState.Loading
@@ -213,8 +223,17 @@ sealed interface AlbumUiState {
         val download: DownloadStatus? = null,
         /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
         val availability: SongAvailability = SongAvailability(),
+        /** The song the player is on; its rows are marked. */
+        val currentSong: CurrentSong? = null,
     ) : AlbumUiState {
         val showDiscHeaders: Boolean get() = discs.size > 1
+
+        /** [song]'s track row: its download badge, whether it is available, and whether it is playing. */
+        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(
+            download = availability.downloads[song.id]?.status?.toBadgeState(),
+            isAvailable = availability.isAvailable(song),
+            current = currentSong,
+        )
         val trackCount: Int get() = if (songs.isEmpty()) album.songCount else songs.size
         val durationSeconds: Long
             get() = if (songs.isEmpty()) album.durationSeconds.toLong() else songs.sumOf { it.durationSeconds.toLong() }
