@@ -12,6 +12,7 @@ import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.play.PlayerTransport
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
@@ -25,6 +26,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
@@ -34,6 +36,7 @@ import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
+import com.quantumff.segue.core.model.heroPlayback
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -63,6 +66,7 @@ class AlbumViewModel @Inject constructor(
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     playerState: PlayerStateSource,
+    private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
@@ -73,7 +77,10 @@ class AlbumViewModel @Inject constructor(
 
     private val album = albumRepository.album(albumId)
 
-    private val currentSong = playerState.state.map { it.currentSong }.distinctUntilChanged()
+    /** The current song, and whether this album is the queue source and plays. */
+    private val player = playerState.state
+        .map { it.currentSong to it.heroPlayback { source -> source is QueueSource.Album && source.id == albumId } }
+        .distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val moreByArtist = album
@@ -88,9 +95,9 @@ class AlbumViewModel @Inject constructor(
         album,
         albumRepository.albumSongs(albumId),
         moreByArtist,
-        combine(refresh, message, currentSong, ::Triple),
+        combine(refresh, message, player, ::Triple),
         combine(downloadRepository.pinStatus(PinKind.Album, albumId), offlineView.songAvailability, ::Pair),
-    ) { album, songs, more, (refresh, message, currentSong), (download, availability) ->
+    ) { album, songs, more, (refresh, message, player), (download, availability) ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
@@ -101,7 +108,8 @@ class AlbumViewModel @Inject constructor(
                 message = message,
                 download = download,
                 availability = availability,
-                currentSong = currentSong,
+                currentSong = player.first,
+                heroPlayback = player.second,
             )
 
             refresh == null -> AlbumUiState.Loading
@@ -130,6 +138,19 @@ class AlbumViewModel @Inject constructor(
         val target = PlayTarget.Songs(songs, startIndex.coerceIn(songs.indices))
         val source = QueueSource.Album(success.album.id, success.album.name)
         viewModelScope.launch { playIntents.play(target, shuffle = shuffle, source = source) }
+    }
+
+    /**
+     * The hero's Play, or the collapsed top bar's: pauses this album while it is the queue source
+     * and plays, resumes it while it is the paused queue source, and otherwise plays it from the start.
+     */
+    fun onHeroPlay() {
+        val success = uiState.value as? AlbumUiState.Success ?: return
+        when (success.heroPlayback) {
+            HeroPlayback.Playing -> transport.pause()
+            HeroPlayback.Paused -> transport.play()
+            HeroPlayback.NotSource -> play()
+        }
     }
 
     /** Pins the album for offline use. */
@@ -229,6 +250,8 @@ sealed interface AlbumUiState {
         val availability: SongAvailability = SongAvailability(),
         /** The song the player is on; its rows are marked. */
         val currentSong: CurrentSong? = null,
+        /** Whether this album is the queue source and plays: the hero's Play then shows Pause. */
+        val heroPlayback: HeroPlayback = HeroPlayback.NotSource,
     ) : AlbumUiState {
         val showDiscHeaders: Boolean get() = discs.size > 1
 

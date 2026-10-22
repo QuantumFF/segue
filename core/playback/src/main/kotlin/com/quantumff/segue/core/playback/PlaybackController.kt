@@ -12,6 +12,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.play.PlayerTransport
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
@@ -65,7 +66,7 @@ import kotlinx.coroutines.withContext
 /**
  * The one way features control playback. Wraps a Media3 [MediaController] to
  * [SeguePlaybackService], connected on first use. It is also the [PlayerStateSource] screens read
- * player state from.
+ * player state from, and the [PlayerTransport] pages pause and resume the queue with.
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
  * commands take queue positions ([com.quantumff.segue.core.model.QueueItem.timelineIndex]). The
@@ -79,7 +80,8 @@ class PlaybackController @Inject constructor(
     private val queueSync: QueueSyncEngine,
     private val artists: ArtistRepository,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
-) : PlayerStateSource {
+) : PlayerStateSource,
+    PlayerTransport {
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -198,12 +200,12 @@ class PlaybackController @Inject constructor(
 
     // --- Transport ---------------------------------------------------------------------------------
 
-    fun play() = command { controller ->
+    override fun play() = command { controller ->
         if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
         controller.play()
     }
 
-    fun pause() = command { it.pause() }
+    override fun pause() = command { it.pause() }
 
     fun togglePlayPause() = command { controller ->
         if (controller.isPlaying) {
@@ -448,4 +450,7 @@ class PlaybackController @Inject constructor(
 internal interface PlayerStateModule {
     @Binds
     fun playerStateSource(impl: PlaybackController): PlayerStateSource
+
+    @Binds
+    fun playerTransport(impl: PlaybackController): PlayerTransport
 }
