@@ -11,6 +11,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
@@ -115,8 +116,10 @@ class PlaylistsViewModelTest {
         viewModel.onPlaylistAction(playlist, MediaAction.Shuffle)
         viewModel.onPlaylistAction(playlist, MediaAction.ShuffleAlbums)
 
-        assertThat(play.plays.single())
-            .isEqualTo(RecordingPlayIntents.Play(PlayTarget.Playlist("p1"), QueuePlacement.Replace, shuffle = true))
+        val source = QueueSource.Playlist("p1", "Playlist p1")
+        assertThat(play.plays.single()).isEqualTo(
+            RecordingPlayIntents.Play(PlayTarget.Playlist("p1"), QueuePlacement.Replace, shuffle = true, source),
+        )
         assertThat(play.albumRequests.single().source).isEqualTo(AlbumSource.Playlist("p1"))
     }
 

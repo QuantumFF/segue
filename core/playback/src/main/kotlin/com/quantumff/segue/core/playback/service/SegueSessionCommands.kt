@@ -9,6 +9,8 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSourceRecord
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.QueueSourceRecord
 import com.quantumff.segue.core.model.SleepTimer
 
 /** Custom session commands and session extras shared by the service and [com.quantumff.segue.core.playback.PlaybackController]. */
@@ -58,6 +60,10 @@ internal object SegueSessionCommands {
     private const val ARG_ITEM = "item"
     private const val ARG_INDEX = "index"
     private const val ARG_PLAY = "play"
+    private const val ARG_QUEUE_SOURCE_KIND = "queueSourceKind"
+    private const val ARG_QUEUE_SOURCE_ID = "queueSourceId"
+    private const val ARG_QUEUE_SOURCE_NAME = "queueSourceName"
+    private const val ARG_QUEUE_SOURCE_SHUFFLED = "queueSourceShuffled"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -108,17 +114,49 @@ internal object SegueSessionCommands {
         else -> null
     }
 
-    fun playAlbumsArgs(request: AlbumPlayRequest) = Bundle().apply {
+    /**
+     * The session extras: the sleep timer ([sleepArgs]) and the queue source, which Media3's player
+     * state cannot carry. [sleepTimer] and [queueSource] read them back.
+     */
+    fun sessionExtras(timer: SleepTimer?, source: QueueSource) = sleepArgs(timer).apply {
+        putQueueSource(source)
+    }
+
+    /** The queue source in [bundle]: the session extras or a play intent's args. Unknown if none. */
+    fun queueSource(bundle: Bundle): QueueSource {
+        val kind = bundle.getString(ARG_QUEUE_SOURCE_KIND) ?: return QueueSource.Unknown
+        return QueueSourceRecord(
+            kind = kind,
+            id = bundle.getString(ARG_QUEUE_SOURCE_ID),
+            name = bundle.getString(ARG_QUEUE_SOURCE_NAME),
+            shuffled = bundle.getBoolean(ARG_QUEUE_SOURCE_SHUFFLED),
+        ).toSource()
+    }
+
+    private fun Bundle.putQueueSource(source: QueueSource) {
+        val record = QueueSourceRecord.of(source)
+        putString(ARG_QUEUE_SOURCE_KIND, record.kind)
+        putString(ARG_QUEUE_SOURCE_ID, record.id)
+        putString(ARG_QUEUE_SOURCE_NAME, record.name)
+        putBoolean(ARG_QUEUE_SOURCE_SHUFFLED, record.shuffled)
+    }
+
+    /**
+     * [PLAY_ALBUMS]'s args: [request], and the [source] it records if it replaces the queue.
+     * [playAlbums] and [queueSource] read them back.
+     */
+    fun playAlbumsArgs(request: AlbumPlayRequest, source: QueueSource) = Bundle().apply {
+        putQueueSource(source)
         putString(ARG_ALBUM_ORDER, request.order.name)
         putString(ARG_PLACEMENT, request.placement.name)
-        val source = AlbumSourceRecord.of(request.source)
-        putString(ARG_SOURCE_KIND, source.kind)
-        putString(ARG_SOURCE_ID, source.id)
-        putString(ARG_SORT, source.sort)
-        source.starred?.let { putBoolean(ARG_STARRED, it) }
-        putString(ARG_GENRE, source.genre)
-        source.year?.let { putInt(ARG_YEAR, it) }
-        source.downloaded?.let { putBoolean(ARG_DOWNLOADED, it) }
+        val albums = AlbumSourceRecord.of(request.source)
+        putString(ARG_SOURCE_KIND, albums.kind)
+        putString(ARG_SOURCE_ID, albums.id)
+        putString(ARG_SORT, albums.sort)
+        albums.starred?.let { putBoolean(ARG_STARRED, it) }
+        putString(ARG_GENRE, albums.genre)
+        albums.year?.let { putInt(ARG_YEAR, it) }
+        albums.downloaded?.let { putBoolean(ARG_DOWNLOADED, it) }
     }
 
     /** The request of [playAlbumsArgs], or null if [bundle] does not hold one. */
@@ -137,12 +175,16 @@ internal object SegueSessionCommands {
         return AlbumPlayRequest(source, order, placement)
     }
 
-    /** A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. */
+    /**
+     * A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. [source]
+     * becomes the queue source if they replace the queue.
+     */
     data class QueueSongs(
         val items: List<MediaItem>,
         val placement: QueuePlacement,
         val startIndex: Int,
         val shuffle: Boolean,
+        val source: QueueSource = QueueSource.Unknown,
     )
 
     fun queueSongsArgs(request: QueueSongs) = Bundle().apply {
@@ -152,6 +194,7 @@ internal object SegueSessionCommands {
         putString(ARG_PLACEMENT, request.placement.name)
         putInt(ARG_START_INDEX, request.startIndex)
         putBoolean(ARG_SHUFFLE, request.shuffle)
+        putQueueSource(request.source)
     }
 
     /** The request of [queueSongsArgs], or null if [bundle] does not hold one. */
@@ -163,6 +206,7 @@ internal object SegueSessionCommands {
             placement,
             bundle.getInt(ARG_START_INDEX),
             bundle.getBoolean(ARG_SHUFFLE),
+            queueSource(bundle),
         )
     }
 

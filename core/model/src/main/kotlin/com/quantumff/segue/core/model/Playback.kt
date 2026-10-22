@@ -19,6 +19,8 @@ data class PlayerUiState(
     /** A newer queue saved by another device, to offer as "Continue from <device>". */
     val remoteQueue: RemoteQueueOffer? = null,
     val sleepTimer: SleepTimer? = null,
+    /** Where the queue came from, for Now Playing's top bar. */
+    val queueSource: QueueSource = QueueSource.Unknown,
 )
 
 /**

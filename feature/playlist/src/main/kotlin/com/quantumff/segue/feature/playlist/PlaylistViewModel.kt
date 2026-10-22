@@ -19,6 +19,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -193,14 +194,21 @@ class PlaylistViewModel @Inject constructor(
     /** Plays the playlist as shown from [startIndex]; [shuffle] shuffles its tracks. */
     fun play(startIndex: Int = 0, shuffle: Boolean = false) {
         val songs = uiState.value.songs.ifEmpty { return }
-        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, startIndex), shuffle = shuffle) }
+        val target = PlayTarget.Songs(songs, startIndex)
+        val source = queueSource()
+        viewModelScope.launch { playIntents.play(target, shuffle = shuffle, source = source) }
     }
 
     /** The playlist's "Shuffle albums": its tracks grouped by album. */
     fun shuffleAlbums() {
         val request = AlbumPlayRequest(AlbumSource.Playlist(playlistId), AlbumOrder.Shuffled)
-        viewModelScope.launch { playIntents.playAlbums(request) }
+        val source = queueSource()
+        viewModelScope.launch { playIntents.playAlbums(request, source) }
     }
+
+    /** The playlist, as the queue source its plays record; unknown until it has loaded. */
+    private fun queueSource(): QueueSource =
+        uiState.value.playlist?.let { QueueSource.Playlist(it.id, it.name) } ?: QueueSource.Unknown
 
     /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {

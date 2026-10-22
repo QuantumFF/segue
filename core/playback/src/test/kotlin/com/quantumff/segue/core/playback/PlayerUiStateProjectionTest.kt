@@ -6,6 +6,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.PlayerUiState
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.playback.media.toMediaItem
@@ -92,5 +93,16 @@ class PlayerUiStateProjectionTest {
         assertThat(project(SegueSessionCommands.sleepArgs(SleepTimer.AtTime(9_000))).sleepTimer)
             .isEqualTo(SleepTimer.AtTime(9_000))
         assertThat(project().sleepTimer).isNull()
+    }
+
+    @Test
+    fun `the queue source comes from the session extras`() {
+        val extras = SegueSessionCommands.sessionExtras(SleepTimer.EndOfTrack, QueueSource.Playlist("p1", "Road trip"))
+
+        val state = project(extras)
+
+        assertThat(state.queueSource).isEqualTo(QueueSource.Playlist("p1", "Road trip"))
+        assertThat(state.sleepTimer).isEqualTo(SleepTimer.EndOfTrack)
+        assertThat(project().queueSource).isEqualTo(QueueSource.Unknown)
     }
 }

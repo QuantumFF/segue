@@ -19,6 +19,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
@@ -209,8 +210,19 @@ class LibraryViewModelTest {
     fun shuffleAllPlaysEverySongOfTheLibraryInATracksShuffle() = runTest {
         viewModel.shuffleAll()
 
-        assertThat(play.albumRequests.single())
-            .isEqualTo(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks))
+        assertThat(play.albumPlays.single()).isEqualTo(
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks),
+                QueueSource.Library(shuffled = true),
+            ),
+        )
+    }
+
+    @Test
+    fun aGenresShuffleAlbumsNamesTheGenre() = runTest {
+        viewModel.shuffleGenreAlbums("Jazz")
+
+        assertThat(play.albumPlays.single().source).isEqualTo(QueueSource.Genre("Jazz"))
     }
 
     @Test
@@ -255,9 +267,15 @@ class LibraryViewModelTest {
         viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End)
 
         val view = AlbumSource.Albums(AlbumSortOrder.Name, AlbumFilter(starred = true, genre = "Rock"))
-        assertThat(play.albumRequests).containsExactly(
-            AlbumPlayRequest(view, AlbumOrder.InOrder, QueuePlacement.Replace),
-            AlbumPlayRequest(view, AlbumOrder.Shuffled, QueuePlacement.End),
+        assertThat(play.albumPlays).containsExactly(
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(view, AlbumOrder.InOrder, QueuePlacement.Replace),
+                QueueSource.Library(shuffled = false),
+            ),
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(view, AlbumOrder.Shuffled, QueuePlacement.End),
+                QueueSource.Library(shuffled = true),
+            ),
         ).inOrder()
     }
 

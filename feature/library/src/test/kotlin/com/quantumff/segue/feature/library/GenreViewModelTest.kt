@@ -7,6 +7,7 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
@@ -46,11 +47,10 @@ class GenreViewModelTest {
 
         viewModel.playAlbums(AlbumOrder.Shuffled, QueuePlacement.End)
 
-        assertThat(play.albumRequests).containsExactly(
-            AlbumPlayRequest(
-                AlbumSource.Genre("Jazz"),
-                AlbumOrder.Shuffled,
-                QueuePlacement.End,
+        assertThat(play.albumPlays).containsExactly(
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(AlbumSource.Genre("Jazz"), AlbumOrder.Shuffled, QueuePlacement.End),
+                QueueSource.Genre("Jazz"),
             ),
         )
     }

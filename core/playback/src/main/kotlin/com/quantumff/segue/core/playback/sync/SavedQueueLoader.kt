@@ -5,6 +5,7 @@ import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.model.QueueSnapshot
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.SeguePlayer
@@ -32,7 +33,7 @@ class SavedQueueLoader(
     private val queueSync: QueueSyncEngine,
     private val snapshots: QueueSnapshotRepository,
     private val library: LibraryRepository,
-    /** Narrows an adopted queue to what can play now. */
+    /** Narrows an adopted queue to what can play now, and keeps the queue source. */
     private val editor: QueueEditor,
 ) {
     /** At service start: this device's saved queue, paused, unless something was queued meanwhile. */
@@ -71,6 +72,7 @@ class SavedQueueLoader(
             return false
         }
         player.pause()
+        editor.setSource(QueueSource.Unknown)
         player.setMediaItems(playable.mediaItems, playable.startIndex, playable.startPositionMs)
         queueSync.markAdopted(player.queueState())
         return true
@@ -81,6 +83,7 @@ class SavedQueueLoader(
         val previous = queueSync.takeAdoptionUndo() ?: return
         val restored = load(previous) ?: return
         player.pause()
+        editor.setSource(QueueSource.Unknown)
         player.restore(restored.items, restored.state)
     }
 

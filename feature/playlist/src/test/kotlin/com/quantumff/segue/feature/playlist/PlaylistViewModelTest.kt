@@ -7,6 +7,7 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
@@ -176,6 +177,18 @@ class PlaylistViewModelTest {
         viewModel.play(startIndex = 1)
 
         assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(viewModel.uiState.value.songs, 1))
+    }
+
+    @Test
+    fun playAndShuffleAlbumsNameThePlaylistAsTheQueueSource() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.play(shuffle = true)
+        viewModel.shuffleAlbums()
+
+        val source = QueueSource.Playlist("p1", "Playlist p1")
+        assertThat(play.plays.single().source).isEqualTo(source)
+        assertThat(play.albumPlays.single().source).isEqualTo(source)
     }
 
     @Test
