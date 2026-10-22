@@ -27,12 +27,15 @@ fun Playlist.toCardState(subtitle: String): AlbumCardState =
 
 /**
  * [rowKey] identifies the row in a lazy list. It defaults to the song ID; playlists can hold a
- * song twice, so they pass a position-qualified key instead.
+ * song twice, so they pass a position-qualified key instead. [isCurrent] and [isPlaying] mark the
+ * song that is playing (DESIGN.md §5.2).
  */
 fun Song.toTrackRowState(
     rowKey: String = id,
     download: DownloadBadgeState? = null,
     isAvailable: Boolean = true,
+    isCurrent: Boolean = false,
+    isPlaying: Boolean = false,
 ): TrackRowState = TrackRowState(
     id = rowKey,
     title = title,
@@ -44,6 +47,8 @@ fun Song.toTrackRowState(
     explicit = explicitStatus == ExplicitStatus.Explicit,
     download = download,
     isAvailable = isAvailable,
+    isCurrent = isCurrent,
+    isPlaying = isCurrent && isPlaying,
 )
 
 /** The badge for a download status (DESIGN.md §4.9). Paused and failed show no badge. */

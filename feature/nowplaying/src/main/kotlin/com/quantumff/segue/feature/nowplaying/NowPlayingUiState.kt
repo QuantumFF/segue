@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.nowplaying
 import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.PlayerUiState
+import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ReplayGain
@@ -13,6 +14,7 @@ import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
 import java.util.Locale
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 /** The panels that replace the art (phone) or fill the right pane (two-pane). */
 enum class NowPlayingPanel {
@@ -94,12 +96,26 @@ sealed interface LyricsUiState {
 sealed interface RelatedUiState {
     data object Loading : RelatedUiState
 
-    data class Loaded(val songs: ImmutableList<Song>) : RelatedUiState
+    /** [playing] marks the current song's rows, as in other song lists. */
+    data class Loaded(val songs: ImmutableList<Song>, val playing: PlayingSong? = null) : RelatedUiState
 
     /** The track has no known artist to find similar songs for. */
     data object Unavailable : RelatedUiState
 
     data object Error : RelatedUiState
+}
+
+/**
+ * The related songs as shown while [playing] is the current song: without it, since "related"
+ * never means the same song, and with rows marked like other song lists.
+ */
+internal fun RelatedUiState.shownWhile(playing: PlayingSong?): RelatedUiState = when (this) {
+    is RelatedUiState.Loaded -> copy(
+        songs = if (playing == null) songs else songs.filterNot { it.id == playing.songId }.toImmutableList(),
+        playing = playing,
+    )
+
+    else -> this
 }
 
 /** What a sleep timer choice in the sheet means. */

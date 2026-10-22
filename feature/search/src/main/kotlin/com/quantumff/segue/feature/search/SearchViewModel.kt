@@ -7,6 +7,7 @@ import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
@@ -16,8 +17,10 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.playingSong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -73,10 +76,15 @@ data class SearchUiState(
     val genres: ImmutableList<Genre> = persistentListOf(),
     /** A failed menu action for a snackbar, cleared with [SearchViewModel.onMessageDismiss]. */
     val message: MediaActionFailure? = null,
+    /** The song that is playing, whose result rows are marked; null when nothing is current. */
+    val playing: PlayingSong? = null,
 ) {
     /** The songs of the results, with favorites toggled here applied. Play intents index into this. */
     val songs: ImmutableList<Song>
         get() = (results as? SearchResults.Ready)?.result?.songs ?: persistentListOf()
+
+    /** Whether [song]'s row is marked as the current song. */
+    fun isCurrent(song: Song): Boolean = playing?.songId == song.id
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -88,6 +96,7 @@ class SearchViewModel @Inject constructor(
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     private val mediaActions: MediaActionHandler,
+    player: PlayerStateSource,
 ) : ViewModel() {
     private val queryState = MutableStateFlow("")
 
@@ -114,19 +123,22 @@ class SearchViewModel @Inject constructor(
             }
         }
 
+    private val playing: Flow<PlayingSong?> = player.state.map { it.playingSong() }.distinctUntilChanged()
+
     val uiState: StateFlow<SearchUiState> = combine(
         filter,
         combine(results, starOverrides, ::applyOverrides),
         preferences.recentSearches,
         libraryRepository.genres,
-        message,
-    ) { filter, results, recents, genres, message ->
+        combine(message, playing, ::Pair),
+    ) { filter, results, recents, genres, (message, playing) ->
         SearchUiState(
             filter = filter,
             results = results,
             recentSearches = recents,
             genres = genres,
             message = message,
+            playing = playing,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SearchUiState())
 
