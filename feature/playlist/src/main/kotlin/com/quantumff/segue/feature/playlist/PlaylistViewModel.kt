@@ -9,11 +9,16 @@ import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
+import com.quantumff.segue.core.designsystem.component.TrackRowState
+import com.quantumff.segue.core.designsystem.model.toBadgeState
+import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
@@ -21,6 +26,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
+import com.quantumff.segue.core.model.currentSong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -30,6 +36,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -61,11 +69,21 @@ data class PlaylistUiState(
     val download: DownloadStatus? = null,
     /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
     val availability: SongAvailability = SongAvailability(),
+    /** The song the player is on; its rows are marked. */
+    val currentSong: CurrentSong? = null,
 ) {
     /** Only the owner's playlists can be edited, renamed or deleted. */
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
 
     val songs: List<Song> get() = entries.map { it.song }
+
+    /** [entry]'s track row: its download badge, whether it is available, and whether it is playing. */
+    fun trackRow(entry: PlaylistEntry): TrackRowState = entry.song.toTrackRowState(
+        rowKey = entry.key,
+        download = availability.downloads[entry.song.id]?.status?.toBadgeState(),
+        isAvailable = availability.isAvailable(entry.song),
+        current = currentSong,
+    )
 }
 
 /**
@@ -79,6 +97,7 @@ class PlaylistViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
+    playerState: PlayerStateSource,
     private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
@@ -89,10 +108,12 @@ class PlaylistViewModel @Inject constructor(
         playlistRepository.playlistSongs(playlistId),
         local,
         combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
-    ) { playlist, songs, local, (download, availability) ->
+        playerState.state.map { it.currentSong }.distinctUntilChanged(),
+    ) { playlist, songs, local, (download, availability), currentSong ->
         PlaylistUiState(
             download = download,
             availability = availability,
+            currentSong = currentSong,
             playlist = playlist,
             entries = local.working ?: songs.toEntries(),
             loadState = when {

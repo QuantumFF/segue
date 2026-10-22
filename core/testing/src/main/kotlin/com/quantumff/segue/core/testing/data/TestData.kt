@@ -4,7 +4,9 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
@@ -93,4 +95,26 @@ object TestData {
 
     fun genre(name: String, albumCount: Int = 3) =
         Genre(name = name, songCount = albumCount * 10, albumCount = albumCount)
+
+    /** A one-song queue on [songId], playing or paused: what song lists mark as the current song. */
+    fun playerOn(songId: String, isPlaying: Boolean = true): PlayerUiState {
+        val item = QueueItem(
+            songId = songId,
+            timelineIndex = 0,
+            title = "Song $songId",
+            artist = "Artist 1",
+            album = "Album album-1",
+            albumId = "album-1",
+            coverArtId = "al-album-1",
+            durationMillis = 200_000,
+            isStarred = false,
+        )
+        return PlayerUiState(
+            currentItem = item,
+            currentQueueIndex = 0,
+            isPlaying = isPlaying,
+            durationMillis = item.durationMillis,
+            queue = persistentListOf(item),
+        )
+    }
 }

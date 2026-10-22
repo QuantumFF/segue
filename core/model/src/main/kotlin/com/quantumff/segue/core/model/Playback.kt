@@ -21,6 +21,23 @@ data class PlayerUiState(
     val sleepTimer: SleepTimer? = null,
     /** The current song failed to play; null once playback moves to another item or a retry plays. */
     val playbackError: PlaybackError? = null,
+    /** What the player is actually playing for [currentItem]; null until it is known. */
+    val streamFormat: StreamFormat? = null,
+)
+
+/**
+ * The stream format: the codec and bit rate of what the player decoded or requested for the
+ * current song. A server transcode ("OPUS", 128) or a downloaded file, which may differ from the
+ * library song's own file. Unknown values are null.
+ */
+data class StreamFormat(
+    /** "FLAC", "MP3", "OPUS". */
+    val codec: String,
+    val bitRateKbps: Int? = null,
+    /** Hz; for lossless streams. */
+    val sampleRateHz: Int? = null,
+    /** Bits per sample; null for lossy streams. */
+    val bitDepth: Int? = null,
 )
 
 /**

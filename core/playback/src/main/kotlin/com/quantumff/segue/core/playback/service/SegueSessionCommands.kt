@@ -12,6 +12,8 @@ import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SleepTimer
+import com.quantumff.segue.core.model.StreamingQuality
+import com.quantumff.segue.core.playback.cache.StreamRequest
 
 /** Custom session commands and session extras shared by the service and [com.quantumff.segue.core.playback.PlaybackController]. */
 internal object SegueSessionCommands {
@@ -64,6 +66,10 @@ internal object SegueSessionCommands {
     private const val ARG_ERROR_SONG_ID = "errorSongId"
     private const val ARG_ERROR_TITLE = "errorTitle"
     private const val ARG_ERROR_KIND = "errorKind"
+    private const val ARG_STREAM_SONG_ID = "streamSongId"
+    private const val ARG_STREAM_SIZE = "streamSize"
+    private const val ARG_STREAM_MAX_BIT_RATE = "streamMaxBitRate"
+    private const val ARG_STREAM_FORMAT = "streamFormat"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -114,12 +120,10 @@ internal object SegueSessionCommands {
         else -> null
     }
 
-    /** The session extras: what Media3's player state cannot carry, the sleep timer and a playback error. */
-    fun sessionExtras(timer: SleepTimer?, error: PlaybackError?) = sleepArgs(timer).apply {
-        putAll(playbackErrorArgs(error))
-    }
-
-    /** The playback error part of the session extras. [playbackError] reads it back. */
+    /**
+     * Session extras: the playback error the app shows ("Couldn't play <title>"), which Media3's
+     * player state cannot carry. [playbackError] reads it back.
+     */
     fun playbackErrorArgs(error: PlaybackError?) = Bundle().apply {
         if (error == null) return@apply
         putString(ARG_ERROR_SONG_ID, error.songId)
@@ -132,6 +136,34 @@ internal object SegueSessionCommands {
         title = bundle.getString(ARG_ERROR_TITLE).orEmpty(),
         kind = enumOrNull<PlaybackErrorKind>(bundle.getString(ARG_ERROR_KIND)) ?: PlaybackErrorKind.Other,
     )
+
+    /**
+     * Session extras: what the player asked for when it opened [songId] (see
+     * [com.quantumff.segue.core.playback.cache.SegueUriResolver]), which Media3's tracks cannot
+     * carry. [streamRequest] reads it back.
+     */
+    fun streamRequestArgs(songId: String, request: StreamRequest) = Bundle().apply {
+        putString(ARG_STREAM_SONG_ID, songId)
+        when (request) {
+            is StreamRequest.Download -> putLong(ARG_STREAM_SIZE, request.sizeBytes)
+
+            is StreamRequest.Stream -> {
+                putInt(ARG_STREAM_MAX_BIT_RATE, request.quality.maxBitRateKbps)
+                putString(ARG_STREAM_FORMAT, request.quality.format)
+            }
+        }
+    }
+
+    /** The request of [streamRequestArgs] if it is for [songId], else null. */
+    fun streamRequest(bundle: Bundle, songId: String): StreamRequest? = when {
+        bundle.getString(ARG_STREAM_SONG_ID) != songId -> null
+
+        bundle.containsKey(ARG_STREAM_SIZE) -> StreamRequest.Download(bundle.getLong(ARG_STREAM_SIZE))
+
+        else -> StreamRequest.Stream(
+            StreamingQuality(bundle.getInt(ARG_STREAM_MAX_BIT_RATE), bundle.getString(ARG_STREAM_FORMAT)),
+        )
+    }
 
     fun playAlbumsArgs(request: AlbumPlayRequest) = Bundle().apply {
         putString(ARG_ALBUM_ORDER, request.order.name)

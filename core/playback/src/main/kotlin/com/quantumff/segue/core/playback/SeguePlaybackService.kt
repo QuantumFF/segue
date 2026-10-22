@@ -6,6 +6,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
@@ -177,6 +178,9 @@ class SeguePlaybackService : MediaLibraryService() {
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) = publishNowPlaying()
+
+        // The current song has loaded, so the resolver knows what it asked for: the stream format.
+        override fun onTracksChanged(tracks: Tracks) = updateSessionState()
     }
 
     /** Prefetch only while the user means to play; a paused queue does not need the radio. */
@@ -188,9 +192,23 @@ class SeguePlaybackService : MediaLibraryService() {
 
     private fun updateSessionState() {
         val session = session ?: return
-        session.sessionExtras = SegueSessionCommands.sessionExtras(sleepTimer.timer, playbackErrors.error)
+        session.sessionExtras = sessionExtras()
         session.setMediaButtonPreferences(mediaButtons())
         publishNowPlaying()
+    }
+
+    /** Everything the app's controller reads from the session extras, in one bundle: add to it, never replace it. */
+    private fun sessionExtras() = Bundle().apply {
+        putAll(SegueSessionCommands.sleepArgs(sleepTimer.timer))
+        streamRequestArgs()?.let(::putAll)
+        putAll(SegueSessionCommands.playbackErrorArgs(playbackErrors.error))
+    }
+
+    /** What the player asked for when it opened the current song, for the stream format. */
+    private fun streamRequestArgs(): Bundle? {
+        val songId = exoPlayer.currentMediaItem?.mediaId ?: return null
+        val request = components.streamRequest(songId) ?: return null
+        return SegueSessionCommands.streamRequestArgs(songId, request)
     }
 
     /** Widgets follow player events: track and play/pause. Unchanged snapshots are dropped. */

@@ -55,10 +55,8 @@ import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollS
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
-import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -306,15 +304,11 @@ private fun ArtistContent(
                     index,
                     song,
                 ->
-                val download = state.availability.downloads[song.id]
-                val available = state.availability.isAvailable(song)
-                val row = remember(song, download, available) {
-                    song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
-                }
+                val row = remember(song, state.availability, state.currentSong) { state.trackRow(song) }
                 TrackSwipeBox(
                     onPlayNext = { onSongAction(song, MediaAction.PlayNext) },
                     onAddToQueue = { onSongAction(song, MediaAction.AddToQueue) },
-                    enabled = available,
+                    enabled = row.isAvailable,
                 ) {
                     TrackRow(
                         state = row,

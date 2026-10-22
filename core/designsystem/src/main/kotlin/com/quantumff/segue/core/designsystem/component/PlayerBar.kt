@@ -170,22 +170,28 @@ private fun TransportAndSeek(
                 contentDescription = stringResource(R.string.ds_previous),
                 onClick = actions.onPreviousClick,
             )
-            FilledIconButton(
-                onClick = actions.onPlayPauseClick,
-                shape = SegueShapes.full,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface,
-                ),
-                modifier = Modifier.size(SegueSizes.playerBarPlay),
+            BufferingRing(
+                isBuffering = state.track.isBuffering,
+                diameter = SegueSizes.playerBarBufferingRing,
+                color = MaterialTheme.colorScheme.onSurface,
             ) {
-                Icon(
-                    imageVector = if (state.track.isPlaying) SegueIcons.PauseFilled else SegueIcons.PlayFilled,
-                    contentDescription = stringResource(
-                        if (state.track.isPlaying) R.string.ds_pause else R.string.ds_play,
+                FilledIconButton(
+                    onClick = actions.onPlayPauseClick,
+                    shape = SegueShapes.full,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.onSurface,
+                        contentColor = MaterialTheme.colorScheme.surface,
                     ),
-                    modifier = Modifier.size(SegueSizes.iconSmall),
-                )
+                    modifier = Modifier.size(SegueSizes.playerBarPlay),
+                ) {
+                    Icon(
+                        imageVector = if (state.track.isPlaying) SegueIcons.PauseFilled else SegueIcons.PlayFilled,
+                        contentDescription = stringResource(
+                            if (state.track.isPlaying) R.string.ds_pause else R.string.ds_play,
+                        ),
+                        modifier = Modifier.size(SegueSizes.iconSmall),
+                    )
+                }
             }
             SegueIconButton(
                 icon = SegueIcons.SkipNext,

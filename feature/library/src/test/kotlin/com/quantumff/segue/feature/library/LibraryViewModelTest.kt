@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.GridSize
@@ -18,9 +19,11 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
@@ -58,6 +61,7 @@ class LibraryViewModelTest {
     private val savedState = SavedStateHandle()
     private val play = RecordingPlayIntents()
     private val preferences = FakeUserPreferencesRepository()
+    private val player = FakePlayerStateSource()
     private lateinit var viewModel: LibraryViewModel
 
     @Before
@@ -83,7 +87,32 @@ class LibraryViewModelTest {
             play,
             mediaActionHandler(play, downloads, stars, albums, playlists, artists),
             preferences,
+            player,
         )
+    }
+
+    @Test
+    fun thePlayingSongsRowsAreMarkedAndFollowThePlayer() = runTest {
+        val s1 = TestData.song("s1")
+        val s2 = TestData.song("s2")
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().currentSong).isNull()
+
+            player.state.value = TestData.playerOn("s2", isPlaying = true)
+            var state = expectMostRecentItem()
+            assertThat(state.currentSong).isEqualTo(CurrentSong("s2", isPlaying = true))
+            assertThat(listOf(s1, s2).map(state::isCurrent)).containsExactly(false, true).inOrder()
+
+            player.state.value = TestData.playerOn("s2", isPlaying = false)
+            assertThat(expectMostRecentItem().currentSong).isEqualTo(CurrentSong("s2", isPlaying = false))
+
+            player.state.value = TestData.playerOn("s1", isPlaying = true)
+            state = expectMostRecentItem()
+            assertThat(listOf(s1, s2).map(state::isCurrent)).containsExactly(true, false).inOrder()
+
+            player.state.value = PlayerUiState()
+            assertThat(expectMostRecentItem().currentSong).isNull()
+        }
     }
 
     @Test
