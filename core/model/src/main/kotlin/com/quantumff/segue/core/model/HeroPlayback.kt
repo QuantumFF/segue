@@ -36,3 +36,9 @@ fun PlayerUiState.heroPlayback(page: SourcePage): HeroPlayback = when {
     isPlaying -> HeroPlayback.Playing
     else -> HeroPlayback.Paused
 }
+
+/** What a [SourcePage] shows of the player: the song its rows mark, and its [hero] playback. */
+data class PagePlayback(val currentSong: CurrentSong? = null, val hero: HeroPlayback = HeroPlayback.NotSource)
+
+/** What [page] shows of this player state. */
+fun PlayerUiState.pagePlayback(page: SourcePage): PagePlayback = PagePlayback(currentSong, heroPlayback(page))

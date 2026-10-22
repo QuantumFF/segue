@@ -14,11 +14,12 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.play.PlayerTransport
+import com.quantumff.segue.core.data.play.heroPlay
+import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.designsystem.component.TrackRowState
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
@@ -39,10 +40,8 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SourcePage
 import com.quantumff.segue.core.model.SongAvailability
-import com.quantumff.segue.core.model.currentSong
-import com.quantumff.segue.core.model.heroPlayback
+import com.quantumff.segue.core.model.SourcePage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -52,9 +51,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -84,9 +81,7 @@ class ArtistViewModel @Inject constructor(
     private val busy = MutableStateFlow(false)
 
     /** The current song, and whether this artist is the queue source and plays. */
-    private val player = playerState.state
-        .map { it.currentSong to it.heroPlayback(SourcePage.Artist(artistId)) }
-        .distinctUntilChanged()
+    private val player = playerState.pagePlayback(SourcePage.Artist(artistId))
 
     val uiState: StateFlow<ArtistUiState> = combine(
         artistRepository.artist(artistId),
@@ -111,8 +106,8 @@ class ArtistViewModel @Inject constructor(
                     message = message,
                     download = download,
                     availability = availability,
-                    currentSong = player.first,
-                    heroPlayback = player.second,
+                    currentSong = player.currentSong,
+                    heroPlayback = player.hero,
                 )
             }
 
@@ -156,11 +151,7 @@ class ArtistViewModel @Inject constructor(
      */
     fun onHeroPlay() {
         val success = uiState.value as? ArtistUiState.Success ?: return
-        when (success.heroPlayback) {
-            HeroPlayback.Playing -> transport.pause()
-            HeroPlayback.Paused -> transport.play()
-            HeroPlayback.NotSource -> play(shuffle = false)
-        }
+        transport.heroPlay(success.heroPlayback) { play(shuffle = false) }
     }
 
     /** Plays the top song at [index] and the rest of the top songs after it. */
@@ -295,10 +286,6 @@ sealed interface ArtistUiState {
         val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
 
         /** [song]'s top song row: its download badge, whether it is available, and whether it is playing. */
-        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(
-            download = availability.downloads[song.id]?.status?.toBadgeState(),
-            isAvailable = availability.isAvailable(song),
-            current = currentSong,
-        )
+        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(availability, currentSong)
     }
 }

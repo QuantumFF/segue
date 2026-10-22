@@ -13,12 +13,13 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.play.PlayerTransport
+import com.quantumff.segue.core.data.play.heroPlay
+import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
 import com.quantumff.segue.core.designsystem.component.TrackRowState
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
@@ -34,10 +35,8 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.SourcePage
 import com.quantumff.segue.core.model.SongAvailability
-import com.quantumff.segue.core.model.currentSong
-import com.quantumff.segue.core.model.heroPlayback
+import com.quantumff.segue.core.model.SourcePage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -79,9 +78,7 @@ class AlbumViewModel @Inject constructor(
     private val album = albumRepository.album(albumId)
 
     /** The current song, and whether this album is the queue source and plays. */
-    private val player = playerState.state
-        .map { it.currentSong to it.heroPlayback(SourcePage.Album(albumId)) }
-        .distinctUntilChanged()
+    private val player = playerState.pagePlayback(SourcePage.Album(albumId))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val moreByArtist = album
@@ -109,8 +106,8 @@ class AlbumViewModel @Inject constructor(
                 message = message,
                 download = download,
                 availability = availability,
-                currentSong = player.first,
-                heroPlayback = player.second,
+                currentSong = player.currentSong,
+                heroPlayback = player.hero,
             )
 
             refresh == null -> AlbumUiState.Loading
@@ -147,11 +144,7 @@ class AlbumViewModel @Inject constructor(
      */
     fun onHeroPlay() {
         val success = uiState.value as? AlbumUiState.Success ?: return
-        when (success.heroPlayback) {
-            HeroPlayback.Playing -> transport.pause()
-            HeroPlayback.Paused -> transport.play()
-            HeroPlayback.NotSource -> play()
-        }
+        transport.heroPlay(success.heroPlayback) { play() }
     }
 
     /** Pins the album for offline use. */
@@ -257,11 +250,7 @@ sealed interface AlbumUiState {
         val showDiscHeaders: Boolean get() = discs.size > 1
 
         /** [song]'s track row: its download badge, whether it is available, and whether it is playing. */
-        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(
-            download = availability.downloads[song.id]?.status?.toBadgeState(),
-            isAvailable = availability.isAvailable(song),
-            current = currentSong,
-        )
+        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(availability, currentSong)
         val trackCount: Int get() = if (songs.isEmpty()) album.songCount else songs.size
         val durationSeconds: Long
             get() = if (songs.isEmpty()) album.durationSeconds.toLong() else songs.sumOf { it.durationSeconds.toLong() }
