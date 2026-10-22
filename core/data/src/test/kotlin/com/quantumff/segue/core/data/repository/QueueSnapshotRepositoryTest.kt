@@ -4,8 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.testing.FakeClientProvider
 import com.quantumff.segue.core.data.testing.FakeClock
 import com.quantumff.segue.core.data.testing.FakeSubsonicClient
+import com.quantumff.segue.core.data.testing.SERVER_ID
 import com.quantumff.segue.core.data.testing.inMemoryDatabase
+import com.quantumff.segue.core.database.model.QueueStateEntity
 import com.quantumff.segue.core.model.QueueSnapshot
+import com.quantumff.segue.core.model.QueueSource
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -35,6 +38,22 @@ class QueueSnapshotRepositoryTest {
                 updatedAt = clock.nowMillis(),
             ),
         )
+    }
+
+    @Test
+    fun `a snapshot keeps its queue source`() = runTest {
+        repository.save(listOf("a"), 0, 0, QueueSource.Adopted("Feishin"))
+        assertThat(repository.snapshot.first()?.source).isEqualTo(QueueSource.Adopted("Feishin"))
+
+        repository.save(listOf("a"), 0, 0, QueueSource.Library(shuffled = true))
+        assertThat(repository.snapshot.first()?.source).isEqualTo(QueueSource.Library(shuffled = true))
+    }
+
+    @Test
+    fun `a snapshot saved without a source has an unknown source`() = runTest {
+        db.queueDao().replaceSnapshot(QueueStateEntity(SERVER_ID, 0, 0, 0), listOf("a"))
+
+        assertThat(repository.snapshot.first()?.source).isEqualTo(QueueSource.Unknown)
     }
 
     @Test
