@@ -1,6 +1,7 @@
 package com.quantumff.segue.feature.nowplaying
 
 import androidx.compose.runtime.Immutable
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 
 /** Every command Now Playing raises, grouped so the screen takes one stable parameter. */
@@ -20,6 +21,8 @@ class NowPlayingActions(
     val onInstantMix: () -> Unit,
     val onAlbumClick: (String) -> Unit,
     val onArtistClick: (String) -> Unit,
+    /** Opens the album, playlist, artist or genre the queue came from (the top bar's source name). */
+    val onSourceClick: (QueueSource) -> Unit,
     val onAddToPlaylist: (List<String>) -> Unit,
     val onVisiblePanelsChange: (Set<NowPlayingPanel>) -> Unit,
     val onRetryLyrics: () -> Unit,
@@ -46,6 +49,7 @@ class NowPlayingActions(
             onInstantMix = {},
             onAlbumClick = {},
             onArtistClick = {},
+            onSourceClick = {},
             onAddToPlaylist = {},
             onVisiblePanelsChange = {},
             onRetryLyrics = {},

@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.nowplaying
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
@@ -82,6 +83,53 @@ class NowPlayingUiStateTest {
         assertThat(state.track?.artists?.map { it.id }).containsExactly("ar-1")
         assertThat(state.details?.path).isEqualTo("a/b.flac")
     }
+
+    @Test
+    fun aPageSourceIsNamedAndItsNameOpensThePage() {
+        val pages = listOf(
+            QueueSource.Album("al", "In Rainbows") to R.string.feature_nowplaying_source_album,
+            QueueSource.Playlist("p", "Road trip") to R.string.feature_nowplaying_source_playlist,
+            QueueSource.Artist("ar", "Radiohead") to R.string.feature_nowplaying_source_artist,
+            QueueSource.Genre("Rock") to R.string.feature_nowplaying_source_genre,
+        )
+        for ((source, overline) in pages) {
+            assertThat(sourceLabel(source)).isEqualTo(SourceLabel(overline, source.name, opens = source))
+        }
+    }
+
+    @Test
+    fun anInstantMixNamesItsSeed() {
+        assertThat(sourceLabel(QueueSource.InstantMix("Nude")))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_instant_mix, "Nude"))
+    }
+
+    @Test
+    fun theLibrarySaysWhetherItWasShuffled() {
+        assertThat(sourceLabel(QueueSource.Library(shuffled = true)))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_shuffled_library))
+        assertThat(sourceLabel(QueueSource.Library(shuffled = false)))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_library))
+    }
+
+    @Test
+    fun anAdoptedQueueNamesTheDevice() {
+        assertThat(sourceLabel(QueueSource.Adopted("Feishin")))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_adopted, "Feishin"))
+    }
+
+    @Test
+    fun anUnknownSourceIsTheQueue() {
+        assertThat(sourceLabel(QueueSource.Unknown)).isEqualTo(SourceLabel(R.string.feature_nowplaying_source_queue))
+    }
+
+    @Test
+    fun aBlankNameIsLeftOut() {
+        assertThat(sourceLabel(QueueSource.InstantMix(" ")))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_instant_mix))
+    }
+
+    private fun sourceLabel(source: QueueSource) =
+        player(currentQueueIndex = 0).copy(queueSource = source).toNowPlayingUiState(null, null).source
 
     private fun player(currentQueueIndex: Int, repeatMode: RepeatMode = RepeatMode.Off): PlayerUiState {
         val queue = (0..2).map { index ->

@@ -65,6 +65,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.util.openLink
 import com.quantumff.segue.feature.album.navigation.navigateToAlbum
 import com.quantumff.segue.feature.artist.navigation.navigateToArtist
+import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.NowPlayingOverlay
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
@@ -170,6 +171,14 @@ fun SegueApp(
                 onArtistClick = { id ->
                     appState.closeNowPlaying()
                     appState.navigate { navigateToArtist(id) }
+                },
+                onPlaylistClick = { id ->
+                    appState.closeNowPlaying()
+                    appState.navigate { navigateToPlaylist(id) }
+                },
+                onGenreClick = { genre ->
+                    appState.closeNowPlaying()
+                    appState.navigate { navigateToGenre(genre) }
                 },
                 onAddToPlaylist = { addToPlaylist = it },
                 queueContent = { QueueContent() },
