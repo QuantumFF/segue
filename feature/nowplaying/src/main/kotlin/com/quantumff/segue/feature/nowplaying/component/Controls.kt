@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.quantumff.segue.core.designsystem.component.BufferingRing
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -44,6 +45,7 @@ import com.quantumff.segue.feature.nowplaying.R
 @Composable
 internal fun TransportRow(
     isPlaying: Boolean,
+    isBuffering: Boolean,
     repeatMode: RepeatMode,
     onPreviousClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
@@ -63,22 +65,28 @@ internal fun TransportRow(
                 contentDescription = stringResource(R.string.feature_nowplaying_previous),
                 onClick = onPreviousClick,
             )
-            FilledIconButton(
-                onClick = onPlayPauseClick,
-                shape = SegueShapes.full,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = SegueTheme.colors.onArt,
-                    contentColor = Color.Black,
-                ),
-                modifier = Modifier.size(PLAY_BUTTON),
+            BufferingRing(
+                isBuffering = isBuffering,
+                diameter = PLAY_BUTTON_RING,
+                color = SegueTheme.colors.onArt,
             ) {
-                Icon(
-                    imageVector = if (isPlaying) SegueIcons.PauseFilled else SegueIcons.PlayFilled,
-                    contentDescription = stringResource(
-                        if (isPlaying) R.string.feature_nowplaying_pause else R.string.feature_nowplaying_play,
+                FilledIconButton(
+                    onClick = onPlayPauseClick,
+                    shape = SegueShapes.full,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = SegueTheme.colors.onArt,
+                        contentColor = Color.Black,
                     ),
-                    modifier = Modifier.size(SegueSizes.iconTransport),
-                )
+                    modifier = Modifier.size(PLAY_BUTTON),
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) SegueIcons.PauseFilled else SegueIcons.PlayFilled,
+                        contentDescription = stringResource(
+                            if (isPlaying) R.string.feature_nowplaying_pause else R.string.feature_nowplaying_play,
+                        ),
+                        modifier = Modifier.size(SegueSizes.iconTransport),
+                    )
+                }
             }
             TransportButton(
                 icon = SegueIcons.SkipNext,
@@ -231,6 +239,9 @@ private val RepeatMode.label: Int
     }
 
 private val PLAY_BUTTON = 72.dp
+
+/** Around the play circle, 2 clear of it. */
+private val PLAY_BUTTON_RING = 80.dp
 private val TRANSPORT_TARGET = 56.dp
 private val DOT = 4.dp
 private val DOT_OFFSET = 8.dp
