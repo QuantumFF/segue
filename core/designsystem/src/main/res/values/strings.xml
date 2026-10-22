@@ -2,6 +2,7 @@
 <resources>
     <string name="ds_see_all">See all</string>
     <string name="ds_filter_excluded">Excluded</string>
+    <string name="ds_change_sort">Change sort</string>
     <string name="ds_more_options">More options</string>
     <string name="ds_back">Back</string>
     <string name="ds_play">Play</string>
