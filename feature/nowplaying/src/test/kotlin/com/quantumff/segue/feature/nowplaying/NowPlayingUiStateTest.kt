@@ -54,6 +54,14 @@ class NowPlayingUiStateTest {
     }
 
     @Test
+    fun aLoadingStreamReachesThePlayButton() {
+        val loading = player(currentQueueIndex = 0).copy(isBuffering = true)
+
+        assertThat(loading.toNowPlayingUiState(null, null).isBuffering).isTrue()
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(null, null).isBuffering).isFalse()
+    }
+
+    @Test
     fun libraryDetailsApplyOnlyToTheirOwnSong() {
         val player = player(currentQueueIndex = 0)
         val stale =

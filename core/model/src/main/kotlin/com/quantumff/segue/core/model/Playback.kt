@@ -39,6 +39,15 @@ data class StreamFormat(
 )
 
 /**
+ * The current song and whether it plays, for marking it in song lists (DESIGN.md §5.2). Lists match
+ * rows by [songId], so a song listed twice is marked twice.
+ */
+data class PlayingSong(val songId: String, val isPlaying: Boolean)
+
+/** The song to mark in song lists, or null when nothing is current. */
+fun PlayerUiState.playingSong(): PlayingSong? = currentItem?.let { PlayingSong(it.songId, isPlaying) }
+
+/**
  * One entry of the play queue. The same song can appear more than once, so key lists by
  * [timelineIndex], which is unique within one queue state.
  */
