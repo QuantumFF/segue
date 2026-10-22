@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
@@ -92,5 +94,25 @@ class PlayerUiStateProjectionTest {
         assertThat(project(SegueSessionCommands.sleepArgs(SleepTimer.AtTime(9_000))).sleepTimer)
             .isEqualTo(SleepTimer.AtTime(9_000))
         assertThat(project().sleepTimer).isNull()
+    }
+
+    @Test
+    fun `a playback error comes from the session extras, for each kind`() {
+        for (kind in PlaybackErrorKind.entries) {
+            val error = PlaybackError(songId = "a", title = "Nude", kind = kind)
+            assertThat(project(SegueSessionCommands.playbackErrorArgs(error)).playbackError).isEqualTo(error)
+        }
+        assertThat(project().playbackError).isNull()
+    }
+
+    @Test
+    fun `the sleep timer and a playback error share the session extras`() {
+        val error = PlaybackError(songId = "a", title = "Nude", kind = PlaybackErrorKind.Network)
+        val extras = SegueSessionCommands.sessionExtras(SleepTimer.EndOfTrack, error)
+
+        val state = project(extras)
+
+        assertThat(state.sleepTimer).isEqualTo(SleepTimer.EndOfTrack)
+        assertThat(state.playbackError).isEqualTo(error)
     }
 }

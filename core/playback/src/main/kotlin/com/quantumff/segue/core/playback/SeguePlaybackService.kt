@@ -34,6 +34,7 @@ import com.quantumff.segue.core.playback.service.FavoriteToggle
 import com.quantumff.segue.core.playback.service.IdleStop
 import com.quantumff.segue.core.playback.service.LoadingWifiLock
 import com.quantumff.segue.core.playback.service.PlaybackComponents
+import com.quantumff.segue.core.playback.service.PlaybackErrorReporter
 import com.quantumff.segue.core.playback.service.QueueEditor
 import com.quantumff.segue.core.playback.service.ScreenOffOffload
 import com.quantumff.segue.core.playback.service.SeguePlayer
@@ -59,7 +60,8 @@ import kotlinx.coroutines.launch
  *   offline-capable) and for playback resumption, and another client's on adoption. Play pressed
  *   outside the app first checks for another client's newer queue ([SessionPlayer]).
  * - Player events drive queue sync ([com.quantumff.segue.core.playback.sync.QueueSyncEngine]),
- *   scrobbling, ReplayGain, prefetching, and the sleep timer. None of them polls.
+ *   scrobbling, ReplayGain, prefetching, the sleep timer, and the playback error the app shows
+ *   ([PlaybackErrorReporter]). None of them polls.
  */
 @AndroidEntryPoint
 class SeguePlaybackService : MediaLibraryService() {
@@ -79,6 +81,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private lateinit var albumPlays: AlbumPlays
     private lateinit var savedQueues: SavedQueueLoader
     private lateinit var favorite: FavoriteToggle
+    private lateinit var playbackErrors: PlaybackErrorReporter
     private var session: MediaLibrarySession? = null
     private var preferences = UserPreferences()
 
@@ -94,6 +97,7 @@ class SeguePlaybackService : MediaLibraryService() {
         savedQueues = components.createSavedQueueLoader(player, queueEditor)
         favorite = components.createFavoriteToggle(player, scope) { updateSessionState() }
         sleepTimer = SleepTimerController(exoPlayer, scope) { updateSessionState() }
+        playbackErrors = PlaybackErrorReporter(exoPlayer) { updateSessionState() }
         prefetcher = components.createPrefetcher(scope)
         offload = ScreenOffOffload(this, exoPlayer).also { it.start() }
         replayGain = ReplayGainController(exoPlayer, replayGainProcessor, offload)
@@ -109,6 +113,7 @@ class SeguePlaybackService : MediaLibraryService() {
             .build()
 
         exoPlayer.addListener(PlayerEvents())
+        exoPlayer.addListener(playbackErrors)
         exoPlayer.addListener(replayGain)
         exoPlayer.addListener(LoadingWifiLock(exoPlayer))
         exoPlayer.addListener(queueSyncListener)
@@ -183,7 +188,7 @@ class SeguePlaybackService : MediaLibraryService() {
 
     private fun updateSessionState() {
         val session = session ?: return
-        session.sessionExtras = SegueSessionCommands.sleepArgs(sleepTimer.timer)
+        session.sessionExtras = SegueSessionCommands.sessionExtras(sleepTimer.timer, playbackErrors.error)
         session.setMediaButtonPreferences(mediaButtons())
         publishNowPlaying()
     }

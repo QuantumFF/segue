@@ -8,6 +8,8 @@ import com.google.common.collect.ImmutableList
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSourceRecord
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SleepTimer
 
@@ -59,6 +61,10 @@ internal object SegueSessionCommands {
     private const val ARG_INDEX = "index"
     private const val ARG_PLAY = "play"
 
+    private const val ARG_ERROR_SONG_ID = "errorSongId"
+    private const val ARG_ERROR_TITLE = "errorTitle"
+    private const val ARG_ERROR_KIND = "errorKind"
+
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
     private const val SLEEP_END_OF_ALBUM = "endOfAlbum"
@@ -107,6 +113,25 @@ internal object SegueSessionCommands {
         SLEEP_END_OF_ALBUM -> SleepTimer.EndOfAlbum
         else -> null
     }
+
+    /** The session extras: what Media3's player state cannot carry, the sleep timer and a playback error. */
+    fun sessionExtras(timer: SleepTimer?, error: PlaybackError?) = sleepArgs(timer).apply {
+        putAll(playbackErrorArgs(error))
+    }
+
+    /** The playback error part of the session extras. [playbackError] reads it back. */
+    fun playbackErrorArgs(error: PlaybackError?) = Bundle().apply {
+        if (error == null) return@apply
+        putString(ARG_ERROR_SONG_ID, error.songId)
+        putString(ARG_ERROR_TITLE, error.title)
+        putString(ARG_ERROR_KIND, error.kind.name)
+    }
+
+    fun playbackError(bundle: Bundle): PlaybackError? = PlaybackError(
+        songId = bundle.getString(ARG_ERROR_SONG_ID) ?: return null,
+        title = bundle.getString(ARG_ERROR_TITLE).orEmpty(),
+        kind = enumOrNull<PlaybackErrorKind>(bundle.getString(ARG_ERROR_KIND)) ?: PlaybackErrorKind.Other,
+    )
 
     fun playAlbumsArgs(request: AlbumPlayRequest) = Bundle().apply {
         putString(ARG_ALBUM_ORDER, request.order.name)
