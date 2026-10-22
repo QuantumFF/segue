@@ -14,6 +14,8 @@ data class PlayerUiState(
      */
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
+    /** The queue played to its end: the player stopped after its last item. */
+    val hasEnded: Boolean = false,
     /** Updated about twice a second while the UI observes this state and playback runs; otherwise on events. */
     val positionMillis: Long = 0,
     val durationMillis: Long = 0,

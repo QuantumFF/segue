@@ -251,6 +251,23 @@ class AlbumViewModelTest {
         assertThat(transport.commands).hasSize(2)
     }
 
+    @Test
+    fun heroPlayAfterThisAlbumPlayedToTheEndPlaysItAgainFromTheStart() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val thisAlbum = QueueSource.Album("album-1", "Album album-1")
+
+        player.state.value = playing(thisAlbum, isPlaying = false).copy(hasEnded = true)
+        assertThat((viewModel.uiState.value as AlbumUiState.Success).heroPlayback).isEqualTo(HeroPlayback.NotSource)
+        viewModel.onHeroPlay()
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(songs, 0), QueuePlacement.Replace, shuffle = false, thisAlbum),
+        )
+        assertThat(transport.commands).isEmpty()
+    }
+
     /** The player on a song of [source], which is the queue source. */
     private fun playing(source: QueueSource, isPlaying: Boolean) =
         TestData.playerOn("elsewhere", isPlaying).copy(queueSource = source)

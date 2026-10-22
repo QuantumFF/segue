@@ -5,7 +5,10 @@ package com.quantumff.segue.core.model
  * hero's Play and the collapsed top bar's play button do (DESIGN.md §4.3).
  */
 enum class HeroPlayback {
-    /** The queue came from elsewhere: Play replaces the queue with the page. */
+    /**
+     * The queue came from elsewhere, or the page's queue played to its end: Play replaces the queue
+     * with the page.
+     */
     NotSource,
 
     /** The page is the queue source and plays: the buttons show Pause, and a tap pauses. */
@@ -20,7 +23,7 @@ enum class HeroPlayback {
  * as the id: ids are unique per kind only.
  */
 fun PlayerUiState.heroPlayback(isPage: (QueueSource) -> Boolean): HeroPlayback = when {
-    !isPage(queueSource) -> HeroPlayback.NotSource
+    !isPage(queueSource) || hasEnded -> HeroPlayback.NotSource
     isPlaying -> HeroPlayback.Playing
     else -> HeroPlayback.Paused
 }

@@ -100,6 +100,7 @@ class PlayerUiStateProjectionTest {
         val state = project()
 
         assertThat(state.isPlaying).isTrue()
+        assertThat(state.hasEnded).isFalse()
     }
 
     @Test
@@ -111,13 +112,14 @@ class PlayerUiStateProjectionTest {
     }
 
     @Test
-    fun `a queue that played to its end is not playing`() {
+    fun `a queue that played to its end has ended and is not playing`() {
         exo.setMediaItems(items("a"))
         exo.play()
 
         val state = projection.project(inState(Player.STATE_ENDED), Bundle.EMPTY)
 
         assertThat(state.isPlaying).isFalse()
+        assertThat(state.hasEnded).isTrue()
     }
 
     @Test
@@ -128,6 +130,7 @@ class PlayerUiStateProjectionTest {
         val state = projection.project(inState(Player.STATE_IDLE), Bundle.EMPTY)
 
         assertThat(state.isPlaying).isFalse()
+        assertThat(state.hasEnded).isFalse()
     }
 
     @Test

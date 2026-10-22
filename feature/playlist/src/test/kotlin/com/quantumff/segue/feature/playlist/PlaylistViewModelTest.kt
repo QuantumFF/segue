@@ -265,6 +265,21 @@ class PlaylistViewModelTest {
         assertThat(transport.commands).hasSize(2)
     }
 
+    @Test
+    fun heroPlayAfterThisPlaylistPlayedToTheEndPlaysItAgainFromTheStart() = runTest {
+        val viewModel = viewModel()
+        val thisPlaylist = QueueSource.Playlist("p1", "Playlist p1")
+
+        player.state.value = playing(thisPlaylist, isPlaying = false).copy(hasEnded = true)
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.NotSource)
+        viewModel.onHeroPlay()
+
+        val replace = play.plays.single()
+        assertThat(replace.target).isEqualTo(PlayTarget.Songs(viewModel.uiState.value.songs, 0))
+        assertThat(replace.source).isEqualTo(thisPlaylist)
+        assertThat(transport.commands).isEmpty()
+    }
+
     /** The player on a song of [source], which is the queue source. */
     private fun playing(source: QueueSource, isPlaying: Boolean) =
         TestData.playerOn("elsewhere", isPlaying).copy(queueSource = source)

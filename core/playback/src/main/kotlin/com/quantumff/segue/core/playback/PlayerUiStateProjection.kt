@@ -36,6 +36,7 @@ internal class PlayerUiStateProjection {
             currentQueueIndex = queueIndex,
             isPlaying = player.playsWhenReady,
             isBuffering = player.playbackState == Player.STATE_BUFFERING,
+            hasEnded = player.playbackState == Player.STATE_ENDED,
             positionMillis = player.currentPosition,
             durationMillis = durationMillis,
             queue = queue,
