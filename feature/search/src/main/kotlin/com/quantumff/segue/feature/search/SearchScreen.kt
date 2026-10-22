@@ -70,9 +70,9 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
@@ -182,7 +182,7 @@ fun SearchContent(
                     query = query.trim(),
                     results = results,
                     filter = uiState.filter,
-                    playing = uiState.playing,
+                    currentSong = uiState.currentSong,
                     callbacks = callbacks,
                     onSongMoreClick = { menuSong = it },
                 )
@@ -294,7 +294,7 @@ private fun ResultsContent(
     query: String,
     results: SearchResults.Ready,
     filter: SearchFilter,
-    playing: PlayingSong?,
+    currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onSongMoreClick: (Song) -> Unit,
 ) {
@@ -320,8 +320,8 @@ private fun ResultsContent(
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
             when (filter) {
-                SearchFilter.All -> allResults(result, playing, callbacks, onSongMoreClick)
-                SearchFilter.Songs -> songRows(result.songs, playing, callbacks, onSongMoreClick)
+                SearchFilter.All -> allResults(result, currentSong, callbacks, onSongMoreClick)
+                SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onSongMoreClick)
                 SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick)
                 SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick)
             }
@@ -362,7 +362,7 @@ private fun FilterRow(filter: SearchFilter, results: SearchResults.Ready, onFilt
 
 private fun LazyListScope.allResults(
     result: SearchResult,
-    playing: PlayingSong?,
+    currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onSongMoreClick: (Song) -> Unit,
 ) {
@@ -417,13 +417,13 @@ private fun LazyListScope.allResults(
                 },
             )
         }
-        songRows(result.songs.take(ALL_SONG_LIMIT), playing, callbacks, onSongMoreClick)
+        songRows(result.songs.take(ALL_SONG_LIMIT), currentSong, callbacks, onSongMoreClick)
     }
 }
 
 private fun LazyListScope.songRows(
     songs: List<Song>,
-    playing: PlayingSong?,
+    currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onSongMoreClick: (Song) -> Unit,
 ) {
@@ -433,10 +433,7 @@ private fun LazyListScope.songRows(
             onAddToQueue = { callbacks.onSongAction(song, MediaAction.AddToQueue) },
         ) {
             TrackRow(
-                state = song.toTrackRowState(
-                    isCurrent = playing?.songId == song.id,
-                    isPlaying = playing?.isPlaying == true,
-                ),
+                state = song.toTrackRowState(current = currentSong),
                 onClick = { callbacks.onSongClick(index) },
                 onLongClick = { onSongMoreClick(song) },
                 onMoreClick = { onSongMoreClick(song) },

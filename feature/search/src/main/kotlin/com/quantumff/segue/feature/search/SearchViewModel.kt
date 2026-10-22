@@ -11,16 +11,16 @@ import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayTarget
-import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
-import com.quantumff.segue.core.model.playingSong
+import com.quantumff.segue.core.model.currentSong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -77,14 +77,14 @@ data class SearchUiState(
     /** A failed menu action for a snackbar, cleared with [SearchViewModel.onMessageDismiss]. */
     val message: MediaActionFailure? = null,
     /** The song that is playing, whose result rows are marked; null when nothing is current. */
-    val playing: PlayingSong? = null,
+    val currentSong: CurrentSong? = null,
 ) {
     /** The songs of the results, with favorites toggled here applied. Play intents index into this. */
     val songs: ImmutableList<Song>
         get() = (results as? SearchResults.Ready)?.result?.songs ?: persistentListOf()
 
     /** Whether [song]'s row is marked as the current song. */
-    fun isCurrent(song: Song): Boolean = playing?.songId == song.id
+    fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -123,22 +123,22 @@ class SearchViewModel @Inject constructor(
             }
         }
 
-    private val playing: Flow<PlayingSong?> = player.state.map { it.playingSong() }.distinctUntilChanged()
+    private val currentSong: Flow<CurrentSong?> = player.state.map { it.currentSong }.distinctUntilChanged()
 
     val uiState: StateFlow<SearchUiState> = combine(
         filter,
         combine(results, starOverrides, ::applyOverrides),
         preferences.recentSearches,
         libraryRepository.genres,
-        combine(message, playing, ::Pair),
-    ) { filter, results, recents, genres, (message, playing) ->
+        combine(message, currentSong, ::Pair),
+    ) { filter, results, recents, genres, (message, currentSong) ->
         SearchUiState(
             filter = filter,
             results = results,
             recentSearches = recents,
             genres = genres,
             message = message,
-            playing = playing,
+            currentSong = currentSong,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SearchUiState())
 

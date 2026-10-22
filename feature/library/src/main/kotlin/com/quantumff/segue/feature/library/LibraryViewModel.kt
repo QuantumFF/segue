@@ -24,6 +24,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.GridSize
@@ -33,13 +34,12 @@ import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
-import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.SyncProgress
-import com.quantumff.segue.core.model.playingSong
+import com.quantumff.segue.core.model.currentSong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -180,10 +180,10 @@ data class LibraryUiState(
     /** Multi-select's picks; null when not selecting. */
     val selection: LibrarySelection? = null,
     /** The song that is playing, whose Songs tab rows are marked; null when nothing is current. */
-    val playing: PlayingSong? = null,
+    val currentSong: CurrentSong? = null,
 ) {
     /** Whether [song]'s row is marked as the current song. */
-    fun isCurrent(song: Song): Boolean = playing?.songId == song.id
+    fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 
     /** The "Downloaded" chip's filter: chosen, or forced to downloaded only while offline. */
     val shownDownloadedFilter: Boolean? get() = if (isOffline) true else filter.downloaded
@@ -292,15 +292,15 @@ class LibraryViewModel @Inject constructor(
         Status(serverName, progress, refreshing, message, selection)
     }
 
-    private val playing: Flow<PlayingSong?> = player.state.map { it.playingSong() }.distinctUntilChanged()
+    private val currentSong: Flow<CurrentSong?> = player.state.map { it.currentSong }.distinctUntilChanged()
 
     val uiState: StateFlow<LibraryUiState> = combine(
         settings,
         counts,
         browse,
         status,
-        combine(downloads, playing, ::Pair),
-    ) { settings, counts, browse, status, (downloads, playing) ->
+        combine(downloads, currentSong, ::Pair),
+    ) { settings, counts, browse, status, (downloads, currentSong) ->
         LibraryUiState(
             isOffline = downloads.isOffline,
             pinnedAlbums = downloads.albums,
@@ -324,7 +324,7 @@ class LibraryViewModel @Inject constructor(
             isRefreshing = status.refreshing,
             message = status.message,
             selection = status.selection,
-            playing = playing,
+            currentSong = currentSong,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), LibraryUiState())
 

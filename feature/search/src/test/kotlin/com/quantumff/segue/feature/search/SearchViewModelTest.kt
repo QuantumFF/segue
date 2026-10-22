@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.repository.SearchRepository
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
@@ -11,14 +12,12 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
-import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
-import com.quantumff.segue.core.testing.play.playerStateOf
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
@@ -266,29 +265,29 @@ class SearchViewModelTest {
     fun thePlayingSongIsMarkedAndFollowsThePlayer() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = viewModel()
         advanceUntilIdle()
-        assertThat(viewModel.uiState.value.playing).isNull()
+        assertThat(viewModel.uiState.value.currentSong).isNull()
 
-        player.state.value = playerStateOf("s1", isPlaying = true)
+        player.state.value = TestData.playerOn("s1", isPlaying = true)
         advanceUntilIdle()
-        assertThat(viewModel.uiState.value.playing).isEqualTo(PlayingSong("s1", isPlaying = true))
+        assertThat(viewModel.uiState.value.currentSong).isEqualTo(CurrentSong("s1", isPlaying = true))
 
-        player.state.value = playerStateOf("s1", isPlaying = false)
+        player.state.value = TestData.playerOn("s1", isPlaying = false)
         advanceUntilIdle()
-        assertThat(viewModel.uiState.value.playing).isEqualTo(PlayingSong("s1", isPlaying = false))
+        assertThat(viewModel.uiState.value.currentSong).isEqualTo(CurrentSong("s1", isPlaying = false))
 
-        player.state.value = playerStateOf("s2", isPlaying = true)
+        player.state.value = TestData.playerOn("s2", isPlaying = true)
         advanceUntilIdle()
-        assertThat(viewModel.uiState.value.playing).isEqualTo(PlayingSong("s2", isPlaying = true))
+        assertThat(viewModel.uiState.value.currentSong).isEqualTo(CurrentSong("s2", isPlaying = true))
 
         player.state.value = PlayerUiState()
         advanceUntilIdle()
-        assertThat(viewModel.uiState.value.playing).isNull()
+        assertThat(viewModel.uiState.value.currentSong).isNull()
     }
 
     @Test
     fun aSongResultIsMarkedByItsIdWhileItIsTheCurrentSong() = runTest(mainDispatcherRule.testDispatcher) {
         search.script["rad"] = listOf(server.copy(songs = persistentListOf(song, TestData.song("s2"))))
-        player.state.value = playerStateOf("s2", isPlaying = true)
+        player.state.value = TestData.playerOn("s2", isPlaying = true)
         val viewModel = viewModel()
         viewModel.onQueryChange("rad")
         advanceUntilIdle()

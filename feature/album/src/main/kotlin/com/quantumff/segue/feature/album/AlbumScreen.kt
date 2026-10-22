@@ -62,10 +62,8 @@ import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
-import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
@@ -346,15 +344,11 @@ private fun LazyListScope.trackItems(
             }
         }
         items(items = disc.tracks, key = { "track-${it.index}-${it.song.id}" }, contentType = { "track" }) { entry ->
-            val download = state.availability.downloads[entry.song.id]
-            val available = state.availability.isAvailable(entry.song)
-            val row = remember(entry.song, download, available) {
-                entry.song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
-            }
+            val row = remember(entry.song, state.availability, state.currentSong) { state.trackRow(entry.song) }
             TrackSwipeBox(
                 onPlayNext = { onSongAction(entry.song, MediaAction.PlayNext) },
                 onAddToQueue = { onSongAction(entry.song, MediaAction.AddToQueue) },
-                enabled = available,
+                enabled = row.isAvailable,
             ) {
                 TrackRow(
                     state = row,

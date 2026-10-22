@@ -7,6 +7,7 @@ import com.quantumff.segue.core.designsystem.component.DownloadBadgeState
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Playlist
@@ -27,15 +28,14 @@ fun Playlist.toCardState(subtitle: String): AlbumCardState =
 
 /**
  * [rowKey] identifies the row in a lazy list. It defaults to the song ID; playlists can hold a
- * song twice, so they pass a position-qualified key instead. [isCurrent] and [isPlaying] mark the
- * song that is playing (DESIGN.md §5.2).
+ * song twice, so they pass a position-qualified key instead. The row is marked as playing when it
+ * is [current]'s song (DESIGN.md §5.2).
  */
 fun Song.toTrackRowState(
     rowKey: String = id,
     download: DownloadBadgeState? = null,
     isAvailable: Boolean = true,
-    isCurrent: Boolean = false,
-    isPlaying: Boolean = false,
+    current: CurrentSong? = null,
 ): TrackRowState = TrackRowState(
     id = rowKey,
     title = title,
@@ -47,8 +47,8 @@ fun Song.toTrackRowState(
     explicit = explicitStatus == ExplicitStatus.Explicit,
     download = download,
     isAvailable = isAvailable,
-    isCurrent = isCurrent,
-    isPlaying = isCurrent && isPlaying,
+    isCurrent = current?.isOf(this) == true,
+    isPlaying = current?.isOf(this) == true && current.isPlaying,
 )
 
 /** The badge for a download status (DESIGN.md §4.9). Paused and failed show no badge. */

@@ -2,8 +2,8 @@ package com.quantumff.segue.feature.nowplaying
 
 import androidx.compose.runtime.Immutable
 import com.quantumff.segue.core.model.ArtistRef
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.PlayerUiState
-import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ReplayGain
@@ -96,8 +96,8 @@ sealed interface LyricsUiState {
 sealed interface RelatedUiState {
     data object Loading : RelatedUiState
 
-    /** [playing] marks the current song's rows, as in other song lists. */
-    data class Loaded(val songs: ImmutableList<Song>, val playing: PlayingSong? = null) : RelatedUiState
+    /** [currentSong] marks the current song's rows, as in other song lists. */
+    data class Loaded(val songs: ImmutableList<Song>, val currentSong: CurrentSong? = null) : RelatedUiState
 
     /** The track has no known artist to find similar songs for. */
     data object Unavailable : RelatedUiState
@@ -106,13 +106,13 @@ sealed interface RelatedUiState {
 }
 
 /**
- * The related songs as shown while [playing] is the current song: without it, since "related"
+ * The related songs as shown while [current] is the current song: without it, since "related"
  * never means the same song, and with rows marked like other song lists.
  */
-internal fun RelatedUiState.shownWhile(playing: PlayingSong?): RelatedUiState = when (this) {
+internal fun RelatedUiState.shownWhile(current: CurrentSong?): RelatedUiState = when (this) {
     is RelatedUiState.Loaded -> copy(
-        songs = if (playing == null) songs else songs.filterNot { it.id == playing.songId }.toImmutableList(),
-        playing = playing,
+        songs = if (current == null) songs else songs.filterNot(current::isOf).toImmutableList(),
+        currentSong = current,
     )
 
     else -> this

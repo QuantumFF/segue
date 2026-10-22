@@ -30,8 +30,8 @@ import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
-import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.feature.nowplaying.R
 import com.quantumff.segue.feature.nowplaying.RelatedUiState
@@ -79,7 +79,7 @@ internal fun RelatedPanel(state: RelatedUiState, actions: RelatedActions, modifi
                 modifier = modifier,
             )
         } else {
-            RelatedSongs(state.songs, state.playing, actions, modifier)
+            RelatedSongs(state.songs, state.currentSong, actions, modifier)
         }
     }
 }
@@ -87,7 +87,7 @@ internal fun RelatedPanel(state: RelatedUiState, actions: RelatedActions, modifi
 @Composable
 private fun RelatedSongs(
     songs: List<Song>,
-    playing: PlayingSong?,
+    currentSong: CurrentSong?,
     actions: RelatedActions,
     modifier: Modifier = Modifier,
 ) {
@@ -117,11 +117,9 @@ private fun RelatedSongs(
         itemsIndexed(songs, key = { index, song ->
             "$index:${song.id}"
         }, contentType = { _, _ -> "song" }) { index, song ->
-            val isCurrent = playing?.songId == song.id
-            val isPlaying = isCurrent && playing?.isPlaying == true
             TrackRow(
-                state = remember(song, isCurrent, isPlaying) {
-                    song.toTrackRowState(isCurrent = isCurrent, isPlaying = isPlaying)
+                state = remember(song, currentSong) {
+                    song.toTrackRowState(current = currentSong)
                 },
                 onClick = { actions.onPlay(index) },
                 onLongClick = { menuFor = song },
