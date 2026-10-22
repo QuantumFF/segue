@@ -19,6 +19,8 @@ data class PlayerUiState(
     /** A newer queue saved by another device, to offer as "Continue from <device>". */
     val remoteQueue: RemoteQueueOffer? = null,
     val sleepTimer: SleepTimer? = null,
+    /** The current song failed to play; null once playback moves to another item or a retry plays. */
+    val playbackError: PlaybackError? = null,
     /** What the player is actually playing for [currentItem]; null until it is known. */
     val streamFormat: StreamFormat? = null,
 )
@@ -71,6 +73,27 @@ data class RemoteQueueOffer(
  * "Continued from <device>" snackbar, with Undo when [canUndo] (a local queue was replaced).
  */
 data class AutoAdoption(val deviceName: String, val canUndo: Boolean)
+
+/** A song that failed to play ([songId], titled [title]), and why. */
+data class PlaybackError(val songId: String, val title: String, val kind: PlaybackErrorKind) {
+    /** Only a network error may go away by trying again; the others would fail the same way. */
+    val canRetry: Boolean get() = kind == PlaybackErrorKind.Network
+}
+
+/** Why a song failed to play. */
+enum class PlaybackErrorKind {
+    /** The server could not be reached, or did not answer in time. */
+    Network,
+
+    /** The device cannot play the song's format. */
+    Unsupported,
+
+    /** The song's file is missing, on the server or on the device. */
+    NotFound,
+
+    /** Anything else. */
+    Other,
+}
 
 /** When playback pauses by itself. */
 sealed interface SleepTimer {

@@ -16,8 +16,8 @@ import kotlinx.collections.immutable.toImmutableList
 /**
  * The UI's view of a player ([PlaybackController]'s MediaController): the queue, the current item,
  * transport state, the stream format (decoded tracks plus the request in the session extras), and
- * the sleep timer from the session extras. The queue is rebuilt only when the player's timeline
- * changes, not on every event or position tick. While the player knows no
+ * the sleep timer and playback error from the session extras. The queue is rebuilt only when the
+ * player's timeline changes, not on every event or position tick. While the player knows no
  * duration yet, the current item's own duration stands in.
  *
  * Call on the player's thread. One projection follows one player at a time.
@@ -48,6 +48,7 @@ internal class PlayerUiStateProjection {
                     durationMillis = durationMillis,
                 )
             },
+            playbackError = SegueSessionCommands.playbackError(sessionExtras),
         )
     }
 

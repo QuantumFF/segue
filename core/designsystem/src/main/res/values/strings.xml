@@ -68,4 +68,9 @@
     <string name="ds_sync_failed">Library sync failed. Tap to retry.</string>
     <string name="ds_grid_larger">Larger cards</string>
     <string name="ds_grid_smaller">Smaller cards</string>
+    <string name="ds_skip">Skip</string>
+    <string name="ds_playback_error_network">Couldn\'t play %1$s. Check your connection.</string>
+    <string name="ds_playback_error_unsupported">Couldn\'t play %1$s. This device can\'t play its format.</string>
+    <string name="ds_playback_error_not_found">Couldn\'t play %1$s. Its file is missing.</string>
+    <string name="ds_playback_error_other">Couldn\'t play %1$s.</string>
 </resources>
