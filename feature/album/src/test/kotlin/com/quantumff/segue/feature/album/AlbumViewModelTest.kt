@@ -11,6 +11,7 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
@@ -25,6 +26,7 @@ import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.RecordingPlayerTransport
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
@@ -52,6 +54,7 @@ class AlbumViewModelTest {
     private val offlineMode = FakeOfflineModeRepository()
     private val play = RecordingPlayIntents()
     private val player = FakePlayerStateSource()
+    private val transport = RecordingPlayerTransport()
 
     private val album = TestData.album("album-1", songCount = 3, genre = "Rock")
         .copy(discTitles = persistentListOf(DiscTitle(2, "Bonus")))
@@ -70,6 +73,7 @@ class AlbumViewModelTest {
         offlineView = offlineLibraryView(offlineMode, downloads),
         playIntents = play,
         playerState = player,
+        transport = transport,
         mediaActions = mediaActionHandler(play, downloads, stars, albums),
     )
 
@@ -194,6 +198,62 @@ class AlbumViewModelTest {
             RecordingPlayIntents.Play(PlayTarget.Songs(songs, 0), QueuePlacement.Replace, shuffle = true, source),
         ).inOrder()
     }
+
+    @Test
+    fun theHeroShowsPauseOnlyWhileThisAlbumIsThePlayingSource() = runTest {
+        seed()
+        viewModel().uiState.test {
+            fun hero(state: AlbumUiState) = (state as AlbumUiState.Success).heroPlayback
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.NotSource)
+
+            player.state.value = playing(QueueSource.Album("album-1", "Album album-1"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.Playing)
+
+            player.state.value = playing(QueueSource.Album("album-1", "Album album-1"), isPlaying = false)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.Paused)
+
+            // Ids are unique per kind only: a playlist with this album's id is another source.
+            player.state.value = playing(QueueSource.Playlist("album-1", "Mix"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.NotSource)
+
+            player.state.value = playing(QueueSource.Album("album-1", "Album album-1"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.Playing)
+
+            player.state.value = playing(QueueSource.Album("album-2", "Album album-2"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.NotSource)
+        }
+    }
+
+    @Test
+    fun heroPlayPausesThePlayingAlbumResumesItWhenPausedAndOtherwiseReplacesTheQueue() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val thisAlbum = QueueSource.Album("album-1", "Album album-1")
+
+        player.state.value = playing(thisAlbum, isPlaying = true)
+        viewModel.onHeroPlay()
+        player.state.value = playing(thisAlbum, isPlaying = false)
+        viewModel.onHeroPlay()
+
+        assertThat(transport.commands).containsExactly(
+            RecordingPlayerTransport.Command.Pause,
+            RecordingPlayerTransport.Command.Play,
+        ).inOrder()
+        assertThat(play.intents).isEmpty()
+
+        player.state.value = playing(QueueSource.Album("album-2", "Album album-2"), isPlaying = true)
+        viewModel.onHeroPlay()
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(songs, 0), QueuePlacement.Replace, shuffle = false, thisAlbum),
+        )
+        assertThat(transport.commands).hasSize(2)
+    }
+
+    /** The player on a song of [source], which is the queue source. */
+    private fun playing(source: QueueSource, isPlaying: Boolean) =
+        TestData.playerOn("elsewhere", isPlaying).copy(queueSource = source)
 
     @Test
     fun shuffleAlbumsByArtist() = runTest {

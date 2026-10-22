@@ -18,6 +18,7 @@ import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBanner
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
+import com.quantumff.segue.core.designsystem.component.DetailTopBar
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HeroHeader
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
@@ -84,6 +85,21 @@ class ComponentScreenshotTest {
             PlayButton(onClick = {})
             SegueIconButton(icon = SegueIcons.Shuffle, contentDescription = null, onClick = {})
             SegueIconButton(icon = SegueIcons.Heart, contentDescription = null, onClick = {})
+        }
+    }
+
+    /** The page is the playing queue source: the collapsed top bar's play and the hero's Play show Pause. */
+    @Test
+    fun heroPlayingSource() = capture("hero_playing_source") {
+        Column(verticalArrangement = Arrangement.spacedBy(SegueSpacing.lg)) {
+            DetailTopBar(title = "In Rainbows", collapsed = true, onBackClick = {}, onPlayClick = {}, isPlaying = true)
+            Row(
+                Modifier.padding(horizontal = SegueSpacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
+            ) {
+                PlayButton(onClick = {}, isPlaying = true)
+                SegueIconButton(icon = SegueIcons.Shuffle, contentDescription = null, onClick = {})
+            }
         }
     }
 

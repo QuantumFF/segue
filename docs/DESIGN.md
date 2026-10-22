@@ -214,10 +214,11 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.3 Album detail (Feishin hero)
 - Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
 - Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle replaces the queue with the tracks in a fresh shuffled order, as does every "Shuffle" action (there is no player shuffle mode, §4.7). Shuffle long-press opens "Shuffle albums" options where relevant.
+- While the album is the queue source and plays, Play shows Pause and a tap pauses. While it is the paused queue source, Play resumes the queue where it was. On any other page, Play replaces the queue with the page. Compare the kind and the id of the queue source: ids are unique per kind only. Shuffle always replaces the queue.
 - Genre pills below the actions (§5.6).
 - Track list: rows in album mode (number column, no art). For multi-disc albums, add a sticky "Disc N · subtitle" header (`labelLarge`, 40 tall).
 - Footer: "Released 3 Oct 2019 · 12 tracks, 48:21" in `bodySmall` muted, then a "More by <artist>" carousel.
-- On scroll: the top bar starts transparent with a back arrow and ⋮. Once the hero title scrolls under it, it fades to the art-tint color (`medium`) and shows the title in `titleMedium` plus a 36 play button (Feishin page header).
+- On scroll: the top bar starts transparent with a back arrow and ⋮. Once the hero title scrolls under it, it fades to the art-tint color (`medium`) and shows the title in `titleMedium` plus a 36 play button (Feishin page header), which pauses and resumes like the hero's Play.
 - The "Compact headers" setting (Symfonium) switches to 120 art on the left with text on the right, total height about 168.
 
 ```
@@ -245,7 +246,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
-- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮.
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮. Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
 - **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: their own albums (newest first), then "Appears on". The list adds the buttons' inset to its bottom padding.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
@@ -255,7 +256,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.5 Playlist detail
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
-- Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete).
+- Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
 - Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar.
 
 ### 4.6 Search

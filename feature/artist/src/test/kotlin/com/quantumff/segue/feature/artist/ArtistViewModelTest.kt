@@ -9,6 +9,7 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
@@ -20,6 +21,7 @@ import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.RecordingPlayerTransport
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
@@ -42,6 +44,7 @@ class ArtistViewModelTest {
     private val stars = FakeStarRatingRepository()
     private val play = RecordingPlayIntents()
     private val player = FakePlayerStateSource()
+    private val transport = RecordingPlayerTransport()
 
     private val ownAlbum = TestData.album("own", artistId = "artist-1", songCount = 10)
     private val guestAlbum = TestData.album("guest", artistId = "someone-else", songCount = 12)
@@ -54,6 +57,7 @@ class ArtistViewModelTest {
         offlineView = offlineLibraryView(offlineMode, downloads),
         playIntents = play,
         playerState = player,
+        transport = transport,
         mediaActions = mediaActionHandler(play, downloads, stars, artists = artists),
     )
 
@@ -173,6 +177,67 @@ class ArtistViewModelTest {
             ),
         )
     }
+
+    @Test
+    fun theHeroShowsPauseOnlyWhileThisArtistIsThePlayingSource() = runTest {
+        seed()
+        viewModel().uiState.test {
+            fun hero(state: ArtistUiState) = (state as ArtistUiState.Success).heroPlayback
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.NotSource)
+
+            player.state.value = playing(QueueSource.Artist("artist-1", "Artist artist-1"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.Playing)
+
+            player.state.value = playing(QueueSource.Artist("artist-1", "Artist artist-1"), isPlaying = false)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.Paused)
+
+            // Ids are unique per kind only: an album with this artist's id is another source.
+            player.state.value = playing(QueueSource.Album("artist-1", "Album"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.NotSource)
+
+            player.state.value = playing(QueueSource.Artist("artist-1", "Artist artist-1"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.Playing)
+
+            player.state.value = playing(QueueSource.Artist("artist-2", "Artist artist-2"), isPlaying = true)
+            assertThat(hero(awaitItem())).isEqualTo(HeroPlayback.NotSource)
+        }
+    }
+
+    @Test
+    fun heroPlayPausesThePlayingArtistResumesItWhenPausedAndOtherwiseReplacesTheQueue() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val thisArtist = QueueSource.Artist("artist-1", "Artist artist-1")
+
+        player.state.value = playing(thisArtist, isPlaying = true)
+        viewModel.onHeroPlay()
+        player.state.value = playing(thisArtist, isPlaying = false)
+        viewModel.onHeroPlay()
+
+        assertThat(transport.commands).containsExactly(
+            RecordingPlayerTransport.Command.Pause,
+            RecordingPlayerTransport.Command.Play,
+        ).inOrder()
+        assertThat(play.intents).isEmpty()
+
+        player.state.value = playing(QueueSource.InstantMix("Someone"), isPlaying = true)
+        viewModel.onHeroPlay()
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(
+                PlayTarget.Artist("artist-1"),
+                QueuePlacement.Replace,
+                shuffle = false,
+                thisArtist,
+            ),
+        )
+        assertThat(transport.commands).hasSize(2)
+    }
+
+    /** The player on a song of [source], which is the queue source. */
+    private fun playing(source: QueueSource, isPlaying: Boolean) =
+        TestData.playerOn("elsewhere", isPlaying).copy(queueSource = source)
 
     @Test
     fun instantMixIsSeededByTheArtist() = runTest {

@@ -114,7 +114,8 @@ fun AccountAction(serverName: String?, onClick: () -> Unit, modifier: Modifier =
 /**
  * Detail top bar over a hero (DESIGN.md §4.3): transparent with back and ⋮ while the hero is
  * visible; once [collapsed], it fades (`medium`) to [containerColor] and shows [title] in
- * `titleMedium` plus a 36 play button. Alpha is applied in the draw phase.
+ * `titleMedium` plus a 36 play button, which shows Pause while [isPlaying] (the page is the
+ * playing queue source). Alpha is applied in the draw phase.
  */
 @Composable
 fun DetailTopBar(
@@ -124,6 +125,7 @@ fun DetailTopBar(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     onPlayClick: (() -> Unit)? = null,
+    isPlaying: Boolean = false,
     onMoreClick: (() -> Unit)? = null,
 ) {
     val fraction by animateFloatAsState(
@@ -162,7 +164,7 @@ fun DetailTopBar(
                     .padding(horizontal = SegueSpacing.sm),
             )
             if (onPlayClick != null && collapsed) {
-                PlayButton(onClick = onPlayClick, size = SegueSizes.detailTopBarPlay)
+                PlayButton(onClick = onPlayClick, isPlaying = isPlaying, size = SegueSizes.detailTopBarPlay)
             }
         }
         if (onMoreClick != null) {

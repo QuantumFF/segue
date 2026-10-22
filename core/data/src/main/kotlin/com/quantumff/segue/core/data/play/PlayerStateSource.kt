@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * What the player is doing, read-only: the current item, whether it plays, the queue and the rest
  * of [PlayerUiState]. Screens that show player state read it here; commands go elsewhere
- * ([PlayIntents] to queue music, the playback controller for transport and queue edits).
+ * ([PlayIntents] to queue music, [PlayerTransport] to pause and resume, the playback controller for
+ * the rest of transport and queue edits).
  *
  * The playback module implements it over the playback session. Observing either flow connects to
  * the session; while it is disconnected both hold an empty [PlayerUiState]. Tests use the fake in

@@ -10,6 +10,7 @@ import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.play.PlayerTransport
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.designsystem.component.TrackRowState
@@ -20,6 +21,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -28,6 +30,7 @@ import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
+import com.quantumff.segue.core.model.heroPlayback
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -72,6 +75,8 @@ data class PlaylistUiState(
     val availability: SongAvailability = SongAvailability(),
     /** The song the player is on; its rows are marked. */
     val currentSong: CurrentSong? = null,
+    /** Whether this playlist is the queue source and plays: the hero's Play then shows Pause. */
+    val heroPlayback: HeroPlayback = HeroPlayback.NotSource,
 ) {
     /** Only the owner's playlists can be edited, renamed or deleted. */
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
@@ -99,22 +104,29 @@ class PlaylistViewModel @Inject constructor(
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     playerState: PlayerStateSource,
+    private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
     private val local = MutableStateFlow(LocalState())
+
+    /** The current song, and whether this playlist is the queue source and plays. */
+    private val player = playerState.state
+        .map { it.currentSong to it.heroPlayback(::isThisPlaylist) }
+        .distinctUntilChanged()
 
     val uiState: StateFlow<PlaylistUiState> = combine(
         playlistRepository.playlist(playlistId),
         playlistRepository.playlistSongs(playlistId),
         local,
         combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
-        playerState.state.map { it.currentSong }.distinctUntilChanged(),
-    ) { playlist, songs, local, (download, availability), currentSong ->
+        player,
+    ) { playlist, songs, local, (download, availability), (currentSong, heroPlayback) ->
         PlaylistUiState(
             download = download,
             availability = availability,
             currentSong = currentSong,
+            heroPlayback = heroPlayback,
             playlist = playlist,
             entries = local.working ?: songs.toEntries(),
             loadState = when {
@@ -220,6 +232,18 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch { playIntents.play(target, shuffle = shuffle, source = source) }
     }
 
+    /**
+     * The hero's Play, or the collapsed top bar's: pauses this playlist while it is the queue source
+     * and plays, resumes it while it is the paused queue source, and otherwise plays it from the start.
+     */
+    fun onHeroPlay() {
+        when (uiState.value.heroPlayback) {
+            HeroPlayback.Playing -> transport.pause()
+            HeroPlayback.Paused -> transport.play()
+            HeroPlayback.NotSource -> play()
+        }
+    }
+
     /** The playlist's "Shuffle albums": its tracks grouped by album. */
     fun shuffleAlbums() {
         val request = AlbumPlayRequest(AlbumSource.Playlist(playlistId), AlbumOrder.Shuffled)
@@ -230,6 +254,9 @@ class PlaylistViewModel @Inject constructor(
     /** The playlist, as the queue source its plays record; unknown until it has loaded. */
     private fun queueSource(): QueueSource =
         uiState.value.playlist?.let { QueueSource.Playlist(it.id, it.name) } ?: QueueSource.Unknown
+
+    /** Whether [source] is this playlist. Ids are unique per kind only, so the kind counts too. */
+    private fun isThisPlaylist(source: QueueSource) = source is QueueSource.Playlist && source.id == playlistId
 
     /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {
