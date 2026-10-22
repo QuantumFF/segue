@@ -102,6 +102,7 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
@@ -678,7 +679,7 @@ private fun TabContent(
         LibraryTab.Songs -> when {
             state.songCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
             state.songCount == 0 -> LibraryEmpty(listPadding, onEvent)
-            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, picker)
+            else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, state.playing, picker)
         }
 
         LibraryTab.Playlists -> if (state.isOffline && state.playlists?.isEmpty() == true) {
@@ -880,6 +881,7 @@ private fun SongList(
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, SongDownload>,
+    playing: PlayingSong?,
     picker: Picker,
 ) {
     val selected = picker.selected
@@ -905,6 +907,8 @@ private fun SongList(
                 )
             } else {
                 val download = downloads[song.id]
+                val isCurrent = playing?.songId == song.id
+                val isPlaying = isCurrent && playing?.isPlaying == true
                 // Swipes queue the song; while selecting, rows only pick.
                 TrackSwipeBox(
                     onPlayNext = { onEvent(LibraryEvent.SongMenu(song, MediaAction.PlayNext)) },
@@ -912,8 +916,12 @@ private fun SongList(
                     enabled = selected.isEmpty(),
                 ) {
                     TrackRow(
-                        state = remember(song, download) {
-                            song.toTrackRowState(download = download?.status?.toBadgeState())
+                        state = remember(song, download, isCurrent, isPlaying) {
+                            song.toTrackRowState(
+                                download = download?.status?.toBadgeState(),
+                                isCurrent = isCurrent,
+                                isPlaying = isPlaying,
+                            )
                         },
                         onClick = {
                             onEvent(tapEvent(selected, LibraryItem.OfSong(song), LibraryEvent.PlaySong(song)))

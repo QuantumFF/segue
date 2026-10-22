@@ -10,11 +10,15 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.PlayerUiState
+import com.quantumff.segue.core.model.PlayingSong
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
+import com.quantumff.segue.core.testing.play.playerStateOf
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
@@ -49,6 +53,7 @@ class SearchViewModelTest {
     private val downloads = FakeDownloadRepository()
     private val offline = FakeOfflineModeRepository()
     private val play = RecordingPlayIntents()
+    private val player = FakePlayerStateSource()
 
     private val song = TestData.song("s1")
     private val local = SearchResult(
@@ -70,6 +75,7 @@ class SearchViewModelTest {
             offlineLibraryView(offline, downloads),
             play,
             mediaActionHandler(play, downloads, starRating),
+            player,
         )
         backgroundScope.launch { viewModel.uiState.collect {} }
         return viewModel
@@ -254,6 +260,41 @@ class SearchViewModelTest {
 
         assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(listOf(song), 0))
         assertThat(downloads.pins.value.keys).containsExactly(PinKind.Song to "s1")
+    }
+
+    @Test
+    fun thePlayingSongIsMarkedAndFollowsThePlayer() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.playing).isNull()
+
+        player.state.value = playerStateOf("s1", isPlaying = true)
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.playing).isEqualTo(PlayingSong("s1", isPlaying = true))
+
+        player.state.value = playerStateOf("s1", isPlaying = false)
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.playing).isEqualTo(PlayingSong("s1", isPlaying = false))
+
+        player.state.value = playerStateOf("s2", isPlaying = true)
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.playing).isEqualTo(PlayingSong("s2", isPlaying = true))
+
+        player.state.value = PlayerUiState()
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.playing).isNull()
+    }
+
+    @Test
+    fun aSongResultIsMarkedByItsIdWhileItIsTheCurrentSong() = runTest(mainDispatcherRule.testDispatcher) {
+        search.script["rad"] = listOf(server.copy(songs = persistentListOf(song, TestData.song("s2"))))
+        player.state.value = playerStateOf("s2", isPlaying = true)
+        val viewModel = viewModel()
+        viewModel.onQueryChange("rad")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.songs.map { state.isCurrent(it) }).containsExactly(false, true).inOrder()
     }
 
     /** Emits a script per query, one result per second: local first, then the server's. */
