@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="feature_nowplaying_source_label">Playing from album</string>
+    <string name="feature_nowplaying_source_album">Playing from album</string>
+    <string name="feature_nowplaying_source_playlist">Playing from playlist</string>
+    <string name="feature_nowplaying_source_artist">Playing from artist</string>
+    <string name="feature_nowplaying_source_genre">Playing from genre</string>
+    <string name="feature_nowplaying_source_library">Playing from library</string>
+    <string name="feature_nowplaying_source_shuffled_library">Shuffled library</string>
+    <string name="feature_nowplaying_source_instant_mix">Instant mix</string>
+    <string name="feature_nowplaying_source_adopted">Continued from</string>
     <string name="feature_nowplaying_source_queue">Playing from queue</string>
+    <string name="feature_nowplaying_open_source">Open %1$s</string>
     <string name="feature_nowplaying_nothing_playing">Nothing playing</string>
 
     <string name="feature_nowplaying_favorite">Favorite</string>

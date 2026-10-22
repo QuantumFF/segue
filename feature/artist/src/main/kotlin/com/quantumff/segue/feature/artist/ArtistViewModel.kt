@@ -12,9 +12,15 @@ import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.play.PlayerTransport
+import com.quantumff.segue.core.data.play.heroPlay
+import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.designsystem.component.TrackRowState
+import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
@@ -22,7 +28,9 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistAlbums
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
@@ -30,8 +38,10 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
+import com.quantumff.segue.core.model.SourcePage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -41,6 +51,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -57,6 +68,8 @@ class ArtistViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
+    playerState: PlayerStateSource,
+    private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val artistId: String = checkNotNull(savedStateHandle[ARTIST_ID_KEY]) { "Missing $ARTIST_ID_KEY" }
@@ -67,13 +80,16 @@ class ArtistViewModel @Inject constructor(
     private val message = MutableStateFlow<MediaActionFailure?>(null)
     private val busy = MutableStateFlow(false)
 
+    /** The current song, and whether this artist is the queue source and plays. */
+    private val player = playerState.pagePlayback(SourcePage.Artist(artistId))
+
     val uiState: StateFlow<ArtistUiState> = combine(
         artistRepository.artist(artistId),
         artistRepository.artistAlbums(artistId),
         combine(remote, refresh, ::Pair),
-        combine(message, busy, ::Pair),
+        combine(message, busy, player, ::Triple),
         combine(downloadRepository.pinStatus(PinKind.Artist, artistId), offlineView.songAvailability, ::Pair),
-    ) { artist, albums, (remote, refresh), (message, busy), (download, availability) ->
+    ) { artist, albums, (remote, refresh), (message, busy, player), (download, availability) ->
         when {
             artist != null -> {
                 val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
@@ -90,6 +106,8 @@ class ArtistViewModel @Inject constructor(
                     message = message,
                     download = download,
                     availability = availability,
+                    currentSong = player.currentSong,
+                    heroPlayback = player.hero,
                 )
             }
 
@@ -123,12 +141,24 @@ class ArtistViewModel @Inject constructor(
      * Plays the artist ([PlayTarget.Artist]): their top songs, or their albums when the server has
      * no top songs. [shuffle] shuffles the tracks.
      */
-    fun play(shuffle: Boolean) = preparing { playIntents.play(PlayTarget.Artist(artistId), shuffle = shuffle) }
+    fun play(shuffle: Boolean) = preparing {
+        playIntents.play(PlayTarget.Artist(artistId), shuffle = shuffle, source = queueSource())
+    }
+
+    /**
+     * The hero's Play, or the collapsed top bar's: pauses this artist while they are the queue source
+     * and play, resumes them while they are the paused queue source, and otherwise plays them.
+     */
+    fun onHeroPlay() {
+        val success = uiState.value as? ArtistUiState.Success ?: return
+        transport.heroPlay(success.heroPlayback) { play(shuffle = false) }
+    }
 
     /** Plays the top song at [index] and the rest of the top songs after it. */
     fun playTopSong(index: Int) {
         val songs = remote.value.topSongs
-        if (index in songs.indices) viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index)) }
+        if (index !in songs.indices) return
+        viewModelScope.launch { playIntents.play(PlayTarget.Songs(songs, index), source = queueSource()) }
     }
 
     /** The hero's "Shuffle albums": the floating Shuffle pill's tap. */
@@ -140,11 +170,18 @@ class ArtistViewModel @Inject constructor(
      */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
         val request = AlbumPlayRequest(AlbumSource.Artist(artistId), order, placement)
-        viewModelScope.launch { playIntents.playAlbums(request) }
+        viewModelScope.launch { playIntents.playAlbums(request, queueSource()) }
     }
 
     /** Plays songs similar to the artist (`getSimilarSongs2`), topped up with their top songs. */
-    fun startInstantMix() = preparing { playIntents.instantMix(InstantMixSeed.OfArtist(artistId)) }
+    fun startInstantMix() = preparing {
+        val name = artistRepository.artist(artistId).first()?.name.orEmpty()
+        playIntents.instantMix(InstantMixSeed.OfArtist(artistId, name))
+    }
+
+    /** The artist, as the queue source their plays record; unknown while the library does not have them. */
+    private suspend fun queueSource(): QueueSource =
+        artistRepository.artist(artistId).first()?.let { QueueSource.Artist(it.id, it.name) } ?: QueueSource.Unknown
 
     /** The artist's ⋮ menu ([MediaActionHandler]). */
     fun onArtistAction(action: MediaAction, host: MediaActionHost) {
@@ -241,7 +278,14 @@ sealed interface ArtistUiState {
         val download: DownloadStatus? = null,
         /** Row badges; offline, top songs that are not downloaded are dimmed and do not play. */
         val availability: SongAvailability = SongAvailability(),
+        /** The song the player is on; its top song row is marked. */
+        val currentSong: CurrentSong? = null,
+        /** Whether this artist is the queue source and plays: the hero's Play then shows Pause. */
+        val heroPlayback: HeroPlayback = HeroPlayback.NotSource,
     ) : ArtistUiState {
         val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
+
+        /** [song]'s top song row: its download badge, whether it is available, and whether it is playing. */
+        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(availability, currentSong)
     }
 }

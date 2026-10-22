@@ -2,10 +2,10 @@ package com.quantumff.segue.core.playback.service
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.playback.media.withPlayableUri
 import kotlin.random.Random
 
@@ -20,6 +20,8 @@ import kotlin.random.Random
  *   order, from its first song. A running queue is never reshuffled.
  * - **Placement:** replace (and play), next (right after the current item) or end. Into an empty
  *   queue, next and end set the queue and prepare it, without playing.
+ * - **Queue source:** a play intent that replaces the queue makes its source the queue's source
+ *   ([SeguePlayer.queueSource]). Play next and Add to queue leave it alone.
  *
  * [queue] does all three. A media session applies set and add requests itself; [playable] gives it
  * what to apply. [place] is the bare placement, for album plays, which queue playable songs.
@@ -27,24 +29,25 @@ import kotlin.random.Random
  * Call on the player's thread.
  */
 class QueueEditor(
-    private val player: Player,
+    private val player: SeguePlayer,
     /** What is downloaded, while offline; null online. */
     private val offline: suspend () -> DownloadedLibrary?,
     private val random: Random = Random.Default,
 ) {
     /**
-     * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]). False if none of
-     * them can play; the queue is then left alone.
+     * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]); replacing the queue
+     * makes [source] its source. False if none of them can play; the queue is then left alone.
      */
     suspend fun queue(
         items: List<MediaItem>,
         placement: QueuePlacement,
         startIndex: Int = 0,
         shuffle: Boolean = false,
+        source: QueueSource = QueueSource.Unknown,
     ): Boolean {
         val playable = playable(items, startIndex, shuffle = shuffle)
         if (playable == null || playable.mediaItems.isEmpty()) return false
-        place(playable.mediaItems, placement, playable.startIndex)
+        place(playable.mediaItems, placement, playable.startIndex, source)
         return true
     }
 
@@ -84,10 +87,18 @@ class QueueEditor(
 
     /**
      * Puts [items], which must be playable, into the queue at [placement]; a replaced queue starts
-     * at [startIndex] and plays. Returns the queue position of the first item.
+     * at [startIndex], plays, and takes [source] as its source. Returns the queue position of the
+     * first item.
      */
-    fun place(items: List<MediaItem>, placement: QueuePlacement, startIndex: Int = 0): Int = when {
+    fun place(
+        items: List<MediaItem>,
+        placement: QueuePlacement,
+        startIndex: Int = 0,
+        source: QueueSource = QueueSource.Unknown,
+    ): Int = when {
         placement == QueuePlacement.Replace -> {
+            // Before the new queue, so its timeline change already reports the new source.
+            player.setQueueSource(source)
             player.setMediaItems(items, startIndex, 0)
             player.prepare()
             player.play()

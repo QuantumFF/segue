@@ -11,11 +11,14 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
+import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.play.PlayerTransport
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AutoAdoption
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
@@ -28,7 +31,11 @@ import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import com.quantumff.segue.core.playback.sync.RemoteAdoption
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.ExecutionException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,7 +65,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * The one way features control playback. Wraps a Media3 [MediaController] to
- * [SeguePlaybackService], connected on first use, and exposes [state] for the UI.
+ * [SeguePlaybackService], connected on first use. It is also the [PlayerStateSource] screens read
+ * player state from, and the [PlayerTransport] pages pause and resume the queue with.
  *
  * Commands return at once and run on the main thread, where MediaController lives. Queue-editing
  * commands take queue positions ([com.quantumff.segue.core.model.QueueItem.timelineIndex]). The
@@ -72,7 +80,8 @@ class PlaybackController @Inject constructor(
     private val queueSync: QueueSyncEngine,
     private val artists: ArtistRepository,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
-) {
+) : PlayerStateSource,
+    PlayerTransport {
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -95,12 +104,11 @@ class PlaybackController @Inject constructor(
 
     /**
      * Player state as of the last player event: [PlayerUiState.positionMillis] does not tick.
-     * For surfaces that show no position, so observing them never runs the position ticker.
      * Observing it connects to the service. While disconnected it is empty; the next command
      * reconnects.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val eventState: StateFlow<PlayerUiState> = flow {
+    override val state: StateFlow<PlayerUiState> = flow {
         try {
             controller()
         } catch (e: CancellationException) {
@@ -119,15 +127,15 @@ class PlaybackController @Inject constructor(
             },
         )
     }
-        .combine(queueSync.remoteOffer) { state, offer -> state.copy(remoteQueue = offer) }
+        .combine(queueSync.remoteOffer) { player, offer -> player.copy(remoteQueue = offer) }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), PlayerUiState())
 
     /**
-     * [eventState] plus a position that updates every [POSITION_TICK_MILLIS] while someone observes
+     * [state] plus a position that updates every [POSITION_TICK_MILLIS] while someone observes
      * and music plays (the battery rule: the ticker runs only for a visible position).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<PlayerUiState> = eventState
+    override val tickingState: StateFlow<PlayerUiState> = state
         .flatMapLatest { snapshot ->
             val controller = connected.value
             if (snapshot.isPlaying && controller != null) ticking(controller, snapshot) else flowOf(snapshot)
@@ -140,10 +148,18 @@ class PlaybackController @Inject constructor(
      * Queues [songs] at [placement]. Replacing the queue plays them: in order from [startIndex], or
      * with [shuffle] in a fresh shuffled order from its first song. The service queues them
      * ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
-     * running queue, and offline only the downloaded songs. False if there is nothing to play.
+     * running queue, and offline only the downloaded songs. Replacing the queue makes [source] the
+     * queue source. False if there is nothing to play.
      */
-    suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean): Boolean {
-        val request = SegueSessionCommands.QueueSongs(songs.map { it.toMediaItem() }, placement, startIndex, shuffle)
+    suspend fun queue(
+        songs: List<Song>,
+        placement: QueuePlacement,
+        startIndex: Int,
+        shuffle: Boolean,
+        source: QueueSource = QueueSource.Unknown,
+    ): Boolean {
+        val items = songs.map { it.toMediaItem() }
+        val request = SegueSessionCommands.QueueSongs(items, placement, startIndex, shuffle, source)
         return send(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
     }
 
@@ -184,15 +200,16 @@ class PlaybackController @Inject constructor(
 
     // --- Transport ---------------------------------------------------------------------------------
 
-    fun play() = command { controller ->
+    override fun play() = command { controller ->
         if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
         controller.play()
     }
 
-    fun pause() = command { it.pause() }
+    override fun pause() = command { it.pause() }
 
+    /** Pauses while the player plays or buffers towards playing ([playsWhenReady]); otherwise plays. */
     fun togglePlayPause() = command { controller ->
-        if (controller.isPlaying) {
+        if (controller.playsWhenReady) {
             controller.pause()
         } else {
             if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
@@ -205,6 +222,21 @@ class PlaybackController @Inject constructor(
     fun skipToNext() = command { it.seekToNext() }
 
     fun skipToPrevious() = command { it.seekToPrevious() }
+
+    /**
+     * A playback error's Skip ([PlayerUiState.playbackError]): plays the next item. After the last
+     * item it clears the error and leaves the player stopped
+     * ([com.quantumff.segue.core.playback.service.PlaybackErrorReporter.skip]).
+     */
+    fun skipPastError() = command { controller ->
+        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.SKIP_PAST_ERROR), Bundle.EMPTY)
+    }
+
+    /** A playback error's Retry: prepares the failed song again and plays it. Success clears the error. */
+    fun retry() = command { controller ->
+        controller.prepare()
+        controller.play()
+    }
 
     fun setRepeatMode(mode: RepeatMode) = command { it.repeatMode = mode.playerRepeatMode }
 
@@ -269,7 +301,7 @@ class PlaybackController @Inject constructor(
      * could not be reached. Throws RemoteException.
      */
     suspend fun uploadQueue(): Boolean = withContext(mainDispatcher) {
-        val state = try {
+        val queueState = try {
             val controller = controller()
             QueueState(
                 songIds = List(controller.mediaItemCount) { controller.getMediaItemAt(it).mediaId },
@@ -282,8 +314,8 @@ class PlaybackController @Inject constructor(
             Log.w(TAG, "Could not read the queue to upload", e)
             null
         }
-        if (state == null || state.songIds.isEmpty()) return@withContext false
-        queueSync.uploadNow(state)
+        if (queueState == null || queueState.songIds.isEmpty()) return@withContext false
+        queueSync.uploadNow(queueState)
         true
     }
 
@@ -307,22 +339,23 @@ class PlaybackController @Inject constructor(
      * in disc and track order, the albums in the source's order or shuffled, or every song shuffled,
      * replacing the queue or placed in it. The service reads the songs and queues them all at once
      * ([com.quantumff.segue.core.playback.album.AlbumPlays]). Reads Room only; offline only
-     * downloaded songs are queued. False if there is nothing to play.
+     * downloaded songs are queued. Replacing the queue makes [source] the queue source. False if
+     * there is nothing to play.
      */
-    suspend fun playAlbums(request: AlbumPlayRequest): Boolean =
-        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request))
+    suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Boolean =
+        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request, source))
 
     /**
      * Instant mix: [seed] if given, then songs similar to [artistId] (`getSimilarSongs2`), topped
-     * up with the artist's top songs, replacing the queue. Throws RemoteException. False if
-     * nothing came back.
+     * up with the artist's top songs, replacing the queue with [source] as its source. Throws
+     * RemoteException. False if nothing came back.
      */
-    suspend fun playInstantMix(seed: Song?, artistId: String): Boolean {
+    suspend fun playInstantMix(seed: Song?, artistId: String, source: QueueSource): Boolean {
         val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
         if (mix.size <= (if (seed == null) 0 else 1)) return false
-        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false)
+        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false, source = source)
     }
 
     // --- Connection ----------------------------------------------------------------------------------
@@ -409,4 +442,14 @@ class PlaybackController @Inject constructor(
         const val POSITION_TICK_MILLIS = 500L
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal interface PlayerStateModule {
+    @Binds
+    fun playerStateSource(impl: PlaybackController): PlayerStateSource
+
+    @Binds
+    fun playerTransport(impl: PlaybackController): PlayerTransport
 }

@@ -31,7 +31,7 @@ sealed interface PlayerMessage {
 @HiltViewModel
 class PlayerViewModel @Inject constructor(private val playback: PlaybackController, playIntents: PlayIntents) :
     ViewModel() {
-    val player: StateFlow<ShellPlayerState> = playback.eventState
+    val player: StateFlow<ShellPlayerState> = playback.state
         .map { it.toShellPlayerState() }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ShellPlayerState())
@@ -40,7 +40,7 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
      * Position in milliseconds. Collect it only inside a visible player surface and read it in the
      * draw phase: collecting it is what runs the position ticker while music plays.
      */
-    val positionMillis: StateFlow<Long> = playback.state
+    val positionMillis: StateFlow<Long> = playback.tickingState
         .map { it.positionMillis }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
@@ -64,6 +64,12 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
 
     /** The "Continued from" snackbar's Undo: the local queue comes back. */
     fun undoAutoAdoption() = playback.undoAutoAdoption()
+
+    /** The playback error snackbar's Skip: plays the next item. */
+    fun skipPastError() = playback.skipPastError()
+
+    /** The playback error snackbar's Retry, for a network error: prepares the song again and plays it. */
+    fun retryPlayback() = playback.retry()
 
     fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.next())
 

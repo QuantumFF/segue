@@ -1,6 +1,8 @@
 package com.quantumff.segue.playback
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.RemoteQueueOffer
@@ -46,6 +48,14 @@ class ShellPlayerStateTest {
     }
 
     @Test
+    fun `a playback error reaches the shell`() {
+        val error = PlaybackError(songId = "s1", title = "Song 1", kind = PlaybackErrorKind.NotFound)
+
+        assertThat(state(3, 1).copy(playbackError = error).toShellPlayerState().playbackError).isEqualTo(error)
+        assertThat(state(3, 1).toShellPlayerState().playbackError).isNull()
+    }
+
+    @Test
     fun `the current track maps to the mini player`() {
         val current = state(count = 3, current = 1).toShellPlayerState().current
 
@@ -53,6 +63,14 @@ class ShellPlayerStateTest {
         assertThat(current?.artist).isEqualTo("Artist 1")
         assertThat(current?.coverArtId).isEqualTo("c1")
         assertThat(current?.isPlaying).isTrue()
+    }
+
+    @Test
+    fun `the mini player and player bar know when the stream is loading`() {
+        val loading = state(count = 3, current = 1).copy(isBuffering = true).toShellPlayerState()
+
+        assertThat(loading.current?.isBuffering).isTrue()
+        assertThat(state(count = 3, current = 1).toShellPlayerState().current?.isBuffering).isFalse()
     }
 
     @Test

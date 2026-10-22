@@ -8,8 +8,14 @@ import com.google.common.collect.ImmutableList
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSourceRecord
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.QueueSourceRecord
 import com.quantumff.segue.core.model.SleepTimer
+import com.quantumff.segue.core.model.StreamingQuality
+import com.quantumff.segue.core.playback.cache.StreamRequest
 
 /** Custom session commands and session extras shared by the service and [com.quantumff.segue.core.playback.PlaybackController]. */
 internal object SegueSessionCommands {
@@ -27,6 +33,9 @@ internal object SegueSessionCommands {
 
     /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
+
+    /** A playback error's Skip (PlaybackErrorReporter.skip). */
+    const val SKIP_PAST_ERROR = PREFIX + "SKIP_PAST_ERROR"
 
     /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_STARTED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
@@ -58,6 +67,18 @@ internal object SegueSessionCommands {
     private const val ARG_ITEM = "item"
     private const val ARG_INDEX = "index"
     private const val ARG_PLAY = "play"
+    private const val ARG_QUEUE_SOURCE_KIND = "queueSourceKind"
+    private const val ARG_QUEUE_SOURCE_ID = "queueSourceId"
+    private const val ARG_QUEUE_SOURCE_NAME = "queueSourceName"
+    private const val ARG_QUEUE_SOURCE_SHUFFLED = "queueSourceShuffled"
+
+    private const val ARG_ERROR_SONG_ID = "errorSongId"
+    private const val ARG_ERROR_TITLE = "errorTitle"
+    private const val ARG_ERROR_KIND = "errorKind"
+    private const val ARG_STREAM_SONG_ID = "streamSongId"
+    private const val ARG_STREAM_SIZE = "streamSize"
+    private const val ARG_STREAM_MAX_BIT_RATE = "streamMaxBitRate"
+    private const val ARG_STREAM_FORMAT = "streamFormat"
 
     private const val SLEEP_AT_TIME = "atTime"
     private const val SLEEP_END_OF_TRACK = "endOfTrack"
@@ -72,6 +93,7 @@ internal object SegueSessionCommands {
             PLAY_ALBUMS,
             QUEUE_SONGS,
             UNDO_REMOVE,
+            SKIP_PAST_ERROR,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
 
@@ -108,17 +130,92 @@ internal object SegueSessionCommands {
         else -> null
     }
 
-    fun playAlbumsArgs(request: AlbumPlayRequest) = Bundle().apply {
+    /**
+     * Session extras: the queue source, which Media3's player state cannot carry. [queueSource]
+     * reads it back.
+     */
+    fun queueSourceArgs(source: QueueSource) = Bundle().apply { putQueueSource(source) }
+
+    /** The queue source in [bundle]: the session extras or a play intent's args. Unknown if none. */
+    fun queueSource(bundle: Bundle): QueueSource {
+        val kind = bundle.getString(ARG_QUEUE_SOURCE_KIND) ?: return QueueSource.Unknown
+        return QueueSourceRecord(
+            kind = QueueSourceRecord.Kind.of(kind),
+            id = bundle.getString(ARG_QUEUE_SOURCE_ID),
+            name = bundle.getString(ARG_QUEUE_SOURCE_NAME),
+            shuffled = bundle.getBoolean(ARG_QUEUE_SOURCE_SHUFFLED),
+        ).toSource()
+    }
+
+    private fun Bundle.putQueueSource(source: QueueSource) {
+        val record = QueueSourceRecord.of(source)
+        putString(ARG_QUEUE_SOURCE_KIND, record.kind.value)
+        putString(ARG_QUEUE_SOURCE_ID, record.id)
+        putString(ARG_QUEUE_SOURCE_NAME, record.name)
+        putBoolean(ARG_QUEUE_SOURCE_SHUFFLED, record.shuffled)
+    }
+
+    /**
+     * Session extras: the playback error the app shows ("Couldn't play <title>"), which Media3's
+     * player state cannot carry. [playbackError] reads it back.
+     */
+    fun playbackErrorArgs(error: PlaybackError?) = Bundle().apply {
+        if (error == null) return@apply
+        putString(ARG_ERROR_SONG_ID, error.songId)
+        putString(ARG_ERROR_TITLE, error.title)
+        putString(ARG_ERROR_KIND, error.kind.name)
+    }
+
+    fun playbackError(bundle: Bundle): PlaybackError? = PlaybackError(
+        songId = bundle.getString(ARG_ERROR_SONG_ID) ?: return null,
+        title = bundle.getString(ARG_ERROR_TITLE).orEmpty(),
+        kind = enumOrNull<PlaybackErrorKind>(bundle.getString(ARG_ERROR_KIND)) ?: PlaybackErrorKind.Other,
+    )
+
+    /**
+     * Session extras: what the player asked for when it opened [songId] (see
+     * [com.quantumff.segue.core.playback.cache.SegueUriResolver]), which Media3's tracks cannot
+     * carry. [streamRequest] reads it back.
+     */
+    fun streamRequestArgs(songId: String, request: StreamRequest) = Bundle().apply {
+        putString(ARG_STREAM_SONG_ID, songId)
+        when (request) {
+            is StreamRequest.Download -> putLong(ARG_STREAM_SIZE, request.sizeBytes)
+
+            is StreamRequest.Stream -> {
+                putInt(ARG_STREAM_MAX_BIT_RATE, request.quality.maxBitRateKbps)
+                putString(ARG_STREAM_FORMAT, request.quality.format)
+            }
+        }
+    }
+
+    /** The request of [streamRequestArgs] if it is for [songId], else null. */
+    fun streamRequest(bundle: Bundle, songId: String): StreamRequest? = when {
+        bundle.getString(ARG_STREAM_SONG_ID) != songId -> null
+
+        bundle.containsKey(ARG_STREAM_SIZE) -> StreamRequest.Download(bundle.getLong(ARG_STREAM_SIZE))
+
+        else -> StreamRequest.Stream(
+            StreamingQuality(bundle.getInt(ARG_STREAM_MAX_BIT_RATE), bundle.getString(ARG_STREAM_FORMAT)),
+        )
+    }
+
+    /**
+     * [PLAY_ALBUMS]'s args: [request], and the [source] it records if it replaces the queue.
+     * [playAlbums] and [queueSource] read them back.
+     */
+    fun playAlbumsArgs(request: AlbumPlayRequest, source: QueueSource) = Bundle().apply {
+        putQueueSource(source)
         putString(ARG_ALBUM_ORDER, request.order.name)
         putString(ARG_PLACEMENT, request.placement.name)
-        val source = AlbumSourceRecord.of(request.source)
-        putString(ARG_SOURCE_KIND, source.kind)
-        putString(ARG_SOURCE_ID, source.id)
-        putString(ARG_SORT, source.sort)
-        source.starred?.let { putBoolean(ARG_STARRED, it) }
-        putString(ARG_GENRE, source.genre)
-        source.year?.let { putInt(ARG_YEAR, it) }
-        source.downloaded?.let { putBoolean(ARG_DOWNLOADED, it) }
+        val albums = AlbumSourceRecord.of(request.source)
+        putString(ARG_SOURCE_KIND, albums.kind)
+        putString(ARG_SOURCE_ID, albums.id)
+        putString(ARG_SORT, albums.sort)
+        albums.starred?.let { putBoolean(ARG_STARRED, it) }
+        putString(ARG_GENRE, albums.genre)
+        albums.year?.let { putInt(ARG_YEAR, it) }
+        albums.downloaded?.let { putBoolean(ARG_DOWNLOADED, it) }
     }
 
     /** The request of [playAlbumsArgs], or null if [bundle] does not hold one. */
@@ -137,12 +234,16 @@ internal object SegueSessionCommands {
         return AlbumPlayRequest(source, order, placement)
     }
 
-    /** A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. */
+    /**
+     * A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. [source]
+     * becomes the queue source if they replace the queue.
+     */
     data class QueueSongs(
         val items: List<MediaItem>,
         val placement: QueuePlacement,
         val startIndex: Int,
         val shuffle: Boolean,
+        val source: QueueSource = QueueSource.Unknown,
     )
 
     fun queueSongsArgs(request: QueueSongs) = Bundle().apply {
@@ -152,6 +253,7 @@ internal object SegueSessionCommands {
         putString(ARG_PLACEMENT, request.placement.name)
         putInt(ARG_START_INDEX, request.startIndex)
         putBoolean(ARG_SHUFFLE, request.shuffle)
+        putQueueSource(request.source)
     }
 
     /** The request of [queueSongsArgs], or null if [bundle] does not hold one. */
@@ -163,6 +265,7 @@ internal object SegueSessionCommands {
             placement,
             bundle.getInt(ARG_START_INDEX),
             bundle.getBoolean(ARG_SHUFFLE),
+            queueSource(bundle),
         )
     }
 

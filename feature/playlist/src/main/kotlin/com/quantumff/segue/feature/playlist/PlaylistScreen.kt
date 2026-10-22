@@ -60,13 +60,13 @@ import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
@@ -93,7 +93,8 @@ fun PlaylistScreen(
     PlaylistScreenContent(
         uiState = uiState,
         onBackClick = onBackClick,
-        onPlayClick = { shuffle -> viewModel.play(shuffle = shuffle) },
+        onPlayClick = viewModel::onHeroPlay,
+        onShuffleClick = { viewModel.play(shuffle = true) },
         onShuffleAlbumsClick = viewModel::shuffleAlbums,
         onTrackClick = { index -> viewModel.play(startIndex = index) },
         onTrackAction = { index, song, action ->
@@ -116,14 +117,18 @@ fun PlaylistScreen(
     )
 }
 
-/** Stateless playlist detail. [onPlayClick] takes `shuffle`. */
+/**
+ * Stateless playlist detail. [onPlayClick] is the hero's Play (or Pause, while the playlist is the
+ * playing queue source) and the collapsed top bar's.
+ */
 @Suppress("LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistScreenContent(
     uiState: PlaylistUiState,
     onBackClick: () -> Unit,
-    onPlayClick: (shuffle: Boolean) -> Unit,
+    onPlayClick: () -> Unit,
+    onShuffleClick: () -> Unit,
     onShuffleAlbumsClick: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
     onTrackAction: (index: Int, song: Song, action: MediaAction) -> Unit,
@@ -170,12 +175,14 @@ fun PlaylistScreenContent(
         tint = rememberHeroTint(playlist?.coverArtId),
     )
     val canPlay = uiState.entries.isNotEmpty() && !uiState.isEditing
+    val isSourcePlaying = uiState.heroPlayback == HeroPlayback.Playing
 
     Box(modifier.fillMaxSize()) {
         HeroDetailLayout(
             hero = hero,
             onBackClick = onBackClick,
-            onPlayClick = if (canPlay) ({ onPlayClick(false) }) else null,
+            onPlayClick = if (canPlay) onPlayClick else null,
+            isPlaying = isSourcePlaying,
             onMoreClick = if (uiState.isEditable && !uiState.isEditing) ({ showPlaylistMenu = true }) else null,
             heroActions = {
                 if (uiState.isEditing) {
@@ -186,11 +193,11 @@ fun PlaylistScreenContent(
                         if (uiState.isSaving) InlineSpinner() else Text(stringResource(R.string.feature_playlist_save))
                     }
                 } else {
-                    PlayButton(onClick = { onPlayClick(false) })
+                    PlayButton(onClick = onPlayClick, isPlaying = isSourcePlaying)
                     SegueIconButton(
                         icon = SegueIcons.Shuffle,
                         contentDescription = stringResource(R.string.feature_playlist_shuffle),
-                        onClick = { onPlayClick(true) },
+                        onClick = onShuffleClick,
                         enabled = canPlay,
                     )
                     SegueIconButton(
@@ -257,21 +264,14 @@ fun PlaylistScreenContent(
                     key = { _, entry -> entry.key },
                     contentType = { _, _ -> "track" },
                 ) { index, entry ->
-                    val download = uiState.availability.downloads[entry.song.id]
-                    val available = uiState.availability.isAvailable(entry.song)
+                    val row = remember(entry, uiState.availability, uiState.currentSong) { uiState.trackRow(entry) }
                     TrackSwipeBox(
                         onPlayNext = { onTrackAction(index, entry.song, MediaAction.PlayNext) },
                         onAddToQueue = { onTrackAction(index, entry.song, MediaAction.AddToQueue) },
-                        enabled = available,
+                        enabled = row.isAvailable,
                     ) {
                         TrackRow(
-                            state = remember(entry, download, available) {
-                                entry.song.toTrackRowState(
-                                    rowKey = entry.key,
-                                    download = download?.status?.toBadgeState(),
-                                    isAvailable = available,
-                                )
-                            },
+                            state = row,
                             onClick = { onTrackClick(index) },
                             leading = TrackRowLeading.Art,
                             onLongClick = { trackMenu = index to entry.song },
@@ -545,6 +545,7 @@ private fun PreviewPlaylistScreen(uiState: PlaylistUiState) {
         uiState = uiState,
         onBackClick = {},
         onPlayClick = {},
+        onShuffleClick = {},
         onShuffleAlbumsClick = {},
         onTrackClick = {},
         onTrackAction = { _, _, _ -> },

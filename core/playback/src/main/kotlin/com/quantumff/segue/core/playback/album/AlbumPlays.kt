@@ -6,6 +6,7 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.OfflineLibrary
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.QueueEditor
@@ -35,16 +36,17 @@ class AlbumPlays(
     private val starting = Mutex()
 
     /**
-     * Queues [request] at its placement ([QueueEditor.place]). False if there is nothing to play (the
-     * queue is then left alone).
+     * Queues [request] at its placement ([QueueEditor.place]); replacing the queue makes [source] the
+     * queue source. False if there is nothing to play (the queue is then left alone).
      */
-    suspend fun start(request: AlbumPlayRequest): Boolean = starting.withLock {
-        // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
-        val items = items(request)
-        if (items.isEmpty()) return@withLock false
-        queue.place(items, request.placement)
-        true
-    }
+    suspend fun start(request: AlbumPlayRequest, source: QueueSource = QueueSource.Unknown): Boolean =
+        starting.withLock {
+            // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
+            val items = items(request)
+            if (items.isEmpty()) return@withLock false
+            queue.place(items, request.placement, source = source)
+            true
+        }
 
     /**
      * What a media session queues itself for [request] (Android Auto's "Shuffle albums"): [songs]

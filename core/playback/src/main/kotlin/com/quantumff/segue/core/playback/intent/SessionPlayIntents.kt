@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.Binds
@@ -41,21 +42,22 @@ internal class SessionPlayIntents @Inject constructor(
     private val messageChannel = Channel<PlayIntentMessage>(Channel.BUFFERED)
     override val messages: Flow<PlayIntentMessage> = messageChannel.receiveAsFlow()
 
-    override suspend fun play(target: PlayTarget, placement: QueuePlacement, shuffle: Boolean) = runIntent {
-        val songs = try {
-            targets.songsFor(target)
-        } catch (e: RemoteException) {
-            Log.w(TAG, "Could not load the songs of $target", e)
-            return@runIntent report(PlayIntentMessage.LoadFailed)
+    override suspend fun play(target: PlayTarget, placement: QueuePlacement, shuffle: Boolean, source: QueueSource) =
+        runIntent {
+            val songs = try {
+                targets.songsFor(target)
+            } catch (e: RemoteException) {
+                Log.w(TAG, "Could not load the songs of $target", e)
+                return@runIntent report(PlayIntentMessage.LoadFailed)
+            }
+            val startIndex = (target as? PlayTarget.Songs)?.startIndex ?: 0
+            if (songs.isEmpty() || !session.queue(songs, placement, startIndex, shuffle, source)) {
+                report(PlayIntentMessage.NothingToPlay)
+            }
         }
-        val startIndex = (target as? PlayTarget.Songs)?.startIndex ?: 0
-        if (songs.isEmpty() || !session.queue(songs, placement, startIndex, shuffle)) {
-            report(PlayIntentMessage.NothingToPlay)
-        }
-    }
 
-    override suspend fun playAlbums(request: AlbumPlayRequest) = runIntent {
-        if (!session.playAlbums(request)) report(PlayIntentMessage.NothingToPlay)
+    override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource) = runIntent {
+        if (!session.playAlbums(request, source)) report(PlayIntentMessage.NothingToPlay)
     }
 
     override suspend fun instantMix(seed: InstantMixSeed) = runIntent {
@@ -64,8 +66,11 @@ internal class SessionPlayIntents @Inject constructor(
         val started = try {
             when (seed) {
                 is InstantMixSeed.OfSong -> songMix(seed.song)
+
                 is InstantMixSeed.OfLibrarySong -> songMix(library.songsByIds(listOf(seed.songId)).firstOrNull())
-                is InstantMixSeed.OfArtist -> session.instantMix(seed = null, seed.artistId)
+
+                is InstantMixSeed.OfArtist ->
+                    session.instantMix(seed = null, seed.artistId, QueueSource.InstantMix(seed.name))
             }
         } catch (e: RemoteException) {
             Log.w(TAG, "Instant mix failed", e)
@@ -77,7 +82,7 @@ internal class SessionPlayIntents @Inject constructor(
     /** A mix from [song], of its artist: none without the song (not in the library) or its artist. */
     private suspend fun songMix(song: Song?): Boolean {
         val artistId = song?.artistId ?: return false
-        return session.instantMix(song, artistId)
+        return session.instantMix(song, artistId, QueueSource.InstantMix(song.title))
     }
 
     /** Runs [intent] in the application scope, so the caller going away does not cancel it. */
@@ -92,24 +97,38 @@ internal class SessionPlayIntents @Inject constructor(
 
 /**
  * What a play intent asks of the playback session ([PlaybackController]); a seam so play intents
- * can be tested without a session. Each call answers whether anything was queued.
+ * can be tested without a session. Each call answers whether anything was queued. A replaced queue
+ * takes the call's queue source.
  */
 internal interface IntentSession {
-    suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean): Boolean
+    suspend fun queue(
+        songs: List<Song>,
+        placement: QueuePlacement,
+        startIndex: Int,
+        shuffle: Boolean,
+        source: QueueSource,
+    ): Boolean
 
-    suspend fun playAlbums(request: AlbumPlayRequest): Boolean
+    suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Boolean
 
     /** An instant mix of songs similar to [artistId], after [seed] if given. Throws RemoteException. */
-    suspend fun instantMix(seed: Song?, artistId: String): Boolean
+    suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): Boolean
 }
 
 internal class ControllerIntentSession @Inject constructor(private val playback: PlaybackController) : IntentSession {
-    override suspend fun queue(songs: List<Song>, placement: QueuePlacement, startIndex: Int, shuffle: Boolean) =
-        playback.queue(songs, placement, startIndex, shuffle)
+    override suspend fun queue(
+        songs: List<Song>,
+        placement: QueuePlacement,
+        startIndex: Int,
+        shuffle: Boolean,
+        source: QueueSource,
+    ) = playback.queue(songs, placement, startIndex, shuffle, source)
 
-    override suspend fun playAlbums(request: AlbumPlayRequest) = playback.playAlbums(request)
+    override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource) =
+        playback.playAlbums(request, source)
 
-    override suspend fun instantMix(seed: Song?, artistId: String) = playback.playInstantMix(seed, artistId)
+    override suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource) =
+        playback.playInstantMix(seed, artistId, source)
 }
 
 @Module

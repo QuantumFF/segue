@@ -107,6 +107,34 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `5 to 6 keeps the queue snapshot, with no queue source`() {
+        helper.createDatabase(DB_NAME, 5).use { db ->
+            db.execSQL("INSERT INTO queue_state VALUES ('s1', 1, 500, 10)")
+            db.execSQL("INSERT INTO queue_items VALUES ('s1', 0, 'a'), ('s1', 1, 'b')")
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 6, true, SegueMigrations.MIGRATION_5_6).use { db ->
+            db.query(
+                "SELECT currentIndex, positionMillis, updatedAt, sourceKind, sourceId, sourceName, sourceShuffled " +
+                    "FROM queue_state",
+            ).use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getInt(0)).isEqualTo(1)
+                assertThat(cursor.getLong(1)).isEqualTo(500)
+                assertThat(cursor.getLong(2)).isEqualTo(10)
+                assertThat(cursor.isNull(3)).isTrue()
+                assertThat(cursor.isNull(4)).isTrue()
+                assertThat(cursor.isNull(5)).isTrue()
+                assertThat(cursor.getInt(6)).isEqualTo(0)
+            }
+            db.query("SELECT COUNT(*) FROM queue_items").use { cursor ->
+                cursor.moveToFirst()
+                assertThat(cursor.getInt(0)).isEqualTo(2)
+            }
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

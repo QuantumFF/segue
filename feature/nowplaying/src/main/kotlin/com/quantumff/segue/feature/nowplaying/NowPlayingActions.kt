@@ -1,6 +1,7 @@
 package com.quantumff.segue.feature.nowplaying
 
 import androidx.compose.runtime.Immutable
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 
 /** Every command Now Playing raises, grouped so the screen takes one stable parameter. */
@@ -20,6 +21,8 @@ class NowPlayingActions(
     val onInstantMix: () -> Unit,
     val onAlbumClick: (String) -> Unit,
     val onArtistClick: (String) -> Unit,
+    /** Opens the album, playlist, artist or genre the queue came from (the top bar's source name). */
+    val onSourceClick: (QueueSource) -> Unit,
     val onAddToPlaylist: (List<String>) -> Unit,
     val onVisiblePanelsChange: (Set<NowPlayingPanel>) -> Unit,
     val onRetryLyrics: () -> Unit,
@@ -29,6 +32,10 @@ class NowPlayingActions(
     val onAddToQueue: (List<Song>) -> Unit,
     val onSaveQueueAsPlaylist: (String) -> Unit,
     val onClearQueue: () -> Unit,
+    /** The playback error's Skip. */
+    val onSkipPastError: () -> Unit,
+    /** The playback error's Retry (network errors only). */
+    val onRetryPlayback: () -> Unit,
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */
@@ -46,6 +53,7 @@ class NowPlayingActions(
             onInstantMix = {},
             onAlbumClick = {},
             onArtistClick = {},
+            onSourceClick = {},
             onAddToPlaylist = {},
             onVisiblePanelsChange = {},
             onRetryLyrics = {},
@@ -55,6 +63,8 @@ class NowPlayingActions(
             onAddToQueue = {},
             onSaveQueueAsPlaylist = {},
             onClearQueue = {},
+            onSkipPastError = {},
+            onRetryPlayback = {},
         )
     }
 }

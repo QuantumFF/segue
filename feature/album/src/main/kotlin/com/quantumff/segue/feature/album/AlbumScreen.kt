@@ -62,10 +62,8 @@ import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
-import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
@@ -76,6 +74,7 @@ import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.model.ExplicitStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Song
@@ -106,6 +105,7 @@ fun AlbumDetailRoute(
         onArtistClick = onArtistClick,
         onGenreClick = onGenreClick,
         onPlay = viewModel::play,
+        onHeroPlay = viewModel::onHeroPlay,
         onShuffleAlbums = viewModel::shuffleAlbums,
         onToggleStar = viewModel::toggleAlbumStar,
         onRatingChange = viewModel::setRating,
@@ -129,6 +129,7 @@ fun AlbumScreen(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onPlay: (startIndex: Int, shuffle: Boolean) -> Unit,
+    onHeroPlay: () -> Unit,
     onShuffleAlbums: (ShuffleAlbumsOption) -> Unit,
     onToggleStar: () -> Unit,
     onRatingChange: (Int) -> Unit,
@@ -169,6 +170,7 @@ fun AlbumScreen(
                 onArtistClick = onArtistClick,
                 onGenreClick = onGenreClick,
                 onPlay = onPlay,
+                onHeroPlay = onHeroPlay,
                 onShuffleAlbums = onShuffleAlbums,
                 onToggleStar = onToggleStar,
                 onRatingChange = onRatingChange,
@@ -209,6 +211,7 @@ private fun AlbumContent(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onPlay: (startIndex: Int, shuffle: Boolean) -> Unit,
+    onHeroPlay: () -> Unit,
     onShuffleAlbums: (ShuffleAlbumsOption) -> Unit,
     onToggleStar: () -> Unit,
     onRatingChange: (Int) -> Unit,
@@ -234,11 +237,12 @@ private fun AlbumContent(
             tint = rememberHeroTint(album.coverArtId),
         ),
         onBackClick = onBackClick,
-        onPlayClick = { onPlay(0, false) },
+        onPlayClick = onHeroPlay,
+        isPlaying = state.heroPlayback == HeroPlayback.Playing,
         onMoreClick = { albumMenuOpen = true },
         onSubtitleClick = album.artistId?.let { id -> { onArtistClick(id) } },
         heroActions = {
-            PlayButton(onClick = { onPlay(0, false) })
+            PlayButton(onClick = onHeroPlay, isPlaying = state.heroPlayback == HeroPlayback.Playing)
             ShuffleButton(
                 onClick = { onPlay(0, true) },
                 onLongClick = if (state.shuffleOptions.isEmpty()) null else ({ shuffleSheetOpen = true }),
@@ -346,15 +350,11 @@ private fun LazyListScope.trackItems(
             }
         }
         items(items = disc.tracks, key = { "track-${it.index}-${it.song.id}" }, contentType = { "track" }) { entry ->
-            val download = state.availability.downloads[entry.song.id]
-            val available = state.availability.isAvailable(entry.song)
-            val row = remember(entry.song, download, available) {
-                entry.song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
-            }
+            val row = remember(entry.song, state.availability, state.currentSong) { state.trackRow(entry.song) }
             TrackSwipeBox(
                 onPlayNext = { onSongAction(entry.song, MediaAction.PlayNext) },
                 onAddToQueue = { onSongAction(entry.song, MediaAction.AddToQueue) },
-                enabled = available,
+                enabled = row.isAvailable,
             ) {
                 TrackRow(
                     state = row,
@@ -597,6 +597,7 @@ private fun AlbumScreenPreview() {
             onArtistClick = {},
             onGenreClick = {},
             onPlay = { _, _ -> },
+            onHeroPlay = {},
             onShuffleAlbums = {},
             onToggleStar = {},
             onRatingChange = {},
@@ -617,6 +618,7 @@ private fun AlbumScreenErrorPreview() {
             onArtistClick = {},
             onGenreClick = {},
             onPlay = { _, _ -> },
+            onHeroPlay = {},
             onShuffleAlbums = {},
             onToggleStar = {},
             onRatingChange = {},

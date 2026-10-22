@@ -8,6 +8,7 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.albumKey
 import com.quantumff.segue.core.playback.media.toMediaItem
@@ -36,7 +37,7 @@ class SegueSessionCommandsTest {
             AlbumPlayRequest(AlbumSource.Playlist("p1"), AlbumOrder.InOrder),
         )
         for (request in requests) {
-            val args = SegueSessionCommands.playAlbumsArgs(request)
+            val args = SegueSessionCommands.playAlbumsArgs(request, QueueSource.Unknown)
             assertThat(SegueSessionCommands.playAlbums(args)).isEqualTo(request)
         }
         assertThat(SegueSessionCommands.playAlbums(Bundle.EMPTY)).isNull()
@@ -52,6 +53,7 @@ class SegueSessionCommandsTest {
             QueuePlacement.Next,
             startIndex = 2,
             shuffle = true,
+            source = QueueSource.Album("al", "A"),
         )
 
         val received = SegueSessionCommands.queueSongs(SegueSessionCommands.queueSongsArgs(request))!!
@@ -75,5 +77,16 @@ class SegueSessionCommandsTest {
         assertThat(received.item.albumKey).isEqualTo("al")
         assertThat(received.index).isEqualTo(4)
         assertThat(SegueSessionCommands.undoRemove(Bundle.EMPTY)).isNull()
+    }
+
+    @Test
+    fun `an album play's queue source goes to the service with it`() {
+        val request = AlbumPlayRequest(AlbumSource.Genre("Rock"), AlbumOrder.Shuffled)
+
+        val args = SegueSessionCommands.playAlbumsArgs(request, QueueSource.Genre("Rock"))
+
+        assertThat(SegueSessionCommands.playAlbums(args)).isEqualTo(request)
+        assertThat(SegueSessionCommands.queueSource(args)).isEqualTo(QueueSource.Genre("Rock"))
+        assertThat(SegueSessionCommands.queueSource(Bundle.EMPTY)).isEqualTo(QueueSource.Unknown)
     }
 }

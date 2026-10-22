@@ -7,17 +7,20 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.exceptionOrNull
 import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
+import com.quantumff.segue.core.model.currentSong
 import com.quantumff.segue.core.playback.PlaybackController
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricSync
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
@@ -51,10 +54,12 @@ sealed interface NowPlayingMessage {
 /**
  * Now Playing: the player state plus what the library and server know about the current track.
  * Lyrics and related songs load only while their panel is visible (see [setVisiblePanels]).
+ * It reads player state from [PlayerStateSource] and sends transport commands to [PlaybackController].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class NowPlayingViewModel @Inject constructor(
+    private val player: PlayerStateSource,
     private val playback: PlaybackController,
     private val library: LibraryRepository,
     private val lyricsRepository: LyricsRepository,
@@ -63,7 +68,7 @@ class NowPlayingViewModel @Inject constructor(
     private val playIntents: PlayIntents,
     private val playlists: PlaylistRepository,
 ) : ViewModel() {
-    private val currentSongId: Flow<String?> = playback.eventState
+    private val currentSongId: Flow<String?> = player.state
         .map { it.currentItem?.songId }
         .distinctUntilChanged()
 
@@ -79,8 +84,8 @@ class NowPlayingViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<NowPlayingUiState> =
-        combine(playback.eventState, currentSong, currentFileInfo) { player, song, file ->
-            player.toNowPlayingUiState(song, file)
+        combine(player.state, currentSong, currentFileInfo) { state, song, file ->
+            state.toNowPlayingUiState(song, file)
         }
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), NowPlayingUiState())
@@ -89,7 +94,7 @@ class NowPlayingViewModel @Inject constructor(
      * Position in milliseconds. Collect it only where it is drawn, while visible: collecting it is
      * what runs the position ticker during playback.
      */
-    val positionMillis: StateFlow<Long> = playback.state
+    val positionMillis: StateFlow<Long> = player.tickingState
         .map { it.positionMillis }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
@@ -121,12 +126,18 @@ class NowPlayingViewModel @Inject constructor(
             if (synced == null) {
                 flowOf(-1)
             } else {
-                val samples = playback.state.map { PlaybackSample(it.positionMillis, it.isPlaying) }
+                // The next-line timer runs only while the position moves, not while buffering.
+                val samples = player.tickingState.map { state ->
+                    PlaybackSample(state.positionMillis, isPlaying = state.isPlaying && !state.isBuffering)
+                }
                 LyricSync.activeLines(samples, synced.starts, synced.offsetMillis)
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), -1)
 
+    private val markedSong: Flow<CurrentSong?> = player.state.map { it.currentSong }.distinctUntilChanged()
+
+    /** Songs similar to the current artist's, without the current song (see [shownWhile]). */
     val related: StateFlow<RelatedUiState> = combine(
         currentSong.map { it?.artistId to (it != null) }.distinctUntilChanged(),
         visibility(NowPlayingPanel.Related),
@@ -140,6 +151,8 @@ class NowPlayingViewModel @Inject constructor(
             }
         }
         .holdLastNonNull(RelatedUiState.Loading)
+        .combine(markedSong) { related, current -> related.shownWhile(current) }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
     private val messageChannel = Channel<NowPlayingMessage>(Channel.BUFFERED)
@@ -163,6 +176,12 @@ class NowPlayingViewModel @Inject constructor(
     fun skipTo(timelineIndex: Int) = playback.skipTo(timelineIndex)
 
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
+
+    /** The playback error's Skip: plays the next item. */
+    fun skipPastError() = playback.skipPastError()
+
+    /** The playback error's Retry, for a network error: prepares the song again and plays it. */
+    fun retryPlayback() = playback.retry()
 
     fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.next())
 
@@ -198,7 +217,7 @@ class NowPlayingViewModel @Inject constructor(
 
     /** Saves the queue, in play order, as a new playlist called [name]. */
     fun saveQueueAsPlaylist(name: String) {
-        val songIds = playback.eventState.value.queue.map { it.songId }
+        val songIds = player.state.value.queue.map { it.songId }
         if (name.isBlank() || songIds.isEmpty()) return
         viewModelScope.launch {
             val message = try {

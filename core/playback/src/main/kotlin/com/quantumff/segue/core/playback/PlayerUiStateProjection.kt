@@ -15,9 +15,10 @@ import kotlinx.collections.immutable.toImmutableList
 
 /**
  * The UI's view of a player ([PlaybackController]'s MediaController): the queue, the current item,
- * transport state, and the sleep timer from the session extras. The queue is rebuilt only when the
- * player's timeline changes, not on every event or position tick. While the player knows no
- * duration yet, the current item's own duration stands in.
+ * transport state, the stream format (decoded tracks plus the request in the session extras), and
+ * the sleep timer, playback error and queue source from the session extras. The queue is rebuilt
+ * only when the player's timeline changes, not on every event or position tick. While the player
+ * knows no duration yet, the current item's own duration stands in.
  *
  * Call on the player's thread. One projection follows one player at a time.
  */
@@ -29,16 +30,27 @@ internal class PlayerUiStateProjection {
         val queue = queue(player)
         val queueIndex = player.currentMediaItemIndex.takeIf { it in queue.indices } ?: -1
         val current = queue.getOrNull(queueIndex)
+        val durationMillis = player.duration.takeIf { it != C.TIME_UNSET } ?: current?.durationMillis ?: 0
         return PlayerUiState(
             currentItem = current,
             currentQueueIndex = queueIndex,
-            isPlaying = player.isPlaying,
+            isPlaying = player.playsWhenReady,
             isBuffering = player.playbackState == Player.STATE_BUFFERING,
+            hasEnded = player.playbackState == Player.STATE_ENDED,
             positionMillis = player.currentPosition,
-            durationMillis = player.duration.takeIf { it != C.TIME_UNSET } ?: current?.durationMillis ?: 0,
+            durationMillis = durationMillis,
             queue = queue,
             repeatMode = repeatModeOf(player.repeatMode),
             sleepTimer = SegueSessionCommands.sleepTimer(sessionExtras),
+            streamFormat = current?.let {
+                streamFormat(
+                    decoded = player.decodedAudioFormat(),
+                    request = SegueSessionCommands.streamRequest(sessionExtras, it.songId),
+                    durationMillis = durationMillis,
+                )
+            },
+            playbackError = SegueSessionCommands.playbackError(sessionExtras),
+            queueSource = SegueSessionCommands.queueSource(sessionExtras),
         )
     }
 
@@ -51,6 +63,14 @@ internal class PlayerUiStateProjection {
         return queue
     }
 }
+
+/**
+ * Whether the player plays as the user sees it: it will play when ready, and it is neither stopped
+ * (idle, as after an error) nor at the end of its queue. Unlike [Player.isPlaying] it stays true
+ * while buffering, so play/pause buttons keep showing Pause and a toggle pauses.
+ */
+internal val Player.playsWhenReady: Boolean
+    get() = playWhenReady && playbackState != Player.STATE_IDLE && playbackState != Player.STATE_ENDED
 
 /** Media3's repeat mode for this one. */
 internal val RepeatMode.playerRepeatMode: Int

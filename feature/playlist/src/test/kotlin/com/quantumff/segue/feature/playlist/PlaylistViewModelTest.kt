@@ -4,12 +4,16 @@ import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.play.FakePlayerStateSource
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
+import com.quantumff.segue.core.testing.play.RecordingPlayerTransport
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeOfflineModeRepository
@@ -37,6 +41,8 @@ class PlaylistViewModelTest {
     }
     private val stars = FakeStarRatingRepository()
     private val play = RecordingPlayIntents()
+    private val player = FakePlayerStateSource()
+    private val transport = RecordingPlayerTransport()
 
     private fun TestScope.viewModel(): PlaylistViewModel {
         val viewModel = PlaylistViewModel(
@@ -45,6 +51,8 @@ class PlaylistViewModelTest {
             downloads,
             offlineLibraryView(offlineMode, downloads, playlists = playlists),
             play,
+            player,
+            transport,
             mediaActionHandler(play, downloads, stars, playlists = playlists),
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -69,6 +77,28 @@ class PlaylistViewModelTest {
         val keys = viewModel().uiState.value.entries.map { it.key }
 
         assertThat(keys).containsNoDuplicates()
+    }
+
+    private val PlaylistViewModel.marks
+        get() = uiState.value.let { state ->
+            state.entries.map { state.trackRow(it) }.map { it.isCurrent to it.isPlaying }
+        }
+
+    @Test
+    fun theCurrentSongsRowsAreMarkedEvenWhenListedTwice() = runTest {
+        playlists.songsByPlaylist.value =
+            mapOf("p1" to listOf(TestData.song("a"), TestData.song("b"), TestData.song("a")))
+        val viewModel = viewModel()
+        assertThat(viewModel.marks).containsExactly(false to false, false to false, false to false).inOrder()
+
+        player.state.value = TestData.playerOn("a", isPlaying = true)
+        assertThat(viewModel.marks).containsExactly(true to true, false to false, true to true).inOrder()
+
+        player.state.value = TestData.playerOn("a", isPlaying = false)
+        assertThat(viewModel.marks).containsExactly(true to false, false to false, true to false).inOrder()
+
+        player.state.value = TestData.playerOn("b", isPlaying = true)
+        assertThat(viewModel.marks).containsExactly(false to false, true to true, false to false).inOrder()
     }
 
     @Test
@@ -177,6 +207,82 @@ class PlaylistViewModelTest {
 
         assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(viewModel.uiState.value.songs, 1))
     }
+
+    @Test
+    fun playAndShuffleAlbumsNameThePlaylistAsTheQueueSource() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.play(shuffle = true)
+        viewModel.shuffleAlbums()
+
+        val source = QueueSource.Playlist("p1", "Playlist p1")
+        assertThat(play.plays.single().source).isEqualTo(source)
+        assertThat(play.albumPlays.single().source).isEqualTo(source)
+    }
+
+    @Test
+    fun theHeroShowsPauseOnlyWhileThisPlaylistIsThePlayingSource() = runTest {
+        val viewModel = viewModel()
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.NotSource)
+
+        player.state.value = playing(QueueSource.Playlist("p1", "Playlist p1"), isPlaying = true)
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.Playing)
+
+        player.state.value = playing(QueueSource.Playlist("p1", "Playlist p1"), isPlaying = false)
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.Paused)
+
+        // Ids are unique per kind only: an album with this playlist's id is another source.
+        player.state.value = playing(QueueSource.Album("p1", "Album p1"), isPlaying = true)
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.NotSource)
+
+        player.state.value = playing(QueueSource.Playlist("p2", "Playlist p2"), isPlaying = true)
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.NotSource)
+    }
+
+    @Test
+    fun heroPlayPausesThePlayingPlaylistResumesItWhenPausedAndOtherwiseReplacesTheQueue() = runTest {
+        val viewModel = viewModel()
+        val thisPlaylist = QueueSource.Playlist("p1", "Playlist p1")
+
+        player.state.value = playing(thisPlaylist, isPlaying = true)
+        viewModel.onHeroPlay()
+        player.state.value = playing(thisPlaylist, isPlaying = false)
+        viewModel.onHeroPlay()
+
+        assertThat(transport.commands).containsExactly(
+            RecordingPlayerTransport.Command.Pause,
+            RecordingPlayerTransport.Command.Play,
+        ).inOrder()
+        assertThat(play.intents).isEmpty()
+
+        player.state.value = playing(QueueSource.Library(shuffled = true), isPlaying = true)
+        viewModel.onHeroPlay()
+
+        val replace = play.plays.single()
+        assertThat(replace.target).isEqualTo(PlayTarget.Songs(viewModel.uiState.value.songs, 0))
+        assertThat(replace.shuffle).isFalse()
+        assertThat(replace.source).isEqualTo(thisPlaylist)
+        assertThat(transport.commands).hasSize(2)
+    }
+
+    @Test
+    fun heroPlayAfterThisPlaylistPlayedToTheEndPlaysItAgainFromTheStart() = runTest {
+        val viewModel = viewModel()
+        val thisPlaylist = QueueSource.Playlist("p1", "Playlist p1")
+
+        player.state.value = playing(thisPlaylist, isPlaying = false).copy(hasEnded = true)
+        assertThat(viewModel.uiState.value.heroPlayback).isEqualTo(HeroPlayback.NotSource)
+        viewModel.onHeroPlay()
+
+        val replace = play.plays.single()
+        assertThat(replace.target).isEqualTo(PlayTarget.Songs(viewModel.uiState.value.songs, 0))
+        assertThat(replace.source).isEqualTo(thisPlaylist)
+        assertThat(transport.commands).isEmpty()
+    }
+
+    /** The player on a song of [source], which is the queue source. */
+    private fun playing(source: QueueSource, isPlaying: Boolean) =
+        TestData.playerOn("elsewhere", isPlaying).copy(queueSource = source)
 
     @Test
     fun trackMenuStarsAndRemovesFromThePlaylist() = runTest {

@@ -32,6 +32,7 @@ class AlbumScreenScreenshotTest {
                             onArtistClick = {},
                             onGenreClick = {},
                             onPlay = { _, _ -> },
+                            onHeroPlay = {},
                             onShuffleAlbums = {},
                             onToggleStar = {},
                             onRatingChange = {},

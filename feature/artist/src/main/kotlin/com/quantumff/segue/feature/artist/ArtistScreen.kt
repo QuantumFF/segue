@@ -55,10 +55,8 @@ import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollS
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
-import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -67,6 +65,7 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ExplicitStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.QueuePlacement
@@ -95,6 +94,7 @@ fun ArtistDetailRoute(
         onAlbumClick = onAlbumClick,
         onArtistClick = onArtistClick,
         onPlay = viewModel::play,
+        onHeroPlay = viewModel::onHeroPlay,
         onPlayTopSong = viewModel::playTopSong,
         onShuffleAlbums = viewModel::shuffleAlbums,
         onPlayAlbums = viewModel::playAlbums,
@@ -122,6 +122,7 @@ fun ArtistScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onPlay: (shuffle: Boolean) -> Unit,
+    onHeroPlay: () -> Unit,
     onPlayTopSong: (index: Int) -> Unit,
     onShuffleAlbums: () -> Unit,
     onInstantMix: () -> Unit,
@@ -171,6 +172,7 @@ fun ArtistScreen(
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
                 onPlay = onPlay,
+                onHeroPlay = onHeroPlay,
                 onPlayTopSong = onPlayTopSong,
                 onShuffleAlbums = onShuffleAlbums,
                 onPlayAlbums = onPlayAlbums,
@@ -205,6 +207,7 @@ private fun ArtistContent(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onPlay: (shuffle: Boolean) -> Unit,
+    onHeroPlay: () -> Unit,
     onPlayTopSong: (index: Int) -> Unit,
     onShuffleAlbums: () -> Unit,
     onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit,
@@ -245,10 +248,11 @@ private fun ArtistContent(
             circularArt = true,
         ),
         onBackClick = onBackClick,
-        onPlayClick = { onPlay(false) },
+        onPlayClick = onHeroPlay,
+        isPlaying = state.heroPlayback == HeroPlayback.Playing,
         onMoreClick = { artistMenuOpen = true },
         heroActions = {
-            PlayButton(onClick = { onPlay(false) })
+            PlayButton(onClick = onHeroPlay, isPlaying = state.heroPlayback == HeroPlayback.Playing)
             SegueIconButton(
                 icon = SegueIcons.Shuffle,
                 contentDescription = stringResource(R.string.feature_artist_shuffle),
@@ -306,15 +310,11 @@ private fun ArtistContent(
                     index,
                     song,
                 ->
-                val download = state.availability.downloads[song.id]
-                val available = state.availability.isAvailable(song)
-                val row = remember(song, download, available) {
-                    song.toTrackRowState(download = download?.status?.toBadgeState(), isAvailable = available)
-                }
+                val row = remember(song, state.availability, state.currentSong) { state.trackRow(song) }
                 TrackSwipeBox(
                     onPlayNext = { onSongAction(song, MediaAction.PlayNext) },
                     onAddToQueue = { onSongAction(song, MediaAction.AddToQueue) },
-                    enabled = available,
+                    enabled = row.isAvailable,
                 ) {
                     TrackRow(
                         state = row,
@@ -489,6 +489,7 @@ private fun ArtistScreenPreview() {
             onAlbumClick = {},
             onArtistClick = {},
             onPlay = {},
+            onHeroPlay = {},
             onPlayTopSong = {},
             onShuffleAlbums = {},
             onInstantMix = {},

@@ -7,10 +7,12 @@ import com.quantumff.segue.core.designsystem.component.DownloadBadgeState
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongAvailability
 
 // Domain model to component state, shared by every browse screen so cards and rows read the same.
 
@@ -27,12 +29,14 @@ fun Playlist.toCardState(subtitle: String): AlbumCardState =
 
 /**
  * [rowKey] identifies the row in a lazy list. It defaults to the song ID; playlists can hold a
- * song twice, so they pass a position-qualified key instead.
+ * song twice, so they pass a position-qualified key instead. The row is marked as playing when it
+ * is [current]'s song (DESIGN.md §5.2).
  */
 fun Song.toTrackRowState(
     rowKey: String = id,
     download: DownloadBadgeState? = null,
     isAvailable: Boolean = true,
+    current: CurrentSong? = null,
 ): TrackRowState = TrackRowState(
     id = rowKey,
     title = title,
@@ -44,7 +48,21 @@ fun Song.toTrackRowState(
     explicit = explicitStatus == ExplicitStatus.Explicit,
     download = download,
     isAvailable = isAvailable,
+    isCurrent = current?.isOf(this) == true,
+    isPlaying = current?.isOf(this) == true && current.isPlaying,
 )
+
+/**
+ * The song's row on a page that knows the library's [availability]: its download badge, whether it
+ * plays (offline, only downloaded songs do), and whether it is [current]'s song.
+ */
+fun Song.toTrackRowState(availability: SongAvailability, current: CurrentSong?, rowKey: String = id): TrackRowState =
+    toTrackRowState(
+        rowKey = rowKey,
+        download = availability.downloads[id]?.status?.toBadgeState(),
+        isAvailable = availability.isAvailable(this),
+        current = current,
+    )
 
 /** The badge for a download status (DESIGN.md §4.9). Paused and failed show no badge. */
 fun DownloadStatus.toBadgeState(): DownloadBadgeState? = when (this) {

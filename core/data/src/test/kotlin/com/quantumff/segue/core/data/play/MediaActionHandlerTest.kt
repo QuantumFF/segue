@@ -14,6 +14,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
@@ -235,15 +236,43 @@ class MediaActionHandlerTest {
         handler.album(album, MediaAction.ShuffleArtistAlbums, host)
 
         val target = PlayTarget.Album("al")
+        val source = QueueSource.Album("al", "Album al")
         assertThat(intents.plays).containsExactly(
-            RecordingPlayIntents.Play(target, QueuePlacement.Replace, false),
-            RecordingPlayIntents.Play(target, QueuePlacement.Replace, true),
-            RecordingPlayIntents.Play(target, QueuePlacement.Next, false),
-            RecordingPlayIntents.Play(target, QueuePlacement.End, false),
+            RecordingPlayIntents.Play(target, QueuePlacement.Replace, false, source),
+            RecordingPlayIntents.Play(target, QueuePlacement.Replace, true, source),
+            RecordingPlayIntents.Play(target, QueuePlacement.Next, false, source),
+            RecordingPlayIntents.Play(target, QueuePlacement.End, false, source),
         ).inOrder()
-        assertThat(intents.albumRequests).containsExactly(
-            AlbumPlayRequest(AlbumSource.Artist("ar"), AlbumOrder.Shuffled),
+        assertThat(intents.albumPlays).containsExactly(
+            RecordingPlayIntents.AlbumPlay(
+                AlbumPlayRequest(AlbumSource.Artist("ar"), AlbumOrder.Shuffled),
+                QueueSource.Artist("ar", "Artist 1"),
+            ),
         )
+    }
+
+    @Test
+    fun `an artist's or playlist's plays name it as the queue source, a song's or a selection's name none`() = runTest {
+        val artist = TestData.artist("ar", name = "Radiohead")
+        val playlist = TestData.playlist("p", name = "Road trip")
+
+        handler.artist(artist, MediaAction.Play, host)
+        handler.artist(artist, MediaAction.ShuffleAlbums, host)
+        handler.playlist(playlist, MediaAction.Shuffle, host)
+        handler.playlist(playlist, MediaAction.ShuffleAlbums, host)
+        handler.song(TestData.song("s"), MediaAction.Play, host)
+        handler.albums(listOf(TestData.album("a"), TestData.album("b")), MediaAction.Play, host)
+
+        assertThat(intents.plays.map { it.source }).containsExactly(
+            QueueSource.Artist("ar", "Radiohead"),
+            QueueSource.Playlist("p", "Road trip"),
+            QueueSource.Unknown,
+            QueueSource.Unknown,
+        ).inOrder()
+        assertThat(intents.albumPlays.map { it.source }).containsExactly(
+            QueueSource.Artist("ar", "Radiohead"),
+            QueueSource.Playlist("p", "Road trip"),
+        ).inOrder()
     }
 
     @Test

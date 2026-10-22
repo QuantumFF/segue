@@ -30,7 +30,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 /**
  * Album, artist and playlist detail layout (DESIGN.md §4.3): a [HeroHeader] as the first list
  * item and a [DetailTopBar] overlaid on top. The bar starts transparent and collapses (fades to the
- * tint, shows the title and a play button) once the hero title scrolls under it.
+ * tint, shows the title and a play button) once the hero title scrolls under it. The bar's play
+ * button shows Pause while [isPlaying]: the page is the playing queue source.
  * Bottom padding includes [LocalShellContentPadding].
  */
 @Composable
@@ -40,6 +41,7 @@ fun HeroDetailLayout(
     modifier: Modifier = Modifier,
     heroStyle: HeroStyle = HeroStyle.Tint,
     onPlayClick: (() -> Unit)? = null,
+    isPlaying: Boolean = false,
     onMoreClick: (() -> Unit)? = null,
     onSubtitleClick: (() -> Unit)? = null,
     heroActions: @Composable RowScope.() -> Unit = {},
@@ -85,6 +87,7 @@ fun HeroDetailLayout(
             onBackClick = onBackClick,
             containerColor = hero.tint ?: MaterialTheme.colorScheme.surfaceContainerHigh,
             onPlayClick = onPlayClick,
+            isPlaying = isPlaying,
             onMoreClick = onMoreClick,
         )
     }

@@ -1,12 +1,16 @@
 package com.quantumff.segue.feature.nowplaying
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFileInfo
+import com.quantumff.segue.core.model.StreamFormat
 import kotlinx.collections.immutable.toImmutableList
 import org.junit.Test
 
@@ -44,12 +48,29 @@ class NowPlayingUiStateTest {
     }
 
     @Test
+    fun aPlaybackErrorReachesNowPlaying() {
+        val error = PlaybackError(songId = "s0", title = "Song 0", kind = PlaybackErrorKind.Network)
+
+        assertThat(player(currentQueueIndex = 0).copy(playbackError = error).toNowPlayingUiState(null, null).error)
+            .isEqualTo(error)
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(null, null).error).isNull()
+    }
+
+    @Test
     fun neighborsWrapOnlyWithRepeatAll() {
         val player = player(currentQueueIndex = 0, repeatMode = RepeatMode.Off)
         assertThat(player.toNowPlayingUiState(null, null).previous).isNull()
         assertThat(player.toNowPlayingUiState(null, null).next?.timelineIndex).isEqualTo(1)
         val wrapping = player.copy(repeatMode = RepeatMode.All).toNowPlayingUiState(null, null)
         assertThat(wrapping.previous?.timelineIndex).isEqualTo(2)
+    }
+
+    @Test
+    fun aLoadingStreamReachesThePlayButton() {
+        val loading = player(currentQueueIndex = 0).copy(isBuffering = true)
+
+        assertThat(loading.toNowPlayingUiState(null, null).isBuffering).isTrue()
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(null, null).isBuffering).isFalse()
     }
 
     @Test
@@ -82,6 +103,103 @@ class NowPlayingUiStateTest {
         assertThat(state.track?.artists?.map { it.id }).containsExactly("ar-1")
         assertThat(state.details?.path).isEqualTo("a/b.flac")
     }
+
+    @Test
+    fun aPageSourceIsNamedAndItsNameOpensThePage() {
+        val pages = listOf(
+            QueueSource.Album("al", "In Rainbows") to R.string.feature_nowplaying_source_album,
+            QueueSource.Playlist("p", "Road trip") to R.string.feature_nowplaying_source_playlist,
+            QueueSource.Artist("ar", "Radiohead") to R.string.feature_nowplaying_source_artist,
+            QueueSource.Genre("Rock") to R.string.feature_nowplaying_source_genre,
+        )
+        for ((source, overline) in pages) {
+            assertThat(sourceLabel(source)).isEqualTo(SourceLabel(overline, source.name, opens = source))
+        }
+    }
+
+    @Test
+    fun anInstantMixNamesItsSeed() {
+        assertThat(sourceLabel(QueueSource.InstantMix("Nude")))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_instant_mix, "Nude"))
+    }
+
+    @Test
+    fun theLibrarySaysWhetherItWasShuffled() {
+        assertThat(sourceLabel(QueueSource.Library(shuffled = true)))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_shuffled_library))
+        assertThat(sourceLabel(QueueSource.Library(shuffled = false)))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_library))
+    }
+
+    @Test
+    fun anAdoptedQueueNamesTheDevice() {
+        assertThat(sourceLabel(QueueSource.Adopted("Feishin")))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_adopted, "Feishin"))
+    }
+
+    @Test
+    fun anUnknownSourceIsTheQueue() {
+        assertThat(sourceLabel(QueueSource.Unknown)).isEqualTo(SourceLabel(R.string.feature_nowplaying_source_queue))
+    }
+
+    @Test
+    fun aBlankNameIsLeftOut() {
+        assertThat(sourceLabel(QueueSource.InstantMix(" ")))
+            .isEqualTo(SourceLabel(R.string.feature_nowplaying_source_instant_mix))
+    }
+
+    private fun sourceLabel(source: QueueSource) =
+        player(currentQueueIndex = 0).copy(queueSource = source).toNowPlayingUiState(null, null).source
+
+    @Test
+    fun thePillDescribesTheStreamFormatOverTheLibraryFile() {
+        val transcoded = player(currentQueueIndex = 0).copy(streamFormat = StreamFormat("OPUS", bitRateKbps = 128))
+
+        assertThat(transcoded.toNowPlayingUiState(flac, flacFile).quality).isEqualTo("OPUS · 128")
+        assertThat(transcoded.toNowPlayingUiState(null, null).quality).isEqualTo("OPUS · 128")
+    }
+
+    @Test
+    fun withoutAStreamFormatThePillDescribesTheLibraryFile() {
+        assertThat(player(currentQueueIndex = 0).toNowPlayingUiState(flac, flacFile).quality)
+            .isEqualTo("FLAC · 16/44.1")
+    }
+
+    @Test
+    fun aLosslessStreamShowsItsBitDepthAndSampleRate() {
+        val hiRes = StreamFormat("FLAC", bitRateKbps = 4_608, sampleRateHz = 96_000, bitDepth = 24)
+
+        assertThat(player(currentQueueIndex = 0).copy(streamFormat = hiRes).toNowPlayingUiState(flac, flacFile).quality)
+            .isEqualTo("FLAC · 24/96")
+    }
+
+    @Test
+    fun aDownloadedTranscodeIsDescribedAsTheDownloadedFile() {
+        val download = player(currentQueueIndex = 0).copy(streamFormat = StreamFormat("MP3", bitRateKbps = 192))
+
+        assertThat(download.toNowPlayingUiState(flac, flacFile).quality).isEqualTo("MP3 · 192")
+    }
+
+    @Test
+    fun theOriginalFileLendsItsBitRateToAStreamOfTheSameCodecThatDeclaresNone() {
+        val opusSong = flac.copy(suffix = "opus", bitRate = 160)
+        val original = player(currentQueueIndex = 0).copy(streamFormat = StreamFormat("OPUS"))
+
+        assertThat(original.toNowPlayingUiState(opusSong, null).quality).isEqualTo("OPUS · 160")
+        assertThat(original.toNowPlayingUiState(flac, flacFile).quality).isEqualTo("OPUS")
+    }
+
+    private val flac = Song(
+        id = "s0",
+        title = "Song 0",
+        albumId = null,
+        album = null,
+        artist = "Artist",
+        artistId = "ar-1",
+        suffix = "flac",
+        bitRate = 900,
+    )
+    private val flacFile = SongFileInfo("a/b.flac", 44_100, 16, 2)
 
     private fun player(currentQueueIndex: Int, repeatMode: RepeatMode = RepeatMode.Off): PlayerUiState {
         val queue = (0..2).map { index ->

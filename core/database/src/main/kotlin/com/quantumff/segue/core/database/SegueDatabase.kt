@@ -68,7 +68,7 @@ import com.quantumff.segue.core.database.util.Converters
         SyncMetadataEntity::class,
         ServerCapabilitiesEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

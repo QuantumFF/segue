@@ -11,6 +11,7 @@ import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.service.QueueEditor
@@ -37,6 +38,8 @@ class AlbumPlaysTest {
 
     private fun song(id: String, album: String?, track: Int = 1) =
         Song(id = id, title = id, albumId = album, album = album, artist = null, artistId = null, track = track)
+
+    private val editor = QueueEditor(player, offline = { null })
 
     private fun plays(offline: DownloadedLibrary? = null, seed: Long = 1) =
         AlbumPlays(QueueEditor(player, offline = { offline }), albums, offline = { offline }, newSeed = { seed })
@@ -156,6 +159,16 @@ class AlbumPlaysTest {
 
         assertThat(plays().start(request(AlbumOrder.InOrder))).isFalse()
         assertThat(queueIds()).containsExactly("x1")
+    }
+
+    @Test
+    fun `a play that replaces the queue records its source, one placed in it does not`() = runTest {
+        val plays = AlbumPlays(editor, albums, offline = { null }, newSeed = { 1 })
+
+        plays.start(request(AlbumOrder.ShuffledTracks), QueueSource.Library(shuffled = true))
+        plays.start(request(AlbumOrder.InOrder, QueuePlacement.End), QueueSource.Genre("Rock"))
+
+        assertThat(player.queueSource.value).isEqualTo(QueueSource.Library(shuffled = true))
     }
 }
 

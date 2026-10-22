@@ -21,7 +21,7 @@ import kotlinx.coroutines.runBlocking
  * key (the URL changes with every salt), so the stream cache is read before the network. Cover
  * art becomes a signed `getCoverArt` URL from [CoverArtUrlResolver], with the stable cache key the
  * app's image loader uses too. Runs on loader threads, so blocking on Room and the account store
- * is fine.
+ * is fine. Each song's [requests] entry records what was asked for, for the stream format.
  */
 class SegueUriResolver @Inject constructor(
     private val downloads: DownloadRepository,
@@ -30,6 +30,9 @@ class SegueUriResolver @Inject constructor(
     private val preferences: UserPreferencesRepository,
     private val network: NetworkMonitor,
 ) : ResolvingDataSource.Resolver {
+    /** What the latest resolve of each song asked for: its downloaded file, or a stream quality. */
+    internal val requests = StreamRequests()
+
     override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
         val uri = dataSpec.uri
         if (uri.scheme != SegueUris.SCHEME) return dataSpec
@@ -38,8 +41,13 @@ class SegueUriResolver @Inject constructor(
             runBlocking {
                 when (uri.authority) {
                     SegueUris.SONG -> {
-                        downloads.localFile(id)?.let { file -> return@runBlocking dataSpec.withUri(Uri.fromFile(file)) }
-                        val location = mediaUrls.stream(id, quality())
+                        downloads.localFile(id)?.let { file ->
+                            requests.record(id, StreamRequest.Download(file.length()))
+                            return@runBlocking dataSpec.withUri(Uri.fromFile(file))
+                        }
+                        val quality = quality()
+                        val location = mediaUrls.stream(id, quality)
+                        requests.record(id, StreamRequest.Stream(quality))
                         dataSpec.buildUpon().setUri(Uri.parse(location.url)).setKey(location.cacheKey).build()
                     }
 

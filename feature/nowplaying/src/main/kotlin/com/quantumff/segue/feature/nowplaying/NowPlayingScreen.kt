@@ -64,6 +64,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
+import com.quantumff.segue.core.designsystem.component.PlaybackErrorSnackbar
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -73,6 +74,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.ArtistRef
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.feature.nowplaying.component.ArtPager
 import com.quantumff.segue.feature.nowplaying.component.CompactTrackHeader
@@ -107,6 +109,8 @@ fun NowPlayingScreen(
     onCollapse: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
+    onPlaylistClick: (String) -> Unit,
+    onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -130,7 +134,15 @@ fun NowPlayingScreen(
             snackbarHostState.showSnackbar(text)
         }
     }
-    val actions = remember(viewModel, onCollapse, onAlbumClick, onArtistClick, onAddToPlaylist) {
+    val actions = remember(
+        viewModel,
+        onCollapse,
+        onAlbumClick,
+        onArtistClick,
+        onPlaylistClick,
+        onGenreClick,
+        onAddToPlaylist,
+    ) {
         NowPlayingActions(
             onCollapse = onCollapse,
             onPlayPause = viewModel::togglePlayPause,
@@ -145,6 +157,15 @@ fun NowPlayingScreen(
             onInstantMix = viewModel::startInstantMix,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
+            onSourceClick = { source ->
+                when (source) {
+                    is QueueSource.Album -> onAlbumClick(source.id)
+                    is QueueSource.Playlist -> onPlaylistClick(source.id)
+                    is QueueSource.Artist -> onArtistClick(source.id)
+                    is QueueSource.Genre -> onGenreClick(source.name)
+                    else -> Unit
+                }
+            },
             onAddToPlaylist = onAddToPlaylist,
             onVisiblePanelsChange = viewModel::setVisiblePanels,
             onRetryLyrics = { viewModel.retryLyrics() },
@@ -154,6 +175,8 @@ fun NowPlayingScreen(
             onAddToQueue = viewModel::addToQueue,
             onSaveQueueAsPlaylist = viewModel::saveQueueAsPlaylist,
             onClearQueue = viewModel::clearQueue,
+            onSkipPastError = viewModel::skipPastError,
+            onRetryPlayback = viewModel::retryPlayback,
         )
     }
     NowPlayingScreen(
@@ -198,6 +221,7 @@ internal fun NowPlayingScreen(
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
+    PlaybackErrorSnackbar(state.error, snackbarHostState, actions.onSkipPastError, actions.onRetryPlayback)
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH
@@ -425,7 +449,7 @@ private fun PhoneLayout(
             .fillMaxSize()
             .navigationBarsPadding(),
     ) {
-        TopBar(track, actions.onCollapse, onMenuClick)
+        TopBar(state.source, actions, onMenuClick)
         AnimatedContent(
             targetState = openPanel != null,
             transitionSpec = {
@@ -525,7 +549,7 @@ private fun TwoPaneLayout(
             .navigationBarsPadding(),
     ) {
         Column(Modifier.weight(ART_PANE_WEIGHT)) {
-            TopBar(track, actions.onCollapse, onMenuClick)
+            TopBar(state.source, actions, onMenuClick)
             // Art, metadata and controls stay together, centered, instead of the art floating in a
             // tall pane far from its title and controls.
             BoxWithConstraints(
@@ -604,13 +628,15 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
         NowPlayingSeekbar(
             positionMillis = positionMillis,
             durationMillis = state.durationMillis,
-            isPlaying = state.isPlaying,
+            // The bar glides only while the position moves, not while buffering.
+            isPlaying = state.isPlaying && !state.isBuffering,
             quality = state.quality,
             onSeek = actions.onSeek,
             modifier = Modifier.padding(horizontal = SegueSpacing.xl, vertical = SegueSpacing.xs),
         )
         TransportRow(
             isPlaying = state.isPlaying,
+            isBuffering = state.isBuffering,
             repeatMode = state.repeatMode,
             onPreviousClick = actions.onPrevious,
             onPlayPauseClick = actions.onPlayPause,
@@ -622,12 +648,14 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
 }
 
 @Composable
-private fun TopBar(track: NowPlayingTrack, onCollapse: () -> Unit, onMenuClick: () -> Unit) {
+private fun TopBar(source: SourceLabel, actions: NowPlayingActions, onMenuClick: () -> Unit) {
     NowPlayingTopBar(
-        sourceLabel = stringResource(R.string.feature_nowplaying_source_label),
-        sourceName = track.album ?: track.title,
-        onCollapseClick = onCollapse,
+        sourceLabel = stringResource(source.overline),
+        sourceName = source.name,
+        onCollapseClick = actions.onCollapse,
         onMoreClick = onMenuClick,
+        onSourceClick = source.opens?.let { opens -> { actions.onSourceClick(opens) } },
+        sourceClickLabel = source.name?.let { stringResource(R.string.feature_nowplaying_open_source, it) },
     )
 }
 

@@ -2,6 +2,8 @@ package com.quantumff.segue.core.designsystem.component
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -111,7 +114,8 @@ fun AccountAction(serverName: String?, onClick: () -> Unit, modifier: Modifier =
 /**
  * Detail top bar over a hero (DESIGN.md §4.3): transparent with back and ⋮ while the hero is
  * visible; once [collapsed], it fades (`medium`) to [containerColor] and shows [title] in
- * `titleMedium` plus a 36 play button. Alpha is applied in the draw phase.
+ * `titleMedium` plus a 36 play button, which shows Pause while [isPlaying] (the page is the
+ * playing queue source). Alpha is applied in the draw phase.
  */
 @Composable
 fun DetailTopBar(
@@ -121,6 +125,7 @@ fun DetailTopBar(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     onPlayClick: (() -> Unit)? = null,
+    isPlaying: Boolean = false,
     onMoreClick: (() -> Unit)? = null,
 ) {
     val fraction by animateFloatAsState(
@@ -159,7 +164,7 @@ fun DetailTopBar(
                     .padding(horizontal = SegueSpacing.sm),
             )
             if (onPlayClick != null && collapsed) {
-                PlayButton(onClick = onPlayClick, size = SegueSizes.detailTopBarPlay)
+                PlayButton(onClick = onPlayClick, isPlaying = isPlaying, size = SegueSizes.detailTopBarPlay)
             }
         }
         if (onMoreClick != null) {
@@ -339,14 +344,20 @@ fun SearchTopBar(
 /**
  * Now Playing top bar (DESIGN.md §4.7): chevron-down, "PLAYING FROM ALBUM" over the source name,
  * then ⋮. Always light content: it sits on art.
+ *
+ * @param sourceName null when [sourceLabel] says it all ("SHUFFLED LIBRARY").
+ * @param onSourceClick opens the source; null when it opens nothing. [sourceClickLabel] says
+ *   what a tap does, for accessibility.
  */
 @Composable
 fun NowPlayingTopBar(
     sourceLabel: String,
-    sourceName: String,
+    sourceName: String?,
     onCollapseClick: () -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onSourceClick: (() -> Unit)? = null,
+    sourceClickLabel: String? = null,
 ) {
     val onArt = SegueTheme.colors.onArt
     Row(
@@ -363,20 +374,34 @@ fun NowPlayingTopBar(
             onClick = onCollapseClick,
             tint = onArt,
         )
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        val source = if (onSourceClick == null) {
+            Modifier
+        } else {
+            Modifier.clickable(onClickLabel = sourceClickLabel, role = Role.Button, onClick = onSourceClick)
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .height(SegueSizes.touchTarget)
+                .then(source),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
             Text(
                 text = sourceLabel.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = SegueTheme.colors.onArtMuted,
                 maxLines = 1,
             )
-            Text(
-                text = sourceName,
-                style = MaterialTheme.typography.bodySmall,
-                color = onArt,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (sourceName != null) {
+                Text(
+                    text = sourceName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onArt,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         SegueIconButton(
             icon = SegueIcons.MoreVertical,

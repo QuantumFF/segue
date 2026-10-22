@@ -11,22 +11,32 @@ import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.play.PlayerTransport
+import com.quantumff.segue.core.data.play.heroPlay
+import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.designsystem.component.TrackRowState
+import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
+import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
+import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
+import com.quantumff.segue.core.model.SourcePage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -55,6 +65,8 @@ class AlbumViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
+    playerState: PlayerStateSource,
+    private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
@@ -64,6 +76,9 @@ class AlbumViewModel @Inject constructor(
     private val message = MutableStateFlow<AlbumMessage?>(null)
 
     private val album = albumRepository.album(albumId)
+
+    /** The current song, and whether this album is the queue source and plays. */
+    private val player = playerState.pagePlayback(SourcePage.Album(albumId))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val moreByArtist = album
@@ -78,9 +93,9 @@ class AlbumViewModel @Inject constructor(
         album,
         albumRepository.albumSongs(albumId),
         moreByArtist,
-        combine(refresh, message, ::Pair),
+        combine(refresh, message, player, ::Triple),
         combine(downloadRepository.pinStatus(PinKind.Album, albumId), offlineView.songAvailability, ::Pair),
-    ) { album, songs, more, (refresh, message), (download, availability) ->
+    ) { album, songs, more, (refresh, message, player), (download, availability) ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
@@ -91,6 +106,8 @@ class AlbumViewModel @Inject constructor(
                 message = message,
                 download = download,
                 availability = availability,
+                currentSong = player.currentSong,
+                heroPlayback = player.hero,
             )
 
             refresh == null -> AlbumUiState.Loading
@@ -111,12 +128,23 @@ class AlbumViewModel @Inject constructor(
         viewModelScope.launch { refresh.value = remoteOutcome { albumRepository.refreshAlbum(albumId) } }
     }
 
-    /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. */
+    /** Plays the album from [startIndex]; [shuffle] shuffles its tracks. The album is the queue source. */
     fun play(startIndex: Int = 0, shuffle: Boolean = false) {
-        val songs = (uiState.value as? AlbumUiState.Success)?.songs ?: return
+        val success = uiState.value as? AlbumUiState.Success ?: return
+        val songs = success.songs
         if (songs.isEmpty()) return
         val target = PlayTarget.Songs(songs, startIndex.coerceIn(songs.indices))
-        viewModelScope.launch { playIntents.play(target, shuffle = shuffle) }
+        val source = QueueSource.Album(success.album.id, success.album.name)
+        viewModelScope.launch { playIntents.play(target, shuffle = shuffle, source = source) }
+    }
+
+    /**
+     * The hero's Play, or the collapsed top bar's: pauses this album while it is the queue source
+     * and plays, resumes it while it is the paused queue source, and otherwise plays it from the start.
+     */
+    fun onHeroPlay() {
+        val success = uiState.value as? AlbumUiState.Success ?: return
+        transport.heroPlay(success.heroPlayback) { play() }
     }
 
     /** Pins the album for offline use. */
@@ -137,7 +165,8 @@ class AlbumViewModel @Inject constructor(
     }
 
     fun shuffleAlbums(option: ShuffleAlbumsOption) {
-        viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(option.source, AlbumOrder.Shuffled)) }
+        val request = AlbumPlayRequest(option.source, AlbumOrder.Shuffled)
+        viewModelScope.launch { playIntents.playAlbums(request, option.queueSource) }
     }
 
     /** The album's ⋮ menu ([MediaActionHandler]). */
@@ -213,8 +242,15 @@ sealed interface AlbumUiState {
         val download: DownloadStatus? = null,
         /** Row badges; offline, rows of songs that are not downloaded are dimmed and do not play. */
         val availability: SongAvailability = SongAvailability(),
+        /** The song the player is on; its rows are marked. */
+        val currentSong: CurrentSong? = null,
+        /** Whether this album is the queue source and plays: the hero's Play then shows Pause. */
+        val heroPlayback: HeroPlayback = HeroPlayback.NotSource,
     ) : AlbumUiState {
         val showDiscHeaders: Boolean get() = discs.size > 1
+
+        /** [song]'s track row: its download badge, whether it is available, and whether it is playing. */
+        fun trackRow(song: Song): TrackRowState = song.toTrackRowState(availability, currentSong)
         val trackCount: Int get() = if (songs.isEmpty()) album.songCount else songs.size
         val durationSeconds: Long
             get() = if (songs.isEmpty()) album.durationSeconds.toLong() else songs.sumOf { it.durationSeconds.toLong() }
@@ -237,12 +273,17 @@ data class IndexedSong(val index: Int, val song: Song)
 sealed interface ShuffleAlbumsOption {
     val source: AlbumSource
 
+    /** What Now Playing says the shuffled albums came from. */
+    val queueSource: QueueSource
+
     data class ByArtist(val artistId: String, val artistName: String) : ShuffleAlbumsOption {
         override val source get() = AlbumSource.Artist(artistId)
+        override val queueSource get() = QueueSource.Artist(artistId, artistName)
     }
 
     data class ByGenre(val genre: String) : ShuffleAlbumsOption {
         override val source get() = AlbumSource.Genre(genre)
+        override val queueSource get() = QueueSource.Genre(genre)
     }
 }
 

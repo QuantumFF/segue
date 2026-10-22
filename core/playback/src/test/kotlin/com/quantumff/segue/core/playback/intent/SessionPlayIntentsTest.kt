@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
@@ -67,6 +68,19 @@ class SessionPlayIntentsTest {
     }
 
     @Test
+    fun `a play intent hands its queue source to the session`() = runTest {
+        albums.songsByAlbum.value = mapOf("al" to songs)
+        val album = QueueSource.Album("al", "In Rainbows")
+        val intents = intents()
+
+        intents.play(PlayTarget.Album("al"), source = album)
+        intents.playAlbums(AlbumPlayRequest(AlbumSource.Genre("Rock"), AlbumOrder.Shuffled), QueueSource.Genre("Rock"))
+
+        assertThat(session.queued.single()).isEqualTo(Queued(songs, QueuePlacement.Replace, 0, false, album))
+        assertThat(session.albumPlays.single().second).isEqualTo(QueueSource.Genre("Rock"))
+    }
+
+    @Test
     fun `nothing queued says nothing to play`() = runTest {
         val intents = intents()
 
@@ -78,7 +92,7 @@ class SessionPlayIntentsTest {
         intents.play(PlayTarget.Songs(songs))
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.NothingToPlay)
 
-        intents.playAlbums(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled))
+        intents.playAlbums(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled), QueueSource.Library(true))
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.NothingToPlay)
     }
 
@@ -109,9 +123,9 @@ class SessionPlayIntentsTest {
         session.mixError = RemoteException.Unreachable(IOException("down"))
         val intents = intents()
 
-        intents.instantMix(InstantMixSeed.OfArtist("ar"))
+        intents.instantMix(InstantMixSeed.OfArtist("ar", "Radiohead"))
 
-        assertThat(session.mixes).containsExactly(Mix(null, "ar"))
+        assertThat(session.mixes).containsExactly(Mix(null, "ar", QueueSource.InstantMix("Radiohead")))
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.InstantMixFailed)
     }
 
@@ -123,7 +137,10 @@ class SessionPlayIntentsTest {
         intents.instantMix(InstantMixSeed.OfSong(songs[0]))
         intents.instantMix(InstantMixSeed.OfLibrarySong("s2"))
 
-        assertThat(session.mixes).containsExactly(Mix(songs[0], "artist-1"), Mix(songs[1], "artist-1")).inOrder()
+        assertThat(session.mixes).containsExactly(
+            Mix(songs[0], "artist-1", QueueSource.InstantMix(songs[0].title)),
+            Mix(songs[1], "artist-1", QueueSource.InstantMix(songs[1].title)),
+        ).inOrder()
     }
 
     @Test
@@ -158,13 +175,15 @@ private data class Queued(
     val placement: QueuePlacement,
     val startIndex: Int,
     val shuffle: Boolean,
+    val source: QueueSource = QueueSource.Unknown,
 )
 
-private data class Mix(val seed: Song?, val artistId: String)
+private data class Mix(val seed: Song?, val artistId: String, val source: QueueSource)
 
 private class FakeIntentSession : IntentSession {
     val queued = mutableListOf<Queued>()
     val mixes = mutableListOf<Mix>()
+    val albumPlays = mutableListOf<Pair<AlbumPlayRequest, QueueSource>>()
     var answer = true
     var mixError: RemoteException? = null
 
@@ -176,16 +195,20 @@ private class FakeIntentSession : IntentSession {
         placement: QueuePlacement,
         startIndex: Int,
         shuffle: Boolean,
+        source: QueueSource,
     ): Boolean {
         gate?.await()
-        queued += Queued(songs, placement, startIndex, shuffle)
+        queued += Queued(songs, placement, startIndex, shuffle, source)
         return answer
     }
 
-    override suspend fun playAlbums(request: AlbumPlayRequest) = answer
+    override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Boolean {
+        albumPlays += request to source
+        return answer
+    }
 
-    override suspend fun instantMix(seed: Song?, artistId: String): Boolean {
-        mixes += Mix(seed, artistId)
+    override suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): Boolean {
+        mixes += Mix(seed, artistId, source)
         mixError?.let { throw it }
         return answer
     }

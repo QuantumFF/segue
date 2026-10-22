@@ -54,6 +54,7 @@ import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBar
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
+import com.quantumff.segue.core.designsystem.component.PlaybackErrorSnackbar
 import com.quantumff.segue.core.designsystem.component.PlayerBar
 import com.quantumff.segue.core.designsystem.component.PlayerBarActions
 import com.quantumff.segue.core.designsystem.component.PlayerBarState
@@ -65,6 +66,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.util.openLink
 import com.quantumff.segue.feature.album.navigation.navigateToAlbum
 import com.quantumff.segue.feature.artist.navigation.navigateToArtist
+import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.NowPlayingOverlay
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
@@ -126,6 +128,13 @@ fun SegueApp(
             }
         }
     }
+    // DESIGN.md §4.7: a song that failed to play, with Skip, and Retry for a network error.
+    PlaybackErrorSnackbar(
+        error = player.playbackError,
+        hostState = snackbarHostState,
+        onSkip = playerViewModel::skipPastError,
+        onRetry = playerViewModel::retryPlayback,
+    )
     val update by appUpdateViewModel.availableUpdate.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     LaunchedEffect(update) {
@@ -170,6 +179,14 @@ fun SegueApp(
                 onArtistClick = { id ->
                     appState.closeNowPlaying()
                     appState.navigate { navigateToArtist(id) }
+                },
+                onPlaylistClick = { id ->
+                    appState.closeNowPlaying()
+                    appState.navigate { navigateToPlaylist(id) }
+                },
+                onGenreClick = { genre ->
+                    appState.closeNowPlaying()
+                    appState.navigate { navigateToGenre(genre) }
                 },
                 onAddToPlaylist = { addToPlaylist = it },
                 queueContent = { QueueContent() },

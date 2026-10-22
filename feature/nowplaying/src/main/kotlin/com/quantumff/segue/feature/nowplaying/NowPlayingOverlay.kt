@@ -16,7 +16,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
  * down when it collapses (DESIGN.md §2.5, §4.7). It is not a destination, so the screen behind it
  * stays drawn while it slides or is dragged down.
  *
- * @param onAlbumClick and [onArtistClick] should collapse Now Playing before navigating.
+ * @param onAlbumClick, [onArtistClick], [onPlaylistClick] and [onGenreClick] should collapse Now
+ *   Playing before navigating.
  * @param queueContent the Queue panel.
  */
 @Composable
@@ -25,6 +26,8 @@ fun NowPlayingOverlay(
     onCollapse: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
+    onPlaylistClick: (String) -> Unit,
+    onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -39,6 +42,8 @@ fun NowPlayingOverlay(
             onCollapse = onCollapse,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
+            onPlaylistClick = onPlaylistClick,
+            onGenreClick = onGenreClick,
             onAddToPlaylist = onAddToPlaylist,
             queueContent = queueContent,
         )

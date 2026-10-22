@@ -214,10 +214,11 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.3 Album detail (Feishin hero)
 - Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
 - Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle replaces the queue with the tracks in a fresh shuffled order, as does every "Shuffle" action (there is no player shuffle mode, §4.7). Shuffle long-press opens "Shuffle albums" options where relevant.
+- While the album is the queue source and plays, Play shows Pause and a tap pauses. While it is the paused queue source, Play resumes the queue where it was. On any other page, Play replaces the queue with the page. Compare the kind and the id of the queue source: ids are unique per kind only. Shuffle always replaces the queue.
 - Genre pills below the actions (§5.6).
 - Track list: rows in album mode (number column, no art). For multi-disc albums, add a sticky "Disc N · subtitle" header (`labelLarge`, 40 tall).
 - Footer: "Released 3 Oct 2019 · 12 tracks, 48:21" in `bodySmall` muted, then a "More by <artist>" carousel.
-- On scroll: the top bar starts transparent with a back arrow and ⋮. Once the hero title scrolls under it, it fades to the art-tint color (`medium`) and shows the title in `titleMedium` plus a 36 play button (Feishin page header).
+- On scroll: the top bar starts transparent with a back arrow and ⋮. Once the hero title scrolls under it, it fades to the art-tint color (`medium`) and shows the title in `titleMedium` plus a 36 play button (Feishin page header), which pauses and resumes like the hero's Play.
 - The "Compact headers" setting (Symfonium) switches to 120 art on the left with text on the right, total height about 168.
 
 ```
@@ -245,7 +246,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
-- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮.
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮. Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
 - **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: their own albums (newest first), then "Appears on". The list adds the buttons' inset to its bottom padding.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
@@ -255,7 +256,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.5 Playlist detail
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
-- Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete).
+- Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
 - Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar.
 
 ### 4.6 Search
@@ -274,12 +275,30 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Plain**: `background` only. Black theme defaults to Plain.
 - Text and icons on this screen are always light (`#FFFFFF` at 100% for primary, 70% for secondary), except with Plain on the Light theme.
 - Layout, top to bottom:
-  - Top bar, 56 tall: chevron-down · "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮.
+  - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below).
   - Art: square, width = screen − 48, radius `lg`, shadow.
   - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
-  - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill such as "FLAC · 16/44.1". In transcoding mode it reads "OPUS 128".
+  - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill describing what is actually playing: the stream format the player decoded or requested, so a server transcode reads "OPUS · 128" and a downloaded song describes the downloaded file. Lossless streams show bit depth and sample rate ("FLAC · 16/44.1"), lossy ones the bit rate. Until the stream format is known it describes the library song's file.
   - Transport row: an empty 48 slot · previous (28 icon, 56 target) · play/pause (72 white circle, icon in black) · next · repeat (Off, All, One). The empty slot balances repeat, so play/pause stays centered.
+    While the stream buffers, play/pause keeps its icon (Pause, if playback was asked for) and a buffering ring circles it: an 80 ring, 2 clear of the 72 circle, in the light on-art color. See **Buffering ring** in §5.5.
   - Bottom row of 4 icon buttons, each 48 tall with a label, spread evenly: Lyrics · Queue · Related · ⋮ (Sleep timer, Speed, Add to playlist, Save queue as playlist, Go to album or artist, Info, Clear queue). The sleep timer shows a dot badge on ⋮ while it is active.
+- **Source copy.** The top bar names the queue source: what the last play intent that replaced the queue played. Play next and Add to queue keep it, so it does not change as songs are added.
+
+  | Queue source | Overline | Name | Tapping the name opens |
+  |---|---|---|---|
+  | Album | PLAYING FROM ALBUM | the album | the album |
+  | Playlist | PLAYING FROM PLAYLIST | the playlist | the playlist |
+  | Artist (top songs, Play albums, Shuffle albums) | PLAYING FROM ARTIST | the artist | the artist |
+  | Genre (Play albums, Shuffle albums) | PLAYING FROM GENRE | the genre | the genre |
+  | Library, Shuffle all or shuffled albums | SHUFFLED LIBRARY | none | nothing |
+  | Library, Play albums in order | PLAYING FROM LIBRARY | none | nothing |
+  | Instant mix | INSTANT MIX | the seed song or artist | nothing |
+  | Another device's queue (adoption) | CONTINUED FROM | the device, such as "Feishin" | nothing |
+  | Anything else (search results, a single song, Related, Android Auto) | PLAYING FROM QUEUE | none | nothing |
+
+  When the name opens a page, the whole overline-and-name block is the tap target (48 tall), and Now Playing collapses before it navigates. A queue that empties forgets its source.
+
+  The source is saved with the saved queue, so after a restart (or the system's "resume playback") Now Playing names it as before. An adopted queue, whether taken from *Continue from &lt;device&gt;* or adopted automatically, reads "CONTINUED FROM" over the device's name, such as "Feishin". Undo brings back the replaced queue's source. A queue saved by an older version has no source: PLAYING FROM QUEUE.
 - **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either (ADR-0002).
 - **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
@@ -298,6 +317,14 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
 - **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
+- **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). Now Playing shows it in its own snackbar host, and the shell shows the same one above the mini player. It goes away when playback moves to another item or a retry plays.
+
+  | Kind | Copy | Actions |
+  |---|---|---|
+  | Network (no connection, timeout, server error) | "Couldn't play <title>. Check your connection." | Skip · Retry |
+  | Unsupported (the device can't parse or decode it) | "Couldn't play <title>. This device can't play its format." | Skip |
+  | Not found (404 or 410 from the server, or a missing download) | "Couldn't play <title>. Its file is missing." | Skip |
+  | Other | "Couldn't play <title>." | Skip |
 - Landscape and Expanded: art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art.
 
 ```
@@ -420,6 +447,10 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Left: 56 art, title, artists.
   - Center: transport (prev, 40 play circle, next, repeat; no shuffle, see §4.7) above a seekbar with times.
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
+- **Buffering ring:** while the stream buffers, an indeterminate `CircularProgressIndicator` (stroke 2) circles play/pause. It shows only once buffering has lasted 300ms, so quick rebuffers don't flash it, and goes the moment buffering ends. The button keeps its icon: Pause while playback was asked for, so a tap pauses. The ring never moves the layout.
+  - Mini player: 40, `onSurface`, around the 24 icon inside its 48 target.
+  - Player bar: 48, `onSurface`, 2 clear of the 40 play circle.
+  - Now Playing: 80 around the 72 circle (§4.7).
 
 ### 5.6 Chips and pills
 - **Filter chip:** M3 `FilterChip`, 32 tall, radius `full`, `labelMedium`. Unselected: transparent with an `outlineVariant` border. Selected: `surfaceContainerHighest`, no border, leading check. An inverted chip (it hides what it names) looks selected with a leading ✕ instead.
