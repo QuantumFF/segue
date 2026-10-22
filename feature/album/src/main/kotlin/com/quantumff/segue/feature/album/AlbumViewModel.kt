@@ -34,6 +34,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SourcePage
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
 import com.quantumff.segue.core.model.heroPlayback
@@ -79,7 +80,7 @@ class AlbumViewModel @Inject constructor(
 
     /** The current song, and whether this album is the queue source and plays. */
     private val player = playerState.state
-        .map { it.currentSong to it.heroPlayback { source -> source is QueueSource.Album && source.id == albumId } }
+        .map { it.currentSong to it.heroPlayback(SourcePage.Album(albumId)) }
         .distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)

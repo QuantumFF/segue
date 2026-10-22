@@ -39,6 +39,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SourcePage
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
 import com.quantumff.segue.core.model.heroPlayback
@@ -84,7 +85,7 @@ class ArtistViewModel @Inject constructor(
 
     /** The current song, and whether this artist is the queue source and plays. */
     private val player = playerState.state
-        .map { it.currentSong to it.heroPlayback { source -> source is QueueSource.Artist && source.id == artistId } }
+        .map { it.currentSong to it.heroPlayback(SourcePage.Artist(artistId)) }
         .distinctUntilChanged()
 
     val uiState: StateFlow<ArtistUiState> = combine(

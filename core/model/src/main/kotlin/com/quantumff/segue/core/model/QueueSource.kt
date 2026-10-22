@@ -15,6 +15,16 @@ sealed interface QueueSource {
      */
     val id: String?
 
+    /**
+     * Whether the source is [page]'s album, playlist or artist. IDs are unique per kind only, so the
+     * kind counts too.
+     */
+    fun opens(page: SourcePage): Boolean = when (page) {
+        is SourcePage.Album -> this is Album && id == page.albumId
+        is SourcePage.Playlist -> this is Playlist && id == page.playlistId
+        is SourcePage.Artist -> this is Artist && id == page.artistId
+    }
+
     data class Album(override val id: String, override val name: String) : QueueSource
 
     data class Playlist(override val id: String, override val name: String) : QueueSource

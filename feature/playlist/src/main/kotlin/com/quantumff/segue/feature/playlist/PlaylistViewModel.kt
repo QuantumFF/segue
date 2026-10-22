@@ -28,6 +28,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SourcePage
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.currentSong
 import com.quantumff.segue.core.model.heroPlayback
@@ -112,7 +113,7 @@ class PlaylistViewModel @Inject constructor(
 
     /** The current song, and whether this playlist is the queue source and plays. */
     private val player = playerState.state
-        .map { it.currentSong to it.heroPlayback(::isThisPlaylist) }
+        .map { it.currentSong to it.heroPlayback(SourcePage.Playlist(playlistId)) }
         .distinctUntilChanged()
 
     val uiState: StateFlow<PlaylistUiState> = combine(
@@ -254,9 +255,6 @@ class PlaylistViewModel @Inject constructor(
     /** The playlist, as the queue source its plays record; unknown until it has loaded. */
     private fun queueSource(): QueueSource =
         uiState.value.playlist?.let { QueueSource.Playlist(it.id, it.name) } ?: QueueSource.Unknown
-
-    /** Whether [source] is this playlist. Ids are unique per kind only, so the kind counts too. */
-    private fun isThisPlaylist(source: QueueSource) = source is QueueSource.Playlist && source.id == playlistId
 
     /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {

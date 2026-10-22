@@ -19,11 +19,20 @@ enum class HeroPlayback {
 }
 
 /**
- * The hero playback of a page that [isPage] recognises as a queue source. Compare the kind as well
- * as the id: ids are unique per kind only.
+ * A page that can be the queue source, so its hero's Play can pause and resume it: an album,
+ * playlist or artist page.
  */
-fun PlayerUiState.heroPlayback(isPage: (QueueSource) -> Boolean): HeroPlayback = when {
-    !isPage(queueSource) || hasEnded -> HeroPlayback.NotSource
+sealed interface SourcePage {
+    data class Album(val albumId: String) : SourcePage
+
+    data class Playlist(val playlistId: String) : SourcePage
+
+    data class Artist(val artistId: String) : SourcePage
+}
+
+/** The hero playback of [page]. */
+fun PlayerUiState.heroPlayback(page: SourcePage): HeroPlayback = when {
+    !queueSource.opens(page) || hasEnded -> HeroPlayback.NotSource
     isPlaying -> HeroPlayback.Playing
     else -> HeroPlayback.Paused
 }
