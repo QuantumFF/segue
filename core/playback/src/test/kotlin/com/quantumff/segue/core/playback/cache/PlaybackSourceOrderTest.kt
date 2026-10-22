@@ -21,6 +21,7 @@ import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
 import com.quantumff.segue.core.testing.repository.FakeUserPreferencesRepository
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.flow.update
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -70,11 +71,13 @@ class PlaybackSourceOrderTest {
     @After
     fun tearDown() = cache.release()
 
+    private val preferences = FakeUserPreferencesRepository()
+
     private val resolver get() = SegueUriResolver(
         downloads,
         mediaUrls,
         covers,
-        FakeUserPreferencesRepository(),
+        preferences,
         NetworkMonitor(context),
     )
 
@@ -138,6 +141,21 @@ class PlaybackSourceOrderTest {
         signedIn = false
 
         assertThrows(IOException::class.java) { resolver.resolveDataSpec(DataSpec(SegueUris.cover("al-1", 512))) }
+    }
+
+    @Test
+    fun `the resolver remembers what it asked for each song, for the stream format`() {
+        val opus = StreamingQuality(maxBitRateKbps = 128, format = "opus")
+        preferences.preferences.update { it.copy(wifiStreamingQuality = opus, cellularStreamingQuality = opus) }
+        downloads.files["s1"] = File(tmp.root, "s1.mp3").apply { writeText("from-file") }
+        val resolver = resolver
+
+        resolver.resolveDataSpec(DataSpec(SegueUris.song("s1")))
+        resolver.resolveDataSpec(DataSpec(SegueUris.song("s2")))
+
+        assertThat(resolver.requests["s1"]).isEqualTo(StreamRequest.Download(sizeBytes = 9))
+        assertThat(resolver.requests["s2"]).isEqualTo(StreamRequest.Stream(opus))
+        assertThat(resolver.requests["s3"]).isNull()
     }
 
     /** A fake upstream that serves [body] for any request while [online]. */
