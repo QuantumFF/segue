@@ -1,6 +1,7 @@
 package com.quantumff.segue.feature.library
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,11 +50,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -259,7 +267,7 @@ fun LibraryScreen(
     )
 }
 
-private enum class LibraryPicker {
+internal enum class LibraryPicker {
     Sort,
     Year,
     Genre,
@@ -442,9 +450,14 @@ private fun LibraryTabRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) 
 
 private val TAB_INDICATOR_HEIGHT = 2.dp
 
-/** The 48-tall filter row (DESIGN.md §4.2): chips on the left, the item count on the right. */
+/**
+ * The 48-tall filter row (DESIGN.md §4.2): chips on the left, the item count on the right in its own slot.
+ * The chips scroll inside 16dp margins when they don't fit, fading out at their trailing edge before
+ * the count; when they all fit, nothing scrolls or fades.
+ */
 @Composable
-private fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, onPickerClick: (LibraryPicker) -> Unit) {
+internal fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, onPickerClick: (LibraryPicker) -> Unit) {
+    val scroll = rememberScrollState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -454,7 +467,8 @@ private fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, on
         Row(
             modifier = Modifier
                 .weight(1f)
-                .horizontalScroll(rememberScrollState())
+                .fadeTrailingEdge(scroll)
+                .horizontalScroll(scroll)
                 .padding(horizontal = SegueSpacing.lg),
             horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
@@ -484,12 +498,35 @@ private fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, on
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                // A gap, so chips scrolled under the count's edge never run into it.
-                modifier = Modifier.padding(start = SegueSpacing.sm, end = SegueSpacing.lg),
+                // No start gap: the chips fade out before they reach the count.
+                modifier = Modifier.padding(end = SegueSpacing.lg),
             )
         }
     }
 }
+
+/**
+ * Fades the content out toward its trailing edge while [scroll] can go further, so chips cut off by the
+ * edge read as more to scroll to. The fade shortens as the end comes into view and is gone once there.
+ */
+private fun Modifier.fadeTrailingEdge(scroll: ScrollState): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = minOf(FILTER_ROW_FADE.toPx(), (scroll.maxValue - scroll.value).toFloat())
+        if (fade <= 0f) return@drawWithContent
+        val (start, end) = if (layoutDirection == LayoutDirection.Ltr) {
+            size.width - fade to size.width
+        } else {
+            fade to 0f
+        }
+        drawRect(
+            brush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = start, endX = end),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+private val FILTER_ROW_FADE = SegueSpacing.xl
 
 @Composable
 private fun RowScope.AlbumFilterChips(
