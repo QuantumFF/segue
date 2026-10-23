@@ -208,7 +208,7 @@ internal fun GenreTile(
     }
 }
 
-private val GENRE_TILE_HEIGHT = SegueSizes.mediaRow + SegueSpacing.sm
+internal val GENRE_TILE_HEIGHT = SegueSizes.mediaRow + SegueSpacing.sm
 
 /**
  * A stable color per genre name, clamped like a hero tint (DESIGN.md §2.1): saturation at most
