@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.RecordingPlayIntents
@@ -23,6 +24,7 @@ import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -106,6 +108,58 @@ class PlaylistsViewModelTest {
 
         assertThat(viewModel.uiState.value.message).isEqualTo(PlaylistMessage.Failed)
         assertThat(viewModel.uiState.value.isRefreshing).isFalse()
+    }
+
+    @Test
+    fun withNoPlaylistsCachedItLoadsUntilTheFirstFetchEnds() = runTest {
+        val fetch = CompletableDeferred<Unit>()
+        playlists.refreshGate = fetch
+        val viewModel = viewModel()
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Loading)
+
+            fetch.complete(Unit)
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Empty)
+        }
+    }
+
+    @Test
+    fun aFailedFirstFetchWithNoPlaylistsIsAnErrorThatRetryClears() = runTest {
+        playlists.error = RemoteException.Unreachable(IOException("server down"))
+        val viewModel = viewModel()
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+
+            playlists.error = null
+            playlists.playlistsState.value = listOf(TestData.playlist("p1"))
+            viewModel.retry()
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Content)
+        }
+        assertThat(playlists.refreshAllCount).isEqualTo(2)
+    }
+
+    @Test
+    fun aFailedFetchKeepsTheCachedPlaylists() = runTest {
+        playlists.playlistsState.value = listOf(TestData.playlist("p1"))
+        playlists.error = RemoteException.Unreachable(IOException("server down"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Content)
+        }
+    }
+
+    @Test
+    fun offlineWithNoPinnedPlaylistsIsEmptyNotAnError() = runTest {
+        offlineMode.isOffline.value = true
+        playlists.error = RemoteException.Unreachable(IOException("offline"))
+
+        viewModel().uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.isOffline).isTrue()
+            assertThat(state.screenState).isEqualTo(ScreenState.Empty)
+        }
     }
 
     @Test

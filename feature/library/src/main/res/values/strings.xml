@@ -3,6 +3,7 @@
     <string name="feature_library_title">Library</string>
     <string name="feature_library_sort">Sort</string>
     <string name="feature_library_view_mode">Switch between grid and list</string>
+    <string name="feature_library_create_playlist">New playlist</string>
 
     <string name="feature_library_tab_albums">Albums</string>
     <string name="feature_library_tab_artists">Artists</string>
@@ -15,6 +16,10 @@
     <string name="feature_library_sort_artist">Artist</string>
     <string name="feature_library_sort_recently_added">Recently added</string>
     <string name="feature_library_sort_year">Year</string>
+    <string name="feature_library_sort_album_count">Album count</string>
+    <string name="feature_library_sort_title">Title</string>
+    <string name="feature_library_sort_album">Album</string>
+    <string name="feature_library_sort_play_count">Play count</string>
 
     <string name="feature_library_filter_favorites">Favorites</string>
     <string name="feature_library_filter_year">Year</string>
@@ -43,10 +48,6 @@
         <item quantity="one">%1$s genre</item>
         <item quantity="other">%1$s genres</item>
     </plurals>
-    <plurals name="feature_library_track_count">
-        <item quantity="one">%1$d track</item>
-        <item quantity="other">%1$d tracks</item>
-    </plurals>
     <plurals name="feature_library_selected_count">
         <item quantity="one">%1$s selected</item>
         <item quantity="other">%1$s selected</item>
@@ -55,19 +56,23 @@
     <string name="feature_library_play_selected">Play selected</string>
     <string name="feature_library_queue_selected">Add selected to queue</string>
     <string name="feature_library_selection_options">Selection options</string>
-    <string name="feature_library_duration_hours">%1$d h %2$d m</string>
-    <string name="feature_library_duration_minutes">%1$d min</string>
-    <string name="feature_library_separator">%1$s · %2$s</string>
 
-    <string name="feature_library_empty_title">Your library is empty</string>
-    <string name="feature_library_empty_message">Albums appear here once the library has synced</string>
+    <string name="feature_library_empty_albums_title">No albums yet</string>
+    <string name="feature_library_empty_albums_message">Albums appear here once the library has synced</string>
+    <string name="feature_library_empty_artists_title">No artists yet</string>
+    <string name="feature_library_empty_artists_message">Artists appear here once the library has synced</string>
+    <string name="feature_library_empty_songs_title">No songs yet</string>
+    <string name="feature_library_empty_songs_message">Songs appear here once the library has synced</string>
+    <string name="feature_library_empty_genres_title">No genres yet</string>
+    <string name="feature_library_empty_genres_message">Genres appear here once the library has synced</string>
+    <string name="feature_library_error_title">Couldn\'t load your library</string>
+    <string name="feature_library_error_message">The library sync failed. Check the server, then try again.</string>
     <string name="feature_library_sync_now">Sync now</string>
     <string name="feature_library_empty_filtered_title">No albums match</string>
+    <string name="feature_library_empty_filtered_artists_title">No artists match</string>
+    <string name="feature_library_empty_filtered_songs_title">No songs match</string>
     <string name="feature_library_empty_filtered_message">Try removing a filter</string>
     <string name="feature_library_clear_filters">Clear filters</string>
-    <string name="feature_library_empty_playlists_title">No playlists yet</string>
-    <string name="feature_library_empty_playlists_message">Create one from the Playlists tab</string>
-    <string name="feature_library_empty_genres_title">No genres</string>
     <string name="feature_library_downloads_title">Downloads</string>
     <string name="feature_library_downloads_message">Pin albums or playlists to listen offline</string>
     <string name="feature_library_open_downloads">Open downloads</string>

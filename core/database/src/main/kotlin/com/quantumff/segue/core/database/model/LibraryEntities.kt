@@ -14,7 +14,7 @@ import com.quantumff.segue.core.model.DiscTitle
 @Entity(
     tableName = "artists",
     primaryKeys = ["serverId", "id"],
-    indices = [Index("serverId", "sortName")],
+    indices = [Index("serverId", "sortName"), Index("serverId", "albumCount")],
 )
 data class ArtistEntity(
     val serverId: String,
@@ -37,7 +37,8 @@ data class ArtistFtsEntity(val name: String)
     primaryKeys = ["serverId", "id"],
     indices = [
         Index("serverId", "sortName"),
-        Index("serverId", "artistId"),
+        // With createdAt, an artist's newest album (the Artists tab's "Recently added") is one index seek.
+        Index("serverId", "artistId", "createdAt"),
         Index("serverId", "createdAt"),
         Index("serverId", "year"),
     ],
@@ -98,6 +99,21 @@ data class AlbumGenreCrossRef(val serverId: String, val albumId: String, val gen
         Index("serverId", "artistId"),
         Index("serverId", "genre"),
         Index("serverId", "sortName"),
+        // The Songs tab's other sorts (DESIGN.md §4.2). Each holds the sort's columns up to the
+        // track, so a page reads in index order: SQLite skips an index that orders only a prefix.
+        Index("serverId", "artistSortName", "albumSortName", "albumId", "discNumber", "track"),
+        Index("serverId", "albumSortName", "albumId", "discNumber", "track"),
+        Index(
+            value = ["serverId", "createdAt", "albumId", "discNumber", "track"],
+            orders = [Index.Order.ASC, Index.Order.DESC, Index.Order.ASC, Index.Order.ASC, Index.Order.ASC],
+        ),
+        Index(
+            value = ["serverId", "year", "albumSortName", "albumId", "discNumber", "track"],
+            orders = [
+                Index.Order.ASC, Index.Order.DESC, Index.Order.ASC, Index.Order.ASC, Index.Order.ASC, Index.Order.ASC,
+            ],
+        ),
+        Index("serverId", "playCount"),
     ],
 )
 data class SongEntity(
@@ -131,6 +147,14 @@ data class SongEntity(
     val musicBrainzId: String? = null,
     val explicitStatus: String = "",
     @Embedded(prefix = "rg_") val replayGain: ReplayGainEntity? = null,
+    /** When the server added the song, for the Songs tab's "Recently added". */
+    val createdAt: Long? = null,
+    /**
+     * [artist] and [album] lowercased, so the Songs tab's artist and album sorts ignore case and
+     * still read in index order.
+     */
+    val artistSortName: String? = null,
+    val albumSortName: String? = null,
 )
 
 data class ReplayGainEntity(

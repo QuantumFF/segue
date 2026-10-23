@@ -2,6 +2,8 @@
 <resources>
     <string name="ds_see_all">See all</string>
     <string name="ds_filter_excluded">Excluded</string>
+    <string name="ds_filter_locked_offline">On while offline</string>
+    <string name="ds_change_sort">Change sort</string>
     <string name="ds_more_options">More options</string>
     <string name="ds_back">Back</string>
     <string name="ds_play">Play</string>
@@ -31,6 +33,7 @@
     <string name="ds_continue">Continue</string>
     <string name="ds_dismiss">Dismiss</string>
     <string name="ds_offline_cached">Offline · showing cached library</string>
+    <string name="ds_offline_downloads">Offline · showing downloads</string>
     <string name="ds_search_hint">Search</string>
     <string name="ds_playing_from">Playing from %1$s</string>
     <string name="ds_overline_album">Album</string>

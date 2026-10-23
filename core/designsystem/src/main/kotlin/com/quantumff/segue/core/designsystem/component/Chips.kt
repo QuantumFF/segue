@@ -18,6 +18,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import com.quantumff.segue.core.designsystem.R
@@ -35,11 +37,16 @@ import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.OfflineStatus
 
 /**
  * Filter chip (DESIGN.md §5.6): 32 tall, radius `full`, `labelMedium`. Unselected is transparent
  * with an `outlineVariant` border; selected is `surfaceContainerHighest` with a leading check, or a
  * leading ✕ when [excluded] (it hides what it names).
+ *
+ * [lockedOffline] holds the chip on while Offline (the Downloaded chip, as only downloaded music
+ * plays): it shows on with a muted leading lock, TalkBack hears "On while offline", and taps do
+ * nothing. It stays enabled, so TalkBack doesn't add "disabled".
  */
 @Composable
 fun SegueFilterChip(
@@ -48,22 +55,32 @@ fun SegueFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     excluded: Boolean = false,
+    lockedOffline: Boolean = false,
 ) {
-    val excludedState = stringResource(R.string.ds_filter_excluded)
+    val shownSelected = selected || lockedOffline
+    val state = when {
+        lockedOffline -> stringResource(R.string.ds_filter_locked_offline)
+        selected && excluded -> stringResource(R.string.ds_filter_excluded)
+        else -> null
+    }
+    val leadingIcon = when {
+        lockedOffline -> SegueIcons.Lock
+        !selected -> null
+        excluded -> SegueIcons.Close
+        else -> SegueIcons.Check
+    }
     FilterChip(
-        selected = selected,
-        onClick = onClick,
+        selected = shownSelected,
+        onClick = if (lockedOffline) ({}) else onClick,
         label = { Text(label, style = MaterialTheme.typography.labelMedium) },
-        leadingIcon = if (selected) {
+        leadingIcon = leadingIcon?.let { icon ->
             {
                 Icon(
-                    imageVector = if (excluded) SegueIcons.Close else SegueIcons.Check,
+                    imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(FilterChipDefaults.IconSize),
                 )
             }
-        } else {
-            null
         },
         shape = SegueShapes.full,
         colors = FilterChipDefaults.filterChipColors(
@@ -71,11 +88,16 @@ fun SegueFilterChip(
             labelColor = MaterialTheme.colorScheme.onSurface,
             selectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onSurface,
+            // Locked still reads as on; its muted lock says why it doesn't respond.
+            selectedLeadingIconColor = if (lockedOffline) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
-            selected = selected,
+            selected = shownSelected,
             borderColor = MaterialTheme.colorScheme.outlineVariant,
             selectedBorderColor = Color.Transparent,
             borderWidth = SegueSizes.hairline,
@@ -83,8 +105,40 @@ fun SegueFilterChip(
         ),
         modifier = modifier
             .height(SegueSizes.chip)
-            .then(if (selected && excluded) Modifier.semantics { stateDescription = excludedState } else Modifier),
+            .then(if (state != null) Modifier.semantics { stateDescription = state } else Modifier),
     )
+}
+
+/**
+ * Sort chip (DESIGN.md §4.2 filter row): looks like an unselected [SegueFilterChip] with a trailing
+ * chevron, and opens the sort picker. It is a dropdown, not a filter, so TalkBack hears "Change
+ * sort" and never a selected state.
+ */
+@Composable
+fun SegueSortChip(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .height(SegueSizes.chip)
+            .clip(SegueShapes.full)
+            .border(SegueSizes.hairline, MaterialTheme.colorScheme.outlineVariant, SegueShapes.full)
+            .clickable(
+                role = Role.DropdownList,
+                onClickLabel = stringResource(R.string.ds_change_sort),
+                onClick = onClick,
+            )
+            .padding(start = SegueSpacing.lg, end = SegueSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.width(SegueSpacing.sm))
+        Icon(
+            imageVector = SegueIcons.ChevronDown,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(FilterChipDefaults.IconSize),
+        )
+    }
 }
 
 /**
@@ -138,20 +192,37 @@ fun StatusChip(
     }
 }
 
+/**
+ * The offline status chip under a screen's top bar or tab row (DESIGN.md §5.8), with copy for each
+ * [status]: "Offline · showing downloads" or "Offline · showing cached library". Nothing shows
+ * while [OfflineStatus.Online].
+ */
+@Composable
+fun OfflineStatusChip(status: OfflineStatus, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    val label = when (status) {
+        OfflineStatus.Online -> return
+        OfflineStatus.ShowingCachedLibrary -> R.string.ds_offline_cached
+        OfflineStatus.ShowingDownloads -> R.string.ds_offline_downloads
+    }
+    StatusChip(label = stringResource(label), modifier = modifier, onClick = onClick)
+}
+
 @PreviewSegueThemes
 @Composable
 private fun ChipsPreview() {
     SeguePreview {
         Column(Modifier.padding(SegueSpacing.lg), verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
+                SegueSortChip(label = "Recently added", onClick = {})
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
                 SegueFilterChip(label = "Downloaded", selected = true, excluded = true, onClick = {})
+                SegueFilterChip(label = "Downloaded", selected = false, lockedOffline = true, onClick = {})
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
                 Pill(label = "Alternative", onClick = {})
                 Pill(label = "Rock", onClick = {})
             }
-            StatusChip(label = stringResource(R.string.ds_offline_cached), onClick = {})
+            OfflineStatusChip(OfflineStatus.ShowingDownloads)
         }
     }
 }

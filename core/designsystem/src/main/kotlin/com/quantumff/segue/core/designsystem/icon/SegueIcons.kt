@@ -61,7 +61,6 @@ object SegueIcons {
     val Check by lazy { lucide("check", LucidePaths.Check) }
     val Plus by lazy { lucide("plus", LucidePaths.Plus) }
     val Edit by lazy { lucide("pencil", LucidePaths.Pencil) }
-    val Sort by lazy { lucide("arrow-up-down", LucidePaths.ArrowUpDown) }
     val GridView by lazy { lucide("layout-grid", LucidePaths.LayoutGrid) }
     val ListView by lazy { lucide("list", LucidePaths.List) }
     val Settings by lazy { lucide("settings", LucidePaths.Settings) }
@@ -86,6 +85,7 @@ object SegueIcons {
     val DownloadDone by lazy { lucide("circle-check", LucidePaths.CircleCheck) }
     val OtherDevice by lazy { lucide("monitor-smartphone", LucidePaths.MonitorSmartphone) }
     val Offline by lazy { lucide("cloud-off", LucidePaths.CloudOff) }
+    val Lock by lazy { lucide("lock", LucidePaths.Lock) }
     val Error by lazy { lucide("circle-alert", LucidePaths.CircleAlert) }
 }
 

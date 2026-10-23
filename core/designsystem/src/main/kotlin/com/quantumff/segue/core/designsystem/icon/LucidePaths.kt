@@ -16,14 +16,6 @@ internal object LucidePaths {
         "M19 12H5",
     )
 
-    /** lucide:arrow-up-down */
-    val ArrowUpDown: List<String> = listOf(
-        "m21 16-4 4-4-4",
-        "M17 20V4",
-        "m3 8 4-4 4 4",
-        "M7 4v16",
-    )
-
     /** lucide:check */
     val Check: List<String> = listOf(
         "M20 6 9 17l-5-5",
@@ -209,6 +201,12 @@ internal object LucidePaths {
         "M12 19v3",
         "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0z",
         "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0z",
+    )
+
+    /** lucide:lock */
+    val Lock: List<String> = listOf(
+        "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-7a2 2 0 0 1 2 -2z",
+        "M7 11V7a5 5 0 0 1 10 0v4",
     )
 
     /** lucide:mic-vocal */

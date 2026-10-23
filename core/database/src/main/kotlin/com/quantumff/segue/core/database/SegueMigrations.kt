@@ -89,5 +89,55 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+    /**
+     * 6 → 7: the Artists and Songs tabs' sorts.
+     *
+     * Artists: album count gets an index; "Recently added" (an artist's newest album) extends the
+     * albums' artist index with `createdAt`, which replaces it.
+     *
+     * Songs keep the server's added date (`createdAt`) and lowercased artist and album names as
+     * sort keys, each sort with an index. The keys are filled here; the added date needs the
+     * server, so forgetting the last full sync makes the next sync refetch every song.
+     */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_artists_serverId_albumCount` ON `artists` (`serverId`, `albumCount`)",
+            )
+            db.execSQL("DROP INDEX IF EXISTS `index_albums_serverId_artistId`")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_albums_serverId_artistId_createdAt` " +
+                    "ON `albums` (`serverId`, `artistId`, `createdAt`)",
+            )
+
+            db.execSQL("ALTER TABLE songs ADD COLUMN `createdAt` INTEGER")
+            db.execSQL("ALTER TABLE songs ADD COLUMN `artistSortName` TEXT")
+            db.execSQL("ALTER TABLE songs ADD COLUMN `albumSortName` TEXT")
+            db.execSQL("UPDATE songs SET artistSortName = lower(artist), albumSortName = lower(album)")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS " +
+                    "`index_songs_serverId_artistSortName_albumSortName_albumId_discNumber_track` " +
+                    "ON `songs` (`serverId`, `artistSortName`, `albumSortName`, `albumId`, `discNumber`, `track`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_songs_serverId_albumSortName_albumId_discNumber_track` " +
+                    "ON `songs` (`serverId`, `albumSortName`, `albumId`, `discNumber`, `track`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_songs_serverId_createdAt_albumId_discNumber_track` " +
+                    "ON `songs` (`serverId` ASC, `createdAt` DESC, `albumId` ASC, `discNumber` ASC, `track` ASC)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_songs_serverId_year_albumSortName_albumId_discNumber_track` " +
+                    "ON `songs` (`serverId` ASC, `year` DESC, `albumSortName` ASC, `albumId` ASC, " +
+                    "`discNumber` ASC, `track` ASC)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_songs_serverId_playCount` ON `songs` (`serverId`, `playCount`)",
+            )
+            db.execSQL("UPDATE sync_metadata SET lastFullSyncAt = NULL")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 }

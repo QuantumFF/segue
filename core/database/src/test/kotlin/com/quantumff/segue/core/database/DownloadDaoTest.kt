@@ -117,7 +117,7 @@ class DownloadDaoTest {
         dao.insertAll(listOf(download("a", DownloadState.Completed), download("b", DownloadState.Queued)))
 
         val albums = db.albumDao().downloadFilteredPagingSourceByName("s1", null, null, null, downloaded = true)
-        val songs = db.songDao().pagingSourceDownloaded("s1")
+        val songs = db.songDao().downloadFilteredPagingSourceByTitle("s1", null, downloaded = true)
 
         assertThat(albums.loadAll().map { it.id }).containsExactly("al1")
         assertThat(songs.loadAll().map { it.id }).containsExactly("a")
@@ -134,6 +134,24 @@ class DownloadDaoTest {
 
         assertThat(albums.loadAll().map { it.id }).containsExactly("al2")
         assertThat(db.albumDao().observeDownloadFilteredCount("s1", null, null, null, false).first()).isEqualTo(1)
+    }
+
+    @Test
+    fun `every downloaded song of the server is listed, without songs still downloading`() = runTest {
+        db.songDao().upsertAll(
+            listOf(song("a"), song("b"), song("c"), song("d"), song("a", serverId = "s2")),
+        )
+        dao.insertAll(
+            listOf(
+                download("a", DownloadState.Completed),
+                download("b", DownloadState.Completed),
+                download("c", DownloadState.Downloading),
+                download("a", DownloadState.Completed, serverId = "s2"),
+            ),
+        )
+
+        assertThat(db.songDao().getDownloaded("s1").map { it.id }).containsExactly("a", "b")
+        assertThat(db.songDao().getDownloaded("s3")).isEmpty()
     }
 
     @Test

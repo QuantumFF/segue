@@ -186,19 +186,22 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ```
 
 ### 4.2 Library
-- Top bar: "Library" in `headlineSmall`, plus actions: sort, view toggle (grid/list), settings.
-- Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab.
+- Top bar: "Library" in `headlineSmall`, plus actions: view toggle (grid/list; Albums and Artists each keep their own across launches), settings. No sort icon: each tab that sorts has a sort chip in its filter row.
+- Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab across launches, and show no tab until it is known.
 - Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
-  - Favorites and Downloaded cycle on each tap: the first keeps what the chip names, the second inverts it (albums that are not favorites, or have no downloaded song), the third turns it off. Offline holds Downloaded on.
+  - Each tab keeps its own sort (across launches) and filters: changing Albums' sort or filters leaves Artists' as they were, and the other way round. Changing the sort or a filter scrolls the tab back to the top.
+  - The row fits any width: the chips scroll sideways within 16 margins, and the count keeps its own slot at the end. While more chips lie past it, the chip row fades out over its last 24 before the count. When everything fits, nothing scrolls or fades.
+  - Albums sort by name, artist, recently added or year. Artists sort by name, recently added (the newest added date among the artist's albums) or album count. Songs sort by title, artist, album, recently added (the server's added date), year (newest first) or play count (most played first); the artist, album, recently added and year sorts keep each album's songs together in track order.
+  - Favorites and Downloaded cycle on each tap: the first keeps what the chip names, the second inverts it (albums, artists or songs that are not favorites, or have no downloaded song), the third turns it off. Offline holds Downloaded on. An artist counts as downloaded with a downloaded song of theirs, or a downloaded song on one of their albums.
 - **Albums:** grid `GridCells.Adaptive(150)` with album cards, or a list of 64-tall rows with 48 art. Paging 3.
   - **Play / Shuffle albums** (§5.9) float at the bottom start, just above the mini player, whenever the tab has albums. They queue exactly the albums shown: current sort, all filters, downloaded only while offline. The list adds the buttons' height plus margins to its bottom padding, so the last row scrolls clear of them.
   - The genre album grid (Genres → a genre) gets the same buttons for its albums, sorted by name.
-- **Artists:** list rows with a 48 circular image, name, and "N albums". The grid toggle switches to circular cards.
+- **Artists:** list rows with a 48 circular image, name, and "N albums". The grid toggle switches to circular cards. Filter row: sort chip, Favorites, Downloaded. Offline it lists only artists of downloaded music.
 - **Pinch to resize** the Albums and Artists grids, from one column up to eight (or the usual count, where more fit). The usual count is what `GridCells.Adaptive` gives (150 for albums, 112 for artists), and the kept size is the columns added to it, so it carries across screen widths.
   - The cards follow the fingers' spread continuously, and the row under the fingers stays under them (moving both fingers scrolls). When the card width comes nearer another column count's width (in proportion, with a 4% margin against flicker), the grid reflows with a haptic tick, and the cards glide from their old places to their new ones (`player`). Cards wider than their row overflow both sides alike until then.
   - On release, the cards spring to fill the row (`player`) and the column count is kept. With reduce motion, the cards still follow the fingers but neither glide nor spring.
   - Each tab keeps its own size across launches. Accessibility services get "Larger cards" and "Smaller cards" as custom actions on the grid, each a column, with the same motion.
-- **Songs:** track rows (§5.2), paged, with a "Shuffle all" button in the filter row. It replaces the queue with every song in the library at once, in a tracks shuffle (downloaded songs only while offline).
+- **Songs:** track rows (§5.2), paged. Filter row: "Shuffle all" (first, so it stays in view), sort chip, Favorites, Downloaded. Offline it lists only downloaded songs. "Shuffle all" shows while the tab has songs; it replaces the queue with every song in the library at once, in a tracks shuffle (downloaded songs only while offline).
 - **Playlists:** 64-tall rows with 48 art, name, and "N tracks · 1 h 12 m". A "+" in the top bar creates a playlist.
 - **Genres:** 2-column tiles, 72 tall, radius `md`. Background is a color hashed from the genre name, clamped like a hero tint. Name in `titleSmall`, counts in `bodySmall`.
 - Name sorts get a fast scroller: a 4dp thumb on the right and a 56dp letter bubble while dragging.
@@ -474,6 +477,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Error:**
   - Room has data and the server can't be reached: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
   - Room has data and the server answered with an error (signed out, refused, server error): show it without the chip. It is not offline.
+  - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads" (the Library shows it under the tab row). A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
   - Image load failure: keep the placeholder. Never show a broken-image icon.
 
