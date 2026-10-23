@@ -124,7 +124,13 @@ private fun PickerSheetPreview() {
     SeguePreview {
         Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
             val options = persistentListOf("Recently added", "Name", "Artist", "Year")
-            PickerSheetContent(title = "Sort", options = options, selected = options.first(), label = { it }, onSelect = {})
+            PickerSheetContent(
+                title = "Sort",
+                options = options,
+                selected = options.first(),
+                label = { it },
+                onSelect = {},
+            )
         }
     }
 }
