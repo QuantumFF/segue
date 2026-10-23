@@ -26,6 +26,8 @@ import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.ScreenState
+import com.quantumff.segue.core.model.SongFilter
+import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -281,6 +283,105 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun theSongsTabsSortAndFiltersReachTheRepository() = runTest {
+        library.songsState.value = listOf(
+            TestData.song("a", starredAt = 1L),
+            TestData.song("b", starredAt = 1L),
+            TestData.song("c"),
+        )
+        library.downloadedSongsState.value = listOf(TestData.song("a", starredAt = 1L))
+        backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.songs.collect {} }
+        viewModel.uiState.test {
+            viewModel.setSongSort(SongSortOrder.PlayCount)
+            viewModel.cycleFavoritesFilter(LibraryTab.Songs)
+            viewModel.cycleDownloadedFilter(LibraryTab.Songs)
+            viewModel.cycleDownloadedFilter(LibraryTab.Songs)
+            val state = expectMostRecentItem()
+            assertThat(state.songSort).isEqualTo(SongSortOrder.PlayCount)
+            assertThat(state.songFilter).isEqualTo(SongFilter(starred = true, downloaded = false))
+            assertThat(state.chipFilters(LibraryTab.Songs))
+                .isEqualTo(ChipFilters(favorites = true, downloaded = false, isOffline = false))
+            assertThat(state.songCount).isEqualTo(1)
+        }
+        assertThat(library.lastSort).isEqualTo(SongSortOrder.PlayCount)
+        assertThat(library.lastFilter).isEqualTo(SongFilter(starred = true, downloaded = false))
+    }
+
+    @Test
+    fun otherTabsSortAndFiltersDoNotLeakIntoSongs() = runTest {
+        backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.songs.collect {} }
+        viewModel.uiState.test {
+            viewModel.setAlbumSort(AlbumSortOrder.Year)
+            viewModel.setArtistSort(ArtistSortOrder.AlbumCount)
+            viewModel.cycleFavoritesFilter(LibraryTab.Albums)
+            viewModel.cycleDownloadedFilter(LibraryTab.Artists)
+            val state = expectMostRecentItem()
+            assertThat(state.songSort).isEqualTo(SongSortOrder.Title)
+            assertThat(state.songFilter).isEqualTo(SongFilter())
+            assertThat(state.songCount).isEqualTo(2)
+        }
+        assertThat(library.lastSort).isEqualTo(SongSortOrder.Title)
+        assertThat(library.lastFilter).isEqualTo(SongFilter())
+    }
+
+    @Test
+    fun songsSortAndFiltersDoNotLeakIntoOtherTabs() = runTest {
+        backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.albums.collect {} }
+        backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.artists.collect {} }
+        viewModel.uiState.test {
+            viewModel.setSongSort(SongSortOrder.Year)
+            viewModel.cycleFavoritesFilter(LibraryTab.Songs)
+            viewModel.cycleDownloadedFilter(LibraryTab.Songs)
+            val state = expectMostRecentItem()
+            assertThat(state.albumFilter).isEqualTo(AlbumFilter())
+            assertThat(state.artistFilter).isEqualTo(ArtistFilter())
+        }
+        assertThat(albums.lastFilter).isEqualTo(AlbumFilter())
+        assertThat(artists.lastFilter).isEqualTo(ArtistFilter())
+    }
+
+    @Test
+    fun clearingTheSongsFiltersKeepsItsSort() = runTest {
+        viewModel.uiState.test {
+            viewModel.setSongSort(SongSortOrder.Album)
+            viewModel.cycleFavoritesFilter(LibraryTab.Songs)
+            viewModel.cycleDownloadedFilter(LibraryTab.Songs)
+
+            viewModel.clearFilters(LibraryTab.Songs)
+            val state = expectMostRecentItem()
+            assertThat(state.songFilter).isEqualTo(SongFilter())
+            assertThat(state.songSort).isEqualTo(SongSortOrder.Album)
+        }
+    }
+
+    @Test
+    fun offlineSongsTabShowsDownloadedSongsWithTheChipOn() = runTest {
+        library.downloadedSongsState.value = listOf(TestData.song("s1"))
+        viewModel.cycleDownloadedFilter(LibraryTab.Songs)
+        viewModel.cycleDownloadedFilter(LibraryTab.Songs)
+        offlineMode.isOffline.value = true
+        backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.songs.collect {} }
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.chipFilters(LibraryTab.Songs)?.shownDownloaded).isTrue()
+            assertThat(state.songCount).isEqualTo(1)
+        }
+        assertThat(library.lastFilter).isEqualTo(SongFilter(downloaded = true))
+    }
+
+    @Test
+    fun songFiltersThatMatchNothingAreEmptyNotLoading() = runTest {
+        sync.progress.value = SyncProgress.Running(SyncPhase.Songs, 1, 2)
+        viewModel.uiState.test {
+            viewModel.cycleFavoritesFilter(LibraryTab.Songs)
+            val state = expectMostRecentItem()
+            assertThat(state.songCount).isEqualTo(0)
+            assertThat(state.screenState(LibraryTab.Songs)).isEqualTo(ScreenState.Empty)
+            assertThat(state.showsShuffleAll).isFalse()
+        }
+    }
+
+    @Test
     fun albumsSortAndFiltersDoNotLeakIntoArtists() = runTest {
         backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.albums.collect {} }
         backgroundScope.launch(mainDispatcherRule.testDispatcher) { viewModel.artists.collect {} }
@@ -349,6 +450,8 @@ class LibraryViewModelTest {
         viewModel.setArtistSort(ArtistSortOrder.AlbumCount)
         viewModel.cycleFavoritesFilter(LibraryTab.Artists)
         viewModel.cycleDownloadedFilter(LibraryTab.Albums)
+        viewModel.setSongSort(SongSortOrder.RecentlyAdded)
+        viewModel.cycleDownloadedFilter(LibraryTab.Songs)
 
         val restored = LibraryViewModel(
             savedState,
@@ -369,6 +472,8 @@ class LibraryViewModelTest {
             assertThat(state.albumFilter).isEqualTo(AlbumFilter(downloaded = true))
             assertThat(state.artistSort).isEqualTo(ArtistSortOrder.AlbumCount)
             assertThat(state.artistFilter).isEqualTo(ArtistFilter(starred = true))
+            assertThat(state.songSort).isEqualTo(SongSortOrder.RecentlyAdded)
+            assertThat(state.songFilter).isEqualTo(SongFilter(downloaded = true))
         }
     }
 
@@ -376,7 +481,7 @@ class LibraryViewModelTest {
     fun tabsWithoutFilterChipsHaveNone() {
         val state = LibraryUiState()
         assertThat(LibraryTab.entries.filter { state.chipFilters(it) != null })
-            .containsExactly(LibraryTab.Albums, LibraryTab.Artists)
+            .containsExactly(LibraryTab.Albums, LibraryTab.Artists, LibraryTab.Songs)
     }
 
     @Test

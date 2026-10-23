@@ -43,6 +43,8 @@ import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
+import com.quantumff.segue.core.model.SongFilter
+import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.model.currentSong
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -175,6 +177,8 @@ data class LibraryUiState(
     val albumFilter: AlbumFilter = AlbumFilter(),
     val artistSort: ArtistSortOrder = ArtistSortOrder.Name,
     val artistFilter: ArtistFilter = ArtistFilter(),
+    val songSort: SongSortOrder = SongSortOrder.Title,
+    val songFilter: SongFilter = SongFilter(),
     val serverName: String? = null,
     /** Null until counted, so an empty state never flashes before Room answers. */
     val albumCount: Int? = null,
@@ -207,7 +211,7 @@ data class LibraryUiState(
     fun screenState(tab: LibraryTab): ScreenState = when (tab) {
         LibraryTab.Albums -> syncedState(albumCount, filtered = albumFilter.isActive)
         LibraryTab.Artists -> syncedState(artistCount, filtered = artistFilter.isActive)
-        LibraryTab.Songs -> syncedState(songCount)
+        LibraryTab.Songs -> syncedState(songCount, filtered = songFilter.isActive)
         LibraryTab.Genres -> syncedState(genres.size.takeIf { albumCount != null })
         LibraryTab.Playlists -> ScreenState.of(playlists?.size)
         LibraryTab.Downloads -> ScreenState.Content
@@ -237,7 +241,8 @@ data class LibraryUiState(
     fun chipFilters(tab: LibraryTab): ChipFilters? = when (tab) {
         LibraryTab.Albums -> ChipFilters(albumFilter.starred, albumFilter.downloaded, isOffline)
         LibraryTab.Artists -> ChipFilters(artistFilter.starred, artistFilter.downloaded, isOffline)
-        LibraryTab.Songs, LibraryTab.Playlists, LibraryTab.Genres, LibraryTab.Downloads -> null
+        LibraryTab.Songs -> ChipFilters(songFilter.starred, songFilter.downloaded, isOffline)
+        LibraryTab.Playlists, LibraryTab.Genres, LibraryTab.Downloads -> null
     }
 
     /** The selection menu: Favorite and Download turn into their undo once every pick has them. */
@@ -301,8 +306,17 @@ class LibraryViewModel @Inject constructor(
     private val artistFilter: Flow<ArtistFilter> =
         combine(artistChips.favorites, artistChips.downloaded, ::ArtistFilter).distinctUntilChanged()
 
+    private val songSort = savedStateHandle.getStateFlow(KEY_SONG_SORT, SongSortOrder.Title)
+    private val songChips = TabChipFilters(savedStateHandle, LibraryTab.Songs)
+    private val songFilter: Flow<SongFilter> =
+        combine(songChips.favorites, songChips.downloaded, ::SongFilter).distinctUntilChanged()
+
     /** The chips of each tab that has them; a tab's chips act on that tab only. */
-    private val chips = mapOf(LibraryTab.Albums to albumChips, LibraryTab.Artists to artistChips)
+    private val chips = mapOf(
+        LibraryTab.Albums to albumChips,
+        LibraryTab.Artists to artistChips,
+        LibraryTab.Songs to songChips,
+    )
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<LibraryMessage?>(null)
     private val selection = MutableStateFlow<LibrarySelection?>(null)
@@ -316,14 +330,25 @@ class LibraryViewModel @Inject constructor(
         .flatMapLatest { (sort, filter) -> offlineView.artists(sort, filter) }
         .cachedIn(viewModelScope)
 
-    val songs: Flow<PagingData<Song>> = offlineView.songs.cachedIn(viewModelScope)
+    /** The Songs tab, sorted and filtered; offline only downloaded songs. */
+    val songs: Flow<PagingData<Song>> = combine(songSort, songFilter, ::Pair)
+        .flatMapLatest { (sort, filter) -> offlineView.songs(sort, filter) }
+        .cachedIn(viewModelScope)
 
     private val gridSizes = preferences.preferences
         .map { it.albumGridSize to it.artistGridSize }
         .distinctUntilChanged()
 
     /** Each tab's sort and filters. A tab that gains a sort adds its pair here. */
-    private val tabViews = combine(albumSort, albumFilter, artistSort, artistFilter, ::TabViews)
+    private val tabViews = combine(
+        albumSort,
+        albumFilter,
+        artistSort,
+        artistFilter,
+        combine(songSort, songFilter, ::Pair),
+    ) { albumSort, albumFilter, artistSort, artistFilter, (songSort, songFilter) ->
+        TabViews(albumSort, albumFilter, artistSort, artistFilter, songSort, songFilter)
+    }
 
     private val settings = combine(tab, viewMode, gridSizes, tabViews) { tab, viewMode, sizes, views ->
         Settings(tab, viewMode, views, albumGridSize = sizes.first, artistGridSize = sizes.second)
@@ -332,7 +357,7 @@ class LibraryViewModel @Inject constructor(
     private val counts = combine(
         effectiveAlbumFilter.flatMapLatest { albumRepository.albumCount(it) },
         artistFilter.flatMapLatest { offlineView.artistCount(it) },
-        offlineView.songCount,
+        songFilter.flatMapLatest { offlineView.songCount(it) },
     ) { albums, artists, songs -> Counts(albums, artists, songs) }
 
     private val downloads = combine(
@@ -382,6 +407,8 @@ class LibraryViewModel @Inject constructor(
             albumFilter = settings.views.albumFilter,
             artistSort = settings.views.artistSort,
             artistFilter = settings.views.artistFilter,
+            songSort = settings.views.songSort,
+            songFilter = settings.views.songFilter,
             serverName = status.serverName,
             albumCount = counts.albums,
             artistCount = counts.artists,
@@ -435,6 +462,10 @@ class LibraryViewModel @Inject constructor(
 
     fun setArtistSort(sort: ArtistSortOrder) {
         savedStateHandle[KEY_ARTIST_SORT] = sort
+    }
+
+    fun setSongSort(sort: SongSortOrder) {
+        savedStateHandle[KEY_SONG_SORT] = sort
     }
 
     fun toggleViewMode() {
@@ -562,6 +593,8 @@ class LibraryViewModel @Inject constructor(
         val albumFilter: AlbumFilter,
         val artistSort: ArtistSortOrder,
         val artistFilter: ArtistFilter,
+        val songSort: SongSortOrder,
+        val songFilter: SongFilter,
     )
 
     private data class Settings(
@@ -601,6 +634,7 @@ class LibraryViewModel @Inject constructor(
         const val KEY_VIEW_MODE = "viewMode"
         const val KEY_ALBUM_SORT = "albumSort"
         const val KEY_ARTIST_SORT = "artistSort"
+        const val KEY_SONG_SORT = "songSort"
         const val KEY_GENRE = "genreFilter"
         const val KEY_YEAR = "yearFilter"
         private const val STOP_TIMEOUT_MS = 5_000L

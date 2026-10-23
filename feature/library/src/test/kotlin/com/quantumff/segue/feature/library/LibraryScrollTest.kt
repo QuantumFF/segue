@@ -20,6 +20,8 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistFilter
 import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongFilter
+import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -38,6 +40,8 @@ class LibraryScrollTest {
     private val pages = MutableStateFlow(PagingData.from(albums))
     private val artists = List(ALBUM_COUNT) { TestData.artist(id = "%03d".format(it)) }
     private val artistPages = MutableStateFlow(PagingData.from(artists))
+    private val songs = List(ALBUM_COUNT) { TestData.song(id = "%03d".format(it)) }
+    private val songPages = MutableStateFlow(PagingData.from(songs))
     private var state by mutableStateOf(LibraryUiState(albumSort = AlbumSortOrder.Name, albumCount = ALBUM_COUNT))
 
     @Test
@@ -116,6 +120,47 @@ class LibraryScrollTest {
         compose.waitForIdle()
 
         compose.onNodeWithText(artists.last().name).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a new song sort starts the song list at the top`() {
+        state = state.copy(tab = LibraryTab.Songs, songCount = ALBUM_COUNT)
+        showScrolledSongs()
+
+        state = state.copy(songSort = SongSortOrder.PlayCount)
+        compose.waitForIdle()
+        songPages.value = PagingData.from(songs.reversed())
+        compose.waitForIdle()
+
+        compose.onNodeWithText(songs.last().title).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a new song filter starts the song list at the top`() {
+        state = state.copy(tab = LibraryTab.Songs, songCount = ALBUM_COUNT)
+        showScrolledSongs()
+
+        state = state.copy(songFilter = SongFilter(starred = false))
+        compose.waitForIdle()
+        songPages.value = PagingData.from(songs.reversed())
+        compose.waitForIdle()
+
+        compose.onNodeWithText(songs.last().title).assertIsDisplayed()
+    }
+
+    private fun showScrolledSongs() {
+        compose.setContent {
+            SegueTheme {
+                LibraryContent(
+                    state = state,
+                    albums = flowOf(PagingData.empty<Album>()).collectAsLazyPagingItems(),
+                    artists = flowOf(PagingData.empty<Artist>()).collectAsLazyPagingItems(),
+                    songs = songPages.collectAsLazyPagingItems(),
+                    onEvent = {},
+                )
+            }
+        }
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(SCROLLED_TO)
     }
 
     private fun showScrolledArtists() {

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "e43f3c53b407f823f4ea350ecea9c933",
+    "identityHash": "6e5d83c1a1b12274d99d92f313acba8d",
     "entities": [
       {
         "tableName": "artists",
@@ -427,7 +427,7 @@
       },
       {
         "tableName": "songs",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `id` TEXT NOT NULL, `title` TEXT NOT NULL, `sortName` TEXT NOT NULL, `albumId` TEXT, `album` TEXT, `artist` TEXT, `artistId` TEXT, `artists` TEXT NOT NULL, `albumArtists` TEXT NOT NULL, `displayAlbumArtist` TEXT, `track` INTEGER, `discNumber` INTEGER, `year` INTEGER, `genre` TEXT, `coverArtId` TEXT, `durationSeconds` INTEGER NOT NULL, `bitRate` INTEGER, `suffix` TEXT, `contentType` TEXT, `sizeBytes` INTEGER, `starredAt` INTEGER, `userRating` INTEGER, `playCount` INTEGER, `playedAt` INTEGER, `bpm` INTEGER, `musicBrainzId` TEXT, `explicitStatus` TEXT NOT NULL, `rg_trackGain` REAL, `rg_albumGain` REAL, `rg_trackPeak` REAL, `rg_albumPeak` REAL, `rg_baseGain` REAL, `rg_fallbackGain` REAL, PRIMARY KEY(`serverId`, `id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `id` TEXT NOT NULL, `title` TEXT NOT NULL, `sortName` TEXT NOT NULL, `albumId` TEXT, `album` TEXT, `artist` TEXT, `artistId` TEXT, `artists` TEXT NOT NULL, `albumArtists` TEXT NOT NULL, `displayAlbumArtist` TEXT, `track` INTEGER, `discNumber` INTEGER, `year` INTEGER, `genre` TEXT, `coverArtId` TEXT, `durationSeconds` INTEGER NOT NULL, `bitRate` INTEGER, `suffix` TEXT, `contentType` TEXT, `sizeBytes` INTEGER, `starredAt` INTEGER, `userRating` INTEGER, `playCount` INTEGER, `playedAt` INTEGER, `bpm` INTEGER, `musicBrainzId` TEXT, `explicitStatus` TEXT NOT NULL, `createdAt` INTEGER, `artistSortName` TEXT, `albumSortName` TEXT, `rg_trackGain` REAL, `rg_albumGain` REAL, `rg_trackPeak` REAL, `rg_albumPeak` REAL, `rg_baseGain` REAL, `rg_fallbackGain` REAL, PRIMARY KEY(`serverId`, `id`))",
         "fields": [
           {
             "fieldPath": "serverId",
@@ -578,6 +578,21 @@
             "notNull": true
           },
           {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "artistSortName",
+            "columnName": "artistSortName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "albumSortName",
+            "columnName": "albumSortName",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "replayGain.trackGain",
             "columnName": "rg_trackGain",
             "affinity": "REAL"
@@ -657,6 +672,83 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_serverId_sortName` ON `${TABLE_NAME}` (`serverId`, `sortName`)"
+          },
+          {
+            "name": "index_songs_serverId_artistSortName_albumSortName_albumId_discNumber_track",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "artistSortName",
+              "albumSortName",
+              "albumId",
+              "discNumber",
+              "track"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_serverId_artistSortName_albumSortName_albumId_discNumber_track` ON `${TABLE_NAME}` (`serverId`, `artistSortName`, `albumSortName`, `albumId`, `discNumber`, `track`)"
+          },
+          {
+            "name": "index_songs_serverId_albumSortName_albumId_discNumber_track",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "albumSortName",
+              "albumId",
+              "discNumber",
+              "track"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_serverId_albumSortName_albumId_discNumber_track` ON `${TABLE_NAME}` (`serverId`, `albumSortName`, `albumId`, `discNumber`, `track`)"
+          },
+          {
+            "name": "index_songs_serverId_createdAt_albumId_discNumber_track",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "createdAt",
+              "albumId",
+              "discNumber",
+              "track"
+            ],
+            "orders": [
+              "ASC",
+              "DESC",
+              "ASC",
+              "ASC",
+              "ASC"
+            ],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_serverId_createdAt_albumId_discNumber_track` ON `${TABLE_NAME}` (`serverId` ASC, `createdAt` DESC, `albumId` ASC, `discNumber` ASC, `track` ASC)"
+          },
+          {
+            "name": "index_songs_serverId_year_albumSortName_albumId_discNumber_track",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "year",
+              "albumSortName",
+              "albumId",
+              "discNumber",
+              "track"
+            ],
+            "orders": [
+              "ASC",
+              "DESC",
+              "ASC",
+              "ASC",
+              "ASC",
+              "ASC"
+            ],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_serverId_year_albumSortName_albumId_discNumber_track` ON `${TABLE_NAME}` (`serverId` ASC, `year` DESC, `albumSortName` ASC, `albumId` ASC, `discNumber` ASC, `track` ASC)"
+          },
+          {
+            "name": "index_songs_serverId_playCount",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "playCount"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_serverId_playCount` ON `${TABLE_NAME}` (`serverId`, `playCount`)"
           }
         ]
       },
@@ -1292,7 +1384,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e43f3c53b407f823f4ea350ecea9c933')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6e5d83c1a1b12274d99d92f313acba8d')"
     ]
   }
 }

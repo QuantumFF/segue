@@ -72,6 +72,28 @@ private const val BY_ARTIST_NAME = "ORDER BY sortName, id"
 private const val BY_ARTIST_ADDED = "ORDER BY $ARTIST_ADDED_AT DESC, sortName, id"
 private const val BY_ALBUM_COUNT = "ORDER BY albumCount DESC, sortName, id"
 
+/** The song filter row (DESIGN.md §4.2): favorites or the rest. A null parameter does not filter. */
+private const val SONG_FILTER = "serverId = :serverId AND (:starred IS NULL OR (starredAt IS NOT NULL) = :starred)"
+
+/** Songs with a finished download. Only in queries that need it, so others do not observe `downloads`. */
+private const val DOWNLOADED_SONG =
+    "id IN (SELECT songId FROM downloads WHERE serverId = :serverId AND state = 'Completed')"
+
+/** [SONG_FILTER], keeping downloaded songs if `:downloaded`, else songs without a finished download. */
+private const val SONG_FILTER_BY_DOWNLOAD = "$SONG_FILTER AND ($DOWNLOADED_SONG) = :downloaded"
+
+/** An album's songs stay together, in track order. */
+private const val IN_TRACK_ORDER = "albumId, discNumber, track, id"
+
+// The Songs tab's sorts, each read in the order of a `songs` index (SongEntity). Descending sorts
+// put songs without a value (no date, year or plays) last.
+private const val BY_TITLE = "ORDER BY sortName, id"
+private const val BY_SONG_ARTIST = "ORDER BY artistSortName, albumSortName, $IN_TRACK_ORDER"
+private const val BY_SONG_ALBUM = "ORDER BY albumSortName, $IN_TRACK_ORDER"
+private const val BY_SONG_ADDED = "ORDER BY createdAt DESC, $IN_TRACK_ORDER"
+private const val BY_SONG_YEAR = "ORDER BY year DESC, albumSortName, $IN_TRACK_ORDER"
+private const val BY_PLAY_COUNT = "ORDER BY playCount DESC, sortName, id"
+
 @Dao
 abstract class ArtistDao {
     // The Artists tab: one query per sort, then the same three limited to artists with or without a
@@ -351,27 +373,77 @@ abstract class AlbumDao {
 
 @Dao
 abstract class SongDao {
-    @Query("SELECT * FROM songs WHERE serverId = :serverId ORDER BY sortName")
-    abstract fun pagingSource(serverId: String): PagingSource<Int, SongEntity>
+    // The Songs tab: one query per sort, then the same six limited to songs with or without a
+    // finished download (the "Downloaded" chip, offline mode). Ties are broken by ID for stable paging.
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER $BY_TITLE")
+    abstract fun pagingSourceByTitle(serverId: String, starred: Boolean?): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER $BY_SONG_ARTIST")
+    abstract fun pagingSourceByArtist(serverId: String, starred: Boolean?): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER $BY_SONG_ALBUM")
+    abstract fun pagingSourceByAlbum(serverId: String, starred: Boolean?): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER $BY_SONG_ADDED")
+    abstract fun pagingSourceByRecentlyAdded(serverId: String, starred: Boolean?): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER $BY_SONG_YEAR")
+    abstract fun pagingSourceByYear(serverId: String, starred: Boolean?): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER $BY_PLAY_COUNT")
+    abstract fun pagingSourceByPlayCount(serverId: String, starred: Boolean?): PagingSource<Int, SongEntity>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE $SONG_FILTER")
+    abstract fun observeCount(serverId: String, starred: Boolean?): Flow<Int>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD $BY_TITLE")
+    abstract fun downloadFilteredPagingSourceByTitle(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD $BY_SONG_ARTIST")
+    abstract fun downloadFilteredPagingSourceByArtist(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD $BY_SONG_ALBUM")
+    abstract fun downloadFilteredPagingSourceByAlbum(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD $BY_SONG_ADDED")
+    abstract fun downloadFilteredPagingSourceByRecentlyAdded(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD $BY_SONG_YEAR")
+    abstract fun downloadFilteredPagingSourceByYear(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, SongEntity>
+
+    @Query("SELECT * FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD $BY_PLAY_COUNT")
+    abstract fun downloadFilteredPagingSourceByPlayCount(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, SongEntity>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE $SONG_FILTER_BY_DOWNLOAD")
+    abstract fun observeDownloadFilteredCount(serverId: String, starred: Boolean?, downloaded: Boolean): Flow<Int>
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND genre = :genre ORDER BY sortName")
     abstract fun pagingSourceByGenre(serverId: String, genre: String): PagingSource<Int, SongEntity>
-
-    @Query(
-        """
-        SELECT songs.* FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
-        WHERE songs.serverId = :serverId AND downloads.state = 'Completed' ORDER BY songs.sortName
-        """,
-    )
-    abstract fun pagingSourceDownloaded(serverId: String): PagingSource<Int, SongEntity>
-
-    @Query(
-        """
-        SELECT COUNT(*) FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
-        WHERE songs.serverId = :serverId AND downloads.state = 'Completed'
-        """,
-    )
-    abstract fun observeDownloadedCount(serverId: String): Flow<Int>
 
     /** Every song with a finished download, in no particular order: what Shuffle all plays offline. */
     @Query(
@@ -387,9 +459,6 @@ abstract class SongDao {
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<SongEntity?>
-
-    @Query("SELECT COUNT(*) FROM songs WHERE serverId = :serverId")
-    abstract fun observeCount(serverId: String): Flow<Int>
 
     @Query("SELECT * FROM songs WHERE serverId = :serverId")
     abstract suspend fun getAll(serverId: String): List<SongEntity>

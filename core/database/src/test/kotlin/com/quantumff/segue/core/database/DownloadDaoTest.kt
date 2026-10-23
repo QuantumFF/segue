@@ -117,7 +117,7 @@ class DownloadDaoTest {
         dao.insertAll(listOf(download("a", DownloadState.Completed), download("b", DownloadState.Queued)))
 
         val albums = db.albumDao().downloadFilteredPagingSourceByName("s1", null, null, null, downloaded = true)
-        val songs = db.songDao().pagingSourceDownloaded("s1")
+        val songs = db.songDao().downloadFilteredPagingSourceByTitle("s1", null, downloaded = true)
 
         assertThat(albums.loadAll().map { it.id }).containsExactly("al1")
         assertThat(songs.loadAll().map { it.id }).containsExactly("a")
