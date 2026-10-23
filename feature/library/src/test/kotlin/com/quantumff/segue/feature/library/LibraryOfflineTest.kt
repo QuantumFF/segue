@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -52,10 +53,12 @@ class LibraryOfflineTest {
         state = state.copy(isOffline = true)
         show()
 
-        listOf(LibraryTab.Albums, LibraryTab.Artists).forEach { tab ->
+        listOf(LibraryTab.Albums, LibraryTab.Artists, LibraryTab.Songs).forEach { tab ->
             state = state.copy(tab = tab)
             compose.onNodeWithText("Downloaded")
                 .assertIsSelected()
+                // TalkBack hears "On while offline", not "disabled".
+                .assertIsEnabled()
                 .assert(stateDescription("On while offline"))
                 .performClick()
         }
