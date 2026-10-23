@@ -72,38 +72,45 @@ internal fun NetworkAlbum.genreCrossRefs(serverId: String): List<AlbumGenreCross
         .distinct()
         .map { AlbumGenreCrossRef(serverId, albumId = id, genre = it) }
 
-internal fun NetworkChild.asEntity(serverId: String) = SongEntity(
-    serverId = serverId,
-    id = id,
-    title = title,
-    sortName = sortKey(sortName, title),
-    albumId = albumId.nullIfBlank(),
-    album = album.nullIfBlank(),
-    artist = displayArtist.nullIfBlank() ?: artist.nullIfBlank(),
-    artistId = artistId.nullIfBlank(),
-    artists = artists.asRefList(),
-    albumArtists = albumArtists.asRefList(),
-    displayAlbumArtist = displayAlbumArtist.nullIfBlank(),
-    track = track.nullIfZero(),
-    discNumber = discNumber.nullIfZero(),
-    year = year.nullIfZero(),
-    genre = genre.nullIfBlank(),
-    // A song without its own art ID shows its album's: `getCoverArt` takes an album ID too.
-    coverArtId = coverArt.nullIfBlank() ?: albumId.nullIfBlank(),
-    durationSeconds = duration,
-    bitRate = bitRate.nullIfZero(),
-    suffix = suffix.nullIfBlank(),
-    contentType = contentType.nullIfBlank(),
-    sizeBytes = size,
-    starredAt = SubsonicDates.toEpochMillis(starred),
-    userRating = userRating.nullIfZero(),
-    playCount = playCount,
-    playedAt = SubsonicDates.toEpochMillis(played),
-    bpm = bpm.nullIfZero(),
-    musicBrainzId = musicBrainzId.nullIfBlank(),
-    explicitStatus = explicitStatus.orEmpty(),
-    replayGain = replayGain?.asEntity(),
-)
+internal fun NetworkChild.asEntity(serverId: String): SongEntity {
+    val shownArtist = displayArtist.nullIfBlank() ?: artist.nullIfBlank()
+    val albumName = album.nullIfBlank()
+    return SongEntity(
+        serverId = serverId,
+        id = id,
+        title = title,
+        sortName = sortKey(sortName, title),
+        albumId = albumId.nullIfBlank(),
+        album = albumName,
+        artist = shownArtist,
+        artistId = artistId.nullIfBlank(),
+        artists = artists.asRefList(),
+        albumArtists = albumArtists.asRefList(),
+        displayAlbumArtist = displayAlbumArtist.nullIfBlank(),
+        track = track.nullIfZero(),
+        discNumber = discNumber.nullIfZero(),
+        year = year.nullIfZero(),
+        genre = genre.nullIfBlank(),
+        // A song without its own art ID shows its album's: `getCoverArt` takes an album ID too.
+        coverArtId = coverArt.nullIfBlank() ?: albumId.nullIfBlank(),
+        durationSeconds = duration,
+        bitRate = bitRate.nullIfZero(),
+        suffix = suffix.nullIfBlank(),
+        contentType = contentType.nullIfBlank(),
+        sizeBytes = size,
+        starredAt = SubsonicDates.toEpochMillis(starred),
+        userRating = userRating.nullIfZero(),
+        playCount = playCount,
+        playedAt = SubsonicDates.toEpochMillis(played),
+        bpm = bpm.nullIfZero(),
+        musicBrainzId = musicBrainzId.nullIfBlank(),
+        explicitStatus = explicitStatus.orEmpty(),
+        replayGain = replayGain?.asEntity(),
+        createdAt = SubsonicDates.toEpochMillis(created),
+        artistSortName = shownArtist?.lowercase(),
+        albumSortName = albumName?.lowercase(),
+    )
+}
 
 /** Songs only: `getPlaylist` and queue entries can include directories on folder-based servers. */
 internal fun List<NetworkChild>.songEntities(serverId: String): List<SongEntity> =

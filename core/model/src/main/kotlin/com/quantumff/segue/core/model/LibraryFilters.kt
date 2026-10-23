@@ -25,6 +25,15 @@ data class ArtistFilter(val starred: Boolean? = null, val downloaded: Boolean? =
     val isActive: Boolean get() = starred != null || downloaded != null
 }
 
+/**
+ * Narrows the song library (the Songs tab's Favorites and Downloaded chips). Null fields do not
+ * filter. [starred] true keeps favorites and false keeps the rest; [downloaded] true keeps songs
+ * with a finished download and false keeps the rest.
+ */
+data class SongFilter(val starred: Boolean? = null, val downloaded: Boolean? = null) {
+    val isActive: Boolean get() = starred != null || downloaded != null
+}
+
 /** Extra artist details from `getArtistInfo2`. Not cached in Room; fetched when the artist page opens. */
 data class ArtistInfo(
     /** Plain text: HTML tags and the trailing "Read more" link that Last.fm adds are stripped. */

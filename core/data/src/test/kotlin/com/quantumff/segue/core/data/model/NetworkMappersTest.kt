@@ -45,6 +45,26 @@ class NetworkMappersTest {
     }
 
     @Test
+    fun `song keeps its added date and the sort keys of its artist and album`() {
+        val song = NetworkChild(
+            id = "s",
+            title = "Airbag",
+            album = "OK Computer",
+            artist = "Radiohead",
+            displayArtist = "Radiohead & Ölafur",
+            created = "2024-05-01T08:00:00Z",
+        ).asEntity("srv")
+        val bare = NetworkChild(id = "s", title = "t").asEntity("srv")
+
+        assertThat(song.createdAt).isEqualTo(1_714_550_400_000)
+        assertThat(song.artistSortName).isEqualTo("radiohead & ölafur")
+        assertThat(song.albumSortName).isEqualTo("ok computer")
+        assertThat(bare.createdAt).isNull()
+        assertThat(bare.artistSortName).isNull()
+        assertThat(bare.albumSortName).isNull()
+    }
+
+    @Test
     fun `plain Subsonic songs fall back to legacy fields`() {
         val song = NetworkChild(id = "s", title = "Airbag", artist = "Radiohead").asEntity("srv")
 

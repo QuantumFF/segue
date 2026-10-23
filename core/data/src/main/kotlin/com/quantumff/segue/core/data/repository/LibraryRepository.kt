@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.data.repository
 
 import androidx.paging.PagingData
+import androidx.paging.PagingSource
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.session.SubsonicClientProvider
@@ -11,6 +12,8 @@ import com.quantumff.segue.core.database.model.SongEntity
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongFilter
+import com.quantumff.segue.core.model.SongSortOrder
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -25,14 +28,11 @@ import kotlinx.coroutines.withContext
 interface LibraryRepository {
     val genres: Flow<ImmutableList<Genre>>
 
-    fun songs(): Flow<PagingData<Song>>
+    /** The Songs tab: songs in [sort] order, narrowed by [filter]. */
+    fun songs(sort: SongSortOrder, filter: SongFilter = SongFilter()): Flow<PagingData<Song>>
 
-    val songCount: Flow<Int>
-
-    /** Songs with a finished download, by name. For offline mode. */
-    fun downloadedSongs(): Flow<PagingData<Song>>
-
-    val downloadedSongCount: Flow<Int>
+    /** How many songs [filter] keeps. */
+    fun songCount(filter: SongFilter = SongFilter()): Flow<Int>
 
     /** Every song with a finished download, in no particular order: what Shuffle all plays offline. */
     suspend fun allDownloadedSongs(): ImmutableList<Song>
@@ -56,15 +56,45 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
     override val genres: Flow<ImmutableList<Genre>> =
         clients.listForActiveServer(genreDao::observeAll, GenreEntity::asExternalModel)
 
-    override fun songs(): Flow<PagingData<Song>> =
-        clients.pagedForActiveServer(songDao::pagingSource, SongEntity::asExternalModel)
+    override fun songs(sort: SongSortOrder, filter: SongFilter): Flow<PagingData<Song>> = clients.pagedForActiveServer(
+        source = { serverId -> songSource(serverId, sort, filter) },
+        mapper = SongEntity::asExternalModel,
+    )
 
-    override val songCount: Flow<Int> = clients.forActiveServer(0, songDao::observeCount)
+    private fun songSource(serverId: String, sort: SongSortOrder, filter: SongFilter): PagingSource<Int, SongEntity> {
+        val starred = filter.starred
+        val downloaded = filter.downloaded ?: return when (sort) {
+            SongSortOrder.Title -> songDao.pagingSourceByTitle(serverId, starred)
+            SongSortOrder.Artist -> songDao.pagingSourceByArtist(serverId, starred)
+            SongSortOrder.Album -> songDao.pagingSourceByAlbum(serverId, starred)
+            SongSortOrder.RecentlyAdded -> songDao.pagingSourceByRecentlyAdded(serverId, starred)
+            SongSortOrder.Year -> songDao.pagingSourceByYear(serverId, starred)
+            SongSortOrder.PlayCount -> songDao.pagingSourceByPlayCount(serverId, starred)
+        }
+        return when (sort) {
+            SongSortOrder.Title -> songDao.downloadFilteredPagingSourceByTitle(serverId, starred, downloaded)
 
-    override fun downloadedSongs(): Flow<PagingData<Song>> =
-        clients.pagedForActiveServer(songDao::pagingSourceDownloaded, SongEntity::asExternalModel)
+            SongSortOrder.Artist -> songDao.downloadFilteredPagingSourceByArtist(serverId, starred, downloaded)
 
-    override val downloadedSongCount: Flow<Int> = clients.forActiveServer(0, songDao::observeDownloadedCount)
+            SongSortOrder.Album -> songDao.downloadFilteredPagingSourceByAlbum(serverId, starred, downloaded)
+
+            SongSortOrder.RecentlyAdded ->
+                songDao.downloadFilteredPagingSourceByRecentlyAdded(serverId, starred, downloaded)
+
+            SongSortOrder.Year -> songDao.downloadFilteredPagingSourceByYear(serverId, starred, downloaded)
+
+            SongSortOrder.PlayCount -> songDao.downloadFilteredPagingSourceByPlayCount(serverId, starred, downloaded)
+        }
+    }
+
+    override fun songCount(filter: SongFilter): Flow<Int> = clients.forActiveServer(0) { serverId ->
+        val downloaded = filter.downloaded
+        if (downloaded != null) {
+            songDao.observeDownloadFilteredCount(serverId, filter.starred, downloaded)
+        } else {
+            songDao.observeCount(serverId, filter.starred)
+        }
+    }
 
     override suspend fun allDownloadedSongs(): ImmutableList<Song> = withContext(ioDispatcher) {
         val serverId = clients.activeServerId.first() ?: return@withContext persistentListOf()

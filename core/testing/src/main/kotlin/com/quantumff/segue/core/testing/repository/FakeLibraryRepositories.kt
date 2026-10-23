@@ -20,12 +20,15 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongFilter
+import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.model.SyncProgress
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
@@ -161,16 +164,35 @@ class FakeLibraryRepository : LibraryRepository {
 
     override val genres: Flow<ImmutableList<Genre>> = genresState.map { it.toImmutableList() }
 
-    override fun songs(): Flow<PagingData<Song>> = songsState.map { PagingData.from(it) }
-
-    override val songCount: Flow<Int> = songsState.map { it.size }
-
-    /** Songs [downloadedSongs] and [allDownloadedSongs] return. */
+    /**
+     * The downloaded songs: what [songs] lists for [SongFilter.downloaded] true (they need not be
+     * in [songsState]), and what [allDownloadedSongs] returns. False drops them from [songsState].
+     */
     val downloadedSongsState = MutableStateFlow<List<Song>>(emptyList())
 
-    override fun downloadedSongs(): Flow<PagingData<Song>> = downloadedSongsState.map { PagingData.from(it) }
+    /** The last sort [songs] was called with. Songs come back unsorted. */
+    var lastSort: SongSortOrder? = null
 
-    override val downloadedSongCount: Flow<Int> = downloadedSongsState.map { it.size }
+    /** The last filter [songs] was called with. */
+    var lastFilter: SongFilter? = null
+
+    override fun songs(sort: SongSortOrder, filter: SongFilter): Flow<PagingData<Song>> {
+        lastSort = sort
+        lastFilter = filter
+        return matching(filter).map { PagingData.from(it) }
+    }
+
+    override fun songCount(filter: SongFilter): Flow<Int> = matching(filter).map { it.size }
+
+    private fun matching(filter: SongFilter): Flow<List<Song>> =
+        combine(songsState, downloadedSongsState) { all, downloaded ->
+            val shown = when (filter.downloaded) {
+                null -> all
+                true -> downloaded
+                false -> downloaded.mapTo(HashSet()) { it.id }.let { ids -> all.filterNot { it.id in ids } }
+            }
+            shown.filter { filter.starred == null || it.isStarred == filter.starred }
+        }
 
     override suspend fun allDownloadedSongs(): ImmutableList<Song> = downloadedSongsState.value.toImmutableList()
 

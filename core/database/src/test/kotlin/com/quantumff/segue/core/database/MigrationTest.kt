@@ -171,6 +171,48 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `6 to 7 adds the song added date and sort keys, the song sort indexes, and a full resync`() {
+        helper.createDatabase(DB_NAME, 6).use { db ->
+            db.execSQL(
+                "INSERT INTO songs (serverId, id, title, sortName, album, artist, artists, albumArtists, " +
+                    "durationSeconds, explicitStatus) VALUES ('s1', 'so', 'T', 't', 'OK Computer', 'Radiohead', " +
+                    "'[]', '[]', 1, '')",
+            )
+            db.execSQL("INSERT INTO sync_metadata VALUES ('s1', 7, 100, 200)")
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 7, true, SegueMigrations.MIGRATION_6_7).use { db ->
+            db.query(
+                "SELECT title, createdAt, artistSortName, albumSortName FROM songs WHERE id = 'so'",
+            ).use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getString(0)).isEqualTo("T")
+                // The server's added date only comes with the resync.
+                assertThat(cursor.isNull(1)).isTrue()
+                // The sort keys are filled right away, so the artist and album sorts work before it.
+                assertThat(cursor.getString(2)).isEqualTo("radiohead")
+                assertThat(cursor.getString(3)).isEqualTo("ok computer")
+            }
+            db.query("SELECT artistsLastModified, lastFullSyncAt, lastSyncAt FROM sync_metadata").use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getLong(0)).isEqualTo(7)
+                assertThat(cursor.isNull(1)).isTrue()
+                assertThat(cursor.getLong(2)).isEqualTo(200)
+            }
+            db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'songs'").use { cursor ->
+                val names = buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+                assertThat(names).containsAtLeast(
+                    "index_songs_serverId_artistSortName_albumSortName_albumId_discNumber_track",
+                    "index_songs_serverId_albumSortName_albumId_discNumber_track",
+                    "index_songs_serverId_createdAt_albumId_discNumber_track",
+                    "index_songs_serverId_year_albumSortName_albumId_discNumber_track",
+                    "index_songs_serverId_playCount",
+                )
+            }
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

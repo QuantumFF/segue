@@ -42,3 +42,6 @@ fun song(
     discNumber = disc,
     track = track,
 )
+
+/** This song with the artist and album sort keys the sync derives from its names. */
+fun SongEntity.withSortKeys() = copy(artistSortName = artist?.lowercase(), albumSortName = album?.lowercase())
