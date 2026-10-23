@@ -1,6 +1,7 @@
 package com.quantumff.segue.feature.library
 
 import androidx.lifecycle.SavedStateHandle
+import app.cash.turbine.Event
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
@@ -16,6 +17,8 @@ import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.GridSize
+import com.quantumff.segue.core.model.LibraryTab
+import com.quantumff.segue.core.model.LibraryViewMode
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineStatus
@@ -30,6 +33,7 @@ import com.quantumff.segue.core.model.SongFilter
 import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
+import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
@@ -86,20 +90,23 @@ class LibraryViewModelTest {
         library.genresState.value = listOf(TestData.genre("Jazz"), TestData.genre("Rock"))
         servers.serversState.value = listOf(TestData.server)
         servers.activeId.value = TestData.server.id
-        viewModel = LibraryViewModel(
-            savedState,
-            albums,
-            library,
-            sync,
-            servers,
-            downloads,
-            offlineLibraryView(offlineMode, downloads, artists, library, playlists),
-            play,
-            mediaActionHandler(play, downloads, stars, albums, playlists, artists),
-            preferences,
-            player,
-        )
+        viewModel = newViewModel()
     }
+
+    /** A ViewModel as after a restart ([savedState] empty) or a process death ([savedState] kept). */
+    private fun newViewModel(savedState: SavedStateHandle = this.savedState) = LibraryViewModel(
+        savedState,
+        albums,
+        library,
+        sync,
+        servers,
+        downloads,
+        offlineLibraryView(offlineMode, downloads, artists, library, playlists),
+        play,
+        mediaActionHandler(play, downloads, stars, albums, playlists, artists),
+        preferences,
+        player,
+    )
 
     @Test
     fun thePlayingSongsRowsAreMarkedAndFollowThePlayer() = runTest {
@@ -248,13 +255,111 @@ class LibraryViewModelTest {
         viewModel.uiState.test {
             viewModel.setAlbumSort(AlbumSortOrder.Year)
             viewModel.selectTab(LibraryTab.Genres)
-            viewModel.toggleViewMode()
+            viewModel.toggleViewMode(LibraryTab.Albums)
             val state = expectMostRecentItem()
             assertThat(state.albumSort).isEqualTo(AlbumSortOrder.Year)
             assertThat(state.tab).isEqualTo(LibraryTab.Genres)
-            assertThat(state.viewMode).isEqualTo(LibraryViewMode.List)
+            assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.List)
         }
         assertThat(savedState.get<LibraryTab>(LibraryViewModel.KEY_TAB)).isEqualTo(LibraryTab.Genres)
+    }
+
+    @Test
+    fun albumsAndArtistsEachKeepTheirOwnView() = runTest {
+        viewModel.uiState.test {
+            viewModel.toggleViewMode(LibraryTab.Artists)
+            var state = expectMostRecentItem()
+            assertThat(state.artistViewMode).isEqualTo(LibraryViewMode.List)
+            assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.Grid)
+
+            viewModel.toggleViewMode(LibraryTab.Albums)
+            viewModel.toggleViewMode(LibraryTab.Artists)
+            state = expectMostRecentItem()
+            assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.List)
+            assertThat(state.artistViewMode).isEqualTo(LibraryViewMode.Grid)
+        }
+    }
+
+    @Test
+    fun aFreshViewModelReopensOnTheStoredTabWithEachTabsSortAndView() = runTest {
+        preferences.preferences.value = UserPreferences(
+            libraryTab = LibraryTab.Songs,
+            albumSort = AlbumSortOrder.Year,
+            artistSort = ArtistSortOrder.AlbumCount,
+            songSort = SongSortOrder.PlayCount,
+            albumViewMode = LibraryViewMode.List,
+            artistViewMode = LibraryViewMode.Grid,
+        )
+
+        newViewModel(SavedStateHandle()).uiState.test {
+            val shown = cancelAndConsumeRemainingEvents()
+                .filterIsInstance<Event.Item<LibraryUiState>>()
+                .map { it.value }
+                .filterNot { it.isRestoring }
+            // The default tab never shows first.
+            assertThat(shown.map { it.tab }.distinct()).containsExactly(LibraryTab.Songs)
+            val state = shown.last()
+            assertThat(state.albumSort).isEqualTo(AlbumSortOrder.Year)
+            assertThat(state.artistSort).isEqualTo(ArtistSortOrder.AlbumCount)
+            assertThat(state.songSort).isEqualTo(SongSortOrder.PlayCount)
+            assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.List)
+            assertThat(state.artistViewMode).isEqualTo(LibraryViewMode.Grid)
+        }
+    }
+
+    @Test
+    fun savedStateWinsOverPreferences() = runTest {
+        preferences.preferences.value = UserPreferences(
+            libraryTab = LibraryTab.Songs,
+            albumSort = AlbumSortOrder.Year,
+            artistSort = ArtistSortOrder.AlbumCount,
+            albumViewMode = LibraryViewMode.List,
+        )
+        val saved = SavedStateHandle(
+            mapOf(
+                LibraryViewModel.KEY_TAB to LibraryTab.Genres,
+                LibraryViewModel.KEY_ALBUM_SORT to AlbumSortOrder.Name,
+                LibraryViewModel.KEY_ALBUM_VIEW_MODE to LibraryViewMode.Grid,
+            ),
+        )
+
+        newViewModel(saved).uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.tab).isEqualTo(LibraryTab.Genres)
+            assertThat(state.albumSort).isEqualTo(AlbumSortOrder.Name)
+            assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.Grid)
+            // Nothing saved for these: the preferences fill them in.
+            assertThat(state.artistSort).isEqualTo(ArtistSortOrder.AlbumCount)
+            assertThat(state.songSort).isEqualTo(SongSortOrder.Title)
+        }
+    }
+
+    @Test
+    fun theTabSortsAndViewsAreKeptInPreferences() = runTest {
+        viewModel.uiState.test {
+            viewModel.selectTab(LibraryTab.Artists)
+            viewModel.setAlbumSort(AlbumSortOrder.Artist)
+            viewModel.setArtistSort(ArtistSortOrder.RecentlyAdded)
+            viewModel.setSongSort(SongSortOrder.Album)
+            viewModel.toggleViewMode(LibraryTab.Artists)
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertThat(preferences.preferences.value).isEqualTo(
+            UserPreferences(
+                libraryTab = LibraryTab.Artists,
+                albumSort = AlbumSortOrder.Artist,
+                artistSort = ArtistSortOrder.RecentlyAdded,
+                songSort = SongSortOrder.Album,
+                artistViewMode = LibraryViewMode.List,
+            ),
+        )
+        newViewModel(SavedStateHandle()).uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.tab).isEqualTo(LibraryTab.Artists)
+            assertThat(state.artistViewMode).isEqualTo(LibraryViewMode.List)
+            assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.Grid)
+        }
     }
 
     @Test
@@ -453,19 +558,7 @@ class LibraryViewModelTest {
         viewModel.setSongSort(SongSortOrder.RecentlyAdded)
         viewModel.cycleDownloadedFilter(LibraryTab.Songs)
 
-        val restored = LibraryViewModel(
-            savedState,
-            albums,
-            library,
-            sync,
-            servers,
-            downloads,
-            offlineLibraryView(offlineMode, downloads, artists, library, playlists),
-            play,
-            mediaActionHandler(play, downloads, stars, albums, playlists, artists),
-            preferences,
-            player,
-        )
+        val restored = newViewModel()
         restored.uiState.test {
             val state = expectMostRecentItem()
             assertThat(state.albumSort).isEqualTo(AlbumSortOrder.Name)

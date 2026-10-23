@@ -10,6 +10,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.LibraryTab
+import com.quantumff.segue.core.model.LibraryViewMode
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
@@ -32,7 +34,7 @@ class LibraryArtistRowTest {
     private val events = mutableListOf<LibraryEvent>()
     private val listed = LibraryUiState(
         tab = LibraryTab.Artists,
-        viewMode = LibraryViewMode.List,
+        artistViewMode = LibraryViewMode.List,
         artistCount = artists.size,
     )
 

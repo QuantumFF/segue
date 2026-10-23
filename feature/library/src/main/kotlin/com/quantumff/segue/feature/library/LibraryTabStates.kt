@@ -24,6 +24,7 @@ import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.core.model.ScreenState
 
 /** The placeholders a tab's skeleton draws, after the layout of its content. */

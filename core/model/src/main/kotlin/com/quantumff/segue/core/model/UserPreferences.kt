@@ -44,6 +44,15 @@ data class UserPreferences(
     val albumGridSize: GridSize = GridSize.Default,
     /** Card size of the Library's artist grid, as [albumGridSize]. */
     val artistGridSize: GridSize = GridSize.Default,
+    /** The Library tab last open, which the Library reopens on. */
+    val libraryTab: LibraryTab = LibraryTab.Albums,
+    /** Each Library tab's sort, kept across launches. */
+    val albumSort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
+    val artistSort: ArtistSortOrder = ArtistSortOrder.Name,
+    val songSort: SongSortOrder = SongSortOrder.Title,
+    /** Grid or list, for the Albums and Artists tabs each. */
+    val albumViewMode: LibraryViewMode = LibraryViewMode.Grid,
+    val artistViewMode: LibraryViewMode = LibraryViewMode.Grid,
 ) {
     companion object {
         const val DEFAULT_STREAM_CACHE_MB = 1024

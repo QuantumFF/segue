@@ -15,6 +15,7 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.coroutines.flow.flowOf

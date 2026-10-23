@@ -13,6 +13,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.ArtistSortOrder
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFilter
 import com.quantumff.segue.core.model.SongSortOrder

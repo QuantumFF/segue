@@ -17,6 +17,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.flowOf

@@ -66,6 +66,12 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             prefs.putIfChanged(Keys.CheckForUpdates, old.checkForUpdates, new.checkForUpdates)
             prefs.putIfChanged(Keys.AlbumGridColumns, old.albumGridSize, new.albumGridSize) { it.extraColumns }
             prefs.putIfChanged(Keys.ArtistGridColumns, old.artistGridSize, new.artistGridSize) { it.extraColumns }
+            prefs.putIfChanged(Keys.LibraryTab, old.libraryTab, new.libraryTab) { it.name }
+            prefs.putIfChanged(Keys.AlbumSort, old.albumSort, new.albumSort) { it.name }
+            prefs.putIfChanged(Keys.ArtistSort, old.artistSort, new.artistSort) { it.name }
+            prefs.putIfChanged(Keys.SongSort, old.songSort, new.songSort) { it.name }
+            prefs.putIfChanged(Keys.AlbumViewMode, old.albumViewMode, new.albumViewMode) { it.name }
+            prefs.putIfChanged(Keys.ArtistViewMode, old.artistViewMode, new.artistViewMode) { it.name }
         }
     }
 
@@ -129,6 +135,12 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             checkForUpdates = this[Keys.CheckForUpdates] ?: defaults.checkForUpdates,
             albumGridSize = this[Keys.AlbumGridColumns]?.let(::GridSize) ?: defaults.albumGridSize,
             artistGridSize = this[Keys.ArtistGridColumns]?.let(::GridSize) ?: defaults.artistGridSize,
+            libraryTab = enum(Keys.LibraryTab, defaults.libraryTab),
+            albumSort = enum(Keys.AlbumSort, defaults.albumSort),
+            artistSort = enum(Keys.ArtistSort, defaults.artistSort),
+            songSort = enum(Keys.SongSort, defaults.songSort),
+            albumViewMode = enum(Keys.AlbumViewMode, defaults.albumViewMode),
+            artistViewMode = enum(Keys.ArtistViewMode, defaults.artistViewMode),
         )
     }
 
@@ -184,6 +196,12 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val LastUpdateCheck = longPreferencesKey("last_update_check_millis")
         val AlbumGridColumns = intPreferencesKey("album_grid_extra_columns")
         val ArtistGridColumns = intPreferencesKey("artist_grid_extra_columns")
+        val LibraryTab = stringPreferencesKey("library_tab")
+        val AlbumSort = stringPreferencesKey("library_album_sort")
+        val ArtistSort = stringPreferencesKey("library_artist_sort")
+        val SongSort = stringPreferencesKey("library_song_sort")
+        val AlbumViewMode = stringPreferencesKey("library_album_view_mode")
+        val ArtistViewMode = stringPreferencesKey("library_artist_view_mode")
 
         /** The named card sizes the GridColumns keys replaced; see [GridSizeMigration]. */
         val LegacyAlbumGridSize = stringPreferencesKey("album_grid_size")

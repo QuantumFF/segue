@@ -16,6 +16,7 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistFilter
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SyncProgress
 import kotlinx.coroutines.flow.flowOf
