@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.quantumff.segue.core.designsystem.component.AlbumCard
@@ -23,11 +24,13 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HeroHeader
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
+import com.quantumff.segue.core.designsystem.component.PickerSheetContent
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
+import com.quantumff.segue.core.designsystem.component.SegueSortChip
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
@@ -155,6 +158,30 @@ class ComponentScreenshotTest {
                 message = "Pin albums or playlists to listen offline",
                 actionLabel = "Browse",
             )
+        }
+    }
+
+    @Test
+    fun pickerSheet() = capture("picker_sheet") {
+        Column {
+            Row(
+                Modifier.padding(horizontal = SegueSpacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SegueSortChip(label = "Recently added", onClick = {})
+                SegueFilterChip(label = "Favorites", selected = false, onClick = {})
+            }
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                val options = persistentListOf("Recently added", "Name", "Artist", "Year")
+                PickerSheetContent(
+                    title = "Sort",
+                    options = options,
+                    selected = options.first(),
+                    label = { it },
+                    onSelect = {},
+                )
+            }
         }
     }
 
