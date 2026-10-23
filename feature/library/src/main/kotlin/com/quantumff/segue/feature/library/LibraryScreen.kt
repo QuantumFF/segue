@@ -71,9 +71,11 @@ import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsI
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
+import com.quantumff.segue.core.designsystem.component.PickerSheet
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.SegueSortChip
 import com.quantumff.segue.core.designsystem.component.SelectionTopBar
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
@@ -457,9 +459,8 @@ private fun RowScope.AlbumFilterChips(
     onEvent: (LibraryEvent) -> Unit,
     onPickerClick: (LibraryPicker) -> Unit,
 ) {
-    DropdownChip(
+    SegueSortChip(
         label = stringResource(state.sort.label),
-        selected = false,
         onClick = { onPickerClick(LibraryPicker.Sort) },
     )
     SegueFilterChip(
@@ -1186,49 +1187,35 @@ private fun LibraryPickerSheet(
 ) {
     val any = stringResource(R.string.feature_library_filter_any)
     when (picker) {
-        LibraryPicker.Sort -> {
-            val labels = AlbumSortOrder.entries.map { stringResource(it.label) }
-            PickerSheet(
-                title = stringResource(R.string.feature_library_sort),
-                options = AlbumSortOrder.entries.mapIndexed { i, sort -> PickerOption(sort.name, labels[i]) }
-                    .toImmutableList(),
-                selectedKey = state.sort.name,
-                onSelect = { key -> onEvent(LibraryEvent.SetSort(AlbumSortOrder.valueOf(key))) },
-                onDismissRequest = onDismissRequest,
-            )
-        }
+        LibraryPicker.Sort -> PickerSheet(
+            title = stringResource(R.string.feature_library_sort),
+            options = AlbumSortOrder.entries.toImmutableList(),
+            selected = state.sort,
+            label = { stringResource(it.label) },
+            onSelect = { onEvent(LibraryEvent.SetSort(it)) },
+            onDismissRequest = onDismissRequest,
+        )
 
+        // A null option is "Any": no filter.
         LibraryPicker.Year -> PickerSheet(
             title = stringResource(R.string.feature_library_filter_year),
-            options = (
-                listOf(PickerOption(ANY_KEY, any)) +
-                    state.years.map { PickerOption(it.toString(), it.toString()) }
-                )
-                .toImmutableList(),
-            selectedKey = state.filter.year?.toString() ?: ANY_KEY,
-            onSelect = { key -> onEvent(LibraryEvent.SetYearFilter(key.toIntOrNull())) },
+            options = (listOf(null) + state.years).toImmutableList(),
+            selected = state.filter.year,
+            label = { it?.toString() ?: any },
+            onSelect = { onEvent(LibraryEvent.SetYearFilter(it)) },
             onDismissRequest = onDismissRequest,
         )
 
         LibraryPicker.Genre -> PickerSheet(
             title = stringResource(R.string.feature_library_filter_genre),
-            options = (
-                listOf(PickerOption(ANY_KEY, any)) +
-                    state.genres.map { PickerOption(GENRE_PREFIX + it.name, it.name) }
-                )
-                .toImmutableList(),
-            selectedKey = state.filter.genre?.let { GENRE_PREFIX + it } ?: ANY_KEY,
-            onSelect = { key ->
-                onEvent(LibraryEvent.SetGenreFilter(key.takeIf { it != ANY_KEY }?.removePrefix(GENRE_PREFIX)))
-            },
+            options = (listOf(null) + state.genres.map { it.name }).toImmutableList(),
+            selected = state.filter.genre,
+            label = { it ?: any },
+            onSelect = { onEvent(LibraryEvent.SetGenreFilter(it)) },
             onDismissRequest = onDismissRequest,
         )
     }
 }
-
-/** Picker key for "no filter"; genre keys are prefixed so a genre can never collide with it. */
-private const val ANY_KEY = "any"
-private const val GENRE_PREFIX = "genre:"
 
 internal val LibraryUiState.isLoaded: Boolean get() = albumCount != null
 

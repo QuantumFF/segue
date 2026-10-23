@@ -10,28 +10,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.paging.compose.LazyPagingItems
@@ -62,7 +52,6 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.Playlist
 import java.text.NumberFormat
 import kotlin.math.abs
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
@@ -172,70 +161,6 @@ internal fun DropdownChip(label: String, selected: Boolean, onClick: () -> Unit,
         ),
         modifier = modifier.height(SegueSizes.chip),
     )
-}
-
-/** One radio row in a [PickerSheet]. */
-@Immutable
-internal data class PickerOption(val key: String, val label: String)
-
-/** A picker as a bottom sheet of radio rows (DESIGN.md §4.10: pickers never use dialogs). */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun PickerSheet(
-    title: String,
-    options: ImmutableList<PickerOption>,
-    selectedKey: String?,
-    onSelect: (String) -> Unit,
-    onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SegueShapes.sheetTop,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = SegueSizes.noElevation,
-        modifier = modifier,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm),
-        )
-        LazyColumn(
-            modifier = Modifier
-                .selectableGroup()
-                .navigationBarsPadding(),
-        ) {
-            items(options, key = { it.key }) { option ->
-                val selected = option.key == selectedKey
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(SegueSizes.sheetRow)
-                        .selectable(
-                            selected = selected,
-                            role = Role.RadioButton,
-                            onClick = {
-                                onSelect(option.key)
-                                onDismissRequest()
-                            },
-                        )
-                        .padding(horizontal = SegueSpacing.lg),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = selected, onClick = null)
-                    Spacer(Modifier.size(SegueSpacing.lg))
-                    Text(
-                        text = option.label,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-        }
-    }
 }
 
 /**

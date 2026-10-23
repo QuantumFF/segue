@@ -18,6 +18,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import com.quantumff.segue.core.designsystem.R
@@ -88,6 +90,38 @@ fun SegueFilterChip(
 }
 
 /**
+ * Sort chip (DESIGN.md §4.2 filter row): looks like an unselected [SegueFilterChip] with a trailing
+ * chevron, and opens the sort picker. It is a dropdown, not a filter, so TalkBack hears "Change
+ * sort" and never a selected state.
+ */
+@Composable
+fun SegueSortChip(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .height(SegueSizes.chip)
+            .clip(SegueShapes.full)
+            .border(SegueSizes.hairline, MaterialTheme.colorScheme.outlineVariant, SegueShapes.full)
+            .clickable(
+                role = Role.DropdownList,
+                onClickLabel = stringResource(R.string.ds_change_sort),
+                onClick = onClick,
+            )
+            .padding(start = SegueSpacing.lg, end = SegueSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.width(SegueSpacing.sm))
+        Icon(
+            imageVector = SegueIcons.ChevronDown,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(FilterChipDefaults.IconSize),
+        )
+    }
+}
+
+/**
  * Feishin pill for genres and hero metadata (DESIGN.md §5.6): 28 tall, radius `full`,
  * `background` @ 50%, 1dp `outlineVariant` border, `labelMedium`, 12 horizontal padding.
  */
@@ -144,6 +178,7 @@ private fun ChipsPreview() {
     SeguePreview {
         Column(Modifier.padding(SegueSpacing.lg), verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
+                SegueSortChip(label = "Recently added", onClick = {})
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
                 SegueFilterChip(label = "Downloaded", selected = true, excluded = true, onClick = {})
             }
