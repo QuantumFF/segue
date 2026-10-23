@@ -153,14 +153,26 @@ private fun <T> PersistentList<T>.toggled(item: T, id: (T) -> String): Persisten
     return if (index >= 0) removeAt(index) else add(item)
 }
 
+/**
+ * A tab's Favorites and Downloaded chips (DESIGN.md §4.2), shared by every tab that has them. Each
+ * is off (null), on (true: only matches) or inverted (false: everything but matches).
+ */
+data class ChipFilters(val favorites: Boolean?, val downloaded: Boolean?, val isOffline: Boolean) {
+    /** The Downloaded chip as shown: offline holds it on, since only downloaded music plays. */
+    val shownDownloaded: Boolean? get() = if (isOffline) true else downloaded
+}
+
 data class LibraryUiState(
     val tab: LibraryTab = LibraryTab.Albums,
-    val sort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
     val viewMode: LibraryViewMode = LibraryViewMode.Grid,
     /** Card size of the album and artist grids, which a pinch zooms. */
     val albumGridSize: GridSize = GridSize.Default,
     val artistGridSize: GridSize = GridSize.Default,
-    val filter: AlbumFilter = AlbumFilter(),
+    // Each tab keeps its own sort and filters.
+    val albumSort: AlbumSortOrder = AlbumSortOrder.RecentlyAdded,
+    val albumFilter: AlbumFilter = AlbumFilter(),
+    val artistSort: ArtistSortOrder = ArtistSortOrder.Name,
+    val artistFilter: ArtistFilter = ArtistFilter(),
     val serverName: String? = null,
     /** Null until counted, so an empty state never flashes before Room answers. */
     val albumCount: Int? = null,
@@ -188,8 +200,12 @@ data class LibraryUiState(
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 
-    /** The "Downloaded" chip's filter: chosen, or forced to downloaded only while offline. */
-    val shownDownloadedFilter: Boolean? get() = if (isOffline) true else filter.downloaded
+    /** The [tab]'s Favorites and Downloaded chips; null for a tab without them. */
+    fun chipFilters(tab: LibraryTab): ChipFilters? = when (tab) {
+        LibraryTab.Albums -> ChipFilters(albumFilter.starred, albumFilter.downloaded, isOffline)
+        LibraryTab.Artists -> ChipFilters(artistFilter.starred, artistFilter.downloaded, isOffline)
+        LibraryTab.Songs, LibraryTab.Playlists, LibraryTab.Genres, LibraryTab.Downloads -> null
+    }
 
     /** The selection menu: Favorite and Download turn into their undo once every pick has them. */
     val selectionActions: ImmutableList<MediaAction>?
@@ -233,28 +249,39 @@ class LibraryViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val tab = savedStateHandle.getStateFlow(KEY_TAB, LibraryTab.Albums)
-    private val sort = savedStateHandle.getStateFlow(KEY_SORT, AlbumSortOrder.RecentlyAdded)
     private val viewMode = savedStateHandle.getStateFlow(KEY_VIEW_MODE, LibraryViewMode.Grid)
-    private val starredFilter = savedStateHandle.getStateFlow<Boolean?>(KEY_STARRED, null)
+
+    private val albumSort = savedStateHandle.getStateFlow(KEY_ALBUM_SORT, AlbumSortOrder.RecentlyAdded)
+    private val albumChips = TabChipFilters(savedStateHandle, LibraryTab.Albums)
     private val genreFilter = savedStateHandle.getStateFlow<String?>(KEY_GENRE, null)
     private val yearFilter = savedStateHandle.getStateFlow<Int?>(KEY_YEAR, null)
-    private val downloadedFilter = savedStateHandle.getStateFlow<Boolean?>(KEY_DOWNLOADED, null)
 
-    private val filter: Flow<AlbumFilter> =
-        combine(starredFilter, genreFilter, yearFilter, downloadedFilter, ::AlbumFilter).distinctUntilChanged()
+    private val albumFilter: Flow<AlbumFilter> =
+        combine(albumChips.favorites, genreFilter, yearFilter, albumChips.downloaded, ::AlbumFilter)
+            .distinctUntilChanged()
 
-    /** [filter], limited to downloaded albums while offline: what the Albums tab shows. */
-    private val effectiveFilter: Flow<AlbumFilter> = offlineView.albumFilter(filter)
+    /** [albumFilter], limited to downloaded albums while offline: what the Albums tab shows. */
+    private val effectiveAlbumFilter: Flow<AlbumFilter> = offlineView.albumFilter(albumFilter)
+
+    private val artistSort = savedStateHandle.getStateFlow(KEY_ARTIST_SORT, ArtistSortOrder.Name)
+    private val artistChips = TabChipFilters(savedStateHandle, LibraryTab.Artists)
+    private val artistFilter: Flow<ArtistFilter> =
+        combine(artistChips.favorites, artistChips.downloaded, ::ArtistFilter).distinctUntilChanged()
+
+    /** The chips of each tab that has them; a tab's chips act on that tab only. */
+    private val chips = mapOf(LibraryTab.Albums to albumChips, LibraryTab.Artists to artistChips)
     private val isRefreshing = MutableStateFlow(false)
     private val message = MutableStateFlow<LibraryMessage?>(null)
     private val selection = MutableStateFlow<LibrarySelection?>(null)
 
-    val albums: Flow<PagingData<Album>> = combine(sort, effectiveFilter, ::Pair)
+    val albums: Flow<PagingData<Album>> = combine(albumSort, effectiveAlbumFilter, ::Pair)
         .flatMapLatest { (sort, filter) -> albumRepository.albums(sort, filter) }
         .cachedIn(viewModelScope)
 
-    val artists: Flow<PagingData<Artist>> =
-        offlineView.artists(ArtistSortOrder.Name, ArtistFilter()).cachedIn(viewModelScope)
+    /** The Artists tab, sorted and filtered; offline only artists of downloaded music. */
+    val artists: Flow<PagingData<Artist>> = combine(artistSort, artistFilter, ::Pair)
+        .flatMapLatest { (sort, filter) -> offlineView.artists(sort, filter) }
+        .cachedIn(viewModelScope)
 
     val songs: Flow<PagingData<Song>> = offlineView.songs.cachedIn(viewModelScope)
 
@@ -262,13 +289,16 @@ class LibraryViewModel @Inject constructor(
         .map { it.albumGridSize to it.artistGridSize }
         .distinctUntilChanged()
 
-    private val settings = combine(tab, sort, viewMode, filter, gridSizes) { tab, sort, viewMode, filter, sizes ->
-        Settings(tab, sort, viewMode, filter, albumGridSize = sizes.first, artistGridSize = sizes.second)
+    /** Each tab's sort and filters. A tab that gains a sort adds its pair here. */
+    private val tabViews = combine(albumSort, albumFilter, artistSort, artistFilter, ::TabViews)
+
+    private val settings = combine(tab, viewMode, gridSizes, tabViews) { tab, viewMode, sizes, views ->
+        Settings(tab, viewMode, views, albumGridSize = sizes.first, artistGridSize = sizes.second)
     }
 
     private val counts = combine(
-        effectiveFilter.flatMapLatest { albumRepository.albumCount(it) },
-        offlineView.artistCount(ArtistFilter()),
+        effectiveAlbumFilter.flatMapLatest { albumRepository.albumCount(it) },
+        artistFilter.flatMapLatest { offlineView.artistCount(it) },
         offlineView.songCount,
     ) { albums, artists, songs -> Counts(albums, artists, songs) }
 
@@ -312,11 +342,13 @@ class LibraryViewModel @Inject constructor(
             pinnedPlaylists = downloads.playlists,
             songDownloads = downloads.songs,
             tab = settings.tab,
-            sort = settings.sort,
             viewMode = settings.viewMode,
             albumGridSize = settings.albumGridSize,
             artistGridSize = settings.artistGridSize,
-            filter = settings.filter,
+            albumSort = settings.views.albumSort,
+            albumFilter = settings.views.albumFilter,
+            artistSort = settings.views.artistSort,
+            artistFilter = settings.views.artistFilter,
             serverName = status.serverName,
             albumCount = counts.albums,
             artistCount = counts.artists,
@@ -364,8 +396,12 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    fun setSort(sort: AlbumSortOrder) {
-        savedStateHandle[KEY_SORT] = sort
+    fun setAlbumSort(sort: AlbumSortOrder) {
+        savedStateHandle[KEY_ALBUM_SORT] = sort
+    }
+
+    fun setArtistSort(sort: ArtistSortOrder) {
+        savedStateHandle[KEY_ARTIST_SORT] = sort
     }
 
     fun toggleViewMode() {
@@ -387,14 +423,14 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    /** Favorites only, then everything but favorites, then off. */
-    fun cycleFavoritesFilter() {
-        savedStateHandle[KEY_STARRED] = nextChipFilter(savedStateHandle[KEY_STARRED])
+    /** The [tab]'s Favorites chip: favorites only, then everything but favorites, then off. */
+    fun cycleFavoritesFilter(tab: LibraryTab) {
+        chips[tab]?.cycleFavorites()
     }
 
-    /** Downloaded only, then everything not downloaded, then off. */
-    fun cycleDownloadedFilter() {
-        savedStateHandle[KEY_DOWNLOADED] = nextChipFilter(savedStateHandle[KEY_DOWNLOADED])
+    /** The [tab]'s Downloaded chip: downloaded only, then everything not downloaded, then off. */
+    fun cycleDownloadedFilter(tab: LibraryTab) {
+        chips[tab]?.cycleDownloaded()
     }
 
     fun setGenreFilter(genre: String?) {
@@ -405,11 +441,13 @@ class LibraryViewModel @Inject constructor(
         savedStateHandle[KEY_YEAR] = year
     }
 
-    fun clearFilters() {
-        savedStateHandle[KEY_STARRED] = null
-        savedStateHandle[KEY_GENRE] = null
-        savedStateHandle[KEY_YEAR] = null
-        savedStateHandle[KEY_DOWNLOADED] = null
+    /** Turns off every filter of [tab]; other tabs keep theirs. */
+    fun clearFilters(tab: LibraryTab) {
+        chips[tab]?.clear()
+        if (tab == LibraryTab.Albums) {
+            savedStateHandle[KEY_GENRE] = null
+            savedStateHandle[KEY_YEAR] = null
+        }
     }
 
     /** Schedules a library sync; progress shows through [LibraryUiState.syncProgress]. */
@@ -441,8 +479,13 @@ class LibraryViewModel @Inject constructor(
      * shows: its sort and filters, limited to downloaded albums while offline.
      */
     fun playAlbums(order: AlbumOrder, placement: QueuePlacement) {
-        val stored = AlbumFilter(starredFilter.value, genreFilter.value, yearFilter.value, downloadedFilter.value)
-        val view = AlbumSource.Albums(sort.value, offlineView.albumFilter(stored))
+        val stored = AlbumFilter(
+            albumChips.favorites.value,
+            genreFilter.value,
+            yearFilter.value,
+            albumChips.downloaded.value,
+        )
+        val view = AlbumSource.Albums(albumSort.value, offlineView.albumFilter(stored))
         val source = QueueSource.Library(shuffled = order != AlbumOrder.InOrder)
         viewModelScope.launch { playIntents.playAlbums(AlbumPlayRequest(view, order, placement), source) }
     }
@@ -471,16 +514,22 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { run()?.let { message.value = LibraryMessage.ActionFailed(it) } }
     }
 
+    private data class TabViews(
+        val albumSort: AlbumSortOrder,
+        val albumFilter: AlbumFilter,
+        val artistSort: ArtistSortOrder,
+        val artistFilter: ArtistFilter,
+    )
+
     private data class Settings(
         val tab: LibraryTab,
-        val sort: AlbumSortOrder,
         val viewMode: LibraryViewMode,
-        val filter: AlbumFilter,
+        val views: TabViews,
         val albumGridSize: GridSize,
         val artistGridSize: GridSize,
     )
 
-    private data class Counts(val albums: Int, val artists: Int?, val songs: Int)
+    private data class Counts(val albums: Int, val artists: Int, val songs: Int)
 
     private data class Downloads(
         val isOffline: Boolean,
@@ -506,19 +555,43 @@ class LibraryViewModel @Inject constructor(
 
     internal companion object {
         const val KEY_TAB = "tab"
-        const val KEY_SORT = "sort"
         const val KEY_VIEW_MODE = "viewMode"
-        const val KEY_STARRED = "starredFilter"
+        const val KEY_ALBUM_SORT = "albumSort"
+        const val KEY_ARTIST_SORT = "artistSort"
         const val KEY_GENRE = "genreFilter"
         const val KEY_YEAR = "yearFilter"
-        const val KEY_DOWNLOADED = "downloadedFilter"
         private const val STOP_TIMEOUT_MS = 5_000L
+    }
+}
 
-        /** A filter chip tap: off → only → excluded → off (true keeps matches, false drops them). */
-        private fun nextChipFilter(current: Boolean?): Boolean? = when (current) {
-            null -> true
-            true -> false
-            false -> null
-        }
+/**
+ * One tab's Favorites and Downloaded chips ([ChipFilters]), kept in saved state under the tab's
+ * own keys so each tab keeps its own.
+ */
+private class TabChipFilters(private val savedState: SavedStateHandle, tab: LibraryTab) {
+    private val favoritesKey = "${tab.name}.favoritesFilter"
+    private val downloadedKey = "${tab.name}.downloadedFilter"
+
+    val favorites: StateFlow<Boolean?> = savedState.getStateFlow(favoritesKey, null)
+    val downloaded: StateFlow<Boolean?> = savedState.getStateFlow(downloadedKey, null)
+
+    fun cycleFavorites() {
+        savedState[favoritesKey] = nextChipFilter(favorites.value)
+    }
+
+    fun cycleDownloaded() {
+        savedState[downloadedKey] = nextChipFilter(downloaded.value)
+    }
+
+    fun clear() {
+        savedState[favoritesKey] = null
+        savedState[downloadedKey] = null
+    }
+
+    /** A chip tap: off → only → excluded → off (true keeps matches, false drops them). */
+    private fun nextChipFilter(current: Boolean?): Boolean? = when (current) {
+        null -> true
+        true -> false
+        false -> null
     }
 }
