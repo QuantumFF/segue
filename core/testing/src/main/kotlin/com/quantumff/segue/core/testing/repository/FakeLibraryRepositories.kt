@@ -165,12 +165,14 @@ class FakeLibraryRepository : LibraryRepository {
 
     override val songCount: Flow<Int> = songsState.map { it.size }
 
-    /** Songs [downloadedSongs] returns. */
+    /** Songs [downloadedSongs] and [allDownloadedSongs] return. */
     val downloadedSongsState = MutableStateFlow<List<Song>>(emptyList())
 
     override fun downloadedSongs(): Flow<PagingData<Song>> = downloadedSongsState.map { PagingData.from(it) }
 
     override val downloadedSongCount: Flow<Int> = downloadedSongsState.map { it.size }
+
+    override suspend fun allDownloadedSongs(): ImmutableList<Song> = downloadedSongsState.value.toImmutableList()
 
     override fun songsByGenre(genre: String): Flow<PagingData<Song>> =
         songsState.map { all -> PagingData.from(all.filter { it.genre == genre }) }

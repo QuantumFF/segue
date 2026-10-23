@@ -373,6 +373,15 @@ abstract class SongDao {
     )
     abstract fun observeDownloadedCount(serverId: String): Flow<Int>
 
+    /** Every song with a finished download, in no particular order: what Shuffle all plays offline. */
+    @Query(
+        """
+        SELECT songs.* FROM songs INNER JOIN downloads ON downloads.serverId = songs.serverId AND downloads.songId = songs.id
+        WHERE songs.serverId = :serverId AND downloads.state = 'Completed'
+        """,
+    )
+    abstract suspend fun getDownloaded(serverId: String): List<SongEntity>
+
     @Query("SELECT * FROM songs WHERE serverId = :serverId AND albumId = :albumId ORDER BY discNumber, track, sortName")
     abstract fun observeByAlbum(serverId: String, albumId: String): Flow<List<SongEntity>>
 
