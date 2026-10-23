@@ -37,6 +37,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.SyncProgress
@@ -183,6 +184,30 @@ data class LibraryUiState(
     /** The song that is playing, whose Songs tab rows are marked; null when nothing is current. */
     val currentSong: CurrentSong? = null,
 ) {
+    /**
+     * What [tab] shows (DESIGN.md §5.8). With nothing in Room, a running sync is loading and a
+     * failed one is an error with Retry, not an empty library. Offline, or with filters that
+     * match nothing, an empty tab is just empty: the library may well have data.
+     */
+    fun screenState(tab: LibraryTab): ScreenState = when (tab) {
+        LibraryTab.Albums -> syncedState(albumCount, filtered = filter.isActive)
+        LibraryTab.Artists -> syncedState(artistCount)
+        LibraryTab.Songs -> syncedState(songCount)
+        LibraryTab.Genres -> syncedState(genres.size.takeIf { albumCount != null })
+        LibraryTab.Playlists -> ScreenState.of(playlists?.size)
+        LibraryTab.Downloads -> ScreenState.Content
+    }
+
+    /** A tab filled by the library sync, holding [count] items. */
+    private fun syncedState(count: Int?, filtered: Boolean = false): ScreenState {
+        val followsSync = !isOffline && !filtered
+        return ScreenState.of(
+            itemCount = count,
+            isLoading = followsSync && (syncProgress is SyncProgress.Pending || syncProgress is SyncProgress.Running),
+            failure = ScreenState.Cause.Server.takeIf { followsSync && syncProgress is SyncProgress.Failed },
+        )
+    }
+
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 
