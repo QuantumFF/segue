@@ -14,6 +14,8 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongFilter
+import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Rule
@@ -65,6 +67,55 @@ class LibraryFilterRowTest {
         compose.onNodeWithText("Album count").performClick()
 
         assertThat(events).containsExactly(LibraryEvent.SetArtistSort(ArtistSortOrder.AlbumCount))
+    }
+
+    @Test
+    fun `the songs chips act on the Songs tab`() {
+        state = state.copy(tab = LibraryTab.Songs)
+        show()
+
+        compose.onNodeWithText("Favorites").performClick()
+        compose.onNodeWithText("Downloaded").performClick()
+
+        assertThat(events).containsExactly(
+            LibraryEvent.CycleFavorites(LibraryTab.Songs),
+            LibraryEvent.CycleDownloaded(LibraryTab.Songs),
+        ).inOrder()
+    }
+
+    @Test
+    fun `the songs sort chip offers the song sorts`() {
+        state = state.copy(tab = LibraryTab.Songs)
+        show()
+
+        compose.onNodeWithText("Title").performClick()
+        listOf("Artist", "Album", "Recently added", "Year").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onNodeWithText("Play count").performClick()
+
+        assertThat(events).containsExactly(LibraryEvent.SetSongSort(SongSortOrder.PlayCount))
+    }
+
+    @Test
+    fun `shuffle all stays in the songs filter row while there are songs`() {
+        state = state.copy(tab = LibraryTab.Songs)
+        show()
+
+        compose.onNodeWithText("Shuffle all").performClick()
+        state = state.copy(songCount = 0, songFilter = SongFilter(starred = true))
+        compose.onNodeWithText("Shuffle all").assertDoesNotExist()
+
+        assertThat(events).containsExactly(LibraryEvent.ShuffleAll)
+    }
+
+    @Test
+    fun `songs filters that match nothing offer to clear them`() {
+        state = state.copy(tab = LibraryTab.Songs, songCount = 0, songFilter = SongFilter(downloaded = false))
+        show()
+
+        compose.onNodeWithText("No songs match").assertExists()
+        compose.onNodeWithText("Clear filters").performClick()
+
+        assertThat(events).containsExactly(LibraryEvent.ClearFilters(LibraryTab.Songs))
     }
 
     @Test
