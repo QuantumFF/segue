@@ -186,10 +186,10 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ```
 
 ### 4.2 Library
-- Top bar: "Library" in `headlineSmall`, plus actions: view toggle (grid/list), settings. No sort icon: each tab that sorts has a sort chip in its filter row.
-- Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab.
+- Top bar: "Library" in `headlineSmall`, plus actions: view toggle (grid/list; Albums and Artists each keep their own across launches), settings. No sort icon: each tab that sorts has a sort chip in its filter row.
+- Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab across launches, and show no tab until it is known.
 - Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
-  - Each tab keeps its own sort and filters: changing Albums' sort or filters leaves Artists' as they were, and the other way round. Changing the sort or a filter scrolls the tab back to the top.
+  - Each tab keeps its own sort (across launches) and filters: changing Albums' sort or filters leaves Artists' as they were, and the other way round. Changing the sort or a filter scrolls the tab back to the top.
   - The row fits any width: the chips scroll sideways within 16 margins, and the count keeps its own slot at the end. While more chips lie past it, the chip row fades out over its last 24 before the count. When everything fits, nothing scrolls or fades.
   - Albums sort by name, artist, recently added or year. Artists sort by name, recently added (the newest added date among the artist's albums) or album count. Songs sort by title, artist, album, recently added (the server's added date), year (newest first) or play count (most played first); the artist, album, recently added and year sorts keep each album's songs together in track order.
   - Favorites and Downloaded cycle on each tap: the first keeps what the chip names, the second inverts it (albums, artists or songs that are not favorites, or have no downloaded song), the third turns it off. Offline holds Downloaded on. An artist counts as downloaded with a downloaded song of theirs, or a downloaded song on one of their albums.

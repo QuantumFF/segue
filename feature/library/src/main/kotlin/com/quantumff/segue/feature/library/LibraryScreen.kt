@@ -115,6 +115,8 @@ import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.GridSize
+import com.quantumff.segue.core.model.LibraryTab
+import com.quantumff.segue.core.model.LibraryViewMode
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.QueuePlacement
@@ -141,7 +143,7 @@ internal sealed interface LibraryEvent {
 
     data class SetSongSort(val sort: SongSortOrder) : LibraryEvent
 
-    data object ToggleViewMode : LibraryEvent
+    data class ToggleViewMode(val tab: LibraryTab) : LibraryEvent
 
     /** The [tab]'s Favorites chip was tapped. */
     data class CycleFavorites(val tab: LibraryTab) : LibraryEvent
@@ -239,7 +241,7 @@ fun LibraryScreen(
                 is LibraryEvent.SetAlbumSort -> viewModel.setAlbumSort(event.sort)
                 is LibraryEvent.SetArtistSort -> viewModel.setArtistSort(event.sort)
                 is LibraryEvent.SetSongSort -> viewModel.setSongSort(event.sort)
-                LibraryEvent.ToggleViewMode -> viewModel.toggleViewMode()
+                is LibraryEvent.ToggleViewMode -> viewModel.toggleViewMode(event.tab)
                 is LibraryEvent.CycleFavorites -> viewModel.cycleFavoritesFilter(event.tab)
                 is LibraryEvent.SetGenreFilter -> viewModel.setGenreFilter(event.genre)
                 is LibraryEvent.SetYearFilter -> viewModel.setYearFilter(event.year)
@@ -290,6 +292,11 @@ internal fun LibraryContent(
     downloadsTab: (@Composable () -> Unit)? = null,
     playlistsTab: PlaylistsTabSlot? = null,
 ) {
+    if (state.isRestoring) {
+        // Nothing until the last tab is known, so the default tab never flashes first.
+        Box(modifier.fillMaxSize())
+        return
+    }
     var menu by remember { mutableStateOf<LibraryItem?>(null) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf<LibraryPicker?>(null) }
@@ -417,11 +424,11 @@ private fun LibraryTopBar(
                 tint = muted,
             )
         }
-        if (state.tab == LibraryTab.Albums || state.tab == LibraryTab.Artists) {
+        state.viewMode(state.tab)?.let { viewMode ->
             SegueIconButton(
-                icon = if (state.viewMode == LibraryViewMode.Grid) SegueIcons.ListView else SegueIcons.GridView,
+                icon = if (viewMode == LibraryViewMode.Grid) SegueIcons.ListView else SegueIcons.GridView,
                 contentDescription = stringResource(R.string.feature_library_view_mode),
-                onClick = { onEvent(LibraryEvent.ToggleViewMode) },
+                onClick = { onEvent(LibraryEvent.ToggleViewMode(state.tab)) },
                 tint = muted,
             )
         }
@@ -698,7 +705,7 @@ private fun TabContent(
         items = songs,
         listState = songListState,
     )
-    val isGrid = state.viewMode == LibraryViewMode.Grid
+    val isGrid = state.viewMode(state.tab) == LibraryViewMode.Grid
     val sync = { onEvent(LibraryEvent.Refresh) }
     val screen = state.screenState(state.tab)
     when (state.tab) {
@@ -723,7 +730,7 @@ private fun TabContent(
                 }
             }
 
-            state.viewMode == LibraryViewMode.Grid -> PinchResizableGrid(
+            state.albumViewMode == LibraryViewMode.Grid -> PinchResizableGrid(
                 size = state.albumGridSize,
                 cell = SegueSizes.albumGridCell,
                 horizontalPadding = SegueSpacing.lg,
@@ -810,7 +817,7 @@ private fun TabContent(
                 }
             }
 
-            state.viewMode == LibraryViewMode.Grid -> ArtistGrid(
+            state.artistViewMode == LibraryViewMode.Grid -> ArtistGrid(
                 artists,
                 gridPadding,
                 state.artistGridSize,

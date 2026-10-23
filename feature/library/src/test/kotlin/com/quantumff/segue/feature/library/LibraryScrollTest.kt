@@ -19,6 +19,8 @@ import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ArtistFilter
 import com.quantumff.segue.core.model.ArtistSortOrder
+import com.quantumff.segue.core.model.LibraryTab
+import com.quantumff.segue.core.model.LibraryViewMode
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongFilter
 import com.quantumff.segue.core.model.SongSortOrder
@@ -71,7 +73,7 @@ class LibraryScrollTest {
 
     @Test
     fun `a new filter starts the album list at the top`() {
-        state = state.copy(viewMode = LibraryViewMode.List)
+        state = state.copy(albumViewMode = LibraryViewMode.List)
         showScrolledAlbums()
 
         state = state.copy(albumFilter = state.albumFilter.copy(starred = true))
@@ -111,7 +113,7 @@ class LibraryScrollTest {
 
     @Test
     fun `a new artist filter starts the artist list at the top`() {
-        state = state.copy(tab = LibraryTab.Artists, viewMode = LibraryViewMode.List, artistCount = ALBUM_COUNT)
+        state = state.copy(tab = LibraryTab.Artists, artistViewMode = LibraryViewMode.List, artistCount = ALBUM_COUNT)
         showScrolledArtists()
 
         state = state.copy(artistFilter = ArtistFilter(downloaded = true))

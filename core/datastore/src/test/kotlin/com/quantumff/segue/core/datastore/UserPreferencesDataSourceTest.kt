@@ -4,9 +4,14 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.AccentPreset
 import com.quantumff.segue.core.model.AccentSource
+import com.quantumff.segue.core.model.AlbumSortOrder
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.GridSize
+import com.quantumff.segue.core.model.LibraryTab
+import com.quantumff.segue.core.model.LibraryViewMode
 import com.quantumff.segue.core.model.ReplayGainMode
 import com.quantumff.segue.core.model.ReplayGainTarget
+import com.quantumff.segue.core.model.SongSortOrder
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
@@ -54,6 +59,12 @@ class UserPreferencesDataSourceTest {
             checkForUpdates = false,
             albumGridSize = GridSize(-1),
             artistGridSize = GridSize(1),
+            libraryTab = LibraryTab.Songs,
+            albumSort = AlbumSortOrder.Year,
+            artistSort = ArtistSortOrder.AlbumCount,
+            songSort = SongSortOrder.PlayCount,
+            albumViewMode = LibraryViewMode.List,
+            artistViewMode = LibraryViewMode.List,
         )
         val defaults = UserPreferences()
         UserPreferences::class.java.declaredFields
@@ -96,13 +107,52 @@ class UserPreferencesDataSourceTest {
         val dataStore = PreferenceDataStoreFactory.create(scope = backgroundScope) {
             File(tmp.root, "x.preferences_pb")
         }
+        val enumKeys = listOf(
+            "theme_mode",
+            "library_tab",
+            "library_album_sort",
+            "library_artist_sort",
+            "library_song_sort",
+            "library_album_view_mode",
+            "library_artist_view_mode",
+        )
         dataStore.updateData {
             it.toMutablePreferences().apply {
-                set(androidx.datastore.preferences.core.stringPreferencesKey("theme_mode"), "Neon")
+                enumKeys.forEach { key -> set(androidx.datastore.preferences.core.stringPreferencesKey(key), "Neon") }
             }
         }
 
-        assertThat(UserPreferencesDataSource(dataStore).preferences.first().themeMode).isEqualTo(ThemeMode.System)
+        assertThat(UserPreferencesDataSource(dataStore).preferences.first()).isEqualTo(UserPreferences())
+    }
+
+    @Test
+    fun `the library tab and each tab's sort and view are read from their keys`() = runTest {
+        val dataStore = PreferenceDataStoreFactory.create(scope = backgroundScope) {
+            File(tmp.root, "y.preferences_pb")
+        }
+        dataStore.updateData {
+            it.toMutablePreferences().apply {
+                mapOf(
+                    "library_tab" to "Genres",
+                    "library_album_sort" to "Name",
+                    "library_artist_sort" to "RecentlyAdded",
+                    "library_song_sort" to "Artist",
+                    "library_album_view_mode" to "List",
+                    "library_artist_view_mode" to "List",
+                ).forEach { (key, value) -> set(androidx.datastore.preferences.core.stringPreferencesKey(key), value) }
+            }
+        }
+
+        assertThat(UserPreferencesDataSource(dataStore).preferences.first()).isEqualTo(
+            UserPreferences(
+                libraryTab = LibraryTab.Genres,
+                albumSort = AlbumSortOrder.Name,
+                artistSort = ArtistSortOrder.RecentlyAdded,
+                songSort = SongSortOrder.Artist,
+                albumViewMode = LibraryViewMode.List,
+                artistViewMode = LibraryViewMode.List,
+            ),
+        )
     }
 
     @Test
