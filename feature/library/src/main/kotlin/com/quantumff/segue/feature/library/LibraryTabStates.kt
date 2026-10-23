@@ -13,8 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.paging.LoadState
-import androidx.paging.compose.LazyPagingItems
 import com.quantumff.segue.core.designsystem.component.AlbumCardSkeleton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
@@ -67,16 +65,6 @@ internal fun TabWithoutContent(
 
         ScreenState.Content -> Unit
     }
-}
-
-/**
- * The Artists tab offline, where downloaded artists are not counted: what the paged artists say,
- * loading until their first page.
- */
-internal fun LazyPagingItems<*>.screenState(): ScreenState = when {
-    itemCount > 0 -> ScreenState.Content
-    loadState.refresh is LoadState.Loading -> ScreenState.Loading
-    else -> ScreenState.Empty
 }
 
 /** A tab with nothing synced yet, named after what it holds, with a sync button. */

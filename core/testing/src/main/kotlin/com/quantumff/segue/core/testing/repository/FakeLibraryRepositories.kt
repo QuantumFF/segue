@@ -13,7 +13,9 @@ import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistFilter
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.SearchResult
@@ -101,14 +103,28 @@ class FakeArtistRepository : ArtistRepository {
     var error: RemoteException? = null
     val refreshed = mutableListOf<String>()
 
-    override fun artists(): Flow<PagingData<Artist>> = artistsState.map { PagingData.from(it) }
+    /** Artists that count as downloaded for [ArtistFilter.downloaded]. */
+    var downloadedArtistIds: Set<String> = emptySet()
 
-    override val artistCount: Flow<Int> = artistsState.map { it.size }
+    /** The last sort [artists] was called with. Artists come back unsorted. */
+    var lastSort: ArtistSortOrder? = null
 
-    /** Artists [downloadedArtists] returns. */
-    val downloadedArtistsState = MutableStateFlow<List<Artist>>(emptyList())
+    /** The last filter [artists] was called with. */
+    var lastFilter: ArtistFilter? = null
 
-    override fun downloadedArtists(): Flow<PagingData<Artist>> = downloadedArtistsState.map { PagingData.from(it) }
+    override fun artists(sort: ArtistSortOrder, filter: ArtistFilter): Flow<PagingData<Artist>> {
+        lastSort = sort
+        lastFilter = filter
+        return artistsState.map { all -> PagingData.from(all.filter { matches(filter, it) }) }
+    }
+
+    override fun artistCount(filter: ArtistFilter): Flow<Int> = artistsState.map { all ->
+        all.count { matches(filter, it) }
+    }
+
+    private fun matches(filter: ArtistFilter, artist: Artist) =
+        (filter.starred == null || artist.isStarred == filter.starred) &&
+            (filter.downloaded == null || (artist.id in downloadedArtistIds) == filter.downloaded)
 
     override fun artist(id: String): Flow<Artist?> = artistsState.map { all -> all.firstOrNull { it.id == id } }
 

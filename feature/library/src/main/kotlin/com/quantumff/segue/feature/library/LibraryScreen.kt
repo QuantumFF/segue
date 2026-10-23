@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -99,6 +100,7 @@ import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.ExplicitStatus
@@ -123,17 +125,21 @@ import kotlinx.coroutines.flow.flowOf
 internal sealed interface LibraryEvent {
     data class SelectTab(val tab: LibraryTab) : LibraryEvent
 
-    data class SetSort(val sort: AlbumSortOrder) : LibraryEvent
+    data class SetAlbumSort(val sort: AlbumSortOrder) : LibraryEvent
+
+    data class SetArtistSort(val sort: ArtistSortOrder) : LibraryEvent
 
     data object ToggleViewMode : LibraryEvent
 
-    data object CycleFavorites : LibraryEvent
+    /** The [tab]'s Favorites chip was tapped. */
+    data class CycleFavorites(val tab: LibraryTab) : LibraryEvent
 
     data class SetGenreFilter(val genre: String?) : LibraryEvent
 
     data class SetYearFilter(val year: Int?) : LibraryEvent
 
-    data object ClearFilters : LibraryEvent
+    /** Turns off the [tab]'s filters. */
+    data class ClearFilters(val tab: LibraryTab) : LibraryEvent
 
     data object Refresh : LibraryEvent
 
@@ -163,7 +169,8 @@ internal sealed interface LibraryEvent {
 
     data object MessageShown : LibraryEvent
 
-    data object CycleDownloaded : LibraryEvent
+    /** The [tab]'s Downloaded chip was tapped. */
+    data class CycleDownloaded(val tab: LibraryTab) : LibraryEvent
 
     /** Starts multi-select with the item, or picks or drops it. */
     data class ToggleSelected(val item: LibraryItem) : LibraryEvent
@@ -217,12 +224,13 @@ fun LibraryScreen(
         onEvent = { event ->
             when (event) {
                 is LibraryEvent.SelectTab -> viewModel.selectTab(event.tab)
-                is LibraryEvent.SetSort -> viewModel.setSort(event.sort)
+                is LibraryEvent.SetAlbumSort -> viewModel.setAlbumSort(event.sort)
+                is LibraryEvent.SetArtistSort -> viewModel.setArtistSort(event.sort)
                 LibraryEvent.ToggleViewMode -> viewModel.toggleViewMode()
-                LibraryEvent.CycleFavorites -> viewModel.cycleFavoritesFilter()
+                is LibraryEvent.CycleFavorites -> viewModel.cycleFavoritesFilter(event.tab)
                 is LibraryEvent.SetGenreFilter -> viewModel.setGenreFilter(event.genre)
                 is LibraryEvent.SetYearFilter -> viewModel.setYearFilter(event.year)
-                LibraryEvent.ClearFilters -> viewModel.clearFilters()
+                is LibraryEvent.ClearFilters -> viewModel.clearFilters(event.tab)
                 LibraryEvent.Refresh -> viewModel.refresh()
                 LibraryEvent.ShuffleAll -> viewModel.shuffleAll()
                 is LibraryEvent.PlayAlbums -> viewModel.playAlbums(event.order, event.placement)
@@ -237,7 +245,7 @@ fun LibraryScreen(
                 is LibraryEvent.ArtistMenu -> viewModel.onArtistAction(event.artist, event.action, menuHost)
                 is LibraryEvent.SongMenu -> viewModel.onSongAction(event.song, event.action, menuHost)
                 LibraryEvent.MessageShown -> viewModel.onMessageDismiss()
-                LibraryEvent.CycleDownloaded -> viewModel.cycleDownloadedFilter()
+                is LibraryEvent.CycleDownloaded -> viewModel.cycleDownloadedFilter(event.tab)
                 is LibraryEvent.ToggleSelected -> viewModel.toggleSelected(event.item)
                 is LibraryEvent.SetPicked -> viewModel.setPicked(event.item, event.picked)
                 LibraryEvent.ClearSelection -> viewModel.clearSelection()
@@ -294,7 +302,6 @@ internal fun LibraryContent(
                 LibraryTopBar(
                     state = state,
                     onEvent = onEvent,
-                    onSortClick = { picker = LibraryPicker.Sort },
                     onCreatePlaylistClick = playlistsTab?.let { { creatingPlaylist = true } },
                 )
             }
@@ -379,9 +386,9 @@ private fun LibrarySelectionBar(selection: LibrarySelection, onEvent: (LibraryEv
 private fun LibraryTopBar(
     state: LibraryUiState,
     onEvent: (LibraryEvent) -> Unit,
-    onSortClick: () -> Unit,
     onCreatePlaylistClick: (() -> Unit)?,
 ) {
+    // Sorting lives on each tab's sort chip, not here (DESIGN.md §4.2).
     TopLevelTopBar(title = stringResource(R.string.feature_library_title)) {
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
         if (state.tab == LibraryTab.Playlists && onCreatePlaylistClick != null) {
@@ -389,14 +396,6 @@ private fun LibraryTopBar(
                 icon = SegueIcons.Plus,
                 contentDescription = stringResource(R.string.feature_library_create_playlist),
                 onClick = onCreatePlaylistClick,
-                tint = muted,
-            )
-        }
-        if (state.tab == LibraryTab.Albums) {
-            SegueIconButton(
-                icon = SegueIcons.Sort,
-                contentDescription = stringResource(R.string.feature_library_sort),
-                onClick = onSortClick,
                 tint = muted,
             )
         }
@@ -463,6 +462,11 @@ private fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, on
             when (state.tab) {
                 LibraryTab.Albums -> AlbumFilterChips(state, onEvent, onPickerClick)
 
+                LibraryTab.Artists -> {
+                    SortChip(state, onClick = { onPickerClick(LibraryPicker.Sort) })
+                    FavoritesDownloadedChips(state, LibraryTab.Artists, onEvent)
+                }
+
                 LibraryTab.Songs -> if (state.showsShuffleAll) {
                     ActionChip(
                         label = stringResource(R.string.feature_library_shuffle_all),
@@ -493,32 +497,46 @@ private fun RowScope.AlbumFilterChips(
     onEvent: (LibraryEvent) -> Unit,
     onPickerClick: (LibraryPicker) -> Unit,
 ) {
-    SegueSortChip(
-        label = stringResource(state.sort.label),
-        onClick = { onPickerClick(LibraryPicker.Sort) },
-    )
-    SegueFilterChip(
-        label = stringResource(R.string.feature_library_filter_favorites),
-        selected = state.filter.starred != null,
-        excluded = state.filter.starred == false,
-        onClick = { onEvent(LibraryEvent.CycleFavorites) },
-    )
-    // Offline keeps it on: only downloaded albums can play (DESIGN.md §4.2 filter row).
-    SegueFilterChip(
-        label = stringResource(R.string.feature_library_filter_downloaded),
-        selected = state.shownDownloadedFilter != null,
-        excluded = state.shownDownloadedFilter == false,
-        onClick = { if (!state.isOffline) onEvent(LibraryEvent.CycleDownloaded) },
-    )
+    SortChip(state, onClick = { onPickerClick(LibraryPicker.Sort) })
+    FavoritesDownloadedChips(state, LibraryTab.Albums, onEvent)
     DropdownChip(
-        label = state.filter.year?.toString() ?: stringResource(R.string.feature_library_filter_year),
-        selected = state.filter.year != null,
+        label = state.albumFilter.year?.toString() ?: stringResource(R.string.feature_library_filter_year),
+        selected = state.albumFilter.year != null,
         onClick = { onPickerClick(LibraryPicker.Year) },
     )
     DropdownChip(
-        label = state.filter.genre ?: stringResource(R.string.feature_library_filter_genre),
-        selected = state.filter.genre != null,
+        label = state.albumFilter.genre ?: stringResource(R.string.feature_library_filter_genre),
+        selected = state.albumFilter.genre != null,
         onClick = { onPickerClick(LibraryPicker.Genre) },
+    )
+}
+
+/** The sort chip of the tab on show, labelled with its sort; it opens that tab's sort picker. */
+@Composable
+private fun SortChip(state: LibraryUiState, onClick: () -> Unit) {
+    val sort = tabSort(state) ?: return
+    SegueSortChip(label = stringResource(sort.currentLabel), onClick = onClick)
+}
+
+/**
+ * The Favorites and Downloaded chips of [tab], shared by every tab that has them (DESIGN.md §4.2).
+ * Each cycles through on, inverted and off; offline holds Downloaded on, since only downloaded
+ * music plays.
+ */
+@Composable
+private fun FavoritesDownloadedChips(state: LibraryUiState, tab: LibraryTab, onEvent: (LibraryEvent) -> Unit) {
+    val chips = state.chipFilters(tab) ?: return
+    SegueFilterChip(
+        label = stringResource(R.string.feature_library_filter_favorites),
+        selected = chips.favorites != null,
+        excluded = chips.favorites == false,
+        onClick = { onEvent(LibraryEvent.CycleFavorites(tab)) },
+    )
+    SegueFilterChip(
+        label = stringResource(R.string.feature_library_filter_downloaded),
+        selected = chips.shownDownloaded != null,
+        excluded = chips.shownDownloaded == false,
+        onClick = { if (!chips.isOffline) onEvent(LibraryEvent.CycleDownloaded(tab)) },
     )
 }
 
@@ -606,21 +624,24 @@ private fun TabContent(
     val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
     val albumGridState = rememberLazyGridState()
     val albumListState = rememberLazyListState()
+    val artistGridState = rememberLazyGridState()
+    val artistListState = rememberLazyListState()
     val picker = Picker(selected, remember(state.tab) { DragSelectState() }, onEvent)
-    PinAlbumsToTopOnViewChange(
-        view = AlbumView(state.sort, state.filter, state.isOffline),
-        albums = albums,
+    PinToTopOnViewChange(
+        view = ListView(state.albumSort, state.albumFilter, state.isOffline),
+        items = albums,
         gridState = albumGridState,
         listState = albumListState,
     )
+    PinToTopOnViewChange(
+        view = ListView(state.artistSort, state.artistFilter, state.isOffline),
+        items = artists,
+        gridState = artistGridState,
+        listState = artistListState,
+    )
     val isGrid = state.viewMode == LibraryViewMode.Grid
     val sync = { onEvent(LibraryEvent.Refresh) }
-    // Offline, downloaded artists are not counted: the paged artists tell.
-    val screen = if (state.tab == LibraryTab.Artists && state.isOffline) {
-        artists.screenState()
-    } else {
-        state.screenState(state.tab)
-    }
+    val screen = state.screenState(state.tab)
     when (state.tab) {
         LibraryTab.Albums -> when {
             screen != ScreenState.Content -> TabWithoutContent(
@@ -632,15 +653,12 @@ private fun TabContent(
                 when {
                     state.isOffline -> OfflineEmpty(listPadding)
 
-                    state.filter.isActive -> ScrollableEmpty(listPadding) {
-                        EmptyState(
-                            icon = SegueIcons.Disc3,
-                            title = stringResource(R.string.feature_library_empty_filtered_title),
-                            message = stringResource(R.string.feature_library_empty_filtered_message),
-                            actionLabel = stringResource(R.string.feature_library_clear_filters),
-                            onActionClick = { onEvent(LibraryEvent.ClearFilters) },
-                        )
-                    }
+                    state.albumFilter.isActive -> FilteredEmpty(
+                        icon = SegueIcons.Disc3,
+                        title = stringResource(R.string.feature_library_empty_filtered_title),
+                        contentPadding = listPadding,
+                        onClearClick = { onEvent(LibraryEvent.ClearFilters(LibraryTab.Albums)) },
+                    )
 
                     else -> TabEmpty(LibraryTab.Albums, listPadding, sync)
                 }
@@ -719,18 +737,30 @@ private fun TabContent(
                 contentPadding = if (isGrid) gridPadding else listPadding,
                 onRetry = sync,
             ) {
-                if (state.isOffline) OfflineEmpty(listPadding) else TabEmpty(LibraryTab.Artists, listPadding, sync)
+                when {
+                    state.isOffline -> OfflineEmpty(listPadding)
+
+                    state.artistFilter.isActive -> FilteredEmpty(
+                        icon = SegueIcons.Artist,
+                        title = stringResource(R.string.feature_library_empty_filtered_artists_title),
+                        contentPadding = listPadding,
+                        onClearClick = { onEvent(LibraryEvent.ClearFilters(LibraryTab.Artists)) },
+                    )
+
+                    else -> TabEmpty(LibraryTab.Artists, listPadding, sync)
+                }
             }
 
             state.viewMode == LibraryViewMode.Grid -> ArtistGrid(
                 artists,
                 gridPadding,
                 state.artistGridSize,
+                artistGridState,
                 picker,
                 onEvent,
             )
 
-            else -> ArtistList(artists, listPadding, onEvent, onMenu, state.pinnedArtists, picker)
+            else -> ArtistList(artists, listPadding, artistListState, onEvent, onMenu, state.pinnedArtists, picker)
         }
 
         LibraryTab.Songs -> when {
@@ -764,26 +794,26 @@ private fun TabContent(
     }
 }
 
-/** What the Albums tab shows: a change of any of it starts the tab back at the top. */
-private data class AlbumView(val sort: AlbumSortOrder, val filter: AlbumFilter, val isOffline: Boolean)
+/** What a sorted tab shows: a change of any of it starts the tab back at the top. */
+private data class ListView(val sort: Enum<*>, val filter: Any, val isOffline: Boolean)
 
 /**
- * A new sort or filter starts the Albums tab at the top, where "Play albums" starts too.
+ * A new sort or filter starts a tab at the top, where "Play albums" starts too.
  *
- * The new albums land a few frames after [view] changes, and a lazy grid keeps its first visible
- * item in view across a data change, so a reset at the change alone would follow the album that
- * was showing to its spot in the new order. So after a change the albums stay pinned to the top
+ * The new items land a few frames after [view] changes, and a lazy grid keeps its first visible
+ * item in view across a data change, so a reset at the change alone would follow the item that
+ * was showing to its spot in the new order. So after a change the items stay pinned to the top
  * through every update until the user scrolls.
  */
 @Composable
-private fun PinAlbumsToTopOnViewChange(
-    view: AlbumView,
-    albums: LazyPagingItems<Album>,
+private fun PinToTopOnViewChange(
+    view: ListView,
+    items: LazyPagingItems<*>,
     gridState: LazyGridState,
     listState: LazyListState,
 ) {
-    val pin = remember { AlbumTopPin(view) }
-    val shown = albums.itemSnapshotList
+    val pin = remember { TopPin(view) }
+    val shown = items.itemSnapshotList
     val scrolling = gridState.isScrollInProgress || listState.isScrollInProgress
     // A side effect runs before this frame's layout, so the request wins over the grid's anchoring.
     SideEffect {
@@ -794,12 +824,12 @@ private fun PinAlbumsToTopOnViewChange(
     }
 }
 
-private class AlbumTopPin(private var view: AlbumView) {
+private class TopPin(private var view: ListView) {
     private var pinned = false
-    private var shown: ItemSnapshotList<Album>? = null
+    private var shown: ItemSnapshotList<*>? = null
 
-    /** Whether this frame needs the top again: a new [view], or new albums before the user scrolls. */
-    fun holdsTop(view: AlbumView, shown: ItemSnapshotList<Album>, scrolling: Boolean): Boolean {
+    /** Whether this frame needs the top again: a new [view], or new items before the user scrolls. */
+    fun holdsTop(view: ListView, shown: ItemSnapshotList<*>, scrolling: Boolean): Boolean {
         val changed = view != this.view || shown !== this.shown
         if (view != this.view) {
             this.view = view
@@ -817,12 +847,11 @@ private fun ArtistGrid(
     artists: LazyPagingItems<Artist>,
     contentPadding: PaddingValues,
     size: GridSize,
+    gridState: LazyGridState,
     picker: Picker,
     onEvent: (LibraryEvent) -> Unit,
 ) {
     val format = NumberFormat.getIntegerInstance()
-    val selected = picker.selected
-    val gridState = rememberLazyGridState()
     PinchResizableGrid(
         size = size,
         cell = ARTIST_GRID_CELL,
@@ -893,6 +922,7 @@ private val ARTIST_GRID_CELL = 112.dp
 private fun ArtistList(
     artists: LazyPagingItems<Artist>,
     contentPadding: PaddingValues,
+    listState: LazyListState,
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, DownloadStatus>,
@@ -900,7 +930,6 @@ private fun ArtistList(
 ) {
     val format = NumberFormat.getIntegerInstance()
     val selected = picker.selected
-    val listState = rememberLazyListState()
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
@@ -1027,6 +1056,20 @@ private fun OfflineEmpty(contentPadding: PaddingValues) {
             icon = SegueIcons.Offline,
             title = stringResource(R.string.feature_library_offline_empty_title),
             message = stringResource(R.string.feature_library_offline_empty_message),
+        )
+    }
+}
+
+/** A tab whose filters leave nothing, with a way to clear them. */
+@Composable
+private fun FilteredEmpty(icon: ImageVector, title: String, contentPadding: PaddingValues, onClearClick: () -> Unit) {
+    ScrollableEmpty(contentPadding) {
+        EmptyState(
+            icon = icon,
+            title = title,
+            message = stringResource(R.string.feature_library_empty_filtered_message),
+            actionLabel = stringResource(R.string.feature_library_clear_filters),
+            onActionClick = onClearClick,
         )
     }
 }
@@ -1188,20 +1231,13 @@ private fun LibraryPickerSheet(
 ) {
     val any = stringResource(R.string.feature_library_filter_any)
     when (picker) {
-        LibraryPicker.Sort -> PickerSheet(
-            title = stringResource(R.string.feature_library_sort),
-            options = AlbumSortOrder.entries.toImmutableList(),
-            selected = state.sort,
-            label = { stringResource(it.label) },
-            onSelect = { onEvent(LibraryEvent.SetSort(it)) },
-            onDismissRequest = onDismissRequest,
-        )
+        LibraryPicker.Sort -> tabSort(state)?.SortPickerSheet(onEvent, onDismissRequest)
 
         // A null option is "Any": no filter.
         LibraryPicker.Year -> PickerSheet(
             title = stringResource(R.string.feature_library_filter_year),
             options = (listOf(null) + state.years).toImmutableList(),
-            selected = state.filter.year,
+            selected = state.albumFilter.year,
             label = { it?.toString() ?: any },
             onSelect = { onEvent(LibraryEvent.SetYearFilter(it)) },
             onDismissRequest = onDismissRequest,
@@ -1210,7 +1246,7 @@ private fun LibraryPickerSheet(
         LibraryPicker.Genre -> PickerSheet(
             title = stringResource(R.string.feature_library_filter_genre),
             options = (listOf(null) + state.genres.map { it.name }).toImmutableList(),
-            selected = state.filter.genre,
+            selected = state.albumFilter.genre,
             label = { it ?: any },
             onSelect = { onEvent(LibraryEvent.SetGenreFilter(it)) },
             onDismissRequest = onDismissRequest,
@@ -1230,12 +1266,55 @@ private val LibraryTab.label: Int
         LibraryTab.Downloads -> R.string.feature_library_tab_downloads
     }
 
+/**
+ * A tab's sort chip: the [current] sort, the sorts its picker offers and the event that picks one.
+ * A tab that gains a sort adds a branch to [tabSort].
+ */
+private class TabSort<S : Enum<S>>(
+    private val current: S,
+    private val options: ImmutableList<S>,
+    private val label: (S) -> Int,
+    private val event: (S) -> LibraryEvent,
+) {
+    val currentLabel: Int get() = label(current)
+
+    @Composable
+    fun SortPickerSheet(onEvent: (LibraryEvent) -> Unit, onDismissRequest: () -> Unit) {
+        PickerSheet(
+            title = stringResource(R.string.feature_library_sort),
+            options = options,
+            selected = current,
+            label = { stringResource(label(it)) },
+            onSelect = { onEvent(event(it)) },
+            onDismissRequest = onDismissRequest,
+        )
+    }
+}
+
+/** The sort of the tab on show; null for a tab without one. */
+private fun tabSort(state: LibraryUiState): TabSort<*>? = when (state.tab) {
+    LibraryTab.Albums ->
+        TabSort(state.albumSort, AlbumSortOrder.entries.toImmutableList(), { it.label }, LibraryEvent::SetAlbumSort)
+
+    LibraryTab.Artists ->
+        TabSort(state.artistSort, ArtistSortOrder.entries.toImmutableList(), { it.label }, LibraryEvent::SetArtistSort)
+
+    LibraryTab.Songs, LibraryTab.Playlists, LibraryTab.Genres, LibraryTab.Downloads -> null
+}
+
 internal val AlbumSortOrder.label: Int
     get() = when (this) {
         AlbumSortOrder.Name -> R.string.feature_library_sort_name
         AlbumSortOrder.Artist -> R.string.feature_library_sort_artist
         AlbumSortOrder.RecentlyAdded -> R.string.feature_library_sort_recently_added
         AlbumSortOrder.Year -> R.string.feature_library_sort_year
+    }
+
+internal val ArtistSortOrder.label: Int
+    get() = when (this) {
+        ArtistSortOrder.Name -> R.string.feature_library_sort_name
+        ArtistSortOrder.RecentlyAdded -> R.string.feature_library_sort_recently_added
+        ArtistSortOrder.AlbumCount -> R.string.feature_library_sort_album_count
     }
 
 private val LibraryMessage.text: Int
@@ -1283,7 +1362,7 @@ private fun LibraryContentPreview() {
                 songCount = 60,
                 genres = persistentListOf(Genre("Alternative", 60, 6)),
                 playlists = persistentListOf(),
-                filter = AlbumFilter(starred = true),
+                albumFilter = AlbumFilter(starred = true),
             ),
             albums = previewItems(PreviewAlbums),
             artists = previewItems(emptyList()),

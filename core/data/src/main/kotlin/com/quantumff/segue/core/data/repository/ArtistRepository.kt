@@ -16,7 +16,9 @@ import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistFilter
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.network.model.NetworkChild
 import javax.inject.Inject
@@ -29,12 +31,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 interface ArtistRepository {
-    fun artists(): Flow<PagingData<Artist>>
+    /** The Artists tab: artists in [sort] order, narrowed by [filter]. */
+    fun artists(sort: ArtistSortOrder, filter: ArtistFilter = ArtistFilter()): Flow<PagingData<Artist>>
 
-    val artistCount: Flow<Int>
-
-    /** Artists with a downloaded song, by name. For offline mode. */
-    fun downloadedArtists(): Flow<PagingData<Artist>>
+    /** How many artists [filter] keeps. */
+    fun artistCount(filter: ArtistFilter = ArtistFilter()): Flow<Int>
 
     fun artist(id: String): Flow<Artist?>
 
@@ -73,13 +74,41 @@ internal class OfflineFirstArtistRepository @Inject constructor(
     private val transactions: TransactionRunner,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : ArtistRepository {
-    override fun artists(): Flow<PagingData<Artist>> =
-        clients.pagedForActiveServer(artistDao::pagingSource, ArtistEntity::asExternalModel)
+    override fun artists(sort: ArtistSortOrder, filter: ArtistFilter): Flow<PagingData<Artist>> =
+        clients.pagedForActiveServer(
+            source = { serverId ->
+                val starred = filter.starred
+                val downloaded = filter.downloaded
+                if (downloaded != null) {
+                    when (sort) {
+                        ArtistSortOrder.Name ->
+                            artistDao.downloadFilteredPagingSourceByName(serverId, starred, downloaded)
 
-    override fun downloadedArtists(): Flow<PagingData<Artist>> =
-        clients.pagedForActiveServer(artistDao::pagingSourceDownloaded, ArtistEntity::asExternalModel)
+                        ArtistSortOrder.RecentlyAdded ->
+                            artistDao.downloadFilteredPagingSourceByRecentlyAdded(serverId, starred, downloaded)
 
-    override val artistCount: Flow<Int> = clients.forActiveServer(0, artistDao::observeCount)
+                        ArtistSortOrder.AlbumCount ->
+                            artistDao.downloadFilteredPagingSourceByAlbumCount(serverId, starred, downloaded)
+                    }
+                } else {
+                    when (sort) {
+                        ArtistSortOrder.Name -> artistDao.pagingSourceByName(serverId, starred)
+                        ArtistSortOrder.RecentlyAdded -> artistDao.pagingSourceByRecentlyAdded(serverId, starred)
+                        ArtistSortOrder.AlbumCount -> artistDao.pagingSourceByAlbumCount(serverId, starred)
+                    }
+                }
+            },
+            mapper = ArtistEntity::asExternalModel,
+        )
+
+    override fun artistCount(filter: ArtistFilter): Flow<Int> = clients.forActiveServer(0) { serverId ->
+        val downloaded = filter.downloaded
+        if (downloaded != null) {
+            artistDao.observeDownloadFilteredCount(serverId, filter.starred, downloaded)
+        } else {
+            artistDao.observeCount(serverId, filter.starred)
+        }
+    }
 
     override fun artist(id: String): Flow<Artist?> =
         clients.forActiveServer(null) { serverId -> artistDao.observe(serverId, id).map { it?.asExternalModel() } }

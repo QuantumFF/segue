@@ -43,35 +43,81 @@ private const val DOWNLOADED_ALBUM =
 /** [ALBUM_FILTER], keeping albums with a downloaded song if `:downloaded`, else albums without one. */
 private const val ALBUM_FILTER_BY_DOWNLOAD = "$ALBUM_FILTER AND ($DOWNLOADED_ALBUM) = :downloaded"
 
+/** The artist filter row (DESIGN.md §4.2): favorites or the rest. A null parameter does not filter. */
+private const val ARTIST_FILTER = "serverId = :serverId AND (:starred IS NULL OR (starredAt IS NOT NULL) = :starred)"
+
+/**
+ * Artists with a downloaded song, as its track artist or as the artist of its album. Only in
+ * queries that need it, so others do not observe `downloads`. Null IDs are left out, or
+ * `NOT IN` would match nothing.
+ */
+private const val DOWNLOADED_ARTIST =
+    "id IN (SELECT s.artistId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id " +
+        "WHERE s.serverId = :serverId AND d.state = 'Completed' AND s.artistId IS NOT NULL " +
+        "UNION SELECT a.artistId FROM albums a INNER JOIN songs s ON s.serverId = a.serverId AND s.albumId = a.id " +
+        "INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id " +
+        "WHERE a.serverId = :serverId AND d.state = 'Completed' AND a.artistId IS NOT NULL)"
+
+/** [ARTIST_FILTER], keeping artists with a downloaded song if `:downloaded`, else artists without one. */
+private const val ARTIST_FILTER_BY_DOWNLOAD = "$ARTIST_FILTER AND ($DOWNLOADED_ARTIST) = :downloaded"
+
+/**
+ * When the artist was last added to: the newest added date among their albums, by
+ * `index_albums_serverId_artistId_createdAt`. Null for an artist without albums, which sorts last.
+ */
+private const val ARTIST_ADDED_AT =
+    "(SELECT MAX(al.createdAt) FROM albums al WHERE al.serverId = artists.serverId AND al.artistId = artists.id)"
+
+private const val BY_ARTIST_NAME = "ORDER BY sortName, id"
+private const val BY_ARTIST_ADDED = "ORDER BY $ARTIST_ADDED_AT DESC, sortName, id"
+private const val BY_ALBUM_COUNT = "ORDER BY albumCount DESC, sortName, id"
+
 @Dao
 abstract class ArtistDao {
-    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
-    abstract fun pagingSource(serverId: String): PagingSource<Int, ArtistEntity>
+    // The Artists tab: one query per sort, then the same three limited to artists with or without a
+    // downloaded song (the "Downloaded" chip, offline mode). Ties are broken by ID for stable paging.
+
+    @Query("SELECT * FROM artists WHERE $ARTIST_FILTER $BY_ARTIST_NAME")
+    abstract fun pagingSourceByName(serverId: String, starred: Boolean?): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT * FROM artists WHERE $ARTIST_FILTER $BY_ARTIST_ADDED")
+    abstract fun pagingSourceByRecentlyAdded(serverId: String, starred: Boolean?): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT * FROM artists WHERE $ARTIST_FILTER $BY_ALBUM_COUNT")
+    abstract fun pagingSourceByAlbumCount(serverId: String, starred: Boolean?): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT COUNT(*) FROM artists WHERE $ARTIST_FILTER")
+    abstract fun observeCount(serverId: String, starred: Boolean?): Flow<Int>
+
+    @Query("SELECT * FROM artists WHERE $ARTIST_FILTER_BY_DOWNLOAD $BY_ARTIST_NAME")
+    abstract fun downloadFilteredPagingSourceByName(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT * FROM artists WHERE $ARTIST_FILTER_BY_DOWNLOAD $BY_ARTIST_ADDED")
+    abstract fun downloadFilteredPagingSourceByRecentlyAdded(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT * FROM artists WHERE $ARTIST_FILTER_BY_DOWNLOAD $BY_ALBUM_COUNT")
+    abstract fun downloadFilteredPagingSourceByAlbumCount(
+        serverId: String,
+        starred: Boolean?,
+        downloaded: Boolean,
+    ): PagingSource<Int, ArtistEntity>
+
+    @Query("SELECT COUNT(*) FROM artists WHERE $ARTIST_FILTER_BY_DOWNLOAD")
+    abstract fun observeDownloadFilteredCount(serverId: String, starred: Boolean?, downloaded: Boolean): Flow<Int>
 
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName")
     abstract fun observeAll(serverId: String): Flow<List<ArtistEntity>>
 
-    /** Artists with a downloaded song, as track artist or as the artist of an album with one. */
-    @Query(
-        """
-        SELECT * FROM artists WHERE serverId = :serverId AND id IN (
-            SELECT s.artistId FROM songs s INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
-            WHERE s.serverId = :serverId AND d.state = 'Completed'
-            UNION
-            SELECT a.artistId FROM albums a INNER JOIN songs s ON s.serverId = a.serverId AND s.albumId = a.id
-            INNER JOIN downloads d ON d.serverId = s.serverId AND d.songId = s.id
-            WHERE a.serverId = :serverId AND d.state = 'Completed'
-        )
-        ORDER BY sortName
-        """,
-    )
-    abstract fun pagingSourceDownloaded(serverId: String): PagingSource<Int, ArtistEntity>
-
     @Query("SELECT * FROM artists WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<ArtistEntity?>
-
-    @Query("SELECT COUNT(*) FROM artists WHERE serverId = :serverId")
-    abstract fun observeCount(serverId: String): Flow<Int>
 
     @Query("SELECT * FROM artists WHERE serverId = :serverId AND starredAt IS NOT NULL ORDER BY starredAt DESC")
     abstract fun observeStarred(serverId: String): Flow<List<ArtistEntity>>

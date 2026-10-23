@@ -16,6 +16,7 @@
     <string name="feature_library_sort_artist">Artist</string>
     <string name="feature_library_sort_recently_added">Recently added</string>
     <string name="feature_library_sort_year">Year</string>
+    <string name="feature_library_sort_album_count">Album count</string>
 
     <string name="feature_library_filter_favorites">Favorites</string>
     <string name="feature_library_filter_year">Year</string>
@@ -65,6 +66,7 @@
     <string name="feature_library_error_message">The library sync failed. Check the server, then try again.</string>
     <string name="feature_library_sync_now">Sync now</string>
     <string name="feature_library_empty_filtered_title">No albums match</string>
+    <string name="feature_library_empty_filtered_artists_title">No artists match</string>
     <string name="feature_library_empty_filtered_message">Try removing a filter</string>
     <string name="feature_library_clear_filters">Clear filters</string>
     <string name="feature_library_downloads_title">Downloads</string>
