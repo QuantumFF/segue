@@ -57,33 +57,31 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
         clients.listForActiveServer(genreDao::observeAll, GenreEntity::asExternalModel)
 
     override fun songs(sort: SongSortOrder, filter: SongFilter): Flow<PagingData<Song>> = clients.pagedForActiveServer(
-        source = { serverId -> songSource(serverId, sort, filter) },
+        source = { serverId -> songDao.songSource(serverId, sort, filter) },
         mapper = SongEntity::asExternalModel,
     )
 
-    private fun songSource(serverId: String, sort: SongSortOrder, filter: SongFilter): PagingSource<Int, SongEntity> {
+    private fun SongDao.songSource(
+        serverId: String,
+        sort: SongSortOrder,
+        filter: SongFilter,
+    ): PagingSource<Int, SongEntity> {
         val starred = filter.starred
         val downloaded = filter.downloaded ?: return when (sort) {
-            SongSortOrder.Title -> songDao.pagingSourceByTitle(serverId, starred)
-            SongSortOrder.Artist -> songDao.pagingSourceByArtist(serverId, starred)
-            SongSortOrder.Album -> songDao.pagingSourceByAlbum(serverId, starred)
-            SongSortOrder.RecentlyAdded -> songDao.pagingSourceByRecentlyAdded(serverId, starred)
-            SongSortOrder.Year -> songDao.pagingSourceByYear(serverId, starred)
-            SongSortOrder.PlayCount -> songDao.pagingSourceByPlayCount(serverId, starred)
+            SongSortOrder.Title -> pagingSourceByTitle(serverId, starred)
+            SongSortOrder.Artist -> pagingSourceByArtist(serverId, starred)
+            SongSortOrder.Album -> pagingSourceByAlbum(serverId, starred)
+            SongSortOrder.RecentlyAdded -> pagingSourceByRecentlyAdded(serverId, starred)
+            SongSortOrder.Year -> pagingSourceByYear(serverId, starred)
+            SongSortOrder.PlayCount -> pagingSourceByPlayCount(serverId, starred)
         }
         return when (sort) {
-            SongSortOrder.Title -> songDao.downloadFilteredPagingSourceByTitle(serverId, starred, downloaded)
-
-            SongSortOrder.Artist -> songDao.downloadFilteredPagingSourceByArtist(serverId, starred, downloaded)
-
-            SongSortOrder.Album -> songDao.downloadFilteredPagingSourceByAlbum(serverId, starred, downloaded)
-
-            SongSortOrder.RecentlyAdded ->
-                songDao.downloadFilteredPagingSourceByRecentlyAdded(serverId, starred, downloaded)
-
-            SongSortOrder.Year -> songDao.downloadFilteredPagingSourceByYear(serverId, starred, downloaded)
-
-            SongSortOrder.PlayCount -> songDao.downloadFilteredPagingSourceByPlayCount(serverId, starred, downloaded)
+            SongSortOrder.Title -> downloadFilteredPagingSourceByTitle(serverId, starred, downloaded)
+            SongSortOrder.Artist -> downloadFilteredPagingSourceByArtist(serverId, starred, downloaded)
+            SongSortOrder.Album -> downloadFilteredPagingSourceByAlbum(serverId, starred, downloaded)
+            SongSortOrder.RecentlyAdded -> downloadFilteredPagingSourceByRecentlyAdded(serverId, starred, downloaded)
+            SongSortOrder.Year -> downloadFilteredPagingSourceByYear(serverId, starred, downloaded)
+            SongSortOrder.PlayCount -> downloadFilteredPagingSourceByPlayCount(serverId, starred, downloaded)
         }
     }
 
