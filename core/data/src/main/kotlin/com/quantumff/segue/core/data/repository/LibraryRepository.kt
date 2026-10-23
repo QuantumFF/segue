@@ -34,6 +34,9 @@ interface LibraryRepository {
 
     val downloadedSongCount: Flow<Int>
 
+    /** Every song with a finished download, in no particular order: what Shuffle all plays offline. */
+    suspend fun allDownloadedSongs(): ImmutableList<Song>
+
     fun songsByGenre(genre: String): Flow<PagingData<Song>>
 
     fun song(id: String): Flow<Song?>
@@ -62,6 +65,11 @@ internal class OfflineFirstLibraryRepository @Inject constructor(
         clients.pagedForActiveServer(songDao::pagingSourceDownloaded, SongEntity::asExternalModel)
 
     override val downloadedSongCount: Flow<Int> = clients.forActiveServer(0, songDao::observeDownloadedCount)
+
+    override suspend fun allDownloadedSongs(): ImmutableList<Song> = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext persistentListOf()
+        songDao.getDownloaded(serverId).map { it.asExternalModel() }.toImmutableList()
+    }
 
     override fun songsByGenre(genre: String): Flow<PagingData<Song>> = clients.pagedForActiveServer({ serverId ->
         songDao.pagingSourceByGenre(serverId, genre)

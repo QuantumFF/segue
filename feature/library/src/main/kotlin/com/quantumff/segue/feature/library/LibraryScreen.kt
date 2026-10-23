@@ -433,11 +433,13 @@ private fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, on
             when (state.tab) {
                 LibraryTab.Albums -> AlbumFilterChips(state, onEvent, onPickerClick)
 
-                LibraryTab.Songs -> ActionChip(
-                    label = stringResource(R.string.feature_library_shuffle_all),
-                    icon = SegueIcons.Shuffle,
-                    onClick = { onEvent(LibraryEvent.ShuffleAll) },
-                )
+                LibraryTab.Songs -> if (state.showsShuffleAll) {
+                    ActionChip(
+                        label = stringResource(R.string.feature_library_shuffle_all),
+                        icon = SegueIcons.Shuffle,
+                        onClick = { onEvent(LibraryEvent.ShuffleAll) },
+                    )
+                }
 
                 else -> Unit
             }
