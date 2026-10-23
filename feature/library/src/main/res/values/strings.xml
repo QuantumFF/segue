@@ -3,6 +3,7 @@
     <string name="feature_library_title">Library</string>
     <string name="feature_library_sort">Sort</string>
     <string name="feature_library_view_mode">Switch between grid and list</string>
+    <string name="feature_library_create_playlist">New playlist</string>
 
     <string name="feature_library_tab_albums">Albums</string>
     <string name="feature_library_tab_artists">Artists</string>
@@ -43,10 +44,6 @@
         <item quantity="one">%1$s genre</item>
         <item quantity="other">%1$s genres</item>
     </plurals>
-    <plurals name="feature_library_track_count">
-        <item quantity="one">%1$d track</item>
-        <item quantity="other">%1$d tracks</item>
-    </plurals>
     <plurals name="feature_library_selected_count">
         <item quantity="one">%1$s selected</item>
         <item quantity="other">%1$s selected</item>
@@ -55,9 +52,6 @@
     <string name="feature_library_play_selected">Play selected</string>
     <string name="feature_library_queue_selected">Add selected to queue</string>
     <string name="feature_library_selection_options">Selection options</string>
-    <string name="feature_library_duration_hours">%1$d h %2$d m</string>
-    <string name="feature_library_duration_minutes">%1$d min</string>
-    <string name="feature_library_separator">%1$s · %2$s</string>
 
     <string name="feature_library_empty_albums_title">No albums yet</string>
     <string name="feature_library_empty_albums_message">Albums appear here once the library has synced</string>
@@ -73,8 +67,6 @@
     <string name="feature_library_empty_filtered_title">No albums match</string>
     <string name="feature_library_empty_filtered_message">Try removing a filter</string>
     <string name="feature_library_clear_filters">Clear filters</string>
-    <string name="feature_library_empty_playlists_title">No playlists yet</string>
-    <string name="feature_library_empty_playlists_message">Create one from the Playlists tab</string>
     <string name="feature_library_downloads_title">Downloads</string>
     <string name="feature_library_downloads_message">Pin albums or playlists to listen offline</string>
     <string name="feature_library_open_downloads">Open downloads</string>
