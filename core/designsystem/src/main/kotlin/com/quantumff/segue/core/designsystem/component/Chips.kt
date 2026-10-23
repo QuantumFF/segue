@@ -45,7 +45,8 @@ import com.quantumff.segue.core.model.OfflineStatus
  * leading ✕ when [excluded] (it hides what it names).
  *
  * [lockedOffline] holds the chip on while Offline (the Downloaded chip, as only downloaded music
- * plays): it shows on with a leading lock, TalkBack hears "On while offline", and taps do nothing.
+ * plays): it shows on with a muted leading lock, TalkBack hears "On while offline", and taps do
+ * nothing. It stays enabled, so TalkBack doesn't add "disabled".
  */
 @Composable
 fun SegueFilterChip(
@@ -70,8 +71,7 @@ fun SegueFilterChip(
     }
     FilterChip(
         selected = shownSelected,
-        onClick = onClick,
-        enabled = !lockedOffline,
+        onClick = if (lockedOffline) ({}) else onClick,
         label = { Text(label, style = MaterialTheme.typography.labelMedium) },
         leadingIcon = leadingIcon?.let { icon ->
             {
@@ -88,18 +88,18 @@ fun SegueFilterChip(
             labelColor = MaterialTheme.colorScheme.onSurface,
             selectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onSurface,
             // Locked still reads as on; its muted lock says why it doesn't respond.
-            disabledSelectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            disabledLabelColor = MaterialTheme.colorScheme.onSurface,
-            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedLeadingIconColor = if (lockedOffline) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
         ),
         border = FilterChipDefaults.filterChipBorder(
-            enabled = !lockedOffline,
+            enabled = true,
             selected = shownSelected,
             borderColor = MaterialTheme.colorScheme.outlineVariant,
             selectedBorderColor = Color.Transparent,
-            disabledSelectedBorderColor = Color.Transparent,
             borderWidth = SegueSizes.hairline,
             selectedBorderWidth = SegueSizes.hairline,
         ),

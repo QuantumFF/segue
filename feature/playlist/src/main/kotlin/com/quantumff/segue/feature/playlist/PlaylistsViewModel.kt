@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.ScreenState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
@@ -41,13 +42,29 @@ data class PlaylistsUiState(
     val serverName: String? = null,
     /** True until Room's first emission, so the empty state does not flash. */
     val isLoading: Boolean = true,
+    /** True while the fetch from the server on entry, or after Retry, is running. */
+    val isFetching: Boolean = false,
+    /** The last fetch from the server failed. */
+    val fetchFailed: Boolean = false,
     val isRefreshing: Boolean = false,
     val message: PlaylistMessage? = null,
     /** Pin status of pinned playlists by ID. */
     val downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
     /** Offline: only pinned playlists are listed. */
     val isOffline: Boolean = false,
-)
+) {
+    /**
+     * What the list shows (DESIGN.md §5.8). With no playlists in Room, a running fetch is loading
+     * and a failed one is an error with Retry. Offline, no playlists is just empty: only pinned
+     * playlists show then.
+     */
+    val screenState: ScreenState
+        get() = ScreenState.of(
+            itemCount = playlists.size.takeUnless { isLoading },
+            isLoading = isFetching && !isOffline,
+            failure = ScreenState.Cause.Server.takeIf { fetchFailed && !isOffline },
+        )
+}
 
 /** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh, plus CRUD. */
 @HiltViewModel
@@ -72,14 +89,31 @@ class PlaylistsViewModel @Inject constructor(
             isOffline = offline,
             serverName = server?.name,
             isLoading = false,
+            isFetching = local.fetching,
+            fetchFailed = local.fetchFailed,
             isRefreshing = local.refreshing,
             message = local.message,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlaylistsUiState())
 
     init {
-        // On entry a failure stays silent: the cached list is shown (offline is first-class).
-        viewModelScope.launch { remoteOutcome { playlistRepository.refreshPlaylists() } }
+        fetch()
+    }
+
+    /** Retry after a failed fetch left no playlists to show. */
+    fun retry() = fetch()
+
+    /**
+     * Fetches the playlists. A failure stays silent: the cached list is shown (offline is
+     * first-class), or the error state when there is none.
+     */
+    private fun fetch() {
+        if (local.value.fetching) return
+        local.update { it.copy(fetching = true, fetchFailed = false) }
+        viewModelScope.launch {
+            val failed = remoteOutcome { playlistRepository.refreshPlaylists() }.isFailure
+            local.update { it.copy(fetching = false, fetchFailed = failed) }
+        }
     }
 
     /** Pull-to-refresh. Reports a failure, since the user asked for it. */
@@ -88,7 +122,13 @@ class PlaylistsViewModel @Inject constructor(
         local.update { it.copy(refreshing = true) }
         viewModelScope.launch {
             val failed = remoteOutcome { playlistRepository.refreshPlaylists() }.isFailure
-            local.update { it.copy(refreshing = false, message = if (failed) PlaylistMessage.Failed else it.message) }
+            local.update {
+                it.copy(
+                    refreshing = false,
+                    fetchFailed = failed,
+                    message = if (failed) PlaylistMessage.Failed else it.message,
+                )
+            }
         }
     }
 
@@ -115,7 +155,12 @@ class PlaylistsViewModel @Inject constructor(
         }
     }
 
-    private data class LocalState(val refreshing: Boolean = false, val message: PlaylistMessage? = null)
+    private data class LocalState(
+        val fetching: Boolean = false,
+        val fetchFailed: Boolean = false,
+        val refreshing: Boolean = false,
+        val message: PlaylistMessage? = null,
+    )
 }
 
 internal const val STOP_TIMEOUT_MS = 5_000L

@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
@@ -53,6 +54,7 @@ import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -94,7 +96,10 @@ class LibraryViewModelTest {
     }
 
     /** A ViewModel as after a restart ([savedState] empty) or a process death ([savedState] kept). */
-    private fun newViewModel(savedState: SavedStateHandle = this.savedState) = LibraryViewModel(
+    private fun newViewModel(
+        savedState: SavedStateHandle = this.savedState,
+        preferences: UserPreferencesRepository = this.preferences,
+    ) = LibraryViewModel(
         savedState,
         albums,
         library,
@@ -277,6 +282,20 @@ class LibraryViewModelTest {
             state = expectMostRecentItem()
             assertThat(state.albumViewMode).isEqualTo(LibraryViewMode.List)
             assertThat(state.artistViewMode).isEqualTo(LibraryViewMode.Grid)
+        }
+    }
+
+    @Test
+    fun anUnreadablePreferencesStoreOpensTheLibraryWithDefaults() = runTest {
+        val unreadable = object : UserPreferencesRepository by preferences {
+            override val preferences = flow<UserPreferences> { throw IOException("DataStore read failed") }
+        }
+
+        newViewModel(SavedStateHandle(), unreadable).uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.isRestoring).isFalse()
+            assertThat(state.tab).isEqualTo(LibraryTab.Albums)
+            assertThat(state.albumSort).isEqualTo(AlbumSortOrder.RecentlyAdded)
         }
     }
 
@@ -482,7 +501,6 @@ class LibraryViewModelTest {
             val state = expectMostRecentItem()
             assertThat(state.songCount).isEqualTo(0)
             assertThat(state.screenState(LibraryTab.Songs)).isEqualTo(ScreenState.Empty)
-            assertThat(state.showsShuffleAll).isFalse()
         }
     }
 
@@ -619,6 +637,24 @@ class LibraryViewModelTest {
 
             library.downloadedSongsState.value = listOf(TestData.song("s2"))
             assertThat(expectMostRecentItem().showsShuffleAll).isTrue()
+        }
+    }
+
+    @Test
+    fun shuffleAllIgnoresSongFiltersThatMatchNothing() = runTest {
+        viewModel.uiState.test {
+            // No song is a favorite, but Shuffle all plays every song anyway.
+            viewModel.cycleFavoritesFilter(LibraryTab.Songs)
+            var state = expectMostRecentItem()
+            assertThat(state.songCount).isEqualTo(0)
+            assertThat(state.showsShuffleAll).isTrue()
+
+            // Offline it plays every downloaded song.
+            library.downloadedSongsState.value = listOf(TestData.song("s2"))
+            offlineMode.isOffline.value = true
+            state = expectMostRecentItem()
+            assertThat(state.songCount).isEqualTo(0)
+            assertThat(state.showsShuffleAll).isTrue()
         }
     }
 

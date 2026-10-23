@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.UserPreferences
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -97,8 +98,12 @@ class FakePlaylistRepository : PlaylistRepository {
             songsByPlaylist.value[id].orEmpty()
         }.toImmutableList()
 
+    /** When set, [refreshPlaylists] waits for it, so a test sees the fetch still running. */
+    var refreshGate: CompletableDeferred<Unit>? = null
+
     override suspend fun refreshPlaylists() {
         refreshAllCount++
+        refreshGate?.await()
         error?.let { throw it }
     }
 

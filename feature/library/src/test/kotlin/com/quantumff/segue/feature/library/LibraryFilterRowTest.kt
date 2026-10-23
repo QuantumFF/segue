@@ -98,11 +98,14 @@ class LibraryFilterRowTest {
 
     @Test
     fun `shuffle all stays in the songs filter row while there are songs`() {
-        state = state.copy(tab = LibraryTab.Songs)
+        state = state.copy(tab = LibraryTab.Songs, shuffleAllSongCount = 1)
         show()
 
         compose.onNodeWithText("Shuffle all").performClick()
+        // It ignores the filters, so it stays when they match nothing.
         state = state.copy(songCount = 0, songFilter = SongFilter(starred = true))
+        compose.onNodeWithText("Shuffle all").assertExists()
+        state = state.copy(shuffleAllSongCount = 0)
         compose.onNodeWithText("Shuffle all").assertDoesNotExist()
 
         assertThat(events).containsExactly(LibraryEvent.ShuffleAll)

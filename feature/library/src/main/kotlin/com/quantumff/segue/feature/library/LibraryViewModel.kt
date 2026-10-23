@@ -51,6 +51,7 @@ import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.model.currentSong
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.IOException
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -64,6 +65,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -158,8 +160,9 @@ data class ChipFilters(val favorites: Boolean?, val downloaded: Boolean?, val is
 
 data class LibraryUiState(
     /**
-     * True until the last tab and each tab's sort and view are read back from preferences. The
-     * screen shows no tab until then, so the default tab never flashes first.
+     * True until the last tab and each tab's sort and view are read back from preferences (or
+     * the defaults taken, if they can't be read). The screen shows no tab until then, so the
+     * default tab never flashes first.
      */
     val isRestoring: Boolean = false,
     val tab: LibraryTab = LibraryTab.Albums,
@@ -181,6 +184,8 @@ data class LibraryUiState(
     val albumCount: Int? = null,
     val artistCount: Int? = null,
     val songCount: Int? = null,
+    /** Every song Shuffle all plays (offline, every downloaded song): the Songs filters don't apply. */
+    val shuffleAllSongCount: Int? = null,
     val genres: ImmutableList<Genre> = persistentListOf(),
     val years: ImmutableList<Int> = persistentListOf(),
     val playlists: ImmutableList<Playlist>? = null,
@@ -238,8 +243,11 @@ data class LibraryUiState(
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 
-    /** Shuffle all shows only once the Songs tab is known to have songs, so it never flashes. */
-    val showsShuffleAll: Boolean get() = (songCount ?: 0) > 0
+    /**
+     * Shuffle all shows only once there are known to be songs to play, so it never flashes. It
+     * ignores the Songs filters, so it shows even when they match nothing.
+     */
+    val showsShuffleAll: Boolean get() = (shuffleAllSongCount ?: 0) > 0
 
     /** The [tab]'s Favorites and Downloaded chips; null for a tab without them. */
     fun chipFilters(tab: LibraryTab): ChipFilters? = when (tab) {
@@ -342,7 +350,11 @@ class LibraryViewModel @Inject constructor(
         .flatMapLatest { (sort, filter) -> offlineView.songs(sort, filter) }
         .cachedIn(viewModelScope)
 
-    private val gridSizes = preferences.preferences
+    /** Stored preferences, or the defaults if the store can't be read, so the Library still opens. */
+    private val storedPreferences: Flow<UserPreferences> = preferences.preferences
+        .catch { if (it is IOException) emit(UserPreferences()) else throw it }
+
+    private val gridSizes = storedPreferences
         .map { it.albumGridSize to it.artistGridSize }
         .distinctUntilChanged()
 
@@ -367,7 +379,8 @@ class LibraryViewModel @Inject constructor(
         effectiveAlbumFilter.flatMapLatest { albumRepository.albumCount(it) },
         artistFilter.flatMapLatest { offlineView.artistCount(it) },
         songFilter.flatMapLatest { offlineView.songCount(it) },
-    ) { albums, artists, songs -> Counts(albums, artists, songs) }
+        offlineView.songCount(SongFilter()),
+    ) { albums, artists, songs, allSongs -> Counts(albums, artists, songs, allSongs) }
 
     private val downloads = combine(
         offlineView.isOffline,
@@ -423,6 +436,7 @@ class LibraryViewModel @Inject constructor(
             albumCount = counts.albums,
             artistCount = counts.artists,
             songCount = counts.songs,
+            shuffleAllSongCount = counts.allSongs,
             genres = browse.genres,
             years = browse.years,
             playlists = browse.playlists,
@@ -435,7 +449,7 @@ class LibraryViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), LibraryUiState(isRestoring = true))
 
     init {
-        viewModelScope.launch { restore(preferences.preferences.first()) }
+        viewModelScope.launch { restore(storedPreferences.first()) }
     }
 
     /**
@@ -652,7 +666,7 @@ class LibraryViewModel @Inject constructor(
         val artistGridSize: GridSize,
     )
 
-    private data class Counts(val albums: Int, val artists: Int, val songs: Int)
+    private data class Counts(val albums: Int, val artists: Int, val songs: Int, val allSongs: Int)
 
     private data class Downloads(
         val isOffline: Boolean,
