@@ -211,6 +211,9 @@ data class LibraryUiState(
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 
+    /** Shuffle all shows only once the Songs tab is known to have songs, so it never flashes. */
+    val showsShuffleAll: Boolean get() = (songCount ?: 0) > 0
+
     /** The "Downloaded" chip's filter: chosen, or forced to downloaded only while offline. */
     val shownDownloadedFilter: Boolean? get() = if (isOffline) true else filter.downloaded
 
@@ -452,10 +455,20 @@ class LibraryViewModel @Inject constructor(
         message.value = null
     }
 
-    /** Every song in the library, in a tracks shuffle; downloaded songs only while offline. */
+    /**
+     * Every song in the library, in a tracks shuffle. Offline the downloaded songs, read from Room,
+     * since nothing else can play.
+     */
     fun shuffleAll() {
-        val request = AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks)
-        viewModelScope.launch { playIntents.playAlbums(request, QueueSource.Library(shuffled = true)) }
+        val source = QueueSource.Library(shuffled = true)
+        viewModelScope.launch {
+            if (offlineView.isOffline.value) {
+                val songs = libraryRepository.allDownloadedSongs()
+                playIntents.play(PlayTarget.Songs(songs), shuffle = true, source = source)
+            } else {
+                playIntents.playAlbums(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.ShuffledTracks), source)
+            }
+        }
     }
 
     /**

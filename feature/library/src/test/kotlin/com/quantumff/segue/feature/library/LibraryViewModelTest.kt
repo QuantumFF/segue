@@ -251,6 +251,39 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun offlineShuffleAllPlaysTheDownloadedSongsShuffled() = runTest {
+        offlineMode.isOffline.value = true
+        library.downloadedSongsState.value = listOf(TestData.song("s2"), TestData.song("s7"))
+
+        viewModel.shuffleAll()
+
+        assertThat(play.intents).containsExactly(
+            RecordingPlayIntents.Play(
+                PlayTarget.Songs(listOf(TestData.song("s2"), TestData.song("s7"))),
+                QueuePlacement.Replace,
+                shuffle = true,
+                source = QueueSource.Library(shuffled = true),
+            ),
+        )
+    }
+
+    @Test
+    fun shuffleAllIsHiddenWhenTheSongsTabHasNoSongs() = runTest {
+        // Before Room has counted, so it doesn't flash.
+        assertThat(LibraryUiState().showsShuffleAll).isFalse()
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().showsShuffleAll).isTrue()
+
+            offlineMode.isOffline.value = true
+            assertThat(expectMostRecentItem().showsShuffleAll).isFalse()
+
+            library.downloadedSongsState.value = listOf(TestData.song("s2"))
+            assertThat(expectMostRecentItem().showsShuffleAll).isTrue()
+        }
+    }
+
+    @Test
     fun aGenresShuffleAlbumsNamesTheGenre() = runTest {
         viewModel.shuffleGenreAlbums("Jazz")
 

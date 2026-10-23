@@ -137,6 +137,24 @@ class DownloadDaoTest {
     }
 
     @Test
+    fun `every downloaded song of the server is listed, without songs still downloading`() = runTest {
+        db.songDao().upsertAll(
+            listOf(song("a"), song("b"), song("c"), song("d"), song("a", serverId = "s2")),
+        )
+        dao.insertAll(
+            listOf(
+                download("a", DownloadState.Completed),
+                download("b", DownloadState.Completed),
+                download("c", DownloadState.Downloading),
+                download("a", DownloadState.Completed, serverId = "s2"),
+            ),
+        )
+
+        assertThat(db.songDao().getDownloaded("s1").map { it.id }).containsExactly("a", "b")
+        assertThat(db.songDao().getDownloaded("s3")).isEmpty()
+    }
+
+    @Test
     fun `downloaded albums and artists come from completed songs only`() = runTest {
         db.albumDao().upsertAll(listOf(album("al1", artistId = "ar1"), album("al2", artistId = "ar2")))
         db.songDao().upsertAll(
