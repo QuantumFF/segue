@@ -37,11 +37,15 @@ import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
+import com.quantumff.segue.core.model.OfflineStatus
 
 /**
  * Filter chip (DESIGN.md §5.6): 32 tall, radius `full`, `labelMedium`. Unselected is transparent
  * with an `outlineVariant` border; selected is `surfaceContainerHighest` with a leading check, or a
  * leading ✕ when [excluded] (it hides what it names).
+ *
+ * [lockedOffline] holds the chip on while Offline (the Downloaded chip, as only downloaded music
+ * plays): it shows on with a leading lock, TalkBack hears "On while offline", and taps do nothing.
  */
 @Composable
 fun SegueFilterChip(
@@ -50,22 +54,33 @@ fun SegueFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     excluded: Boolean = false,
+    lockedOffline: Boolean = false,
 ) {
-    val excludedState = stringResource(R.string.ds_filter_excluded)
+    val shownSelected = selected || lockedOffline
+    val state = when {
+        lockedOffline -> stringResource(R.string.ds_filter_locked_offline)
+        selected && excluded -> stringResource(R.string.ds_filter_excluded)
+        else -> null
+    }
+    val leadingIcon = when {
+        lockedOffline -> SegueIcons.Lock
+        !selected -> null
+        excluded -> SegueIcons.Close
+        else -> SegueIcons.Check
+    }
     FilterChip(
-        selected = selected,
+        selected = shownSelected,
         onClick = onClick,
+        enabled = !lockedOffline,
         label = { Text(label, style = MaterialTheme.typography.labelMedium) },
-        leadingIcon = if (selected) {
+        leadingIcon = leadingIcon?.let { icon ->
             {
                 Icon(
-                    imageVector = if (excluded) SegueIcons.Close else SegueIcons.Check,
+                    imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(FilterChipDefaults.IconSize),
                 )
             }
-        } else {
-            null
         },
         shape = SegueShapes.full,
         colors = FilterChipDefaults.filterChipColors(
@@ -74,18 +89,23 @@ fun SegueFilterChip(
             selectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             selectedLabelColor = MaterialTheme.colorScheme.onSurface,
             selectedLeadingIconColor = MaterialTheme.colorScheme.onSurface,
+            // Locked still reads as on; its muted lock says why it doesn't respond.
+            disabledSelectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            disabledLabelColor = MaterialTheme.colorScheme.onSurface,
+            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
         border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
+            enabled = !lockedOffline,
+            selected = shownSelected,
             borderColor = MaterialTheme.colorScheme.outlineVariant,
             selectedBorderColor = Color.Transparent,
+            disabledSelectedBorderColor = Color.Transparent,
             borderWidth = SegueSizes.hairline,
             selectedBorderWidth = SegueSizes.hairline,
         ),
         modifier = modifier
             .height(SegueSizes.chip)
-            .then(if (selected && excluded) Modifier.semantics { stateDescription = excludedState } else Modifier),
+            .then(if (state != null) Modifier.semantics { stateDescription = state } else Modifier),
     )
 }
 
@@ -172,6 +192,21 @@ fun StatusChip(
     }
 }
 
+/**
+ * The offline status chip under a screen's top bar or tab row (DESIGN.md §5.8), with copy for each
+ * [status]: "Offline · showing downloads" or "Offline · showing cached library". Nothing shows
+ * while [OfflineStatus.Online].
+ */
+@Composable
+fun OfflineStatusChip(status: OfflineStatus, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    val label = when (status) {
+        OfflineStatus.Online -> return
+        OfflineStatus.ShowingCachedLibrary -> R.string.ds_offline_cached
+        OfflineStatus.ShowingDownloads -> R.string.ds_offline_downloads
+    }
+    StatusChip(label = stringResource(label), modifier = modifier, onClick = onClick)
+}
+
 @PreviewSegueThemes
 @Composable
 private fun ChipsPreview() {
@@ -181,12 +216,13 @@ private fun ChipsPreview() {
                 SegueSortChip(label = "Recently added", onClick = {})
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
                 SegueFilterChip(label = "Downloaded", selected = true, excluded = true, onClick = {})
+                SegueFilterChip(label = "Downloaded", selected = false, lockedOffline = true, onClick = {})
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
                 Pill(label = "Alternative", onClick = {})
                 Pill(label = "Rock", onClick = {})
             }
-            StatusChip(label = stringResource(R.string.ds_offline_cached), onClick = {})
+            OfflineStatusChip(OfflineStatus.ShowingDownloads)
         }
     }
 }
