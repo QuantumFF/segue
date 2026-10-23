@@ -107,9 +107,11 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import java.text.NumberFormat
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
@@ -579,21 +581,38 @@ private fun TabContent(
         gridState = albumGridState,
         listState = albumListState,
     )
+    val isGrid = state.viewMode == LibraryViewMode.Grid
+    val sync = { onEvent(LibraryEvent.Refresh) }
+    // Offline, downloaded artists are not counted: the paged artists tell.
+    val screen = if (state.tab == LibraryTab.Artists && state.isOffline) {
+        artists.screenState()
+    } else {
+        state.screenState(state.tab)
+    }
     when (state.tab) {
         LibraryTab.Albums -> when {
-            state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
+            screen != ScreenState.Content -> TabWithoutContent(
+                screen = screen,
+                skeleton = if (isGrid) TabSkeleton.Cards else TabSkeleton.Rows,
+                contentPadding = if (isGrid) gridPadding else listPadding,
+                onRetry = sync,
+            ) {
+                when {
+                    state.isOffline -> OfflineEmpty(listPadding)
 
-            state.albumCount == 0 && state.filter.isActive -> ScrollableEmpty(listPadding) {
-                EmptyState(
-                    icon = SegueIcons.Disc3,
-                    title = stringResource(R.string.feature_library_empty_filtered_title),
-                    message = stringResource(R.string.feature_library_empty_filtered_message),
-                    actionLabel = stringResource(R.string.feature_library_clear_filters),
-                    onActionClick = { onEvent(LibraryEvent.ClearFilters) },
-                )
+                    state.filter.isActive -> ScrollableEmpty(listPadding) {
+                        EmptyState(
+                            icon = SegueIcons.Disc3,
+                            title = stringResource(R.string.feature_library_empty_filtered_title),
+                            message = stringResource(R.string.feature_library_empty_filtered_message),
+                            actionLabel = stringResource(R.string.feature_library_clear_filters),
+                            onActionClick = { onEvent(LibraryEvent.ClearFilters) },
+                        )
+                    }
+
+                    else -> TabEmpty(LibraryTab.Albums, listPadding, sync)
+                }
             }
-
-            state.albumCount == 0 -> LibraryEmpty(listPadding, onEvent)
 
             state.viewMode == LibraryViewMode.Grid -> PinchResizableGrid(
                 size = state.albumGridSize,
@@ -662,9 +681,14 @@ private fun TabContent(
         }
 
         LibraryTab.Artists -> when {
-            state.isOffline && artists.itemCount == 0 -> OfflineEmpty(listPadding)
-
-            state.artistCount == 0 -> LibraryEmpty(listPadding, onEvent)
+            screen != ScreenState.Content -> TabWithoutContent(
+                screen = screen,
+                skeleton = if (isGrid) TabSkeleton.Cards else TabSkeleton.Rows,
+                contentPadding = if (isGrid) gridPadding else listPadding,
+                onRetry = sync,
+            ) {
+                if (state.isOffline) OfflineEmpty(listPadding) else TabEmpty(LibraryTab.Artists, listPadding, sync)
+            }
 
             state.viewMode == LibraryViewMode.Grid -> ArtistGrid(
                 artists,
@@ -678,8 +702,10 @@ private fun TabContent(
         }
 
         LibraryTab.Songs -> when {
-            state.songCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
-            state.songCount == 0 -> LibraryEmpty(listPadding, onEvent)
+            screen != ScreenState.Content -> TabWithoutContent(screen, TabSkeleton.Rows, listPadding, sync) {
+                if (state.isOffline) OfflineEmpty(listPadding) else TabEmpty(LibraryTab.Songs, listPadding, sync)
+            }
+
             else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, state.currentSong, picker)
         }
 
@@ -689,7 +715,13 @@ private fun TabContent(
             PlaylistList(state.playlists, listPadding, onEvent, state.pinnedPlaylists)
         }
 
-        LibraryTab.Genres -> GenreGrid(state, gridPadding, listPadding, onEvent)
+        LibraryTab.Genres -> when {
+            screen != ScreenState.Content -> TabWithoutContent(screen, TabSkeleton.Tiles, gridPadding, sync) {
+                TabEmpty(LibraryTab.Genres, listPadding, sync)
+            }
+
+            else -> GenreGrid(state.genres, gridPadding, onEvent)
+        }
 
         LibraryTab.Downloads -> ScrollableEmpty(listPadding) {
             EmptyState(
@@ -971,23 +1003,7 @@ private fun PlaylistList(
 }
 
 @Composable
-private fun GenreGrid(
-    state: LibraryUiState,
-    gridPadding: PaddingValues,
-    listPadding: PaddingValues,
-    onEvent: (LibraryEvent) -> Unit,
-) {
-    if (!state.isLoaded) return
-    if (state.genres.isEmpty()) {
-        ScrollableEmpty(listPadding) {
-            EmptyState(
-                icon = SegueIcons.Music,
-                title = stringResource(R.string.feature_library_empty_genres_title),
-                message = stringResource(R.string.feature_library_empty_message),
-            )
-        }
-        return
-    }
+private fun GenreGrid(genres: ImmutableList<Genre>, gridPadding: PaddingValues, onEvent: (LibraryEvent) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(GENRE_COLUMNS),
         contentPadding = gridPadding,
@@ -995,7 +1011,7 @@ private fun GenreGrid(
         verticalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(state.genres, key = { it.name }, contentType = { "genre" }) { genre ->
+        items(genres, key = { it.name }, contentType = { "genre" }) { genre ->
             GenreTile(
                 genre = genre,
                 onClick = { onEvent(LibraryEvent.OpenGenre(genre.name)) },
@@ -1005,7 +1021,7 @@ private fun GenreGrid(
     }
 }
 
-private const val GENRE_COLUMNS = 2
+internal const val GENRE_COLUMNS = 2
 
 /** Offline with nothing downloaded in this tab. */
 @Composable
@@ -1019,22 +1035,9 @@ private fun OfflineEmpty(contentPadding: PaddingValues) {
     }
 }
 
-@Composable
-private fun LibraryEmpty(contentPadding: PaddingValues, onEvent: (LibraryEvent) -> Unit) {
-    ScrollableEmpty(contentPadding) {
-        EmptyState(
-            icon = SegueIcons.Library,
-            title = stringResource(R.string.feature_library_empty_title),
-            message = stringResource(R.string.feature_library_empty_message),
-            actionLabel = stringResource(R.string.feature_library_sync_now),
-            onActionClick = { onEvent(LibraryEvent.Refresh) },
-        )
-    }
-}
-
 /** An empty state inside a scrollable, so pull-to-refresh still works on it. */
 @Composable
-private fun ScrollableEmpty(contentPadding: PaddingValues, content: @Composable () -> Unit) {
+internal fun ScrollableEmpty(contentPadding: PaddingValues, content: @Composable () -> Unit) {
     LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         emptyItem(content)
     }
