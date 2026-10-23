@@ -25,12 +25,16 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.EmptyState
+import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.SkeletonPulse
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
+import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
+import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
@@ -40,6 +44,7 @@ import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.ScreenState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
@@ -58,6 +63,7 @@ fun PlaylistsScreen(
         onAccountClick = onAccountClick,
         onPlaylistClick = onPlaylistClick,
         onRefresh = viewModel::refresh,
+        onRetry = viewModel::retry,
         onCreate = viewModel::create,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
@@ -74,6 +80,7 @@ fun PlaylistsScreenContent(
     onAccountClick: () -> Unit,
     onPlaylistClick: (String) -> Unit,
     onRefresh: () -> Unit,
+    onRetry: () -> Unit,
     onCreate: (String) -> Unit,
     onRename: (Playlist, String) -> Unit,
     onDelete: (Playlist) -> Unit,
@@ -98,6 +105,7 @@ fun PlaylistsScreenContent(
             onCreatingChange = { creating = it },
             onPlaylistClick = onPlaylistClick,
             onRefresh = onRefresh,
+            onRetry = onRetry,
             onCreate = onCreate,
             onRename = onRename,
             onDelete = onDelete,
@@ -127,6 +135,7 @@ fun PlaylistsTab(
         onCreatingChange = onCreatingChange,
         onPlaylistClick = onPlaylistClick,
         onRefresh = viewModel::refresh,
+        onRetry = viewModel::retry,
         onCreate = viewModel::create,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
@@ -137,8 +146,8 @@ fun PlaylistsTab(
 }
 
 /**
- * The playlists under a top bar: the list, its empty state, the row menu, the dialogs and the
- * snackbar. Shared by the Playlists screen and the Library's Playlists tab. The caller holds
+ * The playlists under a top bar: the list or its state (skeletons while loading, an error with
+ * [onRetry], empty, or offline-empty), the row menu, the dialogs and the snackbar. Shared by the Playlists screen and the Library's Playlists tab. The caller holds
  * [creating], whether the create dialog is open, so its top bar's "+" can open it. Rename and
  * Delete menu actions open dialogs here; the rest go to [onMenuAction].
  */
@@ -150,6 +159,7 @@ fun PlaylistsBody(
     onCreatingChange: (Boolean) -> Unit,
     onPlaylistClick: (String) -> Unit,
     onRefresh: () -> Unit,
+    onRetry: () -> Unit,
     onCreate: (String) -> Unit,
     onRename: (Playlist, String) -> Unit,
     onDelete: (Playlist) -> Unit,
@@ -175,18 +185,36 @@ fun PlaylistsBody(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            when {
-                uiState.isLoading -> Unit
+            when (uiState.screenState) {
+                ScreenState.Loading -> PlaylistsSkeleton()
 
-                uiState.playlists.isEmpty() -> EmptyState(
-                    icon = SegueIcons.Playlists,
-                    title = stringResource(R.string.feature_playlist_empty_title),
-                    message = stringResource(R.string.feature_playlist_empty_message),
-                    actionLabel = stringResource(R.string.feature_playlist_create),
-                    onActionClick = { onCreatingChange(true) },
-                )
+                is ScreenState.Error -> ScrollableState {
+                    ErrorState(
+                        title = stringResource(R.string.feature_playlist_list_error_title),
+                        message = stringResource(R.string.feature_playlist_list_error_message),
+                        onRetryClick = onRetry,
+                    )
+                }
 
-                else -> PlaylistList(
+                ScreenState.Empty -> ScrollableState {
+                    if (uiState.isOffline) {
+                        EmptyState(
+                            icon = SegueIcons.Offline,
+                            title = stringResource(R.string.feature_playlist_offline_empty_title),
+                            message = stringResource(R.string.feature_playlist_offline_empty_message),
+                        )
+                    } else {
+                        EmptyState(
+                            icon = SegueIcons.Playlists,
+                            title = stringResource(R.string.feature_playlist_empty_title),
+                            message = stringResource(R.string.feature_playlist_empty_message),
+                            actionLabel = stringResource(R.string.feature_playlist_create),
+                            onActionClick = { onCreatingChange(true) },
+                        )
+                    }
+                }
+
+                ScreenState.Content -> PlaylistList(
                     playlists = uiState.playlists,
                     downloads = uiState.downloads,
                     onPlaylistClick = onPlaylistClick,
@@ -223,6 +251,34 @@ fun PlaylistsBody(
         onDismissRequest = { if (dialog != null) dialog = null else onCreatingChange(false) },
     )
 }
+
+/** Row skeletons, shown only once loading has taken longer than 150ms. */
+@Composable
+private fun PlaylistsSkeleton() {
+    if (!rememberDelayedVisibility()) return
+    val bottom = LocalShellContentPadding.current.calculateBottomPadding()
+    SkeletonPulse {
+        LazyColumn(
+            contentPadding = PaddingValues(bottom = bottom),
+            userScrollEnabled = false,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(SKELETON_ROWS, contentType = { "skeleton" }) { TrackRowSkeleton() }
+        }
+    }
+}
+
+/** A full-size state that still scrolls, so pull-to-refresh works on it. */
+@Composable
+private fun ScrollableState(content: @Composable () -> Unit) {
+    LazyColumn(Modifier.fillMaxSize()) {
+        item(key = "state", contentType = "state") {
+            Box(Modifier.fillParentMaxSize()) { content() }
+        }
+    }
+}
+
+private const val SKELETON_ROWS = 10
 
 @Composable
 private fun PlaylistList(
@@ -269,6 +325,7 @@ private fun PlaylistsScreenPreview() {
             onAccountClick = {},
             onPlaylistClick = {},
             onRefresh = {},
+            onRetry = {},
             onCreate = {},
             onRename = { _, _ -> },
             onDelete = {},
@@ -287,6 +344,7 @@ private fun PlaylistsScreenEmptyPreview() {
             onAccountClick = {},
             onPlaylistClick = {},
             onRefresh = {},
+            onRetry = {},
             onCreate = {},
             onRename = { _, _ -> },
             onDelete = {},

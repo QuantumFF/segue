@@ -4,6 +4,10 @@
     <string name="feature_playlist_create">New playlist</string>
     <string name="feature_playlist_empty_title">No playlists yet</string>
     <string name="feature_playlist_empty_message">Create one here, or add songs from any track menu</string>
+    <string name="feature_playlist_offline_empty_title">You\'re offline</string>
+    <string name="feature_playlist_offline_empty_message">Downloaded playlists show here. Pin a playlist to listen offline.</string>
+    <string name="feature_playlist_list_error_title">Couldn\'t load your playlists</string>
+    <string name="feature_playlist_list_error_message">Check the server, then try again.</string>
     <string name="feature_playlist_overline">Playlist</string>
     <string name="feature_playlist_shuffle">Shuffle</string>
     <string name="feature_playlist_shuffle_albums">Shuffle albums</string>
