@@ -482,7 +482,6 @@ class LibraryViewModelTest {
             val state = expectMostRecentItem()
             assertThat(state.songCount).isEqualTo(0)
             assertThat(state.screenState(LibraryTab.Songs)).isEqualTo(ScreenState.Empty)
-            assertThat(state.showsShuffleAll).isFalse()
         }
     }
 
@@ -619,6 +618,24 @@ class LibraryViewModelTest {
 
             library.downloadedSongsState.value = listOf(TestData.song("s2"))
             assertThat(expectMostRecentItem().showsShuffleAll).isTrue()
+        }
+    }
+
+    @Test
+    fun shuffleAllIgnoresSongFiltersThatMatchNothing() = runTest {
+        viewModel.uiState.test {
+            // No song is a favorite, but Shuffle all plays every song anyway.
+            viewModel.cycleFavoritesFilter(LibraryTab.Songs)
+            var state = expectMostRecentItem()
+            assertThat(state.songCount).isEqualTo(0)
+            assertThat(state.showsShuffleAll).isTrue()
+
+            // Offline it plays every downloaded song.
+            library.downloadedSongsState.value = listOf(TestData.song("s2"))
+            offlineMode.isOffline.value = true
+            state = expectMostRecentItem()
+            assertThat(state.songCount).isEqualTo(0)
+            assertThat(state.showsShuffleAll).isTrue()
         }
     }
 

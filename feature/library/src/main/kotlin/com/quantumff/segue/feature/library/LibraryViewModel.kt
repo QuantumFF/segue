@@ -181,6 +181,8 @@ data class LibraryUiState(
     val albumCount: Int? = null,
     val artistCount: Int? = null,
     val songCount: Int? = null,
+    /** Every song Shuffle all plays (offline, every downloaded song): the Songs filters don't apply. */
+    val shuffleAllSongCount: Int? = null,
     val genres: ImmutableList<Genre> = persistentListOf(),
     val years: ImmutableList<Int> = persistentListOf(),
     val playlists: ImmutableList<Playlist>? = null,
@@ -238,8 +240,11 @@ data class LibraryUiState(
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 
-    /** Shuffle all shows only once the Songs tab is known to have songs, so it never flashes. */
-    val showsShuffleAll: Boolean get() = (songCount ?: 0) > 0
+    /**
+     * Shuffle all shows only once there are known to be songs to play, so it never flashes. It
+     * ignores the Songs filters, so it shows even when they match nothing.
+     */
+    val showsShuffleAll: Boolean get() = (shuffleAllSongCount ?: 0) > 0
 
     /** The [tab]'s Favorites and Downloaded chips; null for a tab without them. */
     fun chipFilters(tab: LibraryTab): ChipFilters? = when (tab) {
@@ -367,7 +372,8 @@ class LibraryViewModel @Inject constructor(
         effectiveAlbumFilter.flatMapLatest { albumRepository.albumCount(it) },
         artistFilter.flatMapLatest { offlineView.artistCount(it) },
         songFilter.flatMapLatest { offlineView.songCount(it) },
-    ) { albums, artists, songs -> Counts(albums, artists, songs) }
+        offlineView.songCount(SongFilter()),
+    ) { albums, artists, songs, allSongs -> Counts(albums, artists, songs, allSongs) }
 
     private val downloads = combine(
         offlineView.isOffline,
@@ -423,6 +429,7 @@ class LibraryViewModel @Inject constructor(
             albumCount = counts.albums,
             artistCount = counts.artists,
             songCount = counts.songs,
+            shuffleAllSongCount = counts.allSongs,
             genres = browse.genres,
             years = browse.years,
             playlists = browse.playlists,
@@ -652,7 +659,7 @@ class LibraryViewModel @Inject constructor(
         val artistGridSize: GridSize,
     )
 
-    private data class Counts(val albums: Int, val artists: Int, val songs: Int)
+    private data class Counts(val albums: Int, val artists: Int, val songs: Int, val allSongs: Int)
 
     private data class Downloads(
         val isOffline: Boolean,
