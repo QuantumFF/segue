@@ -14,7 +14,7 @@ import com.quantumff.segue.core.model.DiscTitle
 @Entity(
     tableName = "artists",
     primaryKeys = ["serverId", "id"],
-    indices = [Index("serverId", "sortName")],
+    indices = [Index("serverId", "sortName"), Index("serverId", "albumCount")],
 )
 data class ArtistEntity(
     val serverId: String,
@@ -37,7 +37,8 @@ data class ArtistFtsEntity(val name: String)
     primaryKeys = ["serverId", "id"],
     indices = [
         Index("serverId", "sortName"),
-        Index("serverId", "artistId"),
+        // With createdAt, an artist's newest album (the Artists tab's "Recently added") is one index seek.
+        Index("serverId", "artistId", "createdAt"),
         Index("serverId", "createdAt"),
         Index("serverId", "year"),
     ],

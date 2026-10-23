@@ -2,10 +2,10 @@ package com.quantumff.segue.core.data.download
 
 import androidx.paging.PagingData
 import com.google.common.truth.Truth.assertThat
-import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.model.AlbumFilter
-import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistFilter
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
@@ -34,13 +34,9 @@ class OfflineLibraryViewTest {
     private val downloads = FakeDownloadRepository()
     private val playlists = FakePlaylistRepository()
 
-    /** Records which source the Artists and Songs tabs were read from. */
+    /** Records which source the Songs tab was read from. */
     private val sources = mutableListOf<String>()
-    private val artists = object : ArtistRepository by FakeArtistRepository().seeded() {
-        override fun artists(): Flow<PagingData<Artist>> = record("artists", MutableStateFlow(PagingData.empty()))
-        override fun downloadedArtists(): Flow<PagingData<Artist>> =
-            record("downloadedArtists", MutableStateFlow(PagingData.empty()))
-    }
+    private val artists = FakeArtistRepository().seeded()
     private val library = object : LibraryRepository by FakeLibraryRepository().seeded() {
         override fun songs(): Flow<PagingData<Song>> = record("songs", MutableStateFlow(PagingData.empty()))
         override fun downloadedSongs(): Flow<PagingData<Song>> =
@@ -53,6 +49,7 @@ class OfflineLibraryViewTest {
 
     private fun FakeArtistRepository.seeded() = apply {
         artistsState.value = listOf(TestData.artist("a1"), TestData.artist("a2"))
+        downloadedArtistIds = setOf("a1")
     }
 
     private fun FakeLibraryRepository.seeded() = apply {
@@ -79,7 +76,7 @@ class OfflineLibraryViewTest {
         val songs = listOf("s1", "s2", "s3").map { TestData.song(it) }
 
         assertThat(view.playlists.first().map { it.id }).containsExactly("p1", "p2").inOrder()
-        assertThat(view.artistCount.first()).isEqualTo(2)
+        assertThat(view.artistCount(ArtistFilter()).first()).isEqualTo(2)
         assertThat(view.songCount.first()).isEqualTo(3)
         assertThat(view.downloadedWhileOffline.first()).isNull()
         assertThat(view.albumFilter(AlbumFilter(starred = true))).isEqualTo(AlbumFilter(starred = true))
@@ -92,7 +89,7 @@ class OfflineLibraryViewTest {
         val songs = listOf("s1", "s2", "s3").map { TestData.song(it) }
 
         assertThat(view.playlists.first().map { it.id }).containsExactly("p2")
-        assertThat(view.artistCount.first()).isNull()
+        assertThat(view.artistCount(ArtistFilter()).first()).isEqualTo(1)
         assertThat(view.songCount.first()).isEqualTo(1)
         assertThat(view.downloadedWhileOffline.first()).isEqualTo(DownloadedLibrary(songIds = setOf("s1")))
         assertThat(view.albumFilter(AlbumFilter(starred = true)))
@@ -102,14 +99,27 @@ class OfflineLibraryViewTest {
     }
 
     @Test
-    fun `the artists and songs tabs switch source with offline mode`() = runTest {
-        view.artists.first()
+    fun `the songs tab switches source with offline mode`() = runTest {
         view.songs.first()
         offlineMode.isOffline.value = true
-        view.artists.first()
         view.songs.first()
 
-        assertThat(sources).containsExactly("artists", "songs", "downloadedArtists", "downloadedSongs").inOrder()
+        assertThat(sources).containsExactly("songs", "downloadedSongs").inOrder()
+    }
+
+    @Test
+    fun `the artists tab keeps its sort and filter, limited to downloaded artists while offline`() = runTest {
+        val filter = ArtistFilter(starred = false, downloaded = false)
+
+        view.artists(ArtistSortOrder.AlbumCount, filter).first()
+        assertThat(artists.lastSort).isEqualTo(ArtistSortOrder.AlbumCount)
+        assertThat(artists.lastFilter).isEqualTo(filter)
+
+        offlineMode.isOffline.value = true
+        view.artists(ArtistSortOrder.RecentlyAdded, filter).first()
+        assertThat(artists.lastSort).isEqualTo(ArtistSortOrder.RecentlyAdded)
+        assertThat(artists.lastFilter).isEqualTo(ArtistFilter(starred = false, downloaded = true))
+        assertThat(view.artistCount(filter).first()).isEqualTo(1)
     }
 
     @Test

@@ -24,6 +24,8 @@ import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistFilter
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
@@ -251,7 +253,8 @@ class LibraryViewModel @Inject constructor(
         .flatMapLatest { (sort, filter) -> albumRepository.albums(sort, filter) }
         .cachedIn(viewModelScope)
 
-    val artists: Flow<PagingData<Artist>> = offlineView.artists.cachedIn(viewModelScope)
+    val artists: Flow<PagingData<Artist>> =
+        offlineView.artists(ArtistSortOrder.Name, ArtistFilter()).cachedIn(viewModelScope)
 
     val songs: Flow<PagingData<Song>> = offlineView.songs.cachedIn(viewModelScope)
 
@@ -265,7 +268,7 @@ class LibraryViewModel @Inject constructor(
 
     private val counts = combine(
         effectiveFilter.flatMapLatest { albumRepository.albumCount(it) },
-        offlineView.artistCount,
+        offlineView.artistCount(ArtistFilter()),
         offlineView.songCount,
     ) { albums, artists, songs -> Counts(albums, artists, songs) }
 

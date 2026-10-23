@@ -89,5 +89,22 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+    /**
+     * 6 → 7: indexes for the Artists tab's sorts. Album count gets its own; "Recently added" (an
+     * artist's newest album) extends the albums' artist index with `createdAt`, which replaces it.
+     */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_artists_serverId_albumCount` ON `artists` (`serverId`, `albumCount`)",
+            )
+            db.execSQL("DROP INDEX IF EXISTS `index_albums_serverId_artistId`")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_albums_serverId_artistId_createdAt` " +
+                    "ON `albums` (`serverId`, `artistId`, `createdAt`)",
+            )
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 }

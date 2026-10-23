@@ -6,6 +6,8 @@ import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.Artist
+import com.quantumff.segue.core.model.ArtistFilter
+import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.PinKind
@@ -64,15 +66,13 @@ class OfflineLibraryView @Inject constructor(
         if (pinned == null) playlists else playlists.filter { it.id in pinned }.toImmutableList()
     }
 
-    /** The Artists tab: offline the artists credited on downloaded music. */
-    val artists: Flow<PagingData<Artist>> = isOffline.flatMapLatest { offline ->
-        if (offline) artistRepository.downloadedArtists() else artistRepository.artists()
-    }
+    /** The Artists tab in [sort] order, narrowed by [filter]: offline only artists of downloaded music. */
+    fun artists(sort: ArtistSortOrder, filter: ArtistFilter): Flow<PagingData<Artist>> =
+        isOffline.flatMapLatest { offline -> artistRepository.artists(sort, shownFilter(filter, offline)) }
 
-    /** How many [artists] there are; null offline, where downloaded artists are not counted. */
-    val artistCount: Flow<Int?> = isOffline.flatMapLatest { offline ->
-        if (offline) flowOf(null) else artistRepository.artistCount
-    }
+    /** How many [artists] [filter] keeps, following offline mode the same way. */
+    fun artistCount(filter: ArtistFilter): Flow<Int> =
+        isOffline.flatMapLatest { offline -> artistRepository.artistCount(shownFilter(filter, offline)) }
 
     /** The Songs tab: offline the downloaded songs. */
     val songs: Flow<PagingData<Song>> = isOffline.flatMapLatest { offline ->
@@ -95,6 +95,9 @@ class OfflineLibraryView @Inject constructor(
     fun albumFilter(filter: AlbumFilter): AlbumFilter = shownFilter(filter, isOffline.value)
 
     private fun shownFilter(filter: AlbumFilter, offline: Boolean): AlbumFilter =
+        if (offline) filter.copy(downloaded = true) else filter
+
+    private fun shownFilter(filter: ArtistFilter, offline: Boolean): ArtistFilter =
         if (offline) filter.copy(downloaded = true) else filter
 }
 
