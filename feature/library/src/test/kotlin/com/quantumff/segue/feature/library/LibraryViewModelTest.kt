@@ -24,6 +24,9 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.ScreenState
+import com.quantumff.segue.core.model.SyncPhase
+import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
@@ -558,5 +561,102 @@ class LibraryViewModelTest {
         viewModel.refresh()
 
         assertThat(sync.requests).containsExactly(false)
+    }
+
+    @Test
+    fun aFailedSyncWithNoDataIsAnErrorNotEmpty() = runTest {
+        emptyLibrary()
+        sync.progress.value = SyncProgress.Failed("Connection refused")
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            for (tab in BROWSE_TABS) {
+                assertThat(state.screenState(tab)).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+            }
+        }
+    }
+
+    @Test
+    fun aTabWithDataStaysContentWhenTheSyncFailed() = runTest {
+        sync.progress.value = SyncProgress.Failed("Connection refused")
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            for (tab in BROWSE_TABS) {
+                assertThat(state.screenState(tab)).isEqualTo(ScreenState.Content)
+            }
+        }
+    }
+
+    @Test
+    fun anEmptyTabIsLoadingWhileTheSyncRunsAndEmptyOnceItSucceeded() = runTest {
+        emptyLibrary()
+        sync.progress.value = SyncProgress.Pending
+
+        viewModel.uiState.test {
+            val pending = expectMostRecentItem()
+            for (tab in BROWSE_TABS) {
+                assertThat(pending.screenState(tab)).isEqualTo(ScreenState.Loading)
+            }
+
+            sync.progress.value = SyncProgress.Running(SyncPhase.Albums, completed = 0, total = 0)
+            assertThat(expectMostRecentItem().screenState(LibraryTab.Albums)).isEqualTo(ScreenState.Loading)
+
+            sync.progress.value = SyncProgress.Succeeded
+            val synced = expectMostRecentItem()
+            for (tab in BROWSE_TABS) {
+                assertThat(synced.screenState(tab)).isEqualTo(ScreenState.Empty)
+            }
+        }
+    }
+
+    @Test
+    fun offlineWithNothingDownloadedIsEmptyNotAnError() = runTest {
+        sync.progress.value = SyncProgress.Failed("Unreachable")
+        offlineMode.isOffline.value = true
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.screenState(LibraryTab.Albums)).isEqualTo(ScreenState.Empty)
+            assertThat(state.screenState(LibraryTab.Artists)).isEqualTo(ScreenState.Empty)
+            assertThat(state.screenState(LibraryTab.Songs)).isEqualTo(ScreenState.Empty)
+        }
+    }
+
+    @Test
+    fun artistsAFilterLeavesWithoutMatchesAreEmptyNotAnError() = runTest {
+        sync.progress.value = SyncProgress.Failed("Connection refused")
+
+        viewModel.uiState.test {
+            viewModel.cycleFavoritesFilter(LibraryTab.Artists)
+
+            val state = expectMostRecentItem()
+            assertThat(state.artistCount).isEqualTo(0)
+            assertThat(state.screenState(LibraryTab.Artists)).isEqualTo(ScreenState.Empty)
+        }
+    }
+
+    @Test
+    fun albumsAFilterLeavesWithoutMatchesAreEmptyNotAnError() = runTest {
+        albums.albumsState.value = listOf(TestData.album("1"))
+        sync.progress.value = SyncProgress.Failed("Connection refused")
+
+        viewModel.uiState.test {
+            viewModel.cycleFavoritesFilter(LibraryTab.Albums)
+
+            assertThat(expectMostRecentItem().screenState(LibraryTab.Albums)).isEqualTo(ScreenState.Empty)
+        }
+    }
+
+    private fun emptyLibrary() {
+        albums.albumsState.value = emptyList()
+        artists.artistsState.value = emptyList()
+        library.songsState.value = emptyList()
+        library.genresState.value = emptyList()
+    }
+
+    private companion object {
+        /** The tabs whose screen state the Library decides; Playlists and Downloads have their own. */
+        val BROWSE_TABS = listOf(LibraryTab.Albums, LibraryTab.Artists, LibraryTab.Songs, LibraryTab.Genres)
     }
 }

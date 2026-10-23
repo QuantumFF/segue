@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,9 +73,11 @@ import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsI
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
+import com.quantumff.segue.core.designsystem.component.PickerSheet
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.SegueSortChip
 import com.quantumff.segue.core.designsystem.component.SelectionTopBar
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
@@ -105,11 +108,12 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import java.text.NumberFormat
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
@@ -153,8 +157,6 @@ internal sealed interface LibraryEvent {
 
     data class OpenArtist(val id: String) : LibraryEvent
 
-    data class OpenPlaylist(val id: String) : LibraryEvent
-
     data class OpenGenre(val name: String) : LibraryEvent
 
     data class PlaySong(val song: Song) : LibraryEvent
@@ -185,6 +187,13 @@ internal sealed interface LibraryEvent {
     data class SelectionAction(val action: MediaAction) : LibraryEvent
 }
 
+/**
+ * The Playlists tab's body, from the playlist feature: rows, menus, dialogs and empty state.
+ * [creating] says whether its create dialog is open, so the Library top bar's "+" can open it;
+ * the body reports the dialog opening and closing through [onCreatingChange].
+ */
+typealias PlaylistsTabSlot = @Composable (creating: Boolean, onCreatingChange: (Boolean) -> Unit) -> Unit
+
 /** Library tab root (DESIGN.md §4.2). Stateful wrapper around [LibraryContent]. */
 @Suppress("LongParameterList")
 @Composable
@@ -192,12 +201,12 @@ fun LibraryScreen(
     onAccountClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onDownloadsClick: () -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
+    playlistsTab: PlaylistsTabSlot? = null,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -230,7 +239,6 @@ fun LibraryScreen(
                 LibraryEvent.OpenDownloads -> onDownloadsClick()
                 is LibraryEvent.OpenAlbum -> onAlbumClick(event.id)
                 is LibraryEvent.OpenArtist -> onArtistClick(event.id)
-                is LibraryEvent.OpenPlaylist -> onPlaylistClick(event.id)
                 is LibraryEvent.OpenGenre -> onGenreClick(event.name)
                 is LibraryEvent.PlaySong -> viewModel.playSong(event.song)
                 is LibraryEvent.AlbumMenu -> viewModel.onAlbumAction(event.album, event.action, menuHost)
@@ -247,6 +255,7 @@ fun LibraryScreen(
         },
         modifier = modifier,
         downloadsTab = downloadsTab,
+        playlistsTab = playlistsTab,
     )
 }
 
@@ -266,8 +275,10 @@ internal fun LibraryContent(
     onEvent: (LibraryEvent) -> Unit,
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
+    playlistsTab: PlaylistsTabSlot? = null,
 ) {
     var menu by remember { mutableStateOf<LibraryItem?>(null) }
+    var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf<LibraryPicker?>(null) }
     var selectionMenu by remember { mutableStateOf(false) }
     val selection = state.selection
@@ -288,7 +299,11 @@ internal fun LibraryContent(
             if (selection != null) {
                 LibrarySelectionBar(selection, onEvent, onMoreClick = { selectionMenu = true })
             } else {
-                LibraryTopBar(state, onEvent)
+                LibraryTopBar(
+                    state = state,
+                    onEvent = onEvent,
+                    onCreatePlaylistClick = playlistsTab?.let { { creatingPlaylist = true } },
+                )
             }
             LibraryTabRow(selected = state.tab, onSelect = { onEvent(LibraryEvent.SelectTab(it)) })
             SyncStatusBar(progress = state.syncProgress, onRetryClick = { onEvent(LibraryEvent.Refresh) })
@@ -297,6 +312,10 @@ internal fun LibraryContent(
             }
             if (state.tab == LibraryTab.Downloads && downloadsTab != null) {
                 Box(Modifier.weight(1f).fillMaxWidth()) { downloadsTab() }
+            } else if (state.tab == LibraryTab.Playlists && playlistsTab != null) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    playlistsTab(creatingPlaylist) { creatingPlaylist = it }
+                }
             } else {
                 PullToRefreshBox(
                     isRefreshing = state.isRefreshing,
@@ -362,11 +381,24 @@ private fun LibrarySelectionBar(selection: LibrarySelection, onEvent: (LibraryEv
     }
 }
 
+/** [onCreatePlaylistClick] is null when no Playlists tab body can create a playlist. */
 @Composable
-private fun LibraryTopBar(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit) {
+private fun LibraryTopBar(
+    state: LibraryUiState,
+    onEvent: (LibraryEvent) -> Unit,
+    onCreatePlaylistClick: (() -> Unit)?,
+) {
     // Sorting lives on each tab's sort chip, not here (DESIGN.md §4.2).
     TopLevelTopBar(title = stringResource(R.string.feature_library_title)) {
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        if (state.tab == LibraryTab.Playlists && onCreatePlaylistClick != null) {
+            SegueIconButton(
+                icon = SegueIcons.Plus,
+                contentDescription = stringResource(R.string.feature_library_create_playlist),
+                onClick = onCreatePlaylistClick,
+                tint = muted,
+            )
+        }
         if (state.tab == LibraryTab.Albums || state.tab == LibraryTab.Artists) {
             SegueIconButton(
                 icon = if (state.viewMode == LibraryViewMode.Grid) SegueIcons.ListView else SegueIcons.GridView,
@@ -481,7 +513,7 @@ private fun RowScope.AlbumFilterChips(
 @Composable
 private fun SortChip(state: LibraryUiState, onClick: () -> Unit) {
     val sort = tabSort(state) ?: return
-    DropdownChip(label = stringResource(sort.currentLabel), selected = false, onClick = onClick)
+    SegueSortChip(label = stringResource(sort.currentLabel), onClick = onClick)
 }
 
 /**
@@ -605,18 +637,30 @@ private fun TabContent(
         gridState = artistGridState,
         listState = artistListState,
     )
+    val isGrid = state.viewMode == LibraryViewMode.Grid
+    val sync = { onEvent(LibraryEvent.Refresh) }
+    val screen = state.screenState(state.tab)
     when (state.tab) {
         LibraryTab.Albums -> when {
-            state.albumCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
+            screen != ScreenState.Content -> TabWithoutContent(
+                screen = screen,
+                skeleton = if (isGrid) TabSkeleton.Cards else TabSkeleton.Rows,
+                contentPadding = if (isGrid) gridPadding else listPadding,
+                onRetry = sync,
+            ) {
+                when {
+                    state.isOffline -> OfflineEmpty(listPadding)
 
-            state.albumCount == 0 && state.albumFilter.isActive -> FilteredEmpty(
-                icon = SegueIcons.Disc3,
-                title = stringResource(R.string.feature_library_empty_filtered_title),
-                contentPadding = listPadding,
-                onClearClick = { onEvent(LibraryEvent.ClearFilters(LibraryTab.Albums)) },
-            )
+                    state.albumFilter.isActive -> FilteredEmpty(
+                        icon = SegueIcons.Disc3,
+                        title = stringResource(R.string.feature_library_empty_filtered_title),
+                        contentPadding = listPadding,
+                        onClearClick = { onEvent(LibraryEvent.ClearFilters(LibraryTab.Albums)) },
+                    )
 
-            state.albumCount == 0 -> LibraryEmpty(listPadding, onEvent)
+                    else -> TabEmpty(LibraryTab.Albums, listPadding, sync)
+                }
+            }
 
             state.viewMode == LibraryViewMode.Grid -> PinchResizableGrid(
                 size = state.albumGridSize,
@@ -685,16 +729,25 @@ private fun TabContent(
         }
 
         LibraryTab.Artists -> when {
-            state.isOffline && artists.itemCount == 0 -> OfflineEmpty(listPadding)
+            screen != ScreenState.Content -> TabWithoutContent(
+                screen = screen,
+                skeleton = if (isGrid) TabSkeleton.Cards else TabSkeleton.Rows,
+                contentPadding = if (isGrid) gridPadding else listPadding,
+                onRetry = sync,
+            ) {
+                when {
+                    state.isOffline -> OfflineEmpty(listPadding)
 
-            state.artistCount == 0 && state.artistFilter.isActive -> FilteredEmpty(
-                icon = SegueIcons.Artist,
-                title = stringResource(R.string.feature_library_empty_filtered_artists_title),
-                contentPadding = listPadding,
-                onClearClick = { onEvent(LibraryEvent.ClearFilters(LibraryTab.Artists)) },
-            )
+                    state.artistFilter.isActive -> FilteredEmpty(
+                        icon = SegueIcons.Artist,
+                        title = stringResource(R.string.feature_library_empty_filtered_artists_title),
+                        contentPadding = listPadding,
+                        onClearClick = { onEvent(LibraryEvent.ClearFilters(LibraryTab.Artists)) },
+                    )
 
-            state.artistCount == 0 -> LibraryEmpty(listPadding, onEvent)
+                    else -> TabEmpty(LibraryTab.Artists, listPadding, sync)
+                }
+            }
 
             state.viewMode == LibraryViewMode.Grid -> ArtistGrid(
                 artists,
@@ -705,22 +758,27 @@ private fun TabContent(
                 onEvent,
             )
 
-            else -> ArtistList(artists, listPadding, artistListState, onEvent, state.pinnedArtists, picker)
+            else -> ArtistList(artists, listPadding, artistListState, onEvent, onMenu, state.pinnedArtists, picker)
         }
 
         LibraryTab.Songs -> when {
-            state.songCount == 0 && state.isOffline -> OfflineEmpty(listPadding)
-            state.songCount == 0 -> LibraryEmpty(listPadding, onEvent)
+            screen != ScreenState.Content -> TabWithoutContent(screen, TabSkeleton.Rows, listPadding, sync) {
+                if (state.isOffline) OfflineEmpty(listPadding) else TabEmpty(LibraryTab.Songs, listPadding, sync)
+            }
+
             else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, state.currentSong, picker)
         }
 
-        LibraryTab.Playlists -> if (state.isOffline && state.playlists?.isEmpty() == true) {
-            OfflineEmpty(listPadding)
-        } else {
-            PlaylistList(state.playlists, listPadding, onEvent, state.pinnedPlaylists)
-        }
+        // The app's playlistsTab slot shows this tab.
+        LibraryTab.Playlists -> Unit
 
-        LibraryTab.Genres -> GenreGrid(state, gridPadding, listPadding, onEvent)
+        LibraryTab.Genres -> when {
+            screen != ScreenState.Content -> TabWithoutContent(screen, TabSkeleton.Tiles, gridPadding, sync) {
+                TabEmpty(LibraryTab.Genres, listPadding, sync)
+            }
+
+            else -> GenreGrid(state.genres, gridPadding, onEvent)
+        }
 
         LibraryTab.Downloads -> ScrollableEmpty(listPadding) {
             EmptyState(
@@ -864,6 +922,7 @@ private fun ArtistList(
     contentPadding: PaddingValues,
     listState: LazyListState,
     onEvent: (LibraryEvent) -> Unit,
+    onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, DownloadStatus>,
     picker: Picker,
 ) {
@@ -895,6 +954,7 @@ private fun ArtistList(
                 coverArtId = artist?.coverArtId,
                 onClick = { target?.let { onEvent(tapEvent(selected, it, LibraryEvent.OpenArtist(it.artist.id))) } },
                 onLongClick = target?.let { { picker.longPress(index, it) } },
+                onMoreClick = target?.takeIf { selected.isEmpty() }?.let { { onMenu(it) } },
                 artShape = SegueShapes.full,
                 placeholderIcon = SegueIcons.Artist,
                 download = artist?.let { downloads[it.id]?.toBadgeState() },
@@ -966,56 +1026,7 @@ private fun SongList(
 }
 
 @Composable
-private fun PlaylistList(
-    playlists: kotlinx.collections.immutable.ImmutableList<Playlist>?,
-    contentPadding: PaddingValues,
-    onEvent: (LibraryEvent) -> Unit,
-    downloads: ImmutableMap<String, DownloadStatus>,
-) {
-    when {
-        playlists == null -> Unit
-
-        playlists.isEmpty() -> ScrollableEmpty(contentPadding) {
-            EmptyState(
-                icon = SegueIcons.Playlists,
-                title = stringResource(R.string.feature_library_empty_playlists_title),
-                message = stringResource(R.string.feature_library_empty_playlists_message),
-            )
-        }
-
-        else -> LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
-            items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
-                MediaRow(
-                    title = playlist.name,
-                    subtitle = playlistSubtitle(playlist),
-                    coverArtId = playlist.coverArtId,
-                    onClick = { onEvent(LibraryEvent.OpenPlaylist(playlist.id)) },
-                    placeholderIcon = SegueIcons.Playlists,
-                    download = downloads[playlist.id]?.toBadgeState(),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun GenreGrid(
-    state: LibraryUiState,
-    gridPadding: PaddingValues,
-    listPadding: PaddingValues,
-    onEvent: (LibraryEvent) -> Unit,
-) {
-    if (!state.isLoaded) return
-    if (state.genres.isEmpty()) {
-        ScrollableEmpty(listPadding) {
-            EmptyState(
-                icon = SegueIcons.Music,
-                title = stringResource(R.string.feature_library_empty_genres_title),
-                message = stringResource(R.string.feature_library_empty_message),
-            )
-        }
-        return
-    }
+private fun GenreGrid(genres: ImmutableList<Genre>, gridPadding: PaddingValues, onEvent: (LibraryEvent) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(GENRE_COLUMNS),
         contentPadding = gridPadding,
@@ -1023,7 +1034,7 @@ private fun GenreGrid(
         verticalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(state.genres, key = { it.name }, contentType = { "genre" }) { genre ->
+        items(genres, key = { it.name }, contentType = { "genre" }) { genre ->
             GenreTile(
                 genre = genre,
                 onClick = { onEvent(LibraryEvent.OpenGenre(genre.name)) },
@@ -1033,7 +1044,7 @@ private fun GenreGrid(
     }
 }
 
-private const val GENRE_COLUMNS = 2
+internal const val GENRE_COLUMNS = 2
 
 /** Offline with nothing downloaded in this tab. */
 @Composable
@@ -1061,22 +1072,9 @@ private fun FilteredEmpty(icon: ImageVector, title: String, contentPadding: Padd
     }
 }
 
-@Composable
-private fun LibraryEmpty(contentPadding: PaddingValues, onEvent: (LibraryEvent) -> Unit) {
-    ScrollableEmpty(contentPadding) {
-        EmptyState(
-            icon = SegueIcons.Library,
-            title = stringResource(R.string.feature_library_empty_title),
-            message = stringResource(R.string.feature_library_empty_message),
-            actionLabel = stringResource(R.string.feature_library_sync_now),
-            onActionClick = { onEvent(LibraryEvent.Refresh) },
-        )
-    }
-}
-
 /** An empty state inside a scrollable, so pull-to-refresh still works on it. */
 @Composable
-private fun ScrollableEmpty(contentPadding: PaddingValues, content: @Composable () -> Unit) {
+internal fun ScrollableEmpty(contentPadding: PaddingValues, content: @Composable () -> Unit) {
     LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         emptyItem(content)
     }
@@ -1231,49 +1229,28 @@ private fun LibraryPickerSheet(
 ) {
     val any = stringResource(R.string.feature_library_filter_any)
     when (picker) {
-        LibraryPicker.Sort -> {
-            val sort = tabSort(state) ?: return
-            val labels = sort.optionLabels.map { stringResource(it) }
-            PickerSheet(
-                title = stringResource(R.string.feature_library_sort),
-                options = sort.optionNames.mapIndexed { i, name -> PickerOption(name, labels[i]) }.toImmutableList(),
-                selectedKey = sort.currentName,
-                onSelect = { key -> onEvent(sort.select(key)) },
-                onDismissRequest = onDismissRequest,
-            )
-        }
+        LibraryPicker.Sort -> tabSort(state)?.SortPickerSheet(onEvent, onDismissRequest)
 
+        // A null option is "Any": no filter.
         LibraryPicker.Year -> PickerSheet(
             title = stringResource(R.string.feature_library_filter_year),
-            options = (
-                listOf(PickerOption(ANY_KEY, any)) +
-                    state.years.map { PickerOption(it.toString(), it.toString()) }
-                )
-                .toImmutableList(),
-            selectedKey = state.albumFilter.year?.toString() ?: ANY_KEY,
-            onSelect = { key -> onEvent(LibraryEvent.SetYearFilter(key.toIntOrNull())) },
+            options = (listOf(null) + state.years).toImmutableList(),
+            selected = state.albumFilter.year,
+            label = { it?.toString() ?: any },
+            onSelect = { onEvent(LibraryEvent.SetYearFilter(it)) },
             onDismissRequest = onDismissRequest,
         )
 
         LibraryPicker.Genre -> PickerSheet(
             title = stringResource(R.string.feature_library_filter_genre),
-            options = (
-                listOf(PickerOption(ANY_KEY, any)) +
-                    state.genres.map { PickerOption(GENRE_PREFIX + it.name, it.name) }
-                )
-                .toImmutableList(),
-            selectedKey = state.albumFilter.genre?.let { GENRE_PREFIX + it } ?: ANY_KEY,
-            onSelect = { key ->
-                onEvent(LibraryEvent.SetGenreFilter(key.takeIf { it != ANY_KEY }?.removePrefix(GENRE_PREFIX)))
-            },
+            options = (listOf(null) + state.genres.map { it.name }).toImmutableList(),
+            selected = state.albumFilter.genre,
+            label = { it ?: any },
+            onSelect = { onEvent(LibraryEvent.SetGenreFilter(it)) },
             onDismissRequest = onDismissRequest,
         )
     }
 }
-
-/** Picker key for "no filter"; genre keys are prefixed so a genre can never collide with it. */
-private const val ANY_KEY = "any"
-private const val GENRE_PREFIX = "genre:"
 
 internal val LibraryUiState.isLoaded: Boolean get() = albumCount != null
 
@@ -1288,30 +1265,37 @@ private val LibraryTab.label: Int
     }
 
 /**
- * A tab's sort chip: the current sort, the sorts its picker offers and the event that picks one by
- * name. A tab that gains a sort adds a branch to [tabSort].
+ * A tab's sort chip: the [current] sort, the sorts its picker offers and the event that picks one.
+ * A tab that gains a sort adds a branch to [tabSort].
  */
 private class TabSort<S : Enum<S>>(
-    current: S,
-    private val options: List<S>,
-    label: (S) -> Int,
+    private val current: S,
+    private val options: ImmutableList<S>,
+    private val label: (S) -> Int,
     private val event: (S) -> LibraryEvent,
 ) {
-    val currentName: String = current.name
-    val currentLabel: Int = label(current)
-    val optionNames: List<String> = options.map { it.name }
-    val optionLabels: List<Int> = options.map(label)
+    val currentLabel: Int get() = label(current)
 
-    fun select(name: String): LibraryEvent = event(options.first { it.name == name })
+    @Composable
+    fun SortPickerSheet(onEvent: (LibraryEvent) -> Unit, onDismissRequest: () -> Unit) {
+        PickerSheet(
+            title = stringResource(R.string.feature_library_sort),
+            options = options,
+            selected = current,
+            label = { stringResource(label(it)) },
+            onSelect = { onEvent(event(it)) },
+            onDismissRequest = onDismissRequest,
+        )
+    }
 }
 
 /** The sort of the tab on show; null for a tab without one. */
 private fun tabSort(state: LibraryUiState): TabSort<*>? = when (state.tab) {
     LibraryTab.Albums ->
-        TabSort(state.albumSort, AlbumSortOrder.entries, { it.label }, LibraryEvent::SetAlbumSort)
+        TabSort(state.albumSort, AlbumSortOrder.entries.toImmutableList(), { it.label }, LibraryEvent::SetAlbumSort)
 
     LibraryTab.Artists ->
-        TabSort(state.artistSort, ArtistSortOrder.entries, { it.label }, LibraryEvent::SetArtistSort)
+        TabSort(state.artistSort, ArtistSortOrder.entries.toImmutableList(), { it.label }, LibraryEvent::SetArtistSort)
 
     LibraryTab.Songs, LibraryTab.Playlists, LibraryTab.Genres, LibraryTab.Downloads -> null
 }
