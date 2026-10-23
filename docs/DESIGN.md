@@ -477,6 +477,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Error:**
   - Room has data and the server can't be reached: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
   - Room has data and the server answered with an error (signed out, refused, server error): show it without the chip. It is not offline.
+  - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads" (the Library shows it under the tab row). A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
   - Image load failure: keep the placeholder. Never show a broken-image icon.
 

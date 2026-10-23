@@ -81,6 +81,7 @@ import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsI
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PickerSheet
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -314,6 +315,11 @@ internal fun LibraryContent(
                 )
             }
             LibraryTabRow(selected = state.tab, onSelect = { onEvent(LibraryEvent.SelectTab(it)) })
+            // Says why the lists are shorter offline (DESIGN.md §5.8).
+            OfflineStatusChip(
+                status = state.offlineStatus,
+                modifier = Modifier.padding(start = SegueSpacing.lg, top = SegueSpacing.sm, end = SegueSpacing.lg),
+            )
             SyncStatusBar(progress = state.syncProgress, onRetryClick = { onEvent(LibraryEvent.Refresh) })
             if (state.tab != LibraryTab.Downloads) {
                 FilterRow(state, onEvent, onPickerClick = { picker = it })
@@ -557,7 +563,7 @@ private fun SortChip(state: LibraryUiState, onClick: () -> Unit) {
 
 /**
  * The Favorites and Downloaded chips of [tab], shared by every tab that has them (DESIGN.md §4.2).
- * Each cycles through on, inverted and off; offline holds Downloaded on, since only downloaded
+ * Each cycles through on, inverted and off; offline locks Downloaded on, since only downloaded
  * music plays.
  */
 @Composable
@@ -573,7 +579,8 @@ private fun FavoritesDownloadedChips(state: LibraryUiState, tab: LibraryTab, onE
         label = stringResource(R.string.feature_library_filter_downloaded),
         selected = chips.shownDownloaded != null,
         excluded = chips.shownDownloaded == false,
-        onClick = { if (!chips.isOffline) onEvent(LibraryEvent.CycleDownloaded(tab)) },
+        lockedOffline = chips.isOffline,
+        onClick = { onEvent(LibraryEvent.CycleDownloaded(tab)) },
     )
 }
 

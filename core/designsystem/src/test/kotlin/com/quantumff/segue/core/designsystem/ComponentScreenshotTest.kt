@@ -24,6 +24,7 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HeroHeader
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PickerSheetContent
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.PlayButton
@@ -39,6 +40,7 @@ import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.OfflineStatus
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -181,6 +183,21 @@ class ComponentScreenshotTest {
                     label = { it },
                     onSelect = {},
                 )
+            }
+        }
+    }
+
+    /** Offline: the status chip, and the Downloaded chip locked on beside an ordinary one. */
+    @Test
+    fun offlineChips() = capture("offline_chips") {
+        Column(
+            Modifier.padding(SegueSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
+        ) {
+            OfflineStatusChip(status = OfflineStatus.ShowingDownloads)
+            Row(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
+                SegueFilterChip(label = "Favorites", selected = true, onClick = {})
+                SegueFilterChip(label = "Downloaded", selected = false, lockedOffline = true, onClick = {})
             }
         }
     }
