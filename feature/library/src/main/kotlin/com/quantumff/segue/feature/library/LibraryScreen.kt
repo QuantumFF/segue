@@ -700,7 +700,7 @@ private fun TabContent(
                 onEvent,
             )
 
-            else -> ArtistList(artists, listPadding, onEvent, state.pinnedArtists, picker)
+            else -> ArtistList(artists, listPadding, onEvent, onMenu, state.pinnedArtists, picker)
         }
 
         LibraryTab.Songs -> when {
@@ -867,6 +867,7 @@ private fun ArtistList(
     artists: LazyPagingItems<Artist>,
     contentPadding: PaddingValues,
     onEvent: (LibraryEvent) -> Unit,
+    onMenu: (LibraryItem) -> Unit,
     downloads: ImmutableMap<String, DownloadStatus>,
     picker: Picker,
 ) {
@@ -899,6 +900,7 @@ private fun ArtistList(
                 coverArtId = artist?.coverArtId,
                 onClick = { target?.let { onEvent(tapEvent(selected, it, LibraryEvent.OpenArtist(it.artist.id))) } },
                 onLongClick = target?.let { { picker.longPress(index, it) } },
+                onMoreClick = target?.takeIf { selected.isEmpty() }?.let { { onMenu(it) } },
                 artShape = SegueShapes.full,
                 placeholderIcon = SegueIcons.Artist,
                 download = artist?.let { downloads[it.id]?.toBadgeState() },
