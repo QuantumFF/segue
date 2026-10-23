@@ -34,6 +34,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
@@ -225,6 +226,10 @@ data class LibraryUiState(
             failure = ScreenState.Cause.Server.takeIf { followsSync && syncProgress is SyncProgress.Failed },
         )
     }
+
+    /** Offline, every tab shows downloaded music only, and the status chip says so. */
+    val offlineStatus: OfflineStatus
+        get() = if (isOffline) OfflineStatus.ShowingDownloads else OfflineStatus.Online
 
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true

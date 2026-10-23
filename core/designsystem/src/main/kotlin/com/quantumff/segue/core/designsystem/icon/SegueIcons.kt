@@ -86,6 +86,7 @@ object SegueIcons {
     val DownloadDone by lazy { lucide("circle-check", LucidePaths.CircleCheck) }
     val OtherDevice by lazy { lucide("monitor-smartphone", LucidePaths.MonitorSmartphone) }
     val Offline by lazy { lucide("cloud-off", LucidePaths.CloudOff) }
+    val Lock by lazy { lucide("lock", LucidePaths.Lock) }
     val Error by lazy { lucide("circle-alert", LucidePaths.CircleAlert) }
 }
 

@@ -18,6 +18,7 @@ import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
@@ -180,6 +181,19 @@ class LibraryViewModelTest {
             assertThat(state.isOffline).isTrue()
             assertThat(state.chipFilters(LibraryTab.Albums)?.shownDownloaded).isTrue()
             assertThat(state.albumCount).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun offlineStatusShowsDownloadsOnlyWhileOffline() = runTest {
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.Online)
+
+            offlineMode.isOffline.value = true
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.ShowingDownloads)
+
+            offlineMode.isOffline.value = false
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.Online)
         }
     }
 

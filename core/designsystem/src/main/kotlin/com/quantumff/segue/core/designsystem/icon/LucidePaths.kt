@@ -211,6 +211,12 @@ internal object LucidePaths {
         "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0z",
     )
 
+    /** lucide:lock */
+    val Lock: List<String> = listOf(
+        "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-7a2 2 0 0 1 2 -2z",
+        "M7 11V7a5 5 0 0 1 10 0v4",
+    )
+
     /** lucide:mic-vocal */
     val MicVocal: List<String> = listOf(
         "m11 7.601-5.994 8.19a1 1 0 0 0 .1 1.298l.817.818a1 1 0 0 0 1.314.087L15.09 12",
