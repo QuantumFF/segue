@@ -35,6 +35,7 @@ import com.quantumff.segue.feature.library.navigation.libraryScreen
 import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.loginScreen
 import com.quantumff.segue.feature.login.navigation.navigateToLogin
+import com.quantumff.segue.feature.playlist.PlaylistsTab
 import com.quantumff.segue.feature.playlist.navigation.PlaylistsRoute
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import com.quantumff.segue.feature.playlist.navigation.playlistScreen
@@ -107,11 +108,17 @@ fun SegueNavHost(
                 onAccountClick = onAccountClick,
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
-                onPlaylistClick = onPlaylistClick,
                 onGenreClick = onGenreClick,
                 onDownloadsClick = onDownloadsClick,
                 onAddToPlaylist = onAddToPlaylist,
                 downloadsTab = { DownloadsTab(onOpen = onPinnedClick) },
+                playlistsTab = { creating, onCreatingChange ->
+                    PlaylistsTab(
+                        onPlaylistClick = onPlaylistClick,
+                        creating = creating,
+                        onCreatingChange = onCreatingChange,
+                    )
+                },
             )
         }
         navigation<PlaylistsGraph>(startDestination = PlaylistsRoute) {

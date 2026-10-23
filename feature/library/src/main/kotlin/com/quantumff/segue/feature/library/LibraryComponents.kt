@@ -49,7 +49,6 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.Genre
-import com.quantumff.segue.core.model.Playlist
 import java.text.NumberFormat
 import kotlin.math.abs
 import kotlinx.collections.immutable.ImmutableMap
@@ -237,26 +236,6 @@ private val LIGHT_LIGHTNESS = 0.82f..0.90f
 private const val SATURATION_SHIFT = 9
 private const val LIGHTNESS_SHIFT = 17
 private const val BYTE_MASK = 0xFF
-
-/** "12 tracks · 48 min" or "40 tracks · 2 h 4 m". */
-@Composable
-internal fun playlistSubtitle(playlist: Playlist): String {
-    val tracks = pluralStringResource(R.plurals.feature_library_track_count, playlist.songCount, playlist.songCount)
-    val minutesTotal = playlist.durationSeconds / SECONDS_PER_MINUTE
-    val duration = if (minutesTotal >= MINUTES_PER_HOUR) {
-        stringResource(
-            R.string.feature_library_duration_hours,
-            minutesTotal / MINUTES_PER_HOUR,
-            minutesTotal % MINUTES_PER_HOUR,
-        )
-    } else {
-        stringResource(R.string.feature_library_duration_minutes, minutesTotal)
-    }
-    return stringResource(R.string.feature_library_separator, tracks, duration)
-}
-
-private const val SECONDS_PER_MINUTE = 60
-private const val MINUTES_PER_HOUR = 60
 
 @PreviewSegueThemes
 @Composable

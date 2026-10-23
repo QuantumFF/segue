@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,7 +106,6 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.GridSize
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
@@ -149,8 +149,6 @@ internal sealed interface LibraryEvent {
 
     data class OpenArtist(val id: String) : LibraryEvent
 
-    data class OpenPlaylist(val id: String) : LibraryEvent
-
     data class OpenGenre(val name: String) : LibraryEvent
 
     data class PlaySong(val song: Song) : LibraryEvent
@@ -180,6 +178,13 @@ internal sealed interface LibraryEvent {
     data class SelectionAction(val action: MediaAction) : LibraryEvent
 }
 
+/**
+ * The Playlists tab's body, from the playlist feature: rows, menus, dialogs and empty state.
+ * [creating] says whether its create dialog is open, so the Library top bar's "+" can open it;
+ * the body reports the dialog opening and closing through [onCreatingChange].
+ */
+typealias PlaylistsTabSlot = @Composable (creating: Boolean, onCreatingChange: (Boolean) -> Unit) -> Unit
+
 /** Library tab root (DESIGN.md §4.2). Stateful wrapper around [LibraryContent]. */
 @Suppress("LongParameterList")
 @Composable
@@ -187,12 +192,12 @@ fun LibraryScreen(
     onAccountClick: () -> Unit,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onDownloadsClick: () -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
+    playlistsTab: PlaylistsTabSlot? = null,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -224,7 +229,6 @@ fun LibraryScreen(
                 LibraryEvent.OpenDownloads -> onDownloadsClick()
                 is LibraryEvent.OpenAlbum -> onAlbumClick(event.id)
                 is LibraryEvent.OpenArtist -> onArtistClick(event.id)
-                is LibraryEvent.OpenPlaylist -> onPlaylistClick(event.id)
                 is LibraryEvent.OpenGenre -> onGenreClick(event.name)
                 is LibraryEvent.PlaySong -> viewModel.playSong(event.song)
                 is LibraryEvent.AlbumMenu -> viewModel.onAlbumAction(event.album, event.action, menuHost)
@@ -241,6 +245,7 @@ fun LibraryScreen(
         },
         modifier = modifier,
         downloadsTab = downloadsTab,
+        playlistsTab = playlistsTab,
     )
 }
 
@@ -260,8 +265,10 @@ internal fun LibraryContent(
     onEvent: (LibraryEvent) -> Unit,
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
+    playlistsTab: PlaylistsTabSlot? = null,
 ) {
     var menu by remember { mutableStateOf<LibraryItem?>(null) }
+    var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf<LibraryPicker?>(null) }
     var selectionMenu by remember { mutableStateOf(false) }
     val selection = state.selection
@@ -282,7 +289,12 @@ internal fun LibraryContent(
             if (selection != null) {
                 LibrarySelectionBar(selection, onEvent, onMoreClick = { selectionMenu = true })
             } else {
-                LibraryTopBar(state, onEvent, onSortClick = { picker = LibraryPicker.Sort })
+                LibraryTopBar(
+                    state = state,
+                    onEvent = onEvent,
+                    onSortClick = { picker = LibraryPicker.Sort },
+                    onCreatePlaylistClick = playlistsTab?.let { { creatingPlaylist = true } },
+                )
             }
             LibraryTabRow(selected = state.tab, onSelect = { onEvent(LibraryEvent.SelectTab(it)) })
             SyncStatusBar(progress = state.syncProgress, onRetryClick = { onEvent(LibraryEvent.Refresh) })
@@ -291,6 +303,10 @@ internal fun LibraryContent(
             }
             if (state.tab == LibraryTab.Downloads && downloadsTab != null) {
                 Box(Modifier.weight(1f).fillMaxWidth()) { downloadsTab() }
+            } else if (state.tab == LibraryTab.Playlists && playlistsTab != null) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    playlistsTab(creatingPlaylist) { creatingPlaylist = it }
+                }
             } else {
                 PullToRefreshBox(
                     isRefreshing = state.isRefreshing,
@@ -356,10 +372,24 @@ private fun LibrarySelectionBar(selection: LibrarySelection, onEvent: (LibraryEv
     }
 }
 
+/** [onCreatePlaylistClick] is null when no Playlists tab body can create a playlist. */
 @Composable
-private fun LibraryTopBar(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, onSortClick: () -> Unit) {
+private fun LibraryTopBar(
+    state: LibraryUiState,
+    onEvent: (LibraryEvent) -> Unit,
+    onSortClick: () -> Unit,
+    onCreatePlaylistClick: (() -> Unit)?,
+) {
     TopLevelTopBar(title = stringResource(R.string.feature_library_title)) {
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        if (state.tab == LibraryTab.Playlists && onCreatePlaylistClick != null) {
+            SegueIconButton(
+                icon = SegueIcons.Plus,
+                contentDescription = stringResource(R.string.feature_library_create_playlist),
+                onClick = onCreatePlaylistClick,
+                tint = muted,
+            )
+        }
         if (state.tab == LibraryTab.Albums) {
             SegueIconButton(
                 icon = SegueIcons.Sort,
@@ -683,11 +713,8 @@ private fun TabContent(
             else -> SongList(songs, listPadding, onEvent, onMenu, state.songDownloads, state.currentSong, picker)
         }
 
-        LibraryTab.Playlists -> if (state.isOffline && state.playlists?.isEmpty() == true) {
-            OfflineEmpty(listPadding)
-        } else {
-            PlaylistList(state.playlists, listPadding, onEvent, state.pinnedPlaylists)
-        }
+        // The app's playlistsTab slot shows this tab.
+        LibraryTab.Playlists -> Unit
 
         LibraryTab.Genres -> GenreGrid(state, gridPadding, listPadding, onEvent)
 
@@ -930,39 +957,6 @@ private fun SongList(
                         onLongClickLabel = stringResource(R.string.feature_library_select),
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaylistList(
-    playlists: kotlinx.collections.immutable.ImmutableList<Playlist>?,
-    contentPadding: PaddingValues,
-    onEvent: (LibraryEvent) -> Unit,
-    downloads: ImmutableMap<String, DownloadStatus>,
-) {
-    when {
-        playlists == null -> Unit
-
-        playlists.isEmpty() -> ScrollableEmpty(contentPadding) {
-            EmptyState(
-                icon = SegueIcons.Playlists,
-                title = stringResource(R.string.feature_library_empty_playlists_title),
-                message = stringResource(R.string.feature_library_empty_playlists_message),
-            )
-        }
-
-        else -> LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
-            items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
-                MediaRow(
-                    title = playlist.name,
-                    subtitle = playlistSubtitle(playlist),
-                    coverArtId = playlist.coverArtId,
-                    onClick = { onEvent(LibraryEvent.OpenPlaylist(playlist.id)) },
-                    placeholderIcon = SegueIcons.Playlists,
-                    download = downloads[playlist.id]?.toBadgeState(),
-                )
             }
         }
     }
