@@ -194,6 +194,11 @@ class ArtistViewModel @Inject constructor(
         viewModelScope.launch { mediaActions.song(song, action, host)?.let { message.value = it } }
     }
 
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
+    }
+
     fun toggleArtistStar() {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
         setStarred(MediaKind.Artist, artist.id, !artist.isStarred)

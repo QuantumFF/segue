@@ -59,7 +59,7 @@ class AlbumPlaysTest {
     fun `play albums replaces the queue with every album, in view order, each whole, and starts playing`() = runTest {
         player.setMediaItems(listOf(song("x", null).toMediaItem()))
 
-        assertThat(plays().start(request(AlbumOrder.InOrder))).isTrue()
+        assertThat(plays().start(request(AlbumOrder.InOrder))).isEqualTo(600)
 
         assertThat(exo.playWhenReady).isTrue()
         assertThat(exo.mediaItemCount).isEqualTo(600)
@@ -157,7 +157,7 @@ class AlbumPlaysTest {
         player.setMediaItems(listOf(song("x1", "x").toMediaItem()))
         albums.ids = emptyList()
 
-        assertThat(plays().start(request(AlbumOrder.InOrder))).isFalse()
+        assertThat(plays().start(request(AlbumOrder.InOrder))).isEqualTo(0)
         assertThat(queueIds()).containsExactly("x1")
     }
 

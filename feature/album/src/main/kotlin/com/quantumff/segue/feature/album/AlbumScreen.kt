@@ -77,6 +77,7 @@ import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -116,6 +117,7 @@ fun AlbumDetailRoute(
         onRemoveDownload = viewModel::removeDownload,
         onAlbumAction = { viewModel.onAlbumAction(it, menuHost) },
         onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
+        onSongSwipe = viewModel::onSongSwipe,
     )
 }
 
@@ -140,6 +142,7 @@ fun AlbumScreen(
     onRemoveDownload: () -> Unit = {},
     onAlbumAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
+    onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -179,6 +182,7 @@ fun AlbumScreen(
                 onRemoveDownload = onRemoveDownload,
                 onAlbumAction = onAlbumAction,
                 onSongAction = onSongAction,
+                onSongSwipe = onSongSwipe,
             )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -220,6 +224,7 @@ private fun AlbumContent(
     onRemoveDownload: () -> Unit,
     onAlbumAction: (MediaAction) -> Unit,
     onSongAction: (Song, MediaAction) -> Unit,
+    onSongSwipe: (Song, QueuePlacement) -> Unit,
 ) {
     val album = state.album
     var albumMenuOpen by rememberSaveable { mutableStateOf(false) }
@@ -276,7 +281,7 @@ private fun AlbumContent(
                 onRetry = onRetry,
             )
         }
-        trackItems(state, onPlay = { onPlay(it, false) }, onMoreClick = { menuSongId = it.id }, onSongAction)
+        trackItems(state, onPlay = { onPlay(it, false) }, onMoreClick = { menuSongId = it.id }, onSongSwipe)
         item(key = "footer", contentType = "footer") {
             AlbumFooter(year = album.year, trackCount = state.trackCount, durationSeconds = state.durationSeconds)
         }
@@ -341,7 +346,7 @@ private fun LazyListScope.trackItems(
     state: AlbumUiState.Success,
     onPlay: (Int) -> Unit,
     onMoreClick: (Song) -> Unit,
-    onSongAction: (Song, MediaAction) -> Unit,
+    onSongSwipe: (Song, QueuePlacement) -> Unit,
 ) {
     state.discs.forEach { disc ->
         if (state.showDiscHeaders) {
@@ -352,8 +357,8 @@ private fun LazyListScope.trackItems(
         items(items = disc.tracks, key = { "track-${it.index}-${it.song.id}" }, contentType = { "track" }) { entry ->
             val row = remember(entry.song, state.availability, state.currentSong) { state.trackRow(entry.song) }
             TrackSwipeBox(
-                onPlayNext = { onSongAction(entry.song, MediaAction.PlayNext) },
-                onAddToQueue = { onSongAction(entry.song, MediaAction.AddToQueue) },
+                onPlayNext = { onSongSwipe(entry.song, QueuePlacement.Next) },
+                onAddToQueue = { onSongSwipe(entry.song, QueuePlacement.End) },
                 enabled = row.isAvailable,
             ) {
                 TrackRow(

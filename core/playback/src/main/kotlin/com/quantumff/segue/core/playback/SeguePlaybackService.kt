@@ -315,8 +315,8 @@ class SeguePlaybackService : MediaLibraryService() {
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                     val source = SegueSessionCommands.queueSource(args)
                     return scope.launchFuture {
-                        val started = albumPlays.start(request, source)
-                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(started))
+                        val queued = albumPlays.start(request, source)
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued))
                     }
                 }
 
@@ -331,7 +331,7 @@ class SeguePlaybackService : MediaLibraryService() {
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                     return scope.launchFuture {
                         val queued = with(songs) { queueEditor.queue(items, placement, startIndex, shuffle, source) }
-                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(queued))
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued))
                     }
                 }
 

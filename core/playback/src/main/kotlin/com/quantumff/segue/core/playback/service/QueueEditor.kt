@@ -36,7 +36,8 @@ class QueueEditor(
 ) {
     /**
      * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]); replacing the queue
-     * makes [source] its source. False if none of them can play; the queue is then left alone.
+     * makes [source] its source. Returns how many were queued: offline only the downloaded ones, and
+     * 0 if none of them can play, when the queue is left alone.
      */
     suspend fun queue(
         items: List<MediaItem>,
@@ -44,11 +45,11 @@ class QueueEditor(
         startIndex: Int = 0,
         shuffle: Boolean = false,
         source: QueueSource = QueueSource.Unknown,
-    ): Boolean {
+    ): Int {
         val playable = playable(items, startIndex, shuffle = shuffle)
-        if (playable == null || playable.mediaItems.isEmpty()) return false
+        if (playable == null || playable.mediaItems.isEmpty()) return 0
         place(playable.mediaItems, placement, playable.startIndex, source)
-        return true
+        return playable.mediaItems.size
     }
 
     /**

@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
@@ -221,6 +222,21 @@ class SearchViewModelTest {
 
         // The screen plays uiState.songs from the tapped index.
         assertThat(viewModel.uiState.value.songs.map { it.id }).containsExactly("s1", "s2").inOrder()
+    }
+
+    @Test
+    fun swipingATrackQueuesItWithoutAConfirmation() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        val song = TestData.song("s1")
+
+        viewModel.onSongSwipe(song, QueuePlacement.Next)
+        viewModel.onSongSwipe(song, QueuePlacement.End)
+        advanceUntilIdle()
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.Next, false, confirm = false),
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.End, false, confirm = false),
+        ).inOrder()
     }
 
     @Test

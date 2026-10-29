@@ -227,6 +227,22 @@ class MediaActionHandlerTest {
     }
 
     @Test
+    fun `a swipe queues the song like its menu, without confirming`() = runTest {
+        val song = TestData.song("s1")
+
+        handler.song(song, MediaAction.PlayNext, host)
+        handler.swipeSong(song, QueuePlacement.Next)
+        handler.swipeSong(song, QueuePlacement.End)
+
+        val target = PlayTarget.Songs(listOf(song))
+        assertThat(intents.plays).containsExactly(
+            RecordingPlayIntents.Play(target, QueuePlacement.Next, false, confirm = true),
+            RecordingPlayIntents.Play(target, QueuePlacement.Next, false, confirm = false),
+            RecordingPlayIntents.Play(target, QueuePlacement.End, false, confirm = false),
+        ).inOrder()
+    }
+
+    @Test
     fun `album play actions queue the album, shuffle albums queues its artist's`() = runTest {
         val album = TestData.album("al", artistId = "ar")
 

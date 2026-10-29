@@ -311,6 +311,20 @@ class AlbumViewModelTest {
     }
 
     @Test
+    fun swipingATrackQueuesItWithoutAConfirmation() = runTest {
+        val viewModel = viewModel()
+        val song = TestData.song("s1")
+
+        viewModel.onSongSwipe(song, QueuePlacement.Next)
+        viewModel.onSongSwipe(song, QueuePlacement.End)
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.Next, false, confirm = false),
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.End, false, confirm = false),
+        ).inOrder()
+    }
+
+    @Test
     fun menusGoThroughTheMediaActionHandler() = runTest {
         seed()
         val viewModel = viewModel()

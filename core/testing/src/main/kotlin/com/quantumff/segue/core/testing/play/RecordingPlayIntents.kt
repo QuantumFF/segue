@@ -16,6 +16,8 @@ class RecordingPlayIntents : PlayIntents {
         val placement: QueuePlacement,
         val shuffle: Boolean,
         val source: QueueSource = QueueSource.Unknown,
+        /** False for an intent that confirms nothing it queues, such as a swipe's. */
+        val confirm: Boolean = true,
     )
 
     data class AlbumPlay(val request: AlbumPlayRequest, val source: QueueSource)
@@ -31,8 +33,14 @@ class RecordingPlayIntents : PlayIntents {
     /** Emit here to stand in for the real module's feedback. */
     override val messages = MutableSharedFlow<PlayIntentMessage>(extraBufferCapacity = 8)
 
-    override suspend fun play(target: PlayTarget, placement: QueuePlacement, shuffle: Boolean, source: QueueSource) {
-        intents += Play(target, placement, shuffle, source)
+    override suspend fun play(
+        target: PlayTarget,
+        placement: QueuePlacement,
+        shuffle: Boolean,
+        source: QueueSource,
+        confirm: Boolean,
+    ) {
+        intents += Play(target, placement, shuffle, source, confirm)
     }
 
     override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource) {

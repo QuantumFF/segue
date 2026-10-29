@@ -18,6 +18,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.currentSong
@@ -184,6 +185,11 @@ class SearchViewModel @Inject constructor(
             if (failure == MediaActionFailure.FavoriteFailed) starOverrides.update { it + (song.id to song.isStarred) }
             message.value = failure
         }
+    }
+
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
     }
 
     fun onMessageDismiss() {
