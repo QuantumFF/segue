@@ -32,10 +32,6 @@ class NowPlayingActions(
     val onAddToQueue: (List<Song>) -> Unit,
     val onSaveQueueAsPlaylist: (String) -> Unit,
     val onClearQueue: () -> Unit,
-    /** The playback error's Skip. */
-    val onSkipPastError: () -> Unit,
-    /** The playback error's Retry (network errors only). */
-    val onRetryPlayback: () -> Unit,
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */
@@ -63,8 +59,6 @@ class NowPlayingActions(
             onAddToQueue = {},
             onSaveQueueAsPlaylist = {},
             onClearQueue = {},
-            onSkipPastError = {},
-            onRetryPlayback = {},
         )
     }
 }

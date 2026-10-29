@@ -320,7 +320,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
 - **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
-- **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). Now Playing shows it in its own snackbar host, and the shell shows the same one above the mini player. It goes away when playback moves to another item or a retry plays.
+- **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). It shows in the app's one snackbar host (§5.7): above the mini player, or over Now Playing while it is open. It goes away when playback moves to another item or a retry plays.
 
   | Kind | Copy | Actions |
   |---|---|---|
@@ -369,7 +369,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Row actions:
   - Drag handle (Lucide `grip-vertical`) on the right to reorder. Long-press anywhere on a row also starts a drag.
   - Swipe right: play next (icon `list-start`, `primary`).
-  - Swipe left: remove (icon `trash`, `error`), with an "Undo" snackbar.
+  - Swipe left: remove (icon `trash`, `error`), with a "Removed <title>" snackbar and Undo. It stays when Now Playing switches panels or collapses. Undo puts back only the last removal, so a newer removal takes down the snackbar of the one before.
   - Both swipes trigger at 40% of the width with haptic feedback.
 
 ### 4.9 Downloads (Library tab)
