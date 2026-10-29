@@ -666,7 +666,7 @@ private fun NothingPlaying(onCollapse: () -> Unit) {
             sourceLabel = stringResource(R.string.feature_nowplaying_source_queue),
             sourceName = stringResource(R.string.feature_nowplaying_nothing_playing),
             onCollapseClick = onCollapse,
-            onMoreClick = {},
+            onMoreClick = null,
         )
         OnArtContent {
             EmptyState(

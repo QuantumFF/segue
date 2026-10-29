@@ -351,13 +351,14 @@ fun SearchTopBar(
  * @param sourceName null when [sourceLabel] says it all ("SHUFFLED LIBRARY").
  * @param onSourceClick opens the source; null when it opens nothing. [sourceClickLabel] says
  *   what a tap does, for accessibility.
+ * @param onMoreClick opens the ⋮ menu; null hides the ⋮ when there is nothing to act on.
  */
 @Composable
 fun NowPlayingTopBar(
     sourceLabel: String,
     sourceName: String?,
     onCollapseClick: () -> Unit,
-    onMoreClick: () -> Unit,
+    onMoreClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onSourceClick: (() -> Unit)? = null,
     sourceClickLabel: String? = null,
@@ -406,12 +407,17 @@ fun NowPlayingTopBar(
                 )
             }
         }
-        SegueIconButton(
-            icon = SegueIcons.MoreVertical,
-            contentDescription = stringResource(R.string.ds_more_options),
-            onClick = onMoreClick,
-            tint = onArt,
-        )
+        if (onMoreClick != null) {
+            SegueIconButton(
+                icon = SegueIcons.MoreVertical,
+                contentDescription = stringResource(R.string.ds_more_options),
+                onClick = onMoreClick,
+                tint = onArt,
+            )
+        } else {
+            // Keeps the source label centred under the missing ⋮.
+            Spacer(Modifier.size(SegueSizes.touchTarget))
+        }
     }
 }
 
