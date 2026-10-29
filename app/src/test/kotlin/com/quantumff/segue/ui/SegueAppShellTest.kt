@@ -3,8 +3,11 @@ package com.quantumff.segue.ui
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -12,6 +15,10 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.R
+import com.quantumff.segue.core.data.snackbar.SnackbarAction
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.playback.ShellPlayerActions
@@ -31,14 +38,24 @@ class SegueAppShellTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
+    private val snackbars = Snackbars()
+
     private fun setShell(layout: ShellLayout, player: ShellPlayerState = testPlayer) {
         compose.setContent {
             SegueTheme {
                 val appState = rememberSegueAppState(shellLayout = layout)
-                TestShell(appState, player)
+                TestShell(appState, player, snackbars)
             }
         }
     }
+
+    /** "Nothing to play", the text of a play intent that queued nothing. */
+    private val nothingToPlay = SnackbarText.of(R.string.player_nothing_to_play)
+
+    /** The snackbar showing [text], as a screen reader finds it: announced as a live region. */
+    private fun announced(text: String): SemanticsNodeInteraction = compose.onNode(
+        hasAnyAncestor(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)) and hasText(text),
+    )
 
     private fun tab(label: String): SemanticsNodeInteraction = compose.onNode(hasText(label) and hasClickAction())
 
@@ -116,6 +133,52 @@ class SegueAppShellTest {
     }
 
     @Test
+    fun `a posted message is announced above the mini player`() {
+        setShell(ShellLayout.Compact)
+
+        snackbars.post(nothingToPlay)
+
+        announced("Nothing to play").assertExists()
+    }
+
+    @Test
+    fun `a posted message is announced over Now Playing`() {
+        setShell(ShellLayout.Compact)
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        snackbars.post(nothingToPlay)
+
+        compose.onNodeWithText("Now playing").assertExists()
+        announced("Nothing to play").assertExists()
+    }
+
+    @Test
+    fun `a message counts as shown once it has timed out`() {
+        setShell(ShellLayout.Compact)
+        compose.mainClock.autoAdvance = false
+
+        snackbars.post(nothingToPlay)
+        compose.mainClock.advanceTimeBy(SHORT_SNACKBAR_MILLIS / 2)
+        assertThat(snackbars.current.value).isNotNull()
+
+        compose.mainClock.advanceTimeBy(SHORT_SNACKBAR_MILLIS)
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun `tapping a message's action runs it`() {
+        setShell(ShellLayout.Compact)
+        var undone = false
+
+        snackbars.post(nothingToPlay, SnackbarAction.undo { undone = true })
+        compose.onNodeWithText("Undo").performClick()
+        compose.waitForIdle()
+
+        assertThat(undone).isTrue()
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
     fun `an empty queue hides the mini player but keeps the bar`() {
         setShell(ShellLayout.Compact, player = ShellPlayerState())
 
@@ -134,6 +197,7 @@ class SegueAppShellTest {
                     player = testPlayer,
                     positionMillis = remember { MutableStateFlow(0L) },
                     playerActions = ShellPlayerActions.None,
+                    snackbars = snackbars,
                     sidebarPlaylists = persistentListOf(SidebarPlaylist("p1", "Road trip")),
                     onSidebarPlaylistClick = { opened = it },
                 ) { TestNavHost(appState, it) }
@@ -184,3 +248,6 @@ class SegueAppShellTest {
         compose.onAllNodes(hasText("Continue from Feishin")).assertCountEquals(0)
     }
 }
+
+/** Material's short snackbar duration, without accessibility services asking for longer. */
+private const val SHORT_SNACKBAR_MILLIS = 4_000L

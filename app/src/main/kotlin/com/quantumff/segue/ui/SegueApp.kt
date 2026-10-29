@@ -49,7 +49,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.window.core.layout.WindowSizeClass
 import com.quantumff.segue.R
-import com.quantumff.segue.core.data.play.PlayIntentMessage
+import com.quantumff.segue.core.data.snackbar.SnackbarMessage
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBar
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
@@ -75,7 +76,6 @@ import com.quantumff.segue.feature.queue.QueueContent
 import com.quantumff.segue.navigation.HomeGraph
 import com.quantumff.segue.navigation.SegueNavHost
 import com.quantumff.segue.navigation.TopLevelDestination
-import com.quantumff.segue.playback.PlayerMessage
 import com.quantumff.segue.playback.PlayerViewModel
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
@@ -92,6 +92,7 @@ import kotlinx.coroutines.flow.StateFlow
 @Composable
 fun SegueApp(
     hasServer: Boolean,
+    snackbars: Snackbars,
     modifier: Modifier = Modifier,
     openNowPlayingRequest: Int = 0,
     windowAdaptiveInfo: WindowAdaptiveInfo = currentWindowAdaptiveInfo(),
@@ -111,26 +112,10 @@ fun SegueApp(
     val playerActions = remember(playerViewModel) { playerViewModel.shellActions() }
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
-    LaunchedEffect(playerViewModel) {
-        playerViewModel.messages.collect { message ->
-            when (message) {
-                is PlayerMessage.NotPlayed -> snackbarHostState.showSnackbar(resources.getString(message.reason.text))
-
-                // DESIGN.md §4.8: with auto-continue on, a snackbar replaces the banner, with Undo.
-                is PlayerMessage.ContinuedFrom -> {
-                    val result = snackbarHostState.showSnackbar(
-                        message = resources.getString(R.string.player_continued_from, message.deviceName),
-                        actionLabel = if (message.canUndo) resources.getString(R.string.player_undo) else null,
-                        duration = SnackbarDuration.Long,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) playerViewModel.undoAutoAdoption()
-                }
-            }
-        }
-    }
-    // DESIGN.md §4.7: a song that failed to play, with Skip, and Retry for a network error.
+    // DESIGN.md §4.7: a song that failed to play, with Skip, and Retry for a network error. Now
+    // Playing shows it in its own host, so the shell's host, drawn over Now Playing, leaves it then.
     PlaybackErrorSnackbar(
-        error = player.playbackError,
+        error = player.playbackError.takeUnless { appState.isNowPlayingOpen },
         hostState = snackbarHostState,
         onSkip = playerViewModel::skipPastError,
         onRetry = playerViewModel::retryPlayback,
@@ -164,7 +149,9 @@ fun SegueApp(
         player = player,
         positionMillis = playerViewModel.positionMillis,
         playerActions = playerActions,
+        snackbars = snackbars,
         modifier = modifier,
+        snackbarHostState = snackbarHostState,
         sidebarPlaylists = sidebarPlaylists,
         onSidebarPlaylistClick = onSidebarPlaylistClick,
         nowPlaying = {
@@ -193,15 +180,12 @@ fun SegueApp(
             )
         },
     ) { navModifier ->
-        Box(navModifier) {
-            SegueNavHost(
-                appState = appState,
-                startDestination = startDestination,
-                onAddToPlaylist = { addToPlaylist = it },
-                modifier = Modifier.fillMaxSize(),
-            )
-            SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
-        }
+        SegueNavHost(
+            appState = appState,
+            startDestination = startDestination,
+            onAddToPlaylist = { addToPlaylist = it },
+            modifier = navModifier,
+        )
     }
     addToPlaylist?.let { songIds ->
         AddToPlaylistSheet(
@@ -216,6 +200,9 @@ fun SegueApp(
  * edge and scrolls under the bottom chrome; screens read [LocalShellContentPadding].
  * [nowPlaying] draws over all of it, which stays in place underneath.
  *
+ * [snackbars] show in [snackbarHostState]'s host, the app's one: above the mini player, or over
+ * Now Playing while it is open, so screen readers announce them either way.
+ *
  * @param positionMillis collected only by a visible player surface (collecting it runs the position
  *   ticker) and read in the draw phase.
  */
@@ -226,7 +213,9 @@ fun SegueApp(
     player: ShellPlayerState,
     positionMillis: StateFlow<Long>,
     playerActions: ShellPlayerActions,
+    snackbars: Snackbars,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     sidebarPlaylists: ImmutableList<SidebarPlaylist> = persistentListOf(),
     onSidebarPlaylistClick: (String) -> Unit = {},
     nowPlaying: @Composable () -> Unit = {},
@@ -254,6 +243,18 @@ fun SegueApp(
     }
     SystemBarAppearance(lightStatusIcons = SegueTheme.isDark || appState.isNowPlayingOpen)
 
+    ShowSnackbars(snackbars, snackbarHostState)
+    val nowPlayingOpen = appState.isNowPlayingOpen
+    // Closed, the host sits in the content area, above the mini player (LocalShellContentPadding).
+    val shellContent: @Composable (Modifier) -> Unit = remember(navHost, snackbarHostState, nowPlayingOpen) {
+        { contentModifier ->
+            Box(contentModifier) {
+                navHost(Modifier.fillMaxSize())
+                if (!nowPlayingOpen) SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
+            }
+        }
+    }
+
     val onOpenNowPlaying = remember(appState) { appState::openNowPlaying }
     val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
         ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
@@ -269,16 +270,16 @@ fun SegueApp(
             // Under open Now Playing the shell is only a backdrop: screen readers skip it.
             Box(if (appState.isNowPlayingOpen) Modifier.clearAndSetSemantics {} else Modifier) {
                 when (appState.shellLayout) {
-                    ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, navHost)
+                    ShellLayout.Compact -> CompactShell(appState, chrome, shellPlayer, onTabClick, shellContent)
 
-                    ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, navHost)
+                    ShellLayout.Medium -> MediumShell(appState, chrome, shellPlayer, onTabClick, shellContent)
 
                     ShellLayout.Expanded -> ExpandedShell(
                         appState,
                         chrome,
                         shellPlayer,
                         onTabClick,
-                        navHost,
+                        shellContent,
                         sidebarPlaylists,
                         onSidebarPlaylistClick,
                     )
@@ -286,6 +287,36 @@ fun SegueApp(
             }
         }
         nowPlaying()
+        // Open, it draws over Now Playing, where Now Playing places its own (DESIGN.md §5.7).
+        if (nowPlayingOpen) {
+            SegueSnackbarHost(
+                snackbarHostState,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding(),
+            )
+        }
+    }
+}
+
+/** Shows each of [snackbars] in turn in [hostState], and reports back once it is gone. */
+@Composable
+private fun ShowSnackbars(snackbars: Snackbars, hostState: SnackbarHostState) {
+    val resources = LocalResources.current
+    LaunchedEffect(snackbars, hostState) {
+        snackbars.current.collect { message ->
+            if (message == null) return@collect
+            // Cancelled with the shell, before it is gone: the message stays current for the next host.
+            val result = hostState.showSnackbar(
+                message = message.text.resolve(resources),
+                actionLabel = message.action?.label?.resolve(resources),
+                duration = when (message.duration) {
+                    SnackbarMessage.Duration.Short -> SnackbarDuration.Short
+                    SnackbarMessage.Duration.Long -> SnackbarDuration.Long
+                },
+            )
+            if (result == SnackbarResult.ActionPerformed) snackbars.onAction(message) else snackbars.onDismiss(message)
+        }
     }
 }
 
@@ -517,14 +548,6 @@ private fun bottomChromeHeight(systemBottom: Dp, miniPlayer: Boolean, navBar: Bo
         systemBottom
 
 private const val MILLIS_PER_SECOND = 1_000L
-
-private val PlayIntentMessage.text: Int
-    get() = when (this) {
-        PlayIntentMessage.NothingToPlay -> R.string.player_nothing_to_play
-        PlayIntentMessage.LoadFailed -> R.string.player_load_failed
-        PlayIntentMessage.InstantMixFailed -> R.string.player_instant_mix_failed
-        PlayIntentMessage.InstantMixOffline -> R.string.player_instant_mix_offline
-    }
 
 /** Light status-bar icons over dark themes and over art (Now Playing), DESIGN.md §3. */
 @Composable
