@@ -131,6 +131,71 @@ class PlaylistViewModelTest {
     }
 
     @Test
+    fun saveIsEnabledOnlyWhileTheWorkingOrderDiffersFromTheSavedOne() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.startEditing()
+        assertThat(viewModel.uiState.value.canSave).isFalse()
+
+        viewModel.move(from = 0, to = 2)
+        assertThat(viewModel.uiState.value.canSave).isTrue()
+
+        viewModel.move(from = 2, to = 0)
+        assertThat(viewModel.uiState.value.canSave).isFalse()
+
+        viewModel.removeEntry(viewModel.uiState.value.entries[1].key)
+        assertThat(viewModel.uiState.value.canSave).isTrue()
+    }
+
+    @Test
+    fun backWithoutChangesLeavesEditModeWithoutAsking() = runTest {
+        val viewModel = viewModel()
+        viewModel.startEditing()
+        viewModel.move(from = 0, to = 1)
+        viewModel.move(from = 1, to = 0)
+
+        viewModel.onEditBack()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isEditing).isFalse()
+        assertThat(state.isDiscardPromptShown).isFalse()
+    }
+
+    @Test
+    fun backWithChangesAsksAndKeepEditingKeepsTheEdits() = runTest {
+        val viewModel = viewModel()
+        viewModel.startEditing()
+        viewModel.move(from = 0, to = 2)
+
+        viewModel.onEditBack()
+        assertThat(viewModel.uiState.value.isDiscardPromptShown).isTrue()
+        assertThat(viewModel.uiState.value.isEditing).isTrue()
+
+        viewModel.keepEditing()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isDiscardPromptShown).isFalse()
+        assertThat(state.isEditing).isTrue()
+        assertThat(viewModel.songIds).containsExactly("b", "c", "a").inOrder()
+    }
+
+    @Test
+    fun backWithChangesThenDiscardLeavesEditModeWithoutSaving() = runTest {
+        val viewModel = viewModel()
+        viewModel.startEditing()
+        viewModel.move(from = 0, to = 2)
+        viewModel.onEditBack()
+
+        viewModel.cancelEditing()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isDiscardPromptShown).isFalse()
+        assertThat(state.isEditing).isFalse()
+        assertThat(viewModel.songIds).containsExactly("a", "b", "c").inOrder()
+        assertThat(playlists.replaced).isEmpty()
+    }
+
+    @Test
     fun saveFailureKeepsEditModeAndEdits() = runTest {
         val viewModel = viewModel()
         viewModel.startEditing()
