@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.playback.mix.InstantMixStart
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
@@ -224,6 +225,22 @@ class SessionPlayIntentsTest {
     }
 
     @Test
+    fun `a started instant mix says whether it replaced a queue`() = runTest {
+        val intents = intents()
+        val messages = messagesOf(intents)
+
+        session.mixReplaced = true
+        intents.instantMix(InstantMixSeed.OfArtist("ar", "Radiohead"))
+        session.mixReplaced = false
+        intents.instantMix(InstantMixSeed.OfSong(songs[0]))
+
+        assertThat(messages).containsExactly(
+            PlayIntentMessage.MixStarted(replacedQueue = true),
+            PlayIntentMessage.MixStarted(replacedQueue = false),
+        ).inOrder()
+    }
+
+    @Test
     fun `an instant mix with no seed to start from says so`() = runTest {
         val intents = intents()
 
@@ -269,6 +286,9 @@ private class FakeIntentSession : IntentSession {
     var answer: Int? = null
     var mixError: RemoteException? = null
 
+    /** Whether the session says a mix replaced a queue. */
+    var mixReplaced = false
+
     /** When set, queueing waits for it. */
     var gate: CompletableDeferred<Unit>? = null
 
@@ -289,9 +309,9 @@ private class FakeIntentSession : IntentSession {
         return answer ?: 10
     }
 
-    override suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): Int {
+    override suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): InstantMixStart {
         mixes += Mix(seed, artistId, source)
         mixError?.let { throw it }
-        return answer ?: 10
+        return InstantMixStart(answer ?: 10, mixReplaced)
     }
 }

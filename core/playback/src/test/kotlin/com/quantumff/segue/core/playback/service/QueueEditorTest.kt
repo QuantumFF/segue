@@ -219,4 +219,71 @@ class QueueEditorTest {
 
         assertThat(player.queueSource.value).isEqualTo(album)
     }
+
+    @Test
+    fun `undoing an instant mix restores the replaced queue, paused`() = runTest {
+        val album = QueueSource.Album("al", "In Rainbows")
+        editor.queue(items("a", "b", "c"), QueuePlacement.Replace, source = album)
+        player.seekTo(1, 5_000)
+        player.repeatMode = Player.REPEAT_MODE_ALL
+
+        val mix = QueueSource.InstantMix("Airbag")
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, source = mix, keepReplaced = true)
+        assertThat(editor.hasReplaced).isTrue()
+        player.repeatMode = Player.REPEAT_MODE_ONE
+
+        assertThat(editor.restoreReplaced()).isTrue()
+
+        assertThat(queueIds()).containsExactly("a", "b", "c").inOrder()
+        assertThat(exo.currentMediaItemIndex).isEqualTo(1)
+        assertThat(exo.currentPosition).isEqualTo(5_000)
+        assertThat(exo.repeatMode).isEqualTo(Player.REPEAT_MODE_ALL)
+        assertThat(exo.playWhenReady).isFalse()
+        assertThat(player.queueSource.value).isEqualTo(album)
+        assertThat(exo.getMediaItemAt(0).localConfiguration).isNotNull()
+        // Once only.
+        assertThat(editor.hasReplaced).isFalse()
+        assertThat(editor.restoreReplaced()).isFalse()
+    }
+
+    @Test
+    fun `an instant mix over an empty queue keeps nothing to undo`() = runTest {
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+
+        assertThat(editor.hasReplaced).isFalse()
+        assertThat(editor.restoreReplaced()).isFalse()
+        assertThat(queueIds()).containsExactly("m1", "m2").inOrder()
+    }
+
+    @Test
+    fun `any other queue change drops the queue an instant mix replaced`() = runTest {
+        val changes = listOf<suspend () -> Unit>(
+            { editor.queue(items("n"), QueuePlacement.Next) },
+            { editor.queue(items("e"), QueuePlacement.End) },
+            { editor.queue(items("r"), QueuePlacement.Replace) },
+            { player.removeMediaItem(1) },
+            { player.moveMediaItem(0, 1) },
+            { player.clearMediaItems() },
+            { editor.putBack(items("p").single(), 0) },
+        )
+        for (change in changes) {
+            player.setMediaItems(items("a", "b"))
+            editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+            change()
+
+            assertThat(editor.restoreReplaced()).isFalse()
+        }
+    }
+
+    @Test
+    fun `playing on through an instant mix keeps the replaced queue`() = runTest {
+        player.setMediaItems(items("a", "b"))
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+
+        player.seekToNextMediaItem()
+        player.repeatMode = Player.REPEAT_MODE_ONE
+
+        assertThat(editor.restoreReplaced()).isTrue()
+        assertThat(queueIds()).containsExactly("a", "b").inOrder()
+    }
 }

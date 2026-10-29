@@ -13,7 +13,7 @@ import org.robolectric.RobolectricTestRunner
 class PlayIntentTextTest {
     private val resources = ApplicationProvider.getApplicationContext<Context>().resources
 
-    private fun text(message: PlayIntentMessage) = message.snackbarText().resolve(resources)
+    private fun text(message: PlayIntentMessage) = message.snackbarText()?.resolve(resources)
 
     @Test
     fun `one song queued is named`() {
@@ -28,6 +28,14 @@ class PlayIntentTextTest {
             .isEqualTo("Added 12 songs to the queue")
         assertThat(text(PlayIntentMessage.Queued(12, QueuePlacement.Next, null))).isEqualTo("Playing 12 songs next")
         assertThat(text(PlayIntentMessage.Queued(1, QueuePlacement.End, null))).isEqualTo("Added 1 song to the queue")
+    }
+
+    @Test
+    fun `an instant mix says only that it replaced a queue`() {
+        assertThat(text(PlayIntentMessage.MixStarted(replacedQueue = true)))
+            .isEqualTo("Replaced the queue with an Instant mix")
+        // Over an empty queue it only played now: the music starting is the feedback.
+        assertThat(text(PlayIntentMessage.MixStarted(replacedQueue = false))).isNull()
     }
 
     @Test

@@ -326,12 +326,17 @@ class SeguePlaybackService : MediaLibraryService() {
                     queueEditor.putBack(removed.item, removed.index)
                 }
 
+                SegueSessionCommands.UNDO_INSTANT_MIX -> queueEditor.restoreReplaced()
+
                 SegueSessionCommands.QUEUE_SONGS -> {
                     val songs = SegueSessionCommands.queueSongs(args)
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                     return scope.launchFuture {
-                        val queued = with(songs) { queueEditor.queue(items, placement, startIndex, shuffle, source) }
-                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued))
+                        val queued = with(songs) {
+                            queueEditor.queue(items, placement, startIndex, shuffle, source, keepReplaced)
+                        }
+                        val replaced = songs.keepReplaced && queued > 0 && queueEditor.hasReplaced
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued, replaced))
                     }
                 }
 

@@ -26,6 +26,7 @@ import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.browse.await
 import com.quantumff.segue.core.playback.media.toMediaItem
 import com.quantumff.segue.core.playback.mix.InstantMix
+import com.quantumff.segue.core.playback.mix.InstantMixStart
 import com.quantumff.segue.core.playback.service.SegueSessionCommands
 import com.quantumff.segue.core.playback.sync.QueueState
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine
@@ -347,15 +348,37 @@ class PlaybackController @Inject constructor(
 
     /**
      * Instant mix: [seed] if given, then songs similar to [artistId] (`getSimilarSongs2`), topped
-     * up with the artist's top songs, replacing the queue with [source] as its source. Throws
-     * RemoteException. Returns how many songs were queued: 0 if nothing came back.
+     * up with the artist's top songs, replacing the queue with [source] as its source. The service
+     * keeps a replaced queue that was not empty until the next queue change, for [undoInstantMix].
+     * Throws RemoteException. Answers how many songs were queued (0 if nothing came back) and
+     * whether a queue was replaced.
      */
-    suspend fun playInstantMix(seed: Song?, artistId: String, source: QueueSource): Int {
+    suspend fun playInstantMix(seed: Song?, artistId: String, source: QueueSource): InstantMixStart {
         val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
-        if (mix.size <= (if (seed == null) 0 else 1)) return 0
-        return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false, source = source)
+        if (mix.size <= (if (seed == null) 0 else 1)) return InstantMixStart(queued = 0, replacedQueue = false)
+        val request = SegueSessionCommands.QueueSongs(
+            mix.map { it.toMediaItem() },
+            QueuePlacement.Replace,
+            startIndex = 0,
+            shuffle = false,
+            source = source,
+            keepReplaced = true,
+        )
+        val result = sendForResult(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
+        return InstantMixStart(
+            queued = result?.getInt(SegueSessionCommands.ARG_QUEUED) ?: 0,
+            replacedQueue = result?.getBoolean(SegueSessionCommands.ARG_REPLACED) ?: false,
+        )
+    }
+
+    /**
+     * The snackbar's Undo: puts back the queue the last Instant mix replaced, at the same song and
+     * position, paused. Nothing if the queue changed since.
+     */
+    fun undoInstantMix() = command { controller ->
+        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.UNDO_INSTANT_MIX), Bundle.EMPTY)
     }
 
     // --- Connection ----------------------------------------------------------------------------------

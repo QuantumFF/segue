@@ -15,6 +15,7 @@ import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.playback.PlaybackController
+import com.quantumff.segue.core.playback.mix.InstantMixStart
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -68,7 +69,7 @@ internal class SessionPlayIntents @Inject constructor(
     override suspend fun instantMix(seed: InstantMixSeed) = runIntent {
         // The mix comes from the server (getSimilarSongs2), so there is none offline.
         if (offlineMode.isOffline.value) return@runIntent report(PlayIntentMessage.InstantMixOffline)
-        val queued = try {
+        val mix = try {
             when (seed) {
                 is InstantMixSeed.OfSong -> songMix(seed.song)
 
@@ -79,14 +80,18 @@ internal class SessionPlayIntents @Inject constructor(
             }
         } catch (e: RemoteException) {
             Log.w(TAG, "Instant mix failed", e)
-            0
+            null
         }
-        if (queued == 0) report(PlayIntentMessage.InstantMixFailed)
+        if (mix == null || mix.queued == 0) {
+            report(PlayIntentMessage.InstantMixFailed)
+        } else {
+            report(PlayIntentMessage.MixStarted(mix.replacedQueue))
+        }
     }
 
     /** A mix from [song], of its artist: none without the song (not in the library) or its artist. */
-    private suspend fun songMix(song: Song?): Int {
-        val artistId = song?.artistId ?: return 0
+    private suspend fun songMix(song: Song?): InstantMixStart? {
+        val artistId = song?.artistId ?: return null
         return session.instantMix(song, artistId, QueueSource.InstantMix(song.title))
     }
 
@@ -127,8 +132,11 @@ internal interface IntentSession {
 
     suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Int
 
-    /** An instant mix of songs similar to [artistId], after [seed] if given. Throws RemoteException. */
-    suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): Int
+    /**
+     * An instant mix of songs similar to [artistId], after [seed] if given, and whether it replaced
+     * a queue. Throws RemoteException.
+     */
+    suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): InstantMixStart
 }
 
 internal class ControllerIntentSession @Inject constructor(private val playback: PlaybackController) : IntentSession {
