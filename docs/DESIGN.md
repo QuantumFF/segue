@@ -386,7 +386,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.10 Settings
 - `LazyColumn` of M3 `ListItem`s: 56 tall for one line, 72 for two. Section headers in `labelLarge` `primary`, with 24 top padding.
 - Groups:
-  - **Servers:** list, add, switch.
+  - **Servers:** list, add, switch, remove. Tapping a server switches to it and says "Switched to <server>" (§5.7); tapping the active one does nothing. Removing asks first, and when the server is the active one the dialog names the server that takes over (the first one left), or says the user will be signed out.
   - **Appearance:** Theme, Accent source with preset swatches, Now Playing background, Hero style (Tint / Blurred art), Compact headers, Dense rows (48), Home sections.
   - **Playback:** gapless; ReplayGain mode (Off, Track, Album), ReplayGain normalisation (−18 LUFS ReplayGain 2.0, the default, or −23 LUFS EBU; a picker), and "Boost quiet tracks" (a switch, off by default; its summary says it uses more battery). Normalisation and boost are disabled while the mode is Off. "Play when Bluetooth connects" (a switch, off by default): a Bluetooth audio device connecting resumes the queue, or this device's saved queue, unless something is already playing; turning it on asks for the Nearby devices permission, and losing that permission turns it off. Audio offload, crossfade (later).
   - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
