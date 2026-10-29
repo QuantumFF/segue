@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.pinAndConfirm
+import com.quantumff.segue.core.data.download.unpinWithUndo
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -252,14 +254,21 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /** Pins the playlist for offline use; it then follows the server copy on every library sync. */
+    /**
+     * Pins the playlist for offline use, confirmed with its name; it then follows the server copy on
+     * every library sync.
+     */
     fun download() {
         val playlist = uiState.value.playlist ?: return
-        write { downloadRepository.pin(PinTarget.of(playlist)) }
+        write { downloadRepository.pinAndConfirm(PinTarget.of(playlist), snackbars) }
     }
 
+    /** Unpins the playlist with Undo; files no other pin needs are deleted once the snackbar has gone. */
     fun removeDownload() {
-        viewModelScope.launch { downloadRepository.unpin(PinKind.Playlist, playlistId) }
+        val playlist = uiState.value.playlist ?: return
+        viewModelScope.launch {
+            downloadRepository.unpinWithUndo(PinKind.Playlist, playlistId, playlist.name, snackbars)
+        }
     }
 
     /** Plays the playlist as shown from [startIndex]; [shuffle] shuffles its tracks. */

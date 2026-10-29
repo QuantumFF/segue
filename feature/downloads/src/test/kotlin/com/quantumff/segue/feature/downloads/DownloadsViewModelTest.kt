@@ -2,7 +2,11 @@ package com.quantumff.segue.feature.downloads
 
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.data.R as DataR
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.DownloadOverview
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.StorageLimit
@@ -20,6 +24,7 @@ class DownloadsViewModelTest {
 
     private val downloads = FakeDownloadRepository()
     private val offline = FakeOfflineModeRepository()
+    private val snackbars = Snackbars()
 
     private fun pin(id: String, songs: Int, completed: Int, failed: Int = 0, paused: Int = 0) =
         PinnedDownload(PinKind.Album, id, id, null, songs, completed, failed, paused, completed / songs.toFloat(), 0)
@@ -37,7 +42,7 @@ class DownloadsViewModelTest {
             usedBytes = 100,
             freeBytes = 300,
         )
-        val viewModel = DownloadsViewModel(downloads, offline)
+        val viewModel = DownloadsViewModel(downloads, offline, snackbars)
 
         viewModel.uiState.test {
             val state = expectMostRecentItem()
@@ -58,7 +63,7 @@ class DownloadsViewModelTest {
             storageLimit = StorageLimit.Gb2,
             limitReached = true,
         )
-        val viewModel = DownloadsViewModel(downloads, offline)
+        val viewModel = DownloadsViewModel(downloads, offline, snackbars)
 
         viewModel.uiState.test {
             val state = expectMostRecentItem()
@@ -71,7 +76,7 @@ class DownloadsViewModelTest {
 
     @Test
     fun actionsReachTheRepository() = runTest {
-        val viewModel = DownloadsViewModel(downloads, offline)
+        val viewModel = DownloadsViewModel(downloads, offline, snackbars)
         val pin = pin("a", songs = 2, completed = 1)
 
         viewModel.pause(pin)
@@ -88,11 +93,45 @@ class DownloadsViewModelTest {
     @Test
     fun emptyOverviewIsEmptyOnceLoaded() = runTest {
         offline.isOffline.value = true
-        DownloadsViewModel(downloads, offline).uiState.test {
+        DownloadsViewModel(downloads, offline, snackbars).uiState.test {
             val state = expectMostRecentItem()
             assertThat(state.isLoading).isFalse()
             assertThat(state.isEmpty).isTrue()
             assertThat(state.isOffline).isTrue()
         }
+    }
+
+    @Test
+    fun cancellingThenUndoingPinsItAgainAndDeletesNoFiles() = runTest {
+        val pin = pin("In Rainbows", songs = 10, completed = 4)
+        downloads.pins.value = mapOf((PinKind.Album to "In Rainbows") to DownloadStatus.Queued)
+        val viewModel = DownloadsViewModel(downloads, offline, snackbars)
+
+        viewModel.remove(pin)
+
+        assertThat(downloads.pins.value).isEmpty()
+        val message = checkNotNull(snackbars.current.value)
+        assertThat(message.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, "In Rainbows"))
+
+        snackbars.onAction(message)
+
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Album to "In Rainbows")
+        assertThat(downloads.deleted).isEmpty()
+    }
+
+    @Test
+    fun removingDeletesTheFilesOnceTheSnackbarIsGone() = runTest {
+        val pin = pin("In Rainbows", songs = 10, completed = 10)
+        downloads.pins.value = mapOf((PinKind.Album to "In Rainbows") to DownloadStatus.Downloaded)
+        val viewModel = DownloadsViewModel(downloads, offline, snackbars)
+
+        viewModel.remove(pin)
+
+        assertThat(downloads.deleted).isEmpty()
+
+        snackbars.onDismiss(checkNotNull(snackbars.current.value))
+
+        assertThat(downloads.pins.value).isEmpty()
+        assertThat(downloads.deleted).containsExactly(PinKind.Album to "In Rainbows")
     }
 }
