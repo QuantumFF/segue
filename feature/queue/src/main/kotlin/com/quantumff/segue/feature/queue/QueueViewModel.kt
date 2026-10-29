@@ -40,6 +40,9 @@ sealed interface QueueMessage {
     data object DownloadFailed : QueueMessage
 }
 
+/** A manual queue transfer that is running. */
+enum class QueueTransfer { Upload, Download }
+
 /** "Download queue" over a queue with tracks: replace it with [trackCount] tracks saved by [deviceName]? */
 @Immutable
 data class DownloadConfirmation(val trackCount: Int, val deviceName: String)
@@ -54,11 +57,13 @@ data class QueueUiState(
     val remoteOffer: RemoteQueueOffer? = null,
     /** True until the player state first arrives, so the empty state does not flash. */
     val isLoading: Boolean = true,
-    /** A manual upload or download is running: the menu's sync items wait for it. */
-    val isTransferring: Boolean = false,
+    /** The manual upload or download that is running, if any. Both buttons wait for it. */
+    val transfer: QueueTransfer? = null,
     val downloadConfirmation: DownloadConfirmation? = null,
     val message: QueueMessage? = null,
-)
+) {
+    val isTransferring: Boolean get() = transfer != null
+}
 
 /**
  * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, upload or download the
@@ -97,7 +102,7 @@ class QueueViewModel @Inject constructor(
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }
 
     /** Saves the queue to the server now, whatever the queue sync setting. */
-    fun uploadQueue() = runTransfer {
+    fun uploadQueue() = runTransfer(QueueTransfer.Upload) {
         try {
             if (playback.uploadQueue()) QueueMessage.Uploaded else QueueMessage.UploadFailed
         } catch (_: RemoteException) {
@@ -109,7 +114,7 @@ class QueueViewModel @Inject constructor(
      * Fetches the server's saved queue. It replaces an empty queue at once; a queue with tracks
      * asks first, through [QueueUiState.downloadConfirmation].
      */
-    fun downloadQueue() = runTransfer {
+    fun downloadQueue() = runTransfer(QueueTransfer.Download) {
         val queue = try {
             playback.fetchRemoteQueue()
         } catch (_: RemoteException) {
@@ -130,7 +135,7 @@ class QueueViewModel @Inject constructor(
     fun confirmDownload() {
         val queue = local.value.pendingDownload ?: return
         local.update { it.copy(pendingDownload = null) }
-        runTransfer { adoptDownloaded(queue) }
+        runTransfer(QueueTransfer.Download) { adoptDownloaded(queue) }
     }
 
     fun cancelDownload() = local.update { it.copy(pendingDownload = null) }
@@ -143,14 +148,14 @@ class QueueViewModel @Inject constructor(
         }
 
     /** Runs one upload or download at a time, then shows its message, if any. */
-    private fun runTransfer(block: suspend () -> QueueMessage?) {
-        if (local.value.isTransferring) return
-        local.update { it.copy(isTransferring = true) }
+    private fun runTransfer(transfer: QueueTransfer, block: suspend () -> QueueMessage?) {
+        if (local.value.transfer != null) return
+        local.update { it.copy(transfer = transfer) }
         viewModelScope.launch {
             val message = try {
                 block()
             } finally {
-                local.update { it.copy(isTransferring = false) }
+                local.update { it.copy(transfer = null) }
             }
             if (message != null) local.update { it.copy(message = message) }
         }
@@ -164,7 +169,7 @@ class QueueViewModel @Inject constructor(
 
     private data class LocalState(
         val historyExpanded: Boolean = false,
-        val isTransferring: Boolean = false,
+        val transfer: QueueTransfer? = null,
         val pendingDownload: RemotePlayQueue? = null,
         val message: QueueMessage? = null,
     )
@@ -177,7 +182,7 @@ class QueueViewModel @Inject constructor(
             trackCount = queue.size,
             remoteOffer = remoteQueue,
             isLoading = false,
-            isTransferring = local.isTransferring,
+            transfer = local.transfer,
             downloadConfirmation = local.pendingDownload?.let { DownloadConfirmation(it.songs.size, it.deviceName) },
             message = local.message,
         )
