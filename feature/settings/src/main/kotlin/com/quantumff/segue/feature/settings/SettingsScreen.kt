@@ -492,7 +492,18 @@ fun SettingsContent(
         AlertDialog(
             onDismissRequest = { removing = null },
             title = { Text(stringResource(R.string.feature_settings_remove_server_title, server.name)) },
-            text = { Text(stringResource(R.string.feature_settings_remove_server_message)) },
+            text = {
+                val message = stringResource(R.string.feature_settings_remove_server_message)
+                val outcome = when (val removal = uiState.removalOf(server)) {
+                    ServerRemoval.KeepsActive -> null
+
+                    is ServerRemoval.SwitchesTo ->
+                        stringResource(R.string.feature_settings_remove_server_switches_to, removal.server.name)
+
+                    ServerRemoval.SignsOut -> stringResource(R.string.feature_settings_remove_server_signs_out)
+                }
+                Text(listOfNotNull(message, outcome).joinToString("\n\n"))
+            },
             confirmButton = {
                 TextButton(
                     onClick = {

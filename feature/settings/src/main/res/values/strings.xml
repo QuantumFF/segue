@@ -7,9 +7,12 @@
     <string name="feature_settings_server_summary">%1$s · %2$s</string>
     <string name="feature_settings_server_active">Active · %1$s · %2$s</string>
     <string name="feature_settings_active">Active</string>
+    <string name="feature_settings_switched_to">Switched to %1$s</string>
     <string name="feature_settings_remove_server">Remove server</string>
     <string name="feature_settings_remove_server_title">Remove %1$s?</string>
     <string name="feature_settings_remove_server_message">The account and everything cached for it are deleted from this device. Nothing changes on the server.</string>
+    <string name="feature_settings_remove_server_switches_to">%1$s becomes the active server.</string>
+    <string name="feature_settings_remove_server_signs_out">No other server is left, so you\'ll be signed out.</string>
     <string name="feature_settings_remove_server_confirm">Remove</string>
     <string name="feature_settings_cancel">Cancel</string>
 

@@ -261,6 +261,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
 - Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
 - Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar. Save stays disabled until the order differs from the saved one. Back with unsaved changes asks "Discard changes?" (Discard / Keep editing); without changes it just leaves edit mode.
+- A track's ⋮ "Remove from playlist" (outside edit mode) hides the row at once and shows "Removed <title>" with Undo (§5.7). The server write waits until the snackbar has gone, so Undo sends nothing; a newer removal takes down the snackbar of the one before, as in the queue (§4.8). Starting edit mode takes the Undo away too, so the removal is written before the new order. Delete asks first, then shows "Deleted <name>" once the screen has closed.
 
 ### 4.6 Search
 - Search field pinned at the top: 48 tall, `surfaceContainerHighest`, radius `full`, leading search icon, trailing clear. It auto-focuses when the tab is opened.
@@ -385,7 +386,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.10 Settings
 - `LazyColumn` of M3 `ListItem`s: 56 tall for one line, 72 for two. Section headers in `labelLarge` `primary`, with 24 top padding.
 - Groups:
-  - **Servers:** list, add, switch.
+  - **Servers:** list, add, switch, remove. Tapping a server switches to it and says "Switched to <server>" (§5.7); tapping the active one does nothing. Removing asks first, and when the server is the active one the dialog names the server that takes over (the first one left), or says the user will be signed out.
   - **Appearance:** Theme, Accent source with preset swatches, Now Playing background, Hero style (Tint / Blurred art), Compact headers, Dense rows (48), Home sections.
   - **Playback:** gapless; ReplayGain mode (Off, Track, Album), ReplayGain normalisation (−18 LUFS ReplayGain 2.0, the default, or −23 LUFS EBU; a picker), and "Boost quiet tracks" (a switch, off by default; its summary says it uses more battery). Normalisation and boost are disabled while the mode is Off. "Play when Bluetooth connects" (a switch, off by default): a Bluetooth audio device connecting resumes the queue, or this device's saved queue, unless something is already playing; turning it on asks for the Nearby devices permission, and losing that permission turns it off. Audio offload, crossfade (later).
   - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
