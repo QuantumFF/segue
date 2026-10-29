@@ -42,7 +42,7 @@ internal object SegueSessionCommands {
 
     /**
      * "Play", "Play next", "Add to queue" of songs, and Instant mix: queued by QueueEditor. Answers
-     * [ARG_QUEUED] and, for an Instant mix, [ARG_REPLACED].
+     * [ARG_QUEUED] and, for an Instant mix, [ARG_REPLACED_QUEUE].
      */
     const val QUEUE_SONGS = PREFIX + "QUEUE_SONGS"
 
@@ -59,7 +59,8 @@ internal object SegueSessionCommands {
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
     const val ARG_QUEUED = "queued"
-    const val ARG_REPLACED = "replaced"
+    const val ARG_REPLACED_QUEUE = "replacedQueue"
+    private const val ARG_REPLACED_QUEUES_GONE = "replacedQueuesGone"
     private const val ARG_SOURCE_KIND = "sourceKind"
     private const val ARG_SOURCE_ID = "sourceId"
     private const val ARG_SORT = "sort"
@@ -145,6 +146,15 @@ internal object SegueSessionCommands {
      * reads it back.
      */
     fun queueSourceArgs(source: QueueSource) = Bundle().apply { putQueueSource(source) }
+
+    /**
+     * Session extras: the queues Instant mixes replaced that [UNDO_INSTANT_MIX] can no longer bring
+     * back are those numbered up to [gone] (QueueEditor.replacedQueuesGone). [replacedQueuesGone]
+     * reads it back.
+     */
+    fun replacedQueuesGoneArgs(gone: Int) = Bundle().apply { putInt(ARG_REPLACED_QUEUES_GONE, gone) }
+
+    fun replacedQueuesGone(bundle: Bundle): Int = bundle.getInt(ARG_REPLACED_QUEUES_GONE)
 
     /** The queue source in [bundle]: the session extras or a play intent's args. Unknown if none. */
     fun queueSource(bundle: Bundle): QueueSource {
@@ -302,12 +312,12 @@ internal object SegueSessionCommands {
 
     /**
      * The answer to [PLAY_ALBUMS] and [QUEUE_SONGS]: how many songs were queued, offline only the
-     * downloaded ones; 0 if none. [replaced]: an Instant mix replaced a queue [UNDO_INSTANT_MIX] can
-     * bring back.
+     * downloaded ones; 0 if none. [replacedQueue]: the number of the queue an Instant mix replaced
+     * that [UNDO_INSTANT_MIX] can bring back (QueueEditor.replacedQueue), 0 if none.
      */
-    fun queuedResult(count: Int, replaced: Boolean = false) = Bundle().apply {
+    fun queuedResult(count: Int, replacedQueue: Int = 0) = Bundle().apply {
         putInt(ARG_QUEUED, count)
-        putBoolean(ARG_REPLACED, replaced)
+        putInt(ARG_REPLACED_QUEUE, replacedQueue)
     }
 
     private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =

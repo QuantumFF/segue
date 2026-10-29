@@ -138,6 +138,8 @@ class SeguePlaybackService : MediaLibraryService() {
             }
         }
         scope.launch { components.networkType.drop(1).collect { updatePrefetch() } }
+        // An Instant mix's Undo snackbar goes once its queue is gone.
+        scope.launch { queueEditor.replacedQueuesGone.collect { updateSessionState() } }
         scope.launch { savedQueues.restore() }
         // A replaced queue publishes its source with its timeline change; this catches the rest.
         scope.launch { player.queueSource.drop(1).collect { updateSessionState() } }
@@ -208,6 +210,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private fun sessionExtras() = Bundle().apply {
         putAll(SegueSessionCommands.sleepArgs(sleepTimer.timer))
         putAll(SegueSessionCommands.queueSourceArgs(player.queueSource.value))
+        putAll(SegueSessionCommands.replacedQueuesGoneArgs(queueEditor.replacedQueuesGone.value))
         streamRequestArgs()?.let(::putAll)
         putAll(SegueSessionCommands.playbackErrorArgs(playbackErrors.error))
     }
@@ -335,7 +338,7 @@ class SeguePlaybackService : MediaLibraryService() {
                         val queued = with(songs) {
                             queueEditor.queue(items, placement, startIndex, shuffle, source, keepReplaced)
                         }
-                        val replaced = songs.keepReplaced && queued > 0 && queueEditor.hasReplaced
+                        val replaced = if (songs.keepReplaced && queued > 0) queueEditor.replacedQueue else 0
                         SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued, replaced))
                     }
                 }

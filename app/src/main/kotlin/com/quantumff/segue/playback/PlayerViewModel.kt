@@ -15,10 +15,12 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * The shell's link to playback: the state the mini player and player bar show, their commands,
@@ -30,7 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 class PlayerViewModel @Inject constructor(
     private val playback: PlaybackController,
     playIntents: PlayIntents,
-    snackbars: Snackbars,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     val player: StateFlow<ShellPlayerState> = playback.state
         .map { it.toShellPlayerState() }
@@ -50,12 +52,11 @@ class PlayerViewModel @Inject constructor(
         playIntents.messages
             .onEach { message ->
                 val text = message.snackbarText() ?: return@onEach
-                // DESIGN.md §5.7: an Instant mix that replaced a queue can be undone.
-                val replacedQueue = message is PlayIntentMessage.MixStarted && message.replacedQueue
-                snackbars.post(
-                    text,
-                    if (replacedQueue) SnackbarAction.undo(onUndo = playback::undoInstantMix) else null,
-                )
+                if (message is PlayIntentMessage.MixStarted && message.replacedQueue) {
+                    postMixUndo(text)
+                } else {
+                    snackbars.post(text)
+                }
             }
             .launchIn(viewModelScope)
         // "Continue from <device>" that adopted nothing, as when offline none of its songs is downloaded.
@@ -71,6 +72,18 @@ class PlayerViewModel @Inject constructor(
                 )
             }
             .launchIn(viewModelScope)
+    }
+
+    /**
+     * DESIGN.md §5.7: an Instant mix that replaced a queue can be undone, until the queue changes;
+     * then its snackbar goes, so its Undo never does nothing.
+     */
+    private fun postMixUndo(text: SnackbarText) {
+        val message = snackbars.post(text, SnackbarAction.undo(onUndo = playback::undoInstantMix))
+        viewModelScope.launch {
+            playback.canUndoInstantMix.first { !it }
+            snackbars.onDismiss(message)
+        }
     }
 
     fun shellActions() = ShellPlayerActions(

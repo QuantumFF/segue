@@ -10,6 +10,9 @@ import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.playback.media.withPlayableUri
 import kotlin.random.Random
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Turns a play intent into a queue edit, in the playback service. Every play intent that reaches the
@@ -36,8 +39,19 @@ class QueueEditor(
     private val offline: suspend () -> DownloadedLibrary?,
     private val random: Random = Random.Default,
 ) {
+    /**
+     * How many queues Instant mixes replaced and kept, numbering them from 1: [replaced], when there
+     * is one, is the last.
+     */
+    private var replacedCount = 0
+
     /** The queue an Instant mix replaced, until the next queue change. */
     private var replaced: Replaced? = null
+        set(value) {
+            field = value
+            gone.value = if (value != null) replacedCount - 1 else replacedCount
+        }
+    private val gone = MutableStateFlow(0)
 
     private class Replaced(
         val items: List<MediaItem>,
@@ -57,8 +71,14 @@ class QueueEditor(
         )
     }
 
-    /** Whether an Instant mix replaced a queue that [restoreReplaced] can bring back. */
-    val hasReplaced: Boolean get() = replaced != null
+    /** The number of the queue an Instant mix replaced that [restoreReplaced] can bring back, or 0. */
+    val replacedQueue: Int get() = if (replaced != null) replacedCount else 0
+
+    /**
+     * The replaced queues numbered up to this one can no longer be brought back: the queue changed
+     * since, or they were. So an Undo for queue n has nothing left to do once this reaches n.
+     */
+    val replacedQueuesGone: StateFlow<Int> = gone.asStateFlow()
 
     /**
      * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]); replacing the queue
@@ -79,6 +99,7 @@ class QueueEditor(
         val kept = if (keepReplaced && placement == QueuePlacement.Replace) currentQueue() else null
         place(playable.mediaItems, placement, playable.startIndex, source)
         // After the new queue, whose own change drops the queue kept before.
+        if (kept != null) replacedCount++
         replaced = kept
         return playable.mediaItems.size
     }
