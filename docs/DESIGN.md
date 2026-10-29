@@ -261,6 +261,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
 - Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
 - Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar. Save stays disabled until the order differs from the saved one. Back with unsaved changes asks "Discard changes?" (Discard / Keep editing); without changes it just leaves edit mode.
+- A track's ⋮ "Remove from playlist" (outside edit mode) hides the row at once and shows "Removed <title>" with Undo (§5.7). The server write waits until the snackbar has gone, so Undo sends nothing; a newer removal takes down the snackbar of the one before, as in the queue (§4.8). Starting edit mode takes the Undo away too, so the removal is written before the new order. Delete asks first, then shows "Deleted <name>" once the screen has closed.
 
 ### 4.6 Search
 - Search field pinned at the top: 48 tall, `surfaceContainerHighest`, radius `full`, leading search icon, trailing clear. It auto-focuses when the tab is opened.

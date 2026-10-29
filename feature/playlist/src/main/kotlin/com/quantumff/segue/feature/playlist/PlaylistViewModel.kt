@@ -15,6 +15,8 @@ import com.quantumff.segue.core.data.play.heroPlay
 import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.AlbumOrder
@@ -44,8 +46,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A playlist entry with a key that stays unique when a song appears twice, and stable while reordering. */
-data class PlaylistEntry(val key: String, val song: Song)
+/**
+ * A playlist entry: its [song], and which [copy] of that song it is (from 0), for playlists that
+ * list a song more than once. Its [key] stays unique, and stable while reordering.
+ */
+data class PlaylistEntry(val song: Song, val copy: Int = 0) {
+    val key: String get() = "$copy:${song.id}"
+}
 
 enum class LoadState {
     Loading,
@@ -107,6 +114,8 @@ class PlaylistViewModel @Inject constructor(
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
+    private val removals: PlaylistRemovals,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
     private val local = MutableStateFlow(LocalState())
@@ -116,18 +125,18 @@ class PlaylistViewModel @Inject constructor(
 
     val uiState: StateFlow<PlaylistUiState> = combine(
         playlistRepository.playlist(playlistId),
-        playlistRepository.playlistSongs(playlistId),
+        removals.entries(playlistId),
         local,
         combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
         player,
-    ) { playlist, songs, local, (download, availability), player ->
+    ) { playlist, saved, local, (download, availability), player ->
         PlaylistUiState(
             download = download,
             availability = availability,
             currentSong = player.currentSong,
             heroPlayback = player.hero,
             playlist = playlist,
-            entries = local.working ?: songs.toEntries(),
+            entries = local.working ?: saved,
             loadState = when {
                 local.refreshFailed -> LoadState.Failed
                 playlist == null && local.refreshing -> LoadState.Loading
@@ -135,7 +144,7 @@ class PlaylistViewModel @Inject constructor(
             },
             isOffline = local.refreshOffline,
             isEditing = local.working != null,
-            hasChanges = local.working != null && local.working.map { it.song.id } != songs.map { it.id },
+            hasChanges = local.working != null && local.working.map { it.song.id } != saved.map { it.song.id },
             isDiscardPromptShown = local.discardPrompt,
             isSaving = local.saving,
             isDeleted = local.deleted,
@@ -161,9 +170,11 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
+    /** Enters edit mode. A removal's Undo goes away: its write must land before the edit is saved. */
     fun startEditing() {
         val state = uiState.value
         if (!state.isEditable || state.isEditing) return
+        removals.flush(playlistId)
         local.update { it.copy(working = state.entries) }
     }
 
@@ -200,7 +211,9 @@ class PlaylistViewModel @Inject constructor(
         local.update { it.copy(saving = true) }
         viewModelScope.launch {
             val failed = remoteOutcome {
-                playlistRepository.replaceSongs(playlistId, working.map { it.song.id })
+                removals.afterRemovals(playlistId) {
+                    playlistRepository.replaceSongs(playlistId, working.map { it.song.id })
+                }
             }.isFailure
             local.update {
                 if (failed) {
@@ -212,14 +225,29 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /** Removes one track outside edit mode, from its menu. [index] is the position in the saved order. */
-    fun removeAt(index: Int) = write { playlistRepository.removeSongs(playlistId, listOf(index)) }
+    /**
+     * Removes one track outside edit mode, from its menu: [index] is its row. The row hides at once;
+     * [PlaylistRemovals] writes the removal once its Undo is gone.
+     */
+    fun removeAt(index: Int) {
+        val state = uiState.value
+        if (state.isEditing) return
+        removals.remove(playlistId, state.entries.getOrNull(index) ?: return)
+    }
 
     fun rename(name: String) = write { playlistRepository.updatePlaylist(playlistId, name = name) }
 
+    /**
+     * Deletes the playlist, after its confirm dialog. "Deleted <name>" goes to the app's snackbars,
+     * so it still shows once this screen has closed.
+     */
     fun delete() {
+        val name = uiState.value.playlist?.name ?: return
         viewModelScope.launch {
-            val failed = remoteOutcome { playlistRepository.deletePlaylist(playlistId) }.isFailure
+            val failed = remoteOutcome {
+                removals.afterRemovals(playlistId) { playlistRepository.deletePlaylist(playlistId) }
+            }.isFailure
+            if (!failed) snackbars.post(SnackbarText.of(R.string.feature_playlist_deleted, name))
             local.update { if (failed) it.copy(message = PlaylistMessage.Failed) else it.copy(deleted = true) }
         }
     }
@@ -295,6 +323,3 @@ class PlaylistViewModel @Inject constructor(
         const val PLAYLIST_ID_KEY = "playlistId"
     }
 }
-
-private fun List<Song>.toEntries(): ImmutableList<PlaylistEntry> =
-    mapIndexed { index, song -> PlaylistEntry(key = "$index:${song.id}", song = song) }.toImmutableList()

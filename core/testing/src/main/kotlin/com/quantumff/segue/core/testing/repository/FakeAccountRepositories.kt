@@ -80,6 +80,7 @@ class FakePlaylistRepository : PlaylistRepository {
     var error: RemoteException? = null
     val added = mutableListOf<Pair<String, List<String>>>()
     val replaced = mutableListOf<Pair<String, List<String>>>()
+    val removed = mutableListOf<Pair<String, List<Int>>>()
     val deleted = mutableListOf<String>()
     val refreshed = mutableListOf<String>()
     var refreshAllCount = 0
@@ -135,6 +136,7 @@ class FakePlaylistRepository : PlaylistRepository {
 
     override suspend fun removeSongs(id: String, positions: List<Int>) {
         error?.let { throw it }
+        removed += id to positions
         songsByPlaylist.update { map ->
             map + (id to map[id].orEmpty().filterIndexed { index, _ -> index !in positions })
         }
