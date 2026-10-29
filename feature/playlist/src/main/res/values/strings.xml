@@ -37,6 +37,19 @@
     <string name="feature_playlist_error_generic">Couldn’t reach the server. Try again.</string>
     <string name="feature_playlist_error_save">Couldn’t save the playlist. Your edits are kept.</string>
     <string name="feature_playlist_add_to_title">Add to playlist</string>
+    <string name="feature_playlist_view">View</string>
+    <plurals name="feature_playlist_added_to">
+        <item quantity="one">Added %1$d song to %2$s</item>
+        <item quantity="other">Added %1$d songs to %2$s</item>
+    </plurals>
+    <plurals name="feature_playlist_added_to_skipping">
+        <item quantity="one">Added %1$d song to %2$s, %3$d already there</item>
+        <item quantity="other">Added %1$d songs to %2$s, %3$d already there</item>
+    </plurals>
+    <plurals name="feature_playlist_already_in">
+        <item quantity="one">%1$d song is already in %2$s</item>
+        <item quantity="other">%1$d songs are already in %2$s</item>
+    </plurals>
     <string name="feature_playlist_duration_hours_minutes">%1$d h %2$d m</string>
     <string name="feature_playlist_duration_minutes">%1$d min</string>
     <plurals name="feature_playlist_track_count">
