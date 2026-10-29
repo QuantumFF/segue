@@ -114,7 +114,7 @@ class AddToPlaylistViewModelTest {
     fun createNewPlaylistWithSongs() = runTest {
         val viewModel = viewModel()
 
-        viewModel.createWith("Fresh", listOf("s1", "s2"))
+        viewModel.createWith("Fresh", listOf("s1", "s2", "s1"))
 
         val created = playlists.playlistsState.value.single { it.name == "Fresh" }
         assertThat(created.songCount).isEqualTo(2)

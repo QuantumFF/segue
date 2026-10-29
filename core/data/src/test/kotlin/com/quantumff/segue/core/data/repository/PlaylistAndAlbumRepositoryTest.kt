@@ -113,6 +113,18 @@ class PlaylistAndAlbumRepositoryTest {
     }
 
     @Test
+    fun `a song repeated in one request is added and counted once`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("a", "al")))
+        val repository = playlists()
+        repository.refreshPlaylist("p")
+
+        val result = repository.addSongs("p", listOf("b", "a", "b", "a"))
+
+        assertThat(result).isEqualTo(AddedSongs(added = 1, alreadyPresent = 1))
+        assertThat(server.playlistEdits.single()).isEqualTo("update p name=null add=[b] remove=[]")
+    }
+
+    @Test
     fun `adding only songs already in the playlist sends nothing`() = runTest {
         server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("a", "al")))
         val repository = playlists()

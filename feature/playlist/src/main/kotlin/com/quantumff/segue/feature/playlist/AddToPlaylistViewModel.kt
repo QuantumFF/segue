@@ -63,9 +63,11 @@ class AddToPlaylistViewModel @Inject constructor(
         confirm(playlist.id, playlist.name, result)
     }
 
+    /** A song listed more than once goes in once, as when adding to a playlist. */
     fun createWith(name: String, songIds: List<String>) = save {
-        val id = playlistRepository.createPlaylist(name, songIds)
-        confirm(id, name, AddedSongs(added = songIds.size, alreadyPresent = 0))
+        val songs = songIds.distinct()
+        val id = playlistRepository.createPlaylist(name, songs)
+        confirm(id, name, AddedSongs(added = songs.size, alreadyPresent = 0))
     }
 
     /**
