@@ -23,6 +23,9 @@
     <string name="feature_playlist_rename_title">Rename playlist</string>
     <string name="feature_playlist_delete_title">Delete playlist?</string>
     <string name="feature_playlist_delete_message">“%1$s” will be deleted from the server.</string>
+    <string name="feature_playlist_discard_title">Discard changes?</string>
+    <string name="feature_playlist_discard">Discard</string>
+    <string name="feature_playlist_keep_editing">Keep editing</string>
     <string name="feature_playlist_drag_handle">Drag to reorder</string>
     <string name="feature_playlist_remove_track">Remove from playlist</string>
     <string name="feature_playlist_public">Public</string>

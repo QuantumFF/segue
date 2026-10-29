@@ -260,7 +260,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.5 Playlist detail
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
 - Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
-- Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar.
+- Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar. Save stays disabled until the order differs from the saved one. Back with unsaved changes asks "Discard changes?" (Discard / Keep editing); without changes it just leaves edit mode.
 
 ### 4.6 Search
 - Search field pinned at the top: 48 tall, `surfaceContainerHighest`, radius `full`, leading search icon, trailing clear. It auto-focuses when the tab is opened.

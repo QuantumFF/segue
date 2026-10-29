@@ -113,6 +113,24 @@ internal fun DeletePlaylistDialog(
     )
 }
 
+/** Asks before Back drops the unsaved edits of edit mode. Dismissing it keeps editing. */
+@Composable
+internal fun DiscardChangesDialog(onDiscard: () -> Unit, onKeepEditing: () -> Unit, modifier: Modifier = Modifier) {
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        title = { Text(stringResource(R.string.feature_playlist_discard_title)) },
+        confirmButton = {
+            TextButton(onClick = onDiscard) {
+                Text(stringResource(R.string.feature_playlist_discard), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onKeepEditing) { Text(stringResource(R.string.feature_playlist_keep_editing)) }
+        },
+        modifier = modifier,
+    )
+}
+
 /** A playlist dialog that is open: which one, and for which playlist. */
 internal sealed interface PlaylistDialog {
     data object Create : PlaylistDialog

@@ -63,6 +63,10 @@ data class PlaylistUiState(
     /** The refresh could not reach the server: cached rows show with the offline chip. */
     val isOffline: Boolean = false,
     val isEditing: Boolean = false,
+    /** The working order differs from the saved one. */
+    val hasChanges: Boolean = false,
+    /** Back was pressed with unsaved changes: "Discard changes?" shows. */
+    val isDiscardPromptShown: Boolean = false,
     val isSaving: Boolean = false,
     /** Set once the playlist was deleted from this screen; the screen then navigates back. */
     val isDeleted: Boolean = false,
@@ -80,6 +84,9 @@ data class PlaylistUiState(
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
 
     val songs: List<Song> get() = entries.map { it.song }
+
+    /** Save is enabled only when there is a change to save. */
+    val canSave: Boolean get() = hasChanges && !isSaving
 
     /** [entry]'s track row: its download badge, whether it is available, and whether it is playing. */
     fun trackRow(entry: PlaylistEntry): TrackRowState =
@@ -128,6 +135,8 @@ class PlaylistViewModel @Inject constructor(
             },
             isOffline = local.refreshOffline,
             isEditing = local.working != null,
+            hasChanges = local.working != null && local.working.map { it.song.id } != songs.map { it.id },
+            isDiscardPromptShown = local.discardPrompt,
             isSaving = local.saving,
             isDeleted = local.deleted,
             message = local.message,
@@ -158,7 +167,16 @@ class PlaylistViewModel @Inject constructor(
         local.update { it.copy(working = state.entries) }
     }
 
-    fun cancelEditing() = local.update { it.copy(working = null) }
+    /** Leaves edit mode, dropping the working order; also the discard prompt's Discard. */
+    fun cancelEditing() = local.update { it.copy(working = null, discardPrompt = false) }
+
+    /** Back while editing: asks before discarding changes, and otherwise just leaves edit mode. */
+    fun onEditBack() {
+        if (uiState.value.hasChanges) local.update { it.copy(discardPrompt = true) } else cancelEditing()
+    }
+
+    /** The discard prompt's Keep editing. */
+    fun keepEditing() = local.update { it.copy(discardPrompt = false) }
 
     /** Moves the entry at [from] to [to] in the working order. */
     fun move(from: Int, to: Int) = local.update { state ->
@@ -266,6 +284,7 @@ class PlaylistViewModel @Inject constructor(
         val refreshOffline: Boolean = false,
         /** The working order while editing; null outside edit mode. */
         val working: ImmutableList<PlaylistEntry>? = null,
+        val discardPrompt: Boolean = false,
         val saving: Boolean = false,
         val deleted: Boolean = false,
         val message: PlaylistMessage? = null,

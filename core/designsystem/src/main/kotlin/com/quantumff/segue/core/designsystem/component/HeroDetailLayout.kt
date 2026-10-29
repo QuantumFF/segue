@@ -31,7 +31,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
  * Album, artist and playlist detail layout (DESIGN.md §4.3): a [HeroHeader] as the first list
  * item and a [DetailTopBar] overlaid on top. The bar starts transparent and collapses (fades to the
  * tint, shows the title and a play button) once the hero title scrolls under it. The bar's play
- * button shows Pause while [isPlaying]: the page is the playing queue source.
+ * button shows Pause while [isPlaying]: the page is the playing queue source. [topBarActions] stay
+ * in the bar, in reach however far the list is scrolled.
  * Bottom padding includes [LocalShellContentPadding].
  */
 @Composable
@@ -45,6 +46,7 @@ fun HeroDetailLayout(
     onMoreClick: (() -> Unit)? = null,
     onSubtitleClick: (() -> Unit)? = null,
     heroActions: @Composable RowScope.() -> Unit = {},
+    topBarActions: @Composable RowScope.() -> Unit = {},
     /** Extra space under the last item, e.g. [FloatingAlbumPlayButtonsInset] under [overlay] buttons. */
     extraBottomPadding: Dp = 0.dp,
     /** Drawn over the list, under the top bar: e.g. [FloatingAlbumPlayButtons]. */
@@ -89,6 +91,7 @@ fun HeroDetailLayout(
             onPlayClick = onPlayClick,
             isPlaying = isPlaying,
             onMoreClick = onMoreClick,
+            actions = topBarActions,
         )
     }
 }
