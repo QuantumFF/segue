@@ -565,7 +565,7 @@ private val PreviewEntries = listOf(
     Song(id = "s1", title = "15 Step", albumId = "a1", album = "In Rainbows", artist = "Radiohead", artistId = "r1"),
     Song(id = "s2", title = "Nude", albumId = "a1", album = "In Rainbows", artist = "Radiohead", artistId = "r1"),
     Song(id = "s3", title = "Reckoner", albumId = "a1", album = "In Rainbows", artist = "Radiohead", artistId = "r1"),
-).mapIndexed { index, song -> PlaylistEntry("$index:${song.id}", song.copy(durationSeconds = 240)) }
+).map { song -> PlaylistEntry(song.copy(durationSeconds = 240)) }
     .toImmutableList()
 
 @Composable
