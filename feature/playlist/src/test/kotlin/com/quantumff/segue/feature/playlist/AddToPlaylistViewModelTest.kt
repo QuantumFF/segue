@@ -26,8 +26,10 @@ class AddToPlaylistViewModelTest {
     }
     private val snackbars = Snackbars()
 
-    private fun TestScope.viewModel(): AddToPlaylistViewModel {
-        val viewModel = AddToPlaylistViewModel(playlists, snackbars)
+    private fun TestScope.removals() = PlaylistRemovals(playlists, snackbars, backgroundScope)
+
+    private fun TestScope.viewModel(removals: PlaylistRemovals = removals()): AddToPlaylistViewModel {
+        val viewModel = AddToPlaylistViewModel(playlists, removals, snackbars)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
@@ -79,6 +81,22 @@ class AddToPlaylistViewModelTest {
         assertThat(playlists.added).isEmpty()
         assertThat(snackbars.current.value!!.text).isEqualTo(
             SnackbarText.plural(R.plurals.feature_playlist_already_in, 2, 2, "Road trip"),
+        )
+    }
+
+    @Test
+    fun addingASongWhoseRemovalCanStillBeUndoneKeepsItInThePlaylist() = runTest {
+        val song = TestData.song("s1")
+        playlists.songsByPlaylist.value = mapOf("mine" to listOf(TestData.song("s0"), song))
+        val removals = removals()
+        removals.remove("mine", PlaylistEntry(song))
+
+        viewModel(removals).addTo(mine, listOf("s1"))
+
+        assertThat(playlists.removed).containsExactly("mine" to listOf(1))
+        assertThat(playlists.added).containsExactly("mine" to listOf("s1"))
+        assertThat(snackbars.current.value!!.text).isEqualTo(
+            SnackbarText.plural(R.plurals.feature_playlist_added_to, 1, 1, "Road trip"),
         )
     }
 
