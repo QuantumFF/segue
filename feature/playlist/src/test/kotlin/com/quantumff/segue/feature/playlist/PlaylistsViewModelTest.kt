@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.playlist
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
@@ -26,6 +28,7 @@ import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -45,12 +48,15 @@ class PlaylistsViewModelTest {
     }
 
     private val play = RecordingPlayIntents()
+    private val snackbars = Snackbars()
 
-    private fun viewModel() = PlaylistsViewModel(
+    private fun TestScope.viewModel() = PlaylistsViewModel(
         playlists,
         servers,
         offlineLibraryView(offlineMode, downloads, playlists = playlists),
         mediaActionHandler(play, downloads, playlists = playlists),
+        PlaylistRemovals(playlists, snackbars, backgroundScope),
+        snackbars,
     )
 
     @Test
@@ -82,6 +88,9 @@ class PlaylistsViewModelTest {
         viewModel.delete(viewModel.uiState.value.playlists.single())
         assertThat(playlists.deleted).containsExactly(created.id)
         assertThat(viewModel.uiState.value.playlists).isEmpty()
+        assertThat(
+            snackbars.current.value?.text,
+        ).isEqualTo(SnackbarText.of(R.string.feature_playlist_deleted, "Night drive"))
     }
 
     @Test

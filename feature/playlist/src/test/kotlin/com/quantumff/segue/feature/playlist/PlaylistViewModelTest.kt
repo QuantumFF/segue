@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.R as DataR
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.snackbar.SnackbarMessage
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.HeroPlayback
@@ -60,6 +61,7 @@ class PlaylistViewModelTest {
             player,
             transport,
             mediaActionHandler(play, downloads, stars, playlists = playlists),
+            PlaylistRemovals(playlists, snackbars, backgroundScope),
             snackbars,
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -230,13 +232,131 @@ class PlaylistViewModelTest {
     }
 
     @Test
-    fun deleteMarksDeleted() = runTest {
+    fun deleteMarksDeletedAndSaysSoInTheAppsSnackbars() = runTest {
         val viewModel = viewModel()
 
         viewModel.delete()
 
         assertThat(playlists.deleted).containsExactly("p1")
         assertThat(viewModel.uiState.value.isDeleted).isTrue()
+        // Posted app-wide, so it outlives this screen closing; it has no Undo.
+        assertThat(shown.text).isEqualTo(SnackbarText.of(R.string.feature_playlist_deleted, "Playlist p1"))
+        assertThat(shown.action).isNull()
+    }
+
+    @Test
+    fun aFailedDeleteKeepsThePlaylistAndSaysWhy() = runTest {
+        val viewModel = viewModel()
+        playlists.error = RemoteException.Unreachable(IOException("offline"))
+
+        viewModel.delete()
+
+        assertThat(viewModel.uiState.value.isDeleted).isFalse()
+        assertThat(viewModel.uiState.value.message).isEqualTo(PlaylistMessage.Failed)
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    /** The snackbar showing now. */
+    private val shown: SnackbarMessage get() = checkNotNull(snackbars.current.value)
+
+    @Test
+    fun removeFromMenuThenUndoNeverWritesAndPutsTheSongBackInPlace() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.removeAt(1)
+        assertThat(viewModel.songIds).containsExactly("a", "c").inOrder()
+        assertThat(shown.text).isEqualTo(SnackbarText.of(R.string.feature_playlist_removed, "Song b"))
+
+        snackbars.onAction(shown)
+
+        assertThat(viewModel.songIds).containsExactly("a", "b", "c").inOrder()
+        assertThat(playlists.removed).isEmpty()
+    }
+
+    @Test
+    fun removeFromMenuIsWrittenOnceItsSnackbarIsDismissedOrTimesOut() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.removeAt(1)
+        assertThat(playlists.removed).isEmpty()
+
+        snackbars.onDismiss(shown)
+
+        assertThat(playlists.removed).containsExactly("p1" to listOf(1))
+        assertThat(viewModel.songIds).containsExactly("a", "c").inOrder()
+    }
+
+    @Test
+    fun aNewerRemovalWritesTheEarlierOneAndEachFindsItsSong() = runTest {
+        playlists.songsByPlaylist.value = mapOf("p1" to listOf("a", "b", "c", "d").map(TestData::song))
+        val viewModel = viewModel()
+
+        viewModel.removeAt(1)
+        viewModel.removeAt(2)
+        assertThat(viewModel.songIds).containsExactly("a", "c").inOrder()
+        // "Removed Song b" came down when "Removed Song d" was posted, and b was written.
+        assertThat(shown.text).isEqualTo(SnackbarText.of(R.string.feature_playlist_removed, "Song d"))
+        assertThat(playlists.removed).containsExactly("p1" to listOf(1))
+
+        snackbars.onDismiss(shown)
+
+        // b's write moved d up from position 3 to 2.
+        assertThat(playlists.removed).containsExactly("p1" to listOf(1), "p1" to listOf(2)).inOrder()
+        assertThat(playlists.songsByPlaylist.value["p1"]!!.map { it.id }).containsExactly("a", "c").inOrder()
+    }
+
+    @Test
+    fun undoingTheNewerRemovalKeepsItsSongWhileTheEarlierOneIsWritten() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.removeAt(0)
+        viewModel.removeAt(1)
+        snackbars.onAction(shown)
+
+        assertThat(playlists.removed).containsExactly("p1" to listOf(0))
+        assertThat(viewModel.songIds).containsExactly("b", "c").inOrder()
+    }
+
+    @Test
+    fun removingBothCopiesOfASongRemovesEachOnce() = runTest {
+        playlists.songsByPlaylist.value = mapOf("p1" to listOf("x", "a", "x").map(TestData::song))
+        val viewModel = viewModel()
+
+        viewModel.removeAt(0)
+        viewModel.removeAt(1)
+        assertThat(viewModel.songIds).containsExactly("a")
+        snackbars.onDismiss(shown)
+
+        // The first copy's write made the second copy the first, at position 1.
+        assertThat(playlists.removed).containsExactly("p1" to listOf(0), "p1" to listOf(1)).inOrder()
+        assertThat(playlists.songsByPlaylist.value["p1"]!!.map { it.id }).containsExactly("a")
+    }
+
+    @Test
+    fun editingWritesThePendingRemovalBeforeSavingTheNewOrder() = runTest {
+        val viewModel = viewModel()
+        viewModel.removeAt(1)
+
+        viewModel.startEditing()
+        assertThat(snackbars.current.value).isNull()
+        viewModel.move(from = 1, to = 0)
+        viewModel.save()
+
+        assertThat(playlists.removed).containsExactly("p1" to listOf(1))
+        assertThat(playlists.replaced).containsExactly("p1" to listOf("c", "a"))
+        assertThat(playlists.songsByPlaylist.value["p1"]!!.map { it.id }).containsExactly("c", "a").inOrder()
+    }
+
+    @Test
+    fun aFailedRemovalWriteBringsTheSongBack() = runTest {
+        val viewModel = viewModel()
+        viewModel.removeAt(1)
+        playlists.error = RemoteException.Unreachable(IOException("offline"))
+
+        snackbars.onDismiss(shown)
+
+        assertThat(viewModel.songIds).containsExactly("a", "b", "c").inOrder()
+        assertThat(shown.text).isEqualTo(SnackbarText.of(R.string.feature_playlist_error_generic))
     }
 
     @Test

@@ -8,6 +8,8 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
@@ -73,6 +75,8 @@ class PlaylistsViewModel @Inject constructor(
     serverRepository: ServerRepository,
     offlineView: OfflineLibraryView,
     private val mediaActions: MediaActionHandler,
+    private val removals: PlaylistRemovals,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
 
@@ -136,7 +140,11 @@ class PlaylistsViewModel @Inject constructor(
 
     fun rename(playlist: Playlist, name: String) = write { playlistRepository.updatePlaylist(playlist.id, name = name) }
 
-    fun delete(playlist: Playlist) = write { playlistRepository.deletePlaylist(playlist.id) }
+    /** Deletes [playlist], after its confirm dialog, and says so in the app's snackbars. */
+    fun delete(playlist: Playlist) = write {
+        removals.afterRemovals(playlist.id) { playlistRepository.deletePlaylist(playlist.id) }
+        snackbars.post(SnackbarText.of(R.string.feature_playlist_deleted, playlist.name))
+    }
 
     /** A playlist's ⋮ menu ([MediaActionHandler]); Rename and Delete stay with the screen's dialogs. */
     fun onPlaylistAction(playlist: Playlist, action: MediaAction) {
