@@ -23,7 +23,8 @@ import kotlinx.coroutines.flow.stateIn
 /**
  * The shell's link to playback: the state the mini player and player bar show, their commands,
  * and, posted to [Snackbars], what a play intent raised on any screen ([PlayIntents.messages]) queued
- * or why it queued nothing, and that another device's queue was adopted.
+ * or why it queued nothing, an Instant mix that replaced the queue (with Undo), and that another
+ * device's queue was adopted.
  */
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
@@ -47,11 +48,19 @@ class PlayerViewModel @Inject constructor(
 
     init {
         playIntents.messages
-            .onEach { snackbars.post(it.snackbarText()) }
+            .onEach { message ->
+                val text = message.snackbarText() ?: return@onEach
+                // DESIGN.md §5.7: an Instant mix that replaced a queue can be undone.
+                val replacedQueue = message is PlayIntentMessage.MixStarted && message.replacedQueue
+                snackbars.post(
+                    text,
+                    if (replacedQueue) SnackbarAction.undo(onUndo = playback::undoInstantMix) else null,
+                )
+            }
             .launchIn(viewModelScope)
         // "Continue from <device>" that adopted nothing, as when offline none of its songs is downloaded.
         playback.continueFailures
-            .onEach { snackbars.post(PlayIntentMessage.NothingToPlay.snackbarText()) }
+            .onEach { snackbars.post(SnackbarText.of(R.string.player_nothing_to_play)) }
             .launchIn(viewModelScope)
         // DESIGN.md §4.8: with auto-continue on, a snackbar replaces the banner, with Undo.
         playback.autoAdoptions
@@ -83,9 +92,14 @@ class PlayerViewModel @Inject constructor(
     }
 }
 
-/** "Playing next: <title>" for one song named, else "Added 12 songs to the queue"; failures say why. */
-internal fun PlayIntentMessage.snackbarText(): SnackbarText = when (this) {
+/**
+ * "Playing next: <title>" for one song named, else "Added 12 songs to the queue"; an Instant mix
+ * says it replaced the queue; failures say why. Null for an Instant mix over an empty queue: the
+ * music starting is the feedback.
+ */
+internal fun PlayIntentMessage.snackbarText(): SnackbarText? = when (this) {
     is PlayIntentMessage.Queued -> queuedText()
+    is PlayIntentMessage.MixStarted -> SnackbarText.of(R.string.player_instant_mix_replaced).takeIf { replacedQueue }
     PlayIntentMessage.NothingToPlay -> SnackbarText.of(R.string.player_nothing_to_play)
     PlayIntentMessage.LoadFailed -> SnackbarText.of(R.string.player_load_failed)
     PlayIntentMessage.InstantMixFailed -> SnackbarText.of(R.string.player_instant_mix_failed)

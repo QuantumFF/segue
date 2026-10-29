@@ -2,6 +2,8 @@ package com.quantumff.segue.core.playback.service
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
@@ -25,8 +27,8 @@ import kotlin.random.Random
  *
  * [queue] does all three. A media session applies set and add requests itself; [playable] gives it
  * what to apply. [place] is the bare placement, for album plays, which queue playable songs.
- * [putBack] undoes a removal, which is no play intent and keeps none of these rules.
- * Call on the player's thread.
+ * [putBack] undoes a removal and [restoreReplaced] an Instant mix; neither is a play intent, so
+ * they keep none of these rules. Call on the player's thread.
  */
 class QueueEditor(
     private val player: SeguePlayer,
@@ -34,10 +36,35 @@ class QueueEditor(
     private val offline: suspend () -> DownloadedLibrary?,
     private val random: Random = Random.Default,
 ) {
+    /** The queue an Instant mix replaced, until the next queue change. */
+    private var replaced: Replaced? = null
+
+    private class Replaced(
+        val items: List<MediaItem>,
+        val index: Int,
+        val positionMs: Long,
+        @Player.RepeatMode val repeatMode: Int,
+        val source: QueueSource,
+    )
+
+    init {
+        player.addListener(
+            object : Player.Listener {
+                override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                    if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) replaced = null
+                }
+            },
+        )
+    }
+
+    /** Whether an Instant mix replaced a queue that [restoreReplaced] can bring back. */
+    val hasReplaced: Boolean get() = replaced != null
+
     /**
      * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]); replacing the queue
-     * makes [source] its source. Returns how many were queued: offline only the downloaded ones, and
-     * 0 if none of them can play, when the queue is left alone.
+     * makes [source] its source. With [keepReplaced] (an Instant mix), a replaced queue that was not
+     * empty is kept for [restoreReplaced] until the next queue change. Returns how many were queued:
+     * offline only the downloaded ones, and 0 if none of them can play, when the queue is left alone.
      */
     suspend fun queue(
         items: List<MediaItem>,
@@ -45,11 +72,41 @@ class QueueEditor(
         startIndex: Int = 0,
         shuffle: Boolean = false,
         source: QueueSource = QueueSource.Unknown,
+        keepReplaced: Boolean = false,
     ): Int {
         val playable = playable(items, startIndex, shuffle = shuffle)
         if (playable == null || playable.mediaItems.isEmpty()) return 0
+        val kept = if (keepReplaced && placement == QueuePlacement.Replace) currentQueue() else null
         place(playable.mediaItems, placement, playable.startIndex, source)
+        // After the new queue, whose own change drops the queue kept before.
+        replaced = kept
         return playable.mediaItems.size
+    }
+
+    /**
+     * Undo of an Instant mix: brings back the queue it replaced, at the same song and position, with
+     * its repeat mode and source, paused. Not a play intent: it was the user's own queue, so it is
+     * not narrowed offline. False if no queue is kept: none was replaced, or the queue changed since.
+     */
+    fun restoreReplaced(): Boolean {
+        val queue = replaced ?: return false
+        replaced = null
+        player.pause()
+        player.setQueueSource(queue.source)
+        player.setMediaItems(queue.items, queue.index, queue.positionMs)
+        player.repeatMode = queue.repeatMode
+        return true
+    }
+
+    private fun currentQueue(): Replaced? {
+        if (player.mediaItemCount == 0) return null
+        return Replaced(
+            items = List(player.mediaItemCount) { player.getMediaItemAt(it) },
+            index = player.currentMediaItemIndex,
+            positionMs = player.currentPosition,
+            repeatMode = player.repeatMode,
+            source = player.queueSource.value,
+        )
     }
 
     /**

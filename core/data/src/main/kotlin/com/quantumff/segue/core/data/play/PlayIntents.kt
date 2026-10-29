@@ -59,6 +59,12 @@ sealed interface PlayIntentMessage {
      */
     data class Queued(val count: Int, val placement: QueuePlacement, val name: String?) : PlayIntentMessage
 
+    /**
+     * An Instant mix started. [replacedQueue]: it replaced a queue, which Undo can bring back until
+     * the next queue change; over an empty queue there is nothing to undo.
+     */
+    data class MixStarted(val replacedQueue: Boolean) : PlayIntentMessage
+
     /** Nothing could play: no songs, or offline none of them is downloaded. */
     data object NothingToPlay : PlayIntentMessage
 

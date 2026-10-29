@@ -11,6 +11,7 @@
     <string name="player_load_failed">Couldn\'t load the songs. Check your connection.</string>
     <string name="player_instant_mix_failed">Couldn\'t start an instant mix</string>
     <string name="player_instant_mix_offline">Instant mix needs a connection to the server</string>
+    <string name="player_instant_mix_replaced">Replaced the queue with an Instant mix</string>
     <string name="player_playing_next">Playing next: %1$s</string>
     <string name="player_added_to_queue">Added %1$s to the queue</string>
     <plurals name="player_playing_songs_next">
