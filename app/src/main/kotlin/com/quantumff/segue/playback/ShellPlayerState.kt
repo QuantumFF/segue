@@ -46,10 +46,14 @@ class ShellPlayerActions(
     /** "Continue" on the remote queue bar: adopt the other device's queue. */
     val onContinueRemote: () -> Unit,
     val onDismissRemote: () -> Unit,
+    /** The playback error snackbar's Skip: plays the next item. */
+    val onSkipPastError: () -> Unit,
+    /** The playback error snackbar's Retry, for a network error: prepares the song again and plays it. */
+    val onRetryPlayback: () -> Unit,
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */
-        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {})
+        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 

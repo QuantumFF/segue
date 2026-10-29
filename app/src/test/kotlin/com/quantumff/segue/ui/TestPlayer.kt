@@ -16,12 +16,16 @@ internal val testPlayer = ShellPlayerState(
     durationMillis = 200_000,
 )
 
-/** The shell with a fixed player state, no-op player commands, [snackbars], and a stand-in Now Playing. */
+/**
+ * The shell with a fixed player state, no-op player commands, [snackbars], and [nowPlaying], by
+ * default a stand-in that only says "Now playing".
+ */
 @Composable
 internal fun TestShell(
     appState: SegueAppState,
     player: ShellPlayerState = testPlayer,
     snackbars: Snackbars = remember { Snackbars() },
+    nowPlaying: @Composable () -> Unit = { if (appState.isNowPlayingOpen) Text("Now playing") },
 ) {
     SegueApp(
         appState = appState,
@@ -29,6 +33,6 @@ internal fun TestShell(
         snackbars = snackbars,
         positionMillis = remember { MutableStateFlow(50_000L) },
         playerActions = ShellPlayerActions.None,
-        nowPlaying = { if (appState.isNowPlayingOpen) Text("Now playing") },
+        nowPlaying = nowPlaying,
     ) { TestNavHost(appState, it) }
 }

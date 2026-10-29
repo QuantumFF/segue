@@ -14,6 +14,8 @@ import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
@@ -29,7 +31,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,21 +41,14 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-/** One-off messages, shown as snackbars. */
-sealed interface NowPlayingMessage {
-    data class QueueSavedAsPlaylist(val name: String) : NowPlayingMessage
-
-    data object QueueSaveFailed : NowPlayingMessage
-}
 
 /**
  * Now Playing: the player state plus what the library and server know about the current track.
  * Lyrics and related songs load only while their panel is visible (see [setVisiblePanels]).
  * It reads player state from [PlayerStateSource] and sends transport commands to [PlaybackController].
+ * Its messages go to the app's [Snackbars], which the shell shows over Now Playing.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -67,6 +61,7 @@ class NowPlayingViewModel @Inject constructor(
     private val fileInfo: SongFileInfoRepository,
     private val playIntents: PlayIntents,
     private val playlists: PlaylistRepository,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val currentSongId: Flow<String?> = player.state
         .map { it.currentItem?.songId }
@@ -155,9 +150,6 @@ class NowPlayingViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
-    private val messageChannel = Channel<NowPlayingMessage>(Channel.BUFFERED)
-    val messages: Flow<NowPlayingMessage> = messageChannel.receiveAsFlow()
-
     /** Which panels are on screen; lyrics and related songs load only for those. */
     fun setVisiblePanels(panels: Set<NowPlayingPanel>) {
         visiblePanels.value = panels
@@ -176,12 +168,6 @@ class NowPlayingViewModel @Inject constructor(
     fun skipTo(timelineIndex: Int) = playback.skipTo(timelineIndex)
 
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
-
-    /** The playback error's Skip: plays the next item. */
-    fun skipPastError() = playback.skipPastError()
-
-    /** The playback error's Retry, for a network error: prepares the song again and plays it. */
-    fun retryPlayback() = playback.retry()
 
     fun cycleRepeatMode() = playback.setRepeatMode(uiState.value.repeatMode.next())
 
@@ -222,11 +208,11 @@ class NowPlayingViewModel @Inject constructor(
         viewModelScope.launch {
             val message = try {
                 playlists.createPlaylist(name.trim(), songIds)
-                NowPlayingMessage.QueueSavedAsPlaylist(name.trim())
+                SnackbarText.of(R.string.feature_nowplaying_queue_saved, name.trim())
             } catch (_: RemoteException) {
-                NowPlayingMessage.QueueSaveFailed
+                SnackbarText.of(R.string.feature_nowplaying_queue_save_failed)
             }
-            messageChannel.send(message)
+            snackbars.post(message)
         }
     }
 

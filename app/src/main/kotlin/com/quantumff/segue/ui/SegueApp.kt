@@ -84,6 +84,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * App shell entry point: picks the layout for the window size (DESIGN.md §3), starts at login
@@ -112,14 +113,6 @@ fun SegueApp(
     val playerActions = remember(playerViewModel) { playerViewModel.shellActions() }
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
-    // DESIGN.md §4.7: a song that failed to play, with Skip, and Retry for a network error. Now
-    // Playing shows it in its own host, so the shell's host, drawn over Now Playing, leaves it then.
-    PlaybackErrorSnackbar(
-        error = player.playbackError.takeUnless { appState.isNowPlayingOpen },
-        hostState = snackbarHostState,
-        onSkip = playerViewModel::skipPastError,
-        onRetry = playerViewModel::retryPlayback,
-    )
     val update by appUpdateViewModel.availableUpdate.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     LaunchedEffect(update) {
@@ -244,6 +237,14 @@ fun SegueApp(
     SystemBarAppearance(lightStatusIcons = SegueTheme.isDark || appState.isNowPlayingOpen)
 
     ShowSnackbars(snackbars, snackbarHostState)
+    // DESIGN.md §4.7: a song that failed to play, with Skip, and Retry for a network error, over
+    // Now Playing too.
+    PlaybackErrorSnackbar(
+        error = player.playbackError,
+        hostState = snackbarHostState,
+        onSkip = playerActions.onSkipPastError,
+        onRetry = playerActions.onRetryPlayback,
+    )
     val nowPlayingOpen = appState.isNowPlayingOpen
     // Closed, the host sits in the content area, above the mini player (LocalShellContentPadding).
     val shellContent: @Composable (Modifier) -> Unit = remember(navHost, snackbarHostState, nowPlayingOpen) {
@@ -287,7 +288,7 @@ fun SegueApp(
             }
         }
         nowPlaying()
-        // Open, it draws over Now Playing, where Now Playing places its own (DESIGN.md §5.7).
+        // Open, it draws over Now Playing, Now Playing's one host (DESIGN.md §5.7).
         if (nowPlayingOpen) {
             SegueSnackbarHost(
                 snackbarHostState,
@@ -299,13 +300,16 @@ fun SegueApp(
     }
 }
 
-/** Shows each of [snackbars] in turn in [hostState], and reports back once it is gone. */
+/**
+ * Shows each of [snackbars] in turn in [hostState], and reports back once it is gone. A message its
+ * poster takes back stops being current, which takes it down.
+ */
 @Composable
 private fun ShowSnackbars(snackbars: Snackbars, hostState: SnackbarHostState) {
     val resources = LocalResources.current
     LaunchedEffect(snackbars, hostState) {
-        snackbars.current.collect { message ->
-            if (message == null) return@collect
+        snackbars.current.collectLatest { message ->
+            if (message == null) return@collectLatest
             // Cancelled with the shell, before it is gone: the message stays current for the next host.
             val result = hostState.showSnackbar(
                 message = message.text.resolve(resources),

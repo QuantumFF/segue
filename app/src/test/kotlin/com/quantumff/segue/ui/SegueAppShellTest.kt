@@ -2,7 +2,14 @@ package com.quantumff.segue.ui
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -20,7 +27,10 @@ import com.quantumff.segue.core.data.snackbar.SnackbarAction
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.PlaybackError
+import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.RemoteQueueOffer
+import com.quantumff.segue.feature.queue.QueueRemovals
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
 import kotlinx.collections.immutable.persistentListOf
@@ -153,6 +163,19 @@ class SegueAppShellTest {
     }
 
     @Test
+    fun `a playback error is announced over Now Playing, Now Playing's one host`() {
+        val error = PlaybackError("s1", "Nude", PlaybackErrorKind.Network)
+        setShell(ShellLayout.Compact, player = testPlayer.copy(playbackError = error))
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        compose.onNodeWithText("Now playing").assertExists()
+        compose.onAllNodes(
+            hasAnyAncestor(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)) and hasText("Retry"),
+        )
+            .assertCountEquals(1)
+    }
+
+    @Test
     fun `a message counts as shown once it has timed out`() {
         setShell(ShellLayout.Compact)
         compose.mainClock.autoAdvance = false
@@ -176,6 +199,45 @@ class SegueAppShellTest {
 
         assertThat(undone).isTrue()
         assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun `a message its poster takes back goes down at once`() {
+        setShell(ShellLayout.Compact)
+        val message = snackbars.post(nothingToPlay, SnackbarAction.undo {})
+        announced("Nothing to play").assertExists()
+
+        snackbars.onDismiss(message)
+
+        announced("Nothing to play").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a queue removal's Undo outlives a panel change and collapsing Now Playing`() {
+        var undone = false
+        val removals = QueueRemovals(snackbars)
+        compose.setContent {
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = ShellLayout.Compact)
+                TestShell(appState, snackbars = snackbars, nowPlaying = {
+                    PanelledNowPlaying(appState, onRemove = { removals.removed("Nude") { undone = true } })
+                })
+            }
+        }
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        compose.onNodeWithText("Remove Nude").performClick()
+        compose.onNodeWithText("Lyrics panel").performClick()
+        compose.onNodeWithText("Remove Nude").assertDoesNotExist()
+        announced("Removed Nude").assertExists()
+
+        compose.onNodeWithText("Collapse").performClick()
+        compose.onNodeWithText(TEST_TRACK).assertExists()
+        announced("Removed Nude").assertExists()
+
+        compose.onNodeWithText("Undo").performClick()
+        compose.waitForIdle()
+        assertThat(undone).isTrue()
     }
 
     @Test
@@ -246,6 +308,22 @@ class SegueAppShellTest {
 
         compose.onNodeWithText("Now playing").assertExists()
         compose.onAllNodes(hasText("Continue from Feishin")).assertCountEquals(0)
+    }
+}
+
+/**
+ * A stand-in Now Playing with a Queue and a Lyrics panel, composing only the one shown, as the
+ * phone layout does. The Queue panel's one row removes "Nude" through [onRemove].
+ */
+@Composable
+private fun PanelledNowPlaying(appState: SegueAppState, onRemove: () -> Unit) {
+    if (!appState.isNowPlayingOpen) return
+    var lyrics by remember { mutableStateOf(false) }
+    Column {
+        Text("Now playing")
+        TextButton(onClick = { lyrics = true }) { Text("Lyrics panel") }
+        if (lyrics) Text("Lyrics") else TextButton(onClick = onRemove) { Text("Remove Nude") }
+        TextButton(onClick = appState::closeNowPlaying) { Text("Collapse") }
     }
 }
 
