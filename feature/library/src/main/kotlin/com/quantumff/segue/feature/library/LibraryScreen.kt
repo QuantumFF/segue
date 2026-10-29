@@ -162,6 +162,9 @@ internal sealed interface LibraryEvent {
 
     data class SongMenu(val song: Song, val action: MediaAction) : LibraryEvent
 
+    /** A song row was swiped to Play next or Add to queue ([placement]). */
+    data class SongSwipe(val song: Song, val placement: QueuePlacement) : LibraryEvent
+
     data object MessageShown : LibraryEvent
 
     /** The [tab]'s Downloaded chip was tapped. */
@@ -240,6 +243,7 @@ fun LibraryScreen(
                 is LibraryEvent.AlbumMenu -> viewModel.onAlbumAction(event.album, event.action, menuHost)
                 is LibraryEvent.ArtistMenu -> viewModel.onArtistAction(event.artist, event.action, menuHost)
                 is LibraryEvent.SongMenu -> viewModel.onSongAction(event.song, event.action, menuHost)
+                is LibraryEvent.SongSwipe -> viewModel.onSongSwipe(event.song, event.placement)
                 LibraryEvent.MessageShown -> viewModel.onMessageDismiss()
                 is LibraryEvent.CycleDownloaded -> viewModel.cycleDownloadedFilter(event.tab)
                 is LibraryEvent.ToggleSelected -> viewModel.toggleSelected(event.item)
@@ -874,8 +878,8 @@ private fun SongList(
                 val download = downloads[song.id]
                 // Swipes queue the song; while selecting, rows only pick.
                 TrackSwipeBox(
-                    onPlayNext = { onEvent(LibraryEvent.SongMenu(song, MediaAction.PlayNext)) },
-                    onAddToQueue = { onEvent(LibraryEvent.SongMenu(song, MediaAction.AddToQueue)) },
+                    onPlayNext = { onEvent(LibraryEvent.SongSwipe(song, QueuePlacement.Next)) },
+                    onAddToQueue = { onEvent(LibraryEvent.SongSwipe(song, QueuePlacement.End)) },
                     enabled = selected.isEmpty(),
                 ) {
                     TrackRow(

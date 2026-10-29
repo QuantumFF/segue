@@ -73,6 +73,7 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
@@ -113,6 +114,7 @@ fun SearchScreen(
             },
             onSongClick = viewModel::onSongClick,
             onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
+            onSongSwipe = viewModel::onSongSwipe,
             onMessageDismiss = viewModel::onMessageDismiss,
         )
     }
@@ -137,10 +139,12 @@ class SearchCallbacks(
     /** Index into [SearchUiState.songs]. */
     val onSongClick: (Int) -> Unit,
     val onSongAction: (Song, MediaAction) -> Unit,
+    /** A song row's swipe: Play next or Add to queue. */
+    val onSongSwipe: (Song, QueuePlacement) -> Unit,
     val onMessageDismiss: () -> Unit,
 ) {
     companion object {
-        val None = SearchCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, {})
+        val None = SearchCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
     }
 }
 
@@ -429,8 +433,8 @@ private fun LazyListScope.songRows(
 ) {
     itemsIndexed(songs, key = { _, song -> "song:${song.id}" }, contentType = { _, _ -> "song" }) { index, song ->
         TrackSwipeBox(
-            onPlayNext = { callbacks.onSongAction(song, MediaAction.PlayNext) },
-            onAddToQueue = { callbacks.onSongAction(song, MediaAction.AddToQueue) },
+            onPlayNext = { callbacks.onSongSwipe(song, QueuePlacement.Next) },
+            onAddToQueue = { callbacks.onSongSwipe(song, QueuePlacement.End) },
         ) {
             TrackRow(
                 state = song.toTrackRowState(current = currentSong),

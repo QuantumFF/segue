@@ -644,6 +644,11 @@ class LibraryViewModel @Inject constructor(
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) =
         menuAction { mediaActions.song(song, action, host) }
 
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
+    }
+
     private fun menuAction(run: suspend () -> MediaActionFailure?) {
         viewModelScope.launch { run()?.let { message.value = LibraryMessage.ActionFailed(it) } }
     }

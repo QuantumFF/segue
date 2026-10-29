@@ -37,16 +37,15 @@ class AlbumPlays(
 
     /**
      * Queues [request] at its placement ([QueueEditor.place]); replacing the queue makes [source] the
-     * queue source. False if there is nothing to play (the queue is then left alone).
+     * queue source. Returns how many songs were queued: 0 if there is nothing to play (the queue is
+     * then left alone).
      */
-    suspend fun start(request: AlbumPlayRequest, source: QueueSource = QueueSource.Unknown): Boolean =
-        starting.withLock {
-            // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
-            val items = items(request)
-            if (items.isEmpty()) return@withLock false
-            queue.place(items, request.placement, source = source)
-            true
-        }
+    suspend fun start(request: AlbumPlayRequest, source: QueueSource = QueueSource.Unknown): Int = starting.withLock {
+        // One start at a time: a quick Play then Shuffle queue one after the other, never interleaved.
+        val items = items(request)
+        if (items.isNotEmpty()) queue.place(items, request.placement, source = source)
+        items.size
+    }
 
     /**
      * What a media session queues itself for [request] (Android Auto's "Shuffle albums"): [songs]

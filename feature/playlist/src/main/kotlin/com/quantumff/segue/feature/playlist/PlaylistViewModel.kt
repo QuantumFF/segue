@@ -30,6 +30,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
@@ -279,6 +280,11 @@ class PlaylistViewModel @Inject constructor(
                 local.update { it.copy(message = PlaylistMessage.Failed) }
             }
         }
+    }
+
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
     }
 
     fun onMessageDismiss() = local.update { it.copy(message = null) }

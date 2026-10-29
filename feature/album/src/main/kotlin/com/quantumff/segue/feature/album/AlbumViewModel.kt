@@ -36,6 +36,7 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
@@ -183,6 +184,11 @@ class AlbumViewModel @Inject constructor(
     /** A track's ⋮ menu. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) =
         menuAction { mediaActions.song(song, action, host) }
+
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
+    }
 
     private fun menuAction(run: suspend () -> MediaActionFailure?) {
         viewModelScope.launch { run()?.let { message.value = AlbumMessage.ActionFailed(it) } }

@@ -69,6 +69,7 @@ import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -101,6 +102,7 @@ fun PlaylistScreen(
             val host = MediaActionHost(onAlbumClick, onArtistClick, onAddToPlaylist) { viewModel.removeAt(index) }
             viewModel.onSongAction(song, action, host)
         },
+        onTrackSwipe = viewModel::onSongSwipe,
         onEditClick = viewModel::startEditing,
         onCancelEditClick = viewModel::cancelEditing,
         onSaveClick = viewModel::save,
@@ -134,6 +136,7 @@ fun PlaylistScreenContent(
     onShuffleAlbumsClick: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
     onTrackAction: (index: Int, song: Song, action: MediaAction) -> Unit,
+    onTrackSwipe: (Song, QueuePlacement) -> Unit,
     onEditClick: () -> Unit,
     onCancelEditClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -268,8 +271,8 @@ fun PlaylistScreenContent(
                 ) { index, entry ->
                     val row = remember(entry, uiState.availability, uiState.currentSong) { uiState.trackRow(entry) }
                     TrackSwipeBox(
-                        onPlayNext = { onTrackAction(index, entry.song, MediaAction.PlayNext) },
-                        onAddToQueue = { onTrackAction(index, entry.song, MediaAction.AddToQueue) },
+                        onPlayNext = { onTrackSwipe(entry.song, QueuePlacement.Next) },
+                        onAddToQueue = { onTrackSwipe(entry.song, QueuePlacement.End) },
                         enabled = row.isAvailable,
                     ) {
                         TrackRow(
@@ -575,6 +578,7 @@ private fun PreviewPlaylistScreen(uiState: PlaylistUiState) {
         onShuffleAlbumsClick = {},
         onTrackClick = {},
         onTrackAction = { _, _, _ -> },
+        onTrackSwipe = { _, _ -> },
         onEditClick = {},
         onCancelEditClick = {},
         onSaveClick = {},

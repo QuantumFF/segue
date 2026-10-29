@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
@@ -354,6 +355,20 @@ class PlaylistViewModelTest {
     /** The player on a song of [source], which is the queue source. */
     private fun playing(source: QueueSource, isPlaying: Boolean) =
         TestData.playerOn("elsewhere", isPlaying).copy(queueSource = source)
+
+    @Test
+    fun swipingATrackQueuesItWithoutAConfirmation() = runTest {
+        val viewModel = viewModel()
+        val song = TestData.song("s1")
+
+        viewModel.onSongSwipe(song, QueuePlacement.Next)
+        viewModel.onSongSwipe(song, QueuePlacement.End)
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.Next, false, confirm = false),
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.End, false, confirm = false),
+        ).inOrder()
+    }
 
     @Test
     fun trackMenuStarsAndRemovesFromThePlaylist() = runTest {

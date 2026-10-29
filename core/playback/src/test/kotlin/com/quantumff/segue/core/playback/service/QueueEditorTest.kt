@@ -41,7 +41,7 @@ class QueueEditorTest {
     fun `replace sets the queue from the start song and plays`() = runTest {
         player.setMediaItems(items("x"))
 
-        assertThat(editor.queue(items("a", "b", "c"), QueuePlacement.Replace, startIndex = 1)).isTrue()
+        assertThat(editor.queue(items("a", "b", "c"), QueuePlacement.Replace, startIndex = 1)).isEqualTo(3)
 
         assertThat(queueIds()).containsExactly("a", "b", "c").inOrder()
         assertThat(exo.currentMediaItemIndex).isEqualTo(1)
@@ -100,7 +100,7 @@ class QueueEditorTest {
 
         downloaded = null
         player.setMediaItems(items("x"))
-        assertThat(editor.queue(emptyList(), QueuePlacement.Replace)).isFalse()
+        assertThat(editor.queue(emptyList(), QueuePlacement.Replace)).isEqualTo(0)
         assertThat(queueIds()).containsExactly("x")
     }
 
@@ -138,12 +138,22 @@ class QueueEditorTest {
     }
 
     @Test
+    fun `offline the count queued is of the downloaded songs only`() = runTest {
+        downloaded = setOf("a", "c")
+        player.setMediaItems(items("x"))
+
+        assertThat(editor.queue(items("a", "b", "c"), QueuePlacement.End)).isEqualTo(2)
+
+        assertThat(queueIds()).containsExactly("x", "a", "c").inOrder()
+    }
+
+    @Test
     fun `nothing downloaded offline leaves the queue alone`() = runTest {
         downloaded = emptySet()
         player.setMediaItems(items("x"))
 
-        assertThat(editor.queue(items("a", "b"), QueuePlacement.Replace)).isFalse()
-        assertThat(editor.queue(emptyList(), QueuePlacement.End)).isFalse()
+        assertThat(editor.queue(items("a", "b"), QueuePlacement.Replace)).isEqualTo(0)
+        assertThat(editor.queue(emptyList(), QueuePlacement.End)).isEqualTo(0)
 
         assertThat(queueIds()).containsExactly("x")
     }

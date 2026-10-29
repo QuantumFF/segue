@@ -107,6 +107,7 @@ fun ArtistDetailRoute(
         onRemoveDownload = viewModel::removeDownload,
         onArtistAction = { viewModel.onArtistAction(it, menuHost) },
         onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
+        onSongSwipe = viewModel::onSongSwipe,
     )
 }
 
@@ -135,6 +136,7 @@ fun ArtistScreen(
     onRemoveDownload: () -> Unit = {},
     onArtistAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
+    onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     Box(modifier.fillMaxSize()) {
@@ -183,6 +185,7 @@ fun ArtistScreen(
                 onRemoveDownload = onRemoveDownload,
                 onArtistAction = onArtistAction,
                 onSongAction = onSongAction,
+                onSongSwipe = onSongSwipe,
             )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -218,6 +221,7 @@ private fun ArtistContent(
     onRemoveDownload: () -> Unit,
     onArtistAction: (MediaAction) -> Unit,
     onSongAction: (Song, MediaAction) -> Unit,
+    onSongSwipe: (Song, QueuePlacement) -> Unit,
 ) {
     val artist = state.artist
     var artistMenuOpen by rememberSaveable { mutableStateOf(false) }
@@ -312,8 +316,8 @@ private fun ArtistContent(
                 ->
                 val row = remember(song, state.availability, state.currentSong) { state.trackRow(song) }
                 TrackSwipeBox(
-                    onPlayNext = { onSongAction(song, MediaAction.PlayNext) },
-                    onAddToQueue = { onSongAction(song, MediaAction.AddToQueue) },
+                    onPlayNext = { onSongSwipe(song, QueuePlacement.Next) },
+                    onAddToQueue = { onSongSwipe(song, QueuePlacement.End) },
                     enabled = row.isAvailable,
                 ) {
                     TrackRow(

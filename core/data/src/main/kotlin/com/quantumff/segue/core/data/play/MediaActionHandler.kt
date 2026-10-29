@@ -56,6 +56,13 @@ class MediaActionHandler @Inject constructor(
         else -> common(action, Subject.of(song), host)
     }
 
+    /**
+     * A track row's swipe (DESIGN.md §5.2): Play next or Add to queue ([placement]) of [song], like
+     * its menu but confirming nothing, since the haptic tick and the revealed row are its feedback.
+     */
+    suspend fun swipeSong(song: Song, placement: QueuePlacement) =
+        playIntents.play(PlayTarget.Songs(listOf(song)), placement, confirm = false)
+
     suspend fun artist(artist: Artist, action: MediaAction, host: MediaActionHost): MediaActionFailure? =
         common(action, Subject.of(artist), host)
 

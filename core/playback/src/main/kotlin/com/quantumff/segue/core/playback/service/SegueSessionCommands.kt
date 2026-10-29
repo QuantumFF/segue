@@ -37,10 +37,10 @@ internal object SegueSessionCommands {
     /** A playback error's Skip (PlaybackErrorReporter.skip). */
     const val SKIP_PAST_ERROR = PREFIX + "SKIP_PAST_ERROR"
 
-    /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_STARTED]. */
+    /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_QUEUED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
-    /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_STARTED]. */
+    /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_QUEUED]. */
     const val QUEUE_SONGS = PREFIX + "QUEUE_SONGS"
 
     /**
@@ -52,6 +52,7 @@ internal object SegueSessionCommands {
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
+    const val ARG_QUEUED = "queued"
     private const val ARG_SOURCE_KIND = "sourceKind"
     private const val ARG_SOURCE_ID = "sourceId"
     private const val ARG_SORT = "sort"
@@ -283,8 +284,14 @@ internal object SegueSessionCommands {
         return Removed(MediaItem.fromBundle(item), bundle.getInt(ARG_INDEX))
     }
 
-    /** The answer to [PLAY_ALBUMS], [QUEUE_SONGS] and [ADOPT_QUEUE]: whether anything was queued. */
+    /** The answer to [ADOPT_QUEUE]: whether anything was queued. */
     fun startedResult(started: Boolean) = Bundle().apply { putBoolean(ARG_STARTED, started) }
+
+    /**
+     * The answer to [PLAY_ALBUMS] and [QUEUE_SONGS]: how many songs were queued, offline only the
+     * downloaded ones; 0 if none.
+     */
+    fun queuedResult(count: Int) = Bundle().apply { putInt(ARG_QUEUED, count) }
 
     private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =
         enumValues<E>().firstOrNull { it.name == name }

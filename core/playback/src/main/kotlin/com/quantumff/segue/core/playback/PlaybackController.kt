@@ -149,7 +149,7 @@ class PlaybackController @Inject constructor(
      * with [shuffle] in a fresh shuffled order from its first song. The service queues them
      * ([com.quantumff.segue.core.playback.service.QueueEditor]): shuffled only now, never as a
      * running queue, and offline only the downloaded songs. Replacing the queue makes [source] the
-     * queue source. False if there is nothing to play.
+     * queue source. Returns how many songs were queued: 0 if there is nothing to play.
      */
     suspend fun queue(
         songs: List<Song>,
@@ -157,10 +157,10 @@ class PlaybackController @Inject constructor(
         startIndex: Int,
         shuffle: Boolean,
         source: QueueSource = QueueSource.Unknown,
-    ): Boolean {
+    ): Int {
         val items = songs.map { it.toMediaItem() }
         val request = SegueSessionCommands.QueueSongs(items, placement, startIndex, shuffle, source)
-        return send(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
+        return sendQueueing(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
     }
 
     /** Moves the item at queue position [from] to position [to]. */
@@ -339,38 +339,45 @@ class PlaybackController @Inject constructor(
      * in disc and track order, the albums in the source's order or shuffled, or every song shuffled,
      * replacing the queue or placed in it. The service reads the songs and queues them all at once
      * ([com.quantumff.segue.core.playback.album.AlbumPlays]). Reads Room only; offline only
-     * downloaded songs are queued. Replacing the queue makes [source] the queue source. False if
-     * there is nothing to play.
+     * downloaded songs are queued. Replacing the queue makes [source] the queue source. Returns how
+     * many songs were queued: 0 if there is nothing to play.
      */
-    suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Boolean =
-        send(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request, source))
+    suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Int =
+        sendQueueing(SegueSessionCommands.PLAY_ALBUMS, SegueSessionCommands.playAlbumsArgs(request, source))
 
     /**
      * Instant mix: [seed] if given, then songs similar to [artistId] (`getSimilarSongs2`), topped
      * up with the artist's top songs, replacing the queue with [source] as its source. Throws
-     * RemoteException. False if nothing came back.
+     * RemoteException. Returns how many songs were queued: 0 if nothing came back.
      */
-    suspend fun playInstantMix(seed: Song?, artistId: String, source: QueueSource): Boolean {
+    suspend fun playInstantMix(seed: Song?, artistId: String, source: QueueSource): Int {
         val similar = artists.similarSongs(artistId, InstantMix.DEFAULT_SIZE)
         val top = if (similar.size < InstantMix.DEFAULT_SIZE) artists.topSongs(artistId) else emptyList()
         val mix = InstantMix.build(seed, similar, top)
-        if (mix.size <= (if (seed == null) 0 else 1)) return false
+        if (mix.size <= (if (seed == null) 0 else 1)) return 0
         return queue(mix, QueuePlacement.Replace, startIndex = 0, shuffle = false, source = source)
     }
 
     // --- Connection ----------------------------------------------------------------------------------
 
-    /** Sends a queueing or adopting command ([action]) and answers whether the service queued anything. */
-    private suspend fun send(action: String, args: Bundle): Boolean = withContext(mainDispatcher) {
+    /** Sends an adopting command ([action]) and answers whether the service queued anything. */
+    private suspend fun send(action: String, args: Bundle): Boolean =
+        sendForResult(action, args)?.getBoolean(SegueSessionCommands.ARG_STARTED) ?: false
+
+    /** Sends a queueing command ([action]) and answers how many songs the service queued. */
+    private suspend fun sendQueueing(action: String, args: Bundle): Int =
+        sendForResult(action, args)?.getInt(SegueSessionCommands.ARG_QUEUED) ?: 0
+
+    /** Sends [action] and answers the service's extras, or null if it failed or could not be asked. */
+    private suspend fun sendForResult(action: String, args: Bundle): Bundle? = withContext(mainDispatcher) {
         try {
             val result = controller().sendCustomCommand(SegueSessionCommands.command(action), args).await()
-            result.resultCode == SessionResult.RESULT_SUCCESS &&
-                result.extras.getBoolean(SegueSessionCommands.ARG_STARTED)
+            result.extras.takeIf { result.resultCode == SessionResult.RESULT_SUCCESS }
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             Log.w(TAG, "Session command failed ($action)", e)
-            false
+            null
         }
     }
 
