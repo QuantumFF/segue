@@ -37,7 +37,7 @@ kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCollectionsImmutable = "0.5.2"
 retrofit = "3.0.0"
-okhttp = "5.5.0"
+okhttp = "5.5.1"
 coil = "3.6.3"
 reorderable = "3.1.0"
 
