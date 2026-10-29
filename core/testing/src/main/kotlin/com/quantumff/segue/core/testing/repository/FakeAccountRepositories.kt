@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.testing.repository
 
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.repository.AddedSongs
 import com.quantumff.segue.core.data.repository.AppUpdateRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerCapabilitiesRepository
@@ -128,9 +129,13 @@ class FakePlaylistRepository : PlaylistRepository {
         }
     }
 
-    override suspend fun addSongs(id: String, songIds: List<String>) {
+    /** Records in [added] only the songs [songsByPlaylist] does not have for [id] yet, as the real one sends. */
+    override suspend fun addSongs(id: String, songIds: List<String>): AddedSongs {
         error?.let { throw it }
-        added += id to songIds
+        val present = songsByPlaylist.value[id].orEmpty().map { it.id }.toSet()
+        val toAdd = songIds.filterNot { it in present }
+        if (toAdd.isNotEmpty()) added += id to toAdd
+        return AddedSongs(added = toAdd.size, alreadyPresent = songIds.size - toAdd.size)
     }
 
     override suspend fun removeSongs(id: String, positions: List<Int>) {

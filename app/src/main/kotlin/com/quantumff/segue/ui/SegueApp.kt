@@ -71,6 +71,7 @@ import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.NowPlayingOverlay
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
+import com.quantumff.segue.feature.playlist.AddToPlaylistViewModel
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import com.quantumff.segue.feature.queue.QueueContent
 import com.quantumff.segue.navigation.HomeGraph
@@ -100,6 +101,7 @@ fun SegueApp(
     playerViewModel: PlayerViewModel = hiltViewModel(),
     sidebarViewModel: SidebarViewModel = hiltViewModel(),
     appUpdateViewModel: AppUpdateViewModel = hiltViewModel(),
+    addToPlaylistViewModel: AddToPlaylistViewModel = hiltViewModel(),
 ) {
     val appState = rememberSegueAppState(shellLayout = windowAdaptiveInfo.windowSizeClass.toShellLayout())
     // Only the expanded sidebar lists playlists: other layouts do not observe them.
@@ -126,6 +128,14 @@ fun SegueApp(
         appUpdateViewModel.onOffered()
     }
     var addToPlaylist by remember { mutableStateOf<List<String>?>(null) }
+    // View on "Added 3 songs to Road trip": collapse Now Playing first, as its other links do. Outside
+    // the NavHost, the sheet's ViewModel is this same activity-scoped one.
+    LaunchedEffect(addToPlaylistViewModel, appState) {
+        addToPlaylistViewModel.playlistsToOpen.collect { id ->
+            appState.closeNowPlaying()
+            appState.navigate { navigateToPlaylist(id) }
+        }
+    }
     // Fixed for the NavHost's lifetime; later sign-outs navigate to login instead.
     val startDestination: Any = remember { if (hasServer) HomeGraph else LoginRoute() }
     val destination = appState.currentDestination
