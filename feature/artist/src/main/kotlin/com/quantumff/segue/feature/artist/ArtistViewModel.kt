@@ -8,6 +8,8 @@ import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.pinAndConfirm
+import com.quantumff.segue.core.data.download.unpinWithUndo
 import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
@@ -19,6 +21,7 @@ import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
@@ -71,6 +74,7 @@ class ArtistViewModel @Inject constructor(
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val artistId: String = checkNotNull(savedStateHandle[ARTIST_ID_KEY]) { "Missing $ARTIST_ID_KEY" }
 
@@ -199,19 +203,21 @@ class ArtistViewModel @Inject constructor(
         setStarred(MediaKind.Artist, artist.id, !artist.isStarred)
     }
 
-    /** Pins the artist: all of their albums, including ones added later. */
+    /** Pins the artist: all of their albums, including ones added later. Confirmed with their name. */
     fun download() {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
         viewModelScope.launch {
             val outcome = remoteOutcome {
-                downloadRepository.pin(PinTarget.of(artist))
+                downloadRepository.pinAndConfirm(PinTarget.of(artist), snackbars)
             }
             if (outcome.isFailure) message.value = MediaActionFailure.DownloadFailed
         }
     }
 
+    /** Unpins the artist with Undo; files no other pin needs are deleted once the snackbar has gone. */
     fun removeDownload() {
-        viewModelScope.launch { downloadRepository.unpin(PinKind.Artist, artistId) }
+        val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
+        viewModelScope.launch { downloadRepository.unpinWithUndo(PinKind.Artist, artistId, artist.name, snackbars) }
     }
 
     fun onMessageDismiss() {

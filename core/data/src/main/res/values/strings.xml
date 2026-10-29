@@ -6,4 +6,6 @@
     <string name="core_data_download_pause_all">Pause all</string>
     <string name="core_data_download_cancel">Cancel</string>
     <string name="core_data_undo">Undo</string>
+    <string name="core_data_downloading_name">Downloading %1$s</string>
+    <string name="core_data_download_removed">Removed %1$s</string>
 </resources>
