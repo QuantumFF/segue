@@ -32,6 +32,9 @@ class FakeServerRepository : ServerRepository {
     val signIns = mutableListOf<Triple<String, String, String>>()
     var refreshCount = 0
 
+    /** Every [switchTo] call, in order: a real switch also starts a sync. */
+    val switches = mutableListOf<String>()
+
     override val servers: Flow<ImmutableList<Server>> = serversState.map { it.toImmutableList() }
 
     override val activeServer: Flow<Server?> =
@@ -48,6 +51,7 @@ class FakeServerRepository : ServerRepository {
     }
 
     override suspend fun switchTo(serverId: String) {
+        switches += serverId
         activeId.value = serverId
     }
 

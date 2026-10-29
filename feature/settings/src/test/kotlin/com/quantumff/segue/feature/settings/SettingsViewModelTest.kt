@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.settings
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.AppRelease
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.ReplayGainTarget
@@ -31,7 +33,8 @@ class SettingsViewModelTest {
     // Lazy: viewModelScope must be created after MainDispatcherRule has installed the test dispatcher.
     private val downloads = FakeDownloadRepository()
     private val updates = FakeAppUpdateRepository()
-    private val viewModel by lazy { SettingsViewModel(servers, preferences, downloads, updates) }
+    private val snackbars = Snackbars()
+    private val viewModel by lazy { SettingsViewModel(servers, preferences, downloads, updates, snackbars) }
 
     private val home = TestData.server.copy(id = "home", name = "Home")
 
@@ -66,10 +69,38 @@ class SettingsViewModelTest {
 
         viewModel.switchServer("home")
         assertThat(servers.activeId.value).isEqualTo("home")
+        val switched = SnackbarText.of(R.string.feature_settings_switched_to, "Home")
+        assertThat(snackbars.current.value?.text).isEqualTo(switched)
 
         viewModel.removeServer("home")
         assertThat(servers.serversState.value.map { it.id }).containsExactly(TestData.server.id)
         assertThat(servers.activeId.value).isEqualTo(TestData.server.id)
+    }
+
+    @Test
+    fun tappingTheActiveServerNeitherSwitchesNorSyncs() = runTest {
+        servers.serversState.value = listOf(TestData.server, home)
+        servers.activeId.value = "home"
+
+        viewModel.switchServer("home")
+
+        assertThat(servers.switches).isEmpty()
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun removingTheActiveServerNamesTheOneThatTakesOverOrSignsOut() = runTest {
+        servers.serversState.value = listOf(TestData.server, home)
+        servers.activeId.value = "home"
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.removalOf(home)).isEqualTo(ServerRemoval.SwitchesTo(TestData.server))
+            assertThat(state.removalOf(TestData.server)).isEqualTo(ServerRemoval.KeepsActive)
+
+            servers.remove(TestData.server.id)
+            assertThat(expectMostRecentItem().removalOf(home)).isEqualTo(ServerRemoval.SignsOut)
+        }
     }
 
     @Test
