@@ -301,7 +301,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
   When the name opens a page, the whole overline-and-name block is the tap target (48 tall), and Now Playing collapses before it navigates. A queue that empties forgets its source.
 
-  The source is saved with the saved queue, so after a restart (or the system's "resume playback") Now Playing names it as before. An adopted queue, whether taken from *Continue from &lt;device&gt;* or adopted automatically, reads "CONTINUED FROM" over the device's name, such as "Feishin". Undo brings back the replaced queue's source. A queue saved by an older version has no source: PLAYING FROM QUEUE.
+  The source is saved with the saved queue, so after a restart (or the system's "resume playback") Now Playing names it as before. An adopted queue, whether taken from *Continue from <device>* or adopted automatically, reads "CONTINUED FROM" over the device's name, such as "Feishin". Undo brings back the replaced queue's source. A queue saved by an older version has no source: PLAYING FROM QUEUE.
 - **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either (ADR-0002).
 - **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
@@ -427,7 +427,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 - Expanded width gets a sticky column header row: 36 tall, `labelSmall` uppercase muted, `outlineVariant` bottom divider. Columns can be configured via the header's ⋮.
 - Playing: title and number in `primary`, and the equalizer bars replace the number or overlay the art. Unavailable offline: 38% alpha, not clickable.
-- **Swipes** (Symfonium, like the queue's §4.8): swipe right for Play next (Lucide `list-start`), left for Add to queue (`list-end`), both `primary`, revealed on `surfaceContainerHigh`. Both trigger at 40% of the width with a haptic tick, then the row springs back (`player`); there is no snackbar, as for the menu's own Play next. They apply to album, artist (top songs), playlist, search and Library Songs rows. They do not apply in the queue (which has its own), in playlist edit mode, to unavailable rows, or while the Library is selecting. Accessibility services get both as custom actions.
+- **Swipes** (Symfonium, like the queue's §4.8): swipe right for Play next (Lucide `list-start`), left for Add to queue (`list-end`), both `primary`, revealed on `surfaceContainerHigh`. Both trigger at 40% of the width with a haptic tick, then the row springs back (`player`); there is no snackbar: the haptic tick and the revealed row are the feedback, unlike the menu's Play next (§5.7). They apply to album, artist (top songs), playlist, search and Library Songs rows. They do not apply in the queue (which has its own), in playlist edit mode, to unavailable rows, or while the Library is selecting. Accessibility services get both as custom actions.
 
 ### 5.3 Section header
 - 48 tall, horizontal padding 16. Title in `titleLarge`. Trailing: a `TextButton` "See all" (muted) or a 24 chevron. Optional extra icon (Explore refresh).
@@ -466,7 +466,12 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Order for a song: Play next · Add to queue · Instant mix · Add to playlist · Favorite · Go to album · Go to artist · Download · Info.
 - Albums, artists and playlists add Play, Shuffle and **Shuffle albums** at the top. Destructive items use `error`.
 - Expanded width: `DropdownMenu` anchored at the press point, radius `lg`, same items.
-- Snackbars: `inverseSurface`, radius `sm`, placed above the mini player.
+- Snackbars: `inverseSurface`, radius `sm`, placed above the mini player, and over Now Playing while it is open. The app has one host for them, whatever screen raised them: they show one at a time in order, stay up for the long duration when they have an action and the short one otherwise, and screen readers announce each.
+- **Feedback:** every action started from a menu or button says what happened, and every destructive one without a confirm dialog offers Undo instead.
+  - Confirm: Play next and Add to queue ("Playing next: <title>", "Added 12 songs to the queue"), Add to playlist ("Added 3 songs to Road trip", and how many were already there, with View), Download on a hero ("Downloading <name>"), the sleep timer ("Pausing in 30 min", with Cancel), switching servers ("Switched to <server>"), and deleting a playlist ("Deleted <name>", after its confirm dialog).
+  - Undo: removing a song from the queue (§4.8) or from a playlist, an instant mix that replaced a queue, cancelling or removing a download, and an automatic adoption (§4.8). The server write or the file deletion waits until the snackbar has gone.
+  - Silent: playing now (the music starting is the feedback) and the track-row swipes (§5.2).
+  - Clear queue and Remove all downloads keep their confirm dialogs, with no Undo.
 
 ### 5.8 Empty, loading, error
 - **Empty:** centered, 48 Lucide icon muted, 16 gap, `titleMedium`, `bodyMedium` muted (max 2 lines), optional `FilledTonalButton`. Example: "No downloads yet / Pin albums or playlists to listen offline".

@@ -14,14 +14,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.playback.PlaybackIntents
 import com.quantumff.segue.ui.SegueApp
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: MainActivityViewModel by viewModels()
+
+    @Inject
+    lateinit var snackbars: Snackbars
 
     /** Counts "open Now Playing" intents (from the widgets); each new value opens it once. */
     private val nowPlayingRequests = mutableIntStateOf(0)
@@ -44,7 +49,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 is MainActivityUiState.Ready -> SegueTheme(config = state.theme) {
-                    SegueApp(hasServer = state.hasServer, openNowPlayingRequest = nowPlayingRequests.intValue)
+                    SegueApp(
+                        hasServer = state.hasServer,
+                        snackbars = snackbars,
+                        openNowPlayingRequest = nowPlayingRequests.intValue,
+                    )
                 }
             }
         }

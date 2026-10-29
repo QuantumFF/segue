@@ -3,6 +3,7 @@ package com.quantumff.segue.ui
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.MiniPlayerState
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
@@ -15,12 +16,17 @@ internal val testPlayer = ShellPlayerState(
     durationMillis = 200_000,
 )
 
-/** The shell with a fixed player state, no-op player commands, and a stand-in Now Playing. */
+/** The shell with a fixed player state, no-op player commands, [snackbars], and a stand-in Now Playing. */
 @Composable
-internal fun TestShell(appState: SegueAppState, player: ShellPlayerState = testPlayer) {
+internal fun TestShell(
+    appState: SegueAppState,
+    player: ShellPlayerState = testPlayer,
+    snackbars: Snackbars = remember { Snackbars() },
+) {
     SegueApp(
         appState = appState,
         player = player,
+        snackbars = snackbars,
         positionMillis = remember { MutableStateFlow(50_000L) },
         playerActions = ShellPlayerActions.None,
         nowPlaying = { if (appState.isNowPlayingOpen) Text("Now playing") },

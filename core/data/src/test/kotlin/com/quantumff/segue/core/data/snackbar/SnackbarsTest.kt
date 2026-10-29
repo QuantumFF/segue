@@ -47,7 +47,15 @@ class SnackbarsTest {
     @Test
     fun `tapping the action runs it, not its dismissal, and moves on`() {
         val calls = mutableListOf<String>()
-        snackbars.post(SnackbarText.of(TEXT), SnackbarAction(SnackbarText.of(LABEL), onDismiss = { calls += "dismiss" }) { calls += "undo" })
+        snackbars.post(
+            SnackbarText.of(TEXT),
+            SnackbarAction(SnackbarText.of(LABEL), onDismiss = {
+                calls += "dismiss"
+            }) {
+                calls +=
+                    "undo"
+            },
+        )
         snackbars.post(SnackbarText.of(TEXT, "next"))
 
         snackbars.onAction(snackbars.current.value!!)
@@ -59,7 +67,15 @@ class SnackbarsTest {
     @Test
     fun `dismissal or timeout runs the action's dismissal, not the action`() {
         val calls = mutableListOf<String>()
-        snackbars.post(SnackbarText.of(TEXT), SnackbarAction(SnackbarText.of(LABEL), onDismiss = { calls += "dismiss" }) { calls += "undo" })
+        snackbars.post(
+            SnackbarText.of(TEXT),
+            SnackbarAction(SnackbarText.of(LABEL), onDismiss = {
+                calls += "dismiss"
+            }) {
+                calls +=
+                    "undo"
+            },
+        )
 
         snackbars.onDismiss(snackbars.current.value!!)
 
@@ -70,7 +86,15 @@ class SnackbarsTest {
     @Test
     fun `a message is acted on or dismissed once`() {
         val calls = mutableListOf<String>()
-        snackbars.post(SnackbarText.of(TEXT), SnackbarAction(SnackbarText.of(LABEL), onDismiss = { calls += "dismiss" }) { calls += "undo" })
+        snackbars.post(
+            SnackbarText.of(TEXT),
+            SnackbarAction(SnackbarText.of(LABEL), onDismiss = {
+                calls += "dismiss"
+            }) {
+                calls +=
+                    "undo"
+            },
+        )
         val message = snackbars.current.value!!
 
         snackbars.onAction(message)
@@ -81,9 +105,12 @@ class SnackbarsTest {
 
     @Test
     fun `a message posted by an action waits behind those already posted`() {
-        snackbars.post(SnackbarText.of(TEXT, "first"), SnackbarAction(SnackbarText.of(LABEL)) {
-            snackbars.post(SnackbarText.of(TEXT, "from the action"))
-        })
+        snackbars.post(
+            SnackbarText.of(TEXT, "first"),
+            SnackbarAction(SnackbarText.of(LABEL)) {
+                snackbars.post(SnackbarText.of(TEXT, "from the action"))
+            },
+        )
         snackbars.post(SnackbarText.of(TEXT, "second"))
 
         snackbars.onAction(snackbars.current.value!!)

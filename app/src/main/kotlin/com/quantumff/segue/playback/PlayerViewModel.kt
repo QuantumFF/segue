@@ -2,35 +2,34 @@ package com.quantumff.segue.playback
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.R
 import com.quantumff.segue.core.data.play.PlayIntentMessage
 import com.quantumff.segue.core.data.play.PlayIntents
+import com.quantumff.segue.core.data.snackbar.SnackbarAction
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.playback.PlaybackController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-
-/** Shell snackbars: why a play intent did nothing, or that another device's queue was taken over. */
-sealed interface PlayerMessage {
-    /** A play intent raised on any screen, or "Continue from <device>", queued nothing. */
-    data class NotPlayed(val reason: PlayIntentMessage) : PlayerMessage
-
-    /** "Continued from <device>", with Undo when [canUndo]. */
-    data class ContinuedFrom(val deviceName: String, val canUndo: Boolean) : PlayerMessage
-}
 
 /**
  * The shell's link to playback: the state the mini player and player bar show, their commands,
- * and the snackbars for play intents raised on any screen ([PlayIntents.messages]) and for adoption.
+ * and, posted to [Snackbars], why a play intent raised on any screen ([PlayIntents.messages]) queued
+ * nothing, and that another device's queue was adopted.
  */
 @HiltViewModel
-class PlayerViewModel @Inject constructor(private val playback: PlaybackController, playIntents: PlayIntents) :
-    ViewModel() {
+class PlayerViewModel @Inject constructor(
+    private val playback: PlaybackController,
+    playIntents: PlayIntents,
+    snackbars: Snackbars,
+) : ViewModel() {
     val player: StateFlow<ShellPlayerState> = playback.state
         .map { it.toShellPlayerState() }
         .distinctUntilChanged()
@@ -45,12 +44,24 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
 
-    val messages: Flow<PlayerMessage> = merge(
-        playIntents.messages.map { PlayerMessage.NotPlayed(it) },
+    init {
+        playIntents.messages
+            .onEach { snackbars.post(SnackbarText.of(it.text)) }
+            .launchIn(viewModelScope)
         // "Continue from <device>" that adopted nothing, as when offline none of its songs is downloaded.
-        playback.continueFailures.map { PlayerMessage.NotPlayed(PlayIntentMessage.NothingToPlay) },
-        playback.autoAdoptions.map { PlayerMessage.ContinuedFrom(it.deviceName, it.canUndo) },
-    )
+        playback.continueFailures
+            .onEach { snackbars.post(SnackbarText.of(PlayIntentMessage.NothingToPlay.text)) }
+            .launchIn(viewModelScope)
+        // DESIGN.md §4.8: with auto-continue on, a snackbar replaces the banner, with Undo.
+        playback.autoAdoptions
+            .onEach { adoption ->
+                snackbars.post(
+                    SnackbarText.of(R.string.player_continued_from, adoption.deviceName),
+                    if (adoption.canUndo) SnackbarAction.undo(onUndo = playback::undoAutoAdoption) else null,
+                )
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun shellActions() = ShellPlayerActions(
         onPlayPause = playback::togglePlayPause,
@@ -61,9 +72,6 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
         onContinueRemote = playback::adoptRemoteQueue,
         onDismissRemote = playback::dismissRemoteQueue,
     )
-
-    /** The "Continued from" snackbar's Undo: the local queue comes back. */
-    fun undoAutoAdoption() = playback.undoAutoAdoption()
 
     /** The playback error snackbar's Skip: plays the next item. */
     fun skipPastError() = playback.skipPastError()
@@ -77,3 +85,11 @@ class PlayerViewModel @Inject constructor(private val playback: PlaybackControll
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
+
+private val PlayIntentMessage.text: Int
+    get() = when (this) {
+        PlayIntentMessage.NothingToPlay -> R.string.player_nothing_to_play
+        PlayIntentMessage.LoadFailed -> R.string.player_load_failed
+        PlayIntentMessage.InstantMixFailed -> R.string.player_instant_mix_failed
+        PlayIntentMessage.InstantMixOffline -> R.string.player_instant_mix_offline
+    }
