@@ -3,8 +3,12 @@ package com.quantumff.segue.core.data.play
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.confirmDownloading
+import com.quantumff.segue.core.data.download.pinAndConfirm
+import com.quantumff.segue.core.data.download.unpinWithUndo
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
@@ -26,8 +30,9 @@ import kotlinx.coroutines.flow.first
 /**
  * Carries out the context-menu actions [MediaActions] offers, the same on every screen, for one
  * item or a multi-selection: play intents go to [PlayIntents], Favorite stars, Download pins and Remove
- * download unpins. Navigation and the screen's own actions (Rename, Delete, Remove from playlist)
- * go to the [MediaActionHost] the screen passes in.
+ * download unpins, each saying so on [Snackbars], Remove download with Undo. Navigation and the
+ * screen's own actions (Rename, Delete, Remove from playlist) go to the [MediaActionHost] the
+ * screen passes in.
  *
  * Each call returns once the action is done, with the failure the screen should report, if any.
  * A play intent reports its own failures ([PlayIntents.messages]).
@@ -37,6 +42,7 @@ class MediaActionHandler @Inject constructor(
     private val targets: PlayTargetSongs,
     private val downloads: DownloadRepository,
     private val stars: StarRatingRepository,
+    private val snackbars: Snackbars,
 ) {
     suspend fun album(album: Album, action: MediaAction, host: MediaActionHost): MediaActionFailure? = when (action) {
         MediaAction.ShuffleArtistAlbums -> album.artistId?.let { artistId ->
@@ -104,10 +110,11 @@ class MediaActionHandler @Inject constructor(
                 MediaActionFailure.FavoriteFailed.takeIf { outcome.isFailure }
             }
 
-            MediaAction.Download ->
-                MediaActionFailure.DownloadFailed.takeIf { remoteOutcome { downloads.pin(subject.pin) }.isFailure }
+            MediaAction.Download -> MediaActionFailure.DownloadFailed.takeIf {
+                remoteOutcome { downloads.pinAndConfirm(subject.pin, snackbars) }.isFailure
+            }
 
-            MediaAction.RemoveDownload -> done { downloads.unpin(subject.pin.kind, subject.pin.id) }
+            MediaAction.RemoveDownload -> done { downloads.unpinWithUndo(listOf(subject.pin), snackbars) }
 
             MediaAction.Rename, MediaAction.Delete, MediaAction.RemoveFromPlaylist ->
                 done { host.onScreenAction(action) }
@@ -141,11 +148,12 @@ class MediaActionHandler @Inject constructor(
 
         MediaAction.Download -> {
             val unpinned = subjects.filter { downloads.pinStatus(it.pin.kind, it.pin.id).first() == null }
-            val failures = unpinned.count { remoteOutcome { downloads.pin(it.pin) }.isFailure }
-            MediaActionFailure.DownloadFailed.takeIf { failures > 0 }
+            val pinned = unpinned.map { it.pin }.filter { !remoteOutcome { downloads.pin(it) }.isFailure }
+            snackbars.confirmDownloading(pinned)
+            MediaActionFailure.DownloadFailed.takeIf { pinned.size < unpinned.size }
         }
 
-        MediaAction.RemoveDownload -> done { subjects.forEach { downloads.unpin(it.pin.kind, it.pin.id) } }
+        MediaAction.RemoveDownload -> done { downloads.unpinWithUndo(subjects.map { it.pin }, snackbars) }
 
         // Not offered for a selection.
         else -> null
