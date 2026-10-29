@@ -3,6 +3,7 @@ package com.quantumff.segue.core.testing.repository
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.PendingRemoval
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
@@ -20,6 +21,7 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -37,6 +39,9 @@ class FakeDownloadRepository : DownloadRepository {
     val files = mutableMapOf<String, File>()
     val paused = mutableListOf<Pair<PinKind, String>>()
     val resumed = mutableListOf<Pair<PinKind, String>>()
+
+    /** Pins whose files were deleted: by [unpin] at once, by [unpinUndoably] once committed. */
+    val deleted = mutableListOf<Pair<PinKind, String>>()
     var removedAll = false
     var pausedAll = false
     var cancelledAll = false
@@ -48,7 +53,27 @@ class FakeDownloadRepository : DownloadRepository {
             ((target.kind to target.id) to DownloadStatus.Queued)
     }
 
-    override suspend fun unpin(kind: PinKind, id: String) = pins.update { it - (kind to id) }
+    override suspend fun unpin(kind: PinKind, id: String) {
+        pins.update { it - (kind to id) }
+        deleted += kind to id
+    }
+
+    override suspend fun unpinUndoably(kind: PinKind, id: String): PendingRemoval? {
+        val key = kind to id
+        val status = pins.value[key] ?: return null
+        pins.update { it - key }
+        return object : PendingRemoval {
+            override fun commit(): Job {
+                deleted += key
+                return Job().apply { complete() }
+            }
+
+            override fun undo(): Job {
+                pins.update { it + (key to status) }
+                return Job().apply { complete() }
+            }
+        }
+    }
 
     override suspend fun pause(kind: PinKind, id: String) {
         paused += kind to id

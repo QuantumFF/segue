@@ -58,6 +58,7 @@ class DownloadRepositoryTest {
             artists = FakeArtistRepository(),
             playlists = FakePlaylistRepository(),
             clock = FakeClock(),
+            scope = backgroundScope,
             ioDispatcher = StandardTestDispatcher(testScheduler),
         )
 
@@ -211,5 +212,70 @@ class DownloadRepositoryTest {
         assertThat(dao.getAll(SERVER_ID)).isEmpty()
         assertThat(file.exists()).isFalse()
         assertThat(repository.overview.first().pins).isEmpty()
+    }
+
+    @Test
+    fun `an undoable removal unpins at once and keeps the files, even through cleanup, until committed`() = runTest {
+        library()
+        val files = DownloadFiles(tmp.newFolder("downloads"))
+        val repository = repository(files)
+        repository.pin(PinTarget(PinKind.Album, "al", "Album", null))
+        val file = completeWithFile(files, "only-album")
+
+        val removal = checkNotNull(repository.unpinUndoably(PinKind.Album, "al"))
+        // The automatic cleanup that follows pin changes.
+        repository.reconcile(SERVER_ID)
+
+        assertThat(repository.pinStatus(PinKind.Album, "al").first()).isNull()
+        assertThat(file.exists()).isTrue()
+        assertThat(dao.get(SERVER_ID, "only-album")?.state).isEqualTo(DownloadState.Completed)
+
+        removal.commit().join()
+
+        assertThat(dao.getAll(SERVER_ID)).isEmpty()
+        assertThat(file.exists()).isFalse()
+    }
+
+    @Test
+    fun `undoing a removal pins it again and keeps its files`() = runTest {
+        library()
+        val files = DownloadFiles(tmp.newFolder("downloads"))
+        val repository = repository(files)
+        repository.pin(PinTarget(PinKind.Album, "al", "Album", null))
+        val shared = completeWithFile(files, "shared")
+        val onlyAlbum = completeWithFile(files, "only-album")
+        val removal = checkNotNull(repository.unpinUndoably(PinKind.Album, "al"))
+        repository.reconcile(SERVER_ID)
+        schedules.clear()
+
+        removal.undo().join()
+        removal.commit().join()
+
+        assertThat(repository.pinStatus(PinKind.Album, "al").first()).isEqualTo(DownloadStatus.Downloaded)
+        assertThat(shared.exists()).isTrue()
+        assertThat(onlyAlbum.exists()).isTrue()
+        assertThat(schedules).isEmpty()
+    }
+
+    @Test
+    fun `a pending removal holds its unfinished songs and undo queues them again`() = runTest {
+        library()
+        val files = DownloadFiles(tmp.newFolder("downloads"))
+        val repository = repository(files)
+        repository.pin(PinTarget(PinKind.Album, "al", "Album", null))
+        repository.pin(PinTarget(PinKind.Playlist, "p", "Mix", null))
+        completeWithFile(files, "shared")
+        schedules.clear()
+
+        val removal = checkNotNull(repository.unpinUndoably(PinKind.Album, "al"))
+
+        assertThat(dao.get(SERVER_ID, "only-album")?.state).isEqualTo(DownloadState.Paused)
+        // Another pin still wants this one.
+        assertThat(dao.get(SERVER_ID, "only-playlist")?.state).isEqualTo(DownloadState.Queued)
+
+        removal.undo().join()
+
+        assertThat(dao.get(SERVER_ID, "only-album")?.state).isEqualTo(DownloadState.Queued)
+        assertThat(schedules).containsExactly(false)
     }
 }

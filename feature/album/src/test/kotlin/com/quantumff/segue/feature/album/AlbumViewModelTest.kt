@@ -3,8 +3,11 @@ package com.quantumff.segue.feature.album
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.data.R as DataR
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
@@ -55,6 +58,7 @@ class AlbumViewModelTest {
     private val play = RecordingPlayIntents()
     private val player = FakePlayerStateSource()
     private val transport = RecordingPlayerTransport()
+    private val snackbars = Snackbars()
 
     private val album = TestData.album("album-1", songCount = 3, genre = "Rock")
         .copy(discTitles = persistentListOf(DiscTitle(2, "Bonus")))
@@ -75,6 +79,7 @@ class AlbumViewModelTest {
         playerState = player,
         transport = transport,
         mediaActions = mediaActionHandler(play, downloads, stars, albums),
+        snackbars = snackbars,
     )
 
     private fun seed() {
@@ -330,7 +335,7 @@ class AlbumViewModelTest {
     }
 
     @Test
-    fun downloadPinsTheAlbumAndRemoveDownloadUnpinsIt() = runTest {
+    fun downloadConfirmsWithTheAlbumNameAndRemoveDownloadOffersUndo() = runTest {
         seed()
         val viewModel = viewModel()
         viewModel.uiState.test {
@@ -339,9 +344,18 @@ class AlbumViewModelTest {
             viewModel.download()
             assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Queued)
             assertThat(downloads.pins.value.keys).containsExactly(PinKind.Album to "album-1")
+            val downloading = checkNotNull(snackbars.current.value)
+            assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, album.name))
+            snackbars.onDismiss(downloading)
 
             viewModel.removeDownload()
             assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
+            val removed = checkNotNull(snackbars.current.value)
+            assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, album.name))
+
+            snackbars.onAction(removed)
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Queued)
+            assertThat(downloads.deleted).isEmpty()
         }
     }
 }

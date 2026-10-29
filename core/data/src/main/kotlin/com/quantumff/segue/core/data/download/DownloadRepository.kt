@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.data.download
 
+import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.common.Dispatcher
 import com.quantumff.segue.core.common.SegueDispatchers
 import com.quantumff.segue.core.data.RemoteException
@@ -27,6 +28,7 @@ import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.collections.immutable.ImmutableMap
@@ -37,6 +39,8 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
@@ -44,6 +48,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -59,6 +64,19 @@ data class PinTarget(val kind: PinKind, val id: String, val name: String, val co
 
         fun of(playlist: Playlist) = PinTarget(PinKind.Playlist, playlist.id, playlist.name, playlist.coverArtId)
     }
+}
+
+/**
+ * A download removal that Undo can still take back ([DownloadRepository.unpinUndoably]). Call one of
+ * [commit] or [undo]; only the first call counts. Both return at once and finish in the background,
+ * in the job they return, so they can be called after the caller's screen has gone.
+ */
+interface PendingRemoval {
+    /** Deletes the files of the songs no pin covers any more. */
+    fun commit(): Job
+
+    /** Pins it again; the files are still there. */
+    fun undo(): Job
 }
 
 /**
@@ -87,6 +105,13 @@ interface DownloadRepository {
     suspend fun pin(target: PinTarget)
 
     suspend fun unpin(kind: PinKind, id: String)
+
+    /**
+     * Unpins at once, like [unpin], but keeps the songs it covered until [PendingRemoval.commit],
+     * even through the cleanup that follows pin changes, so [PendingRemoval.undo] can pin it again
+     * without downloading them anew. Null when it is not pinned.
+     */
+    suspend fun unpinUndoably(kind: PinKind, id: String): PendingRemoval?
 
     /** Holds the pin's unfinished songs; their partial files are kept. */
     suspend fun pause(kind: PinKind, id: String)
@@ -134,9 +159,13 @@ internal class OfflineDownloadRepository @Inject constructor(
     private val artists: ArtistRepository,
     private val playlists: PlaylistRepository,
     private val clock: Clock,
+    @ApplicationScope private val scope: CoroutineScope,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : DownloadRepository {
     private val reconcileMutex = Mutex()
+
+    /** Removals waiting on their Undo, whose songs [reconcile] keeps. Guarded by [reconcileMutex]. */
+    private val held = mutableSetOf<HeldRemoval>()
 
     override val preferences: Flow<DownloadPreferences> = preferenceSource.preferences
 
@@ -221,10 +250,27 @@ internal class OfflineDownloadRepository @Inject constructor(
         reconcile(serverId)
     }
 
+    override suspend fun unpinUndoably(kind: PinKind, id: String): PendingRemoval? = withContext(ioDispatcher) {
+        val serverId = clients.activeServerId.first() ?: return@withContext null
+        val pin = dao.observePins(serverId).first().firstOrNull { it.kind == kind && it.itemId == id }
+            ?: return@withContext null
+        reconcileMutex.withLock {
+            val songs = dao.pinMembership(serverId).filter { it.kind == kind && it.itemId == id }.map { it.songId }
+            dao.deletePin(serverId, kind, id)
+            // Songs only this pin wanted stop downloading meanwhile, as if they were gone.
+            val stillWanted = DownloadPlanner.desiredSongs(dao.pinMembership(serverId))
+            val unfinished = dao.getAll(serverId)
+                .filter { it.songId in songs && it.songId !in stillWanted && it.state in RUNNING }
+                .map { it.songId }
+            dao.transition(serverId, unfinished, RUNNING, DownloadState.Paused, clock.nowMillis())
+            HeldRemoval(pin, songs.toSet(), unfinished).also { held += it }
+        }
+    }
+
     override suspend fun pause(kind: PinKind, id: String) = transition(
         kind,
         id,
-        from = listOf(DownloadState.Queued, DownloadState.Downloading),
+        from = RUNNING,
         to = DownloadState.Paused,
     )
 
@@ -281,17 +327,19 @@ internal class OfflineDownloadRepository @Inject constructor(
 
     /**
      * Makes the server's download rows match its pins: queues songs a pin covers that have no row,
-     * and deletes rows and files of songs no pin covers any more.
+     * and deletes rows and files of songs no pin covers any more, except those a removal still
+     * waiting on its Undo holds back ([unpinUndoably]).
      */
     suspend fun reconcile(serverId: String) = withContext(ioDispatcher) {
         reconcileMutex.withLock {
             val desired = DownloadPlanner.desiredSongs(dao.pinMembership(serverId))
             val existing = dao.getAll(serverId).associateBy { it.songId }
             val plan = DownloadPlanner.plan(desired, existing.keys)
-            if (plan.toRemove.isNotEmpty()) {
+            val toRemove = plan.toRemove - held.filter { it.pin.serverId == serverId }.flatMapTo(HashSet()) { it.songs }
+            if (toRemove.isNotEmpty()) {
                 // Rows first, so the player and the worker stop using the files before they go.
-                dao.delete(serverId, plan.toRemove)
-                plan.toRemove.forEach { songId ->
+                dao.delete(serverId, toRemove)
+                toRemove.forEach { songId ->
                     files.delete(existing[songId]?.filePath)
                     files.deleteSong(serverId, songId)
                 }
@@ -305,6 +353,42 @@ internal class OfflineDownloadRepository @Inject constructor(
                 dao.insertAll(plan.toQueue.map { DownloadEntity(serverId, it, DownloadState.Queued, updatedAt = now) })
                 scheduler.schedule(preferenceSource.preferences.first(), restart = false)
             }
+        }
+    }
+
+    /**
+     * An undoable removal of [pin], holding back the deletion of its [songs]. [paused] are the ones
+     * it stopped downloading, which undo queues again.
+     */
+    private inner class HeldRemoval(val pin: PinEntity, val songs: Set<String>, val paused: List<String>) :
+        PendingRemoval {
+        private val settled = AtomicBoolean(false)
+
+        override fun commit() = settle {
+            reconcileMutex.withLock { held -= this }
+            reconcile(pin.serverId)
+        }
+
+        override fun undo() = settle {
+            reconcileMutex.withLock {
+                held -= this
+                dao.upsertPin(pin)
+                dao.transition(
+                    pin.serverId,
+                    paused,
+                    listOf(DownloadState.Paused),
+                    DownloadState.Queued,
+                    clock.nowMillis(),
+                )
+            }
+            if (paused.isNotEmpty()) scheduler.schedule(preferenceSource.preferences.first(), restart = false)
+            reconcile(pin.serverId)
+        }
+
+        private fun settle(block: suspend () -> Unit): Job = if (settled.compareAndSet(false, true)) {
+            scope.launch(ioDispatcher) { block() }
+        } else {
+            Job().apply { complete() }
         }
     }
 
@@ -323,5 +407,10 @@ internal class OfflineDownloadRepository @Inject constructor(
     private fun Map<String, LiveProgress>.forServer(serverId: String): Map<String, LiveProgress> {
         val prefix = "$serverId/"
         return entries.filter { it.key.startsWith(prefix) }.associate { it.key.removePrefix(prefix) to it.value }
+    }
+
+    private companion object {
+        /** The states a song is in until it is finished, paused or failed. */
+        val RUNNING = listOf(DownloadState.Queued, DownloadState.Downloading)
     }
 }

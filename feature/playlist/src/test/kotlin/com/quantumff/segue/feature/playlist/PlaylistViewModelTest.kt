@@ -2,11 +2,15 @@ package com.quantumff.segue.feature.playlist
 
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.data.R as DataR
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -43,6 +47,7 @@ class PlaylistViewModelTest {
     private val play = RecordingPlayIntents()
     private val player = FakePlayerStateSource()
     private val transport = RecordingPlayerTransport()
+    private val snackbars = Snackbars()
 
     private fun TestScope.viewModel(): PlaylistViewModel {
         val viewModel = PlaylistViewModel(
@@ -54,6 +59,7 @@ class PlaylistViewModelTest {
             player,
             transport,
             mediaActionHandler(play, downloads, stars, playlists = playlists),
+            snackbars,
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
@@ -362,5 +368,25 @@ class PlaylistViewModelTest {
 
         assertThat(stars.starred[MediaKind.Song to "a"]).isTrue()
         assertThat(viewModel.songIds).containsExactly("a", "c").inOrder()
+    }
+
+    @Test
+    fun heroDownloadConfirmsWithThePlaylistNameAndRemoveDownloadOffersUndo() = runTest {
+        val viewModel = viewModel()
+        val name = "Playlist p1"
+
+        viewModel.download()
+        val downloading = checkNotNull(snackbars.current.value)
+        assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, name))
+        snackbars.onDismiss(downloading)
+
+        viewModel.removeDownload()
+        assertThat(downloads.pins.value).isEmpty()
+        val removed = checkNotNull(snackbars.current.value)
+        assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, name))
+
+        snackbars.onAction(removed)
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Playlist to "p1")
+        assertThat(downloads.deleted).isEmpty()
     }
 }
