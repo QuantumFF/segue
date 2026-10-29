@@ -5,4 +5,5 @@
     <string name="core_data_downloading_progress">%1$d of %2$d songs</string>
     <string name="core_data_download_pause_all">Pause all</string>
     <string name="core_data_download_cancel">Cancel</string>
+    <string name="core_data_undo">Undo</string>
 </resources>
