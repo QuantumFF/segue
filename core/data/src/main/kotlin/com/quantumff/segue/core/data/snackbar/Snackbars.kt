@@ -29,10 +29,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * )
  * ```
  * The callbacks can run after the poster's screen has gone, so they should not depend on its
- * ViewModel scope.
+ * ViewModel scope. A poster can take its message back with [takeBack].
  *
  * Messages show one at a time, in the order posted. A message stays [current] until the host
- * reports it through [onAction] or [onDismiss]: a host that goes away while showing it, as when the
+ * reports it through [onAction] or [onDismiss], or its poster takes it back: a host that goes away while showing it, as when the
  * activity is recreated, reports nothing, and the next host shows it again.
  */
 @Singleton
@@ -45,7 +45,7 @@ class Snackbars @Inject constructor() {
 
     /**
      * Queues [text], with [action] when there is one; safe to call from any thread. Returns the
-     * message, which the poster can take back with [onDismiss].
+     * message, which the poster can take back with [takeBack].
      */
     fun post(text: SnackbarText, action: SnackbarAction? = null): SnackbarMessage = synchronized(pending) {
         SnackbarMessage(text, action).also { message ->
@@ -59,13 +59,17 @@ class Snackbars @Inject constructor() {
         if (remove(message)) message.action?.onClick?.invoke()
     }
 
-    /**
-     * For the host: [message] was dismissed or timed out without its action. For a poster: take
-     * [message] back, down if it is showing, as if dismissed.
-     */
+    /** For the host: [message] was dismissed or timed out without its action. */
     fun onDismiss(message: SnackbarMessage) {
         if (remove(message)) message.action?.onDismiss?.invoke()
     }
+
+    /**
+     * For a poster: takes [message] back, down if it is showing or out of the queue if it is
+     * waiting, as if dismissed, so its [SnackbarAction.onDismiss] runs. Nothing once the host has
+     * settled it. To keep one message of a kind up at a time, see [SnackbarSlot].
+     */
+    fun takeBack(message: SnackbarMessage) = onDismiss(message)
 
     /** Whether [message] was still waiting: each message is acted on or dismissed once. */
     private fun remove(message: SnackbarMessage): Boolean = synchronized(pending) {

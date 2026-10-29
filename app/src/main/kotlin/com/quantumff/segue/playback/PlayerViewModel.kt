@@ -82,7 +82,7 @@ class PlayerViewModel @Inject constructor(
         val message = snackbars.post(text, SnackbarAction.undo(onUndo = playback::undoInstantMix))
         viewModelScope.launch {
             playback.canUndoInstantMix.first { !it }
-            snackbars.onDismiss(message)
+            snackbars.takeBack(message)
         }
     }
 

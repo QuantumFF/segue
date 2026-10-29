@@ -220,7 +220,7 @@ class SegueAppShellTest {
             SegueTheme {
                 val appState = rememberSegueAppState(shellLayout = ShellLayout.Compact)
                 TestShell(appState, snackbars = snackbars, nowPlaying = {
-                    PanelledNowPlaying(appState, onRemove = { removals.removed("Nude") { undone = true } })
+                    PanelledNowPlaying(appState, onRemove = { removals.offerUndo("Nude") { undone = true } })
                 })
             }
         }

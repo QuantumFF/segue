@@ -80,7 +80,7 @@ class QueueViewModel @Inject constructor(
 
     fun remove(track: QueueListItem.Track) {
         playback.remove(track.position)
-        removals.removed(track.row.title, onUndo = playback::undoRemove)
+        removals.offerUndo(track.row.title, onUndo = playback::undoRemove)
     }
 
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }

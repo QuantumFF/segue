@@ -178,12 +178,12 @@ class NowPlayingViewModel @Inject constructor(
     /** Starts the sleep timer and confirms it, with Cancel; Cancel works after Now Playing collapses. */
     fun setSleepTimer(choice: SleepTimerChoice) {
         playback.setSleepTimer(choice.toSleepTimer(System.currentTimeMillis()))
-        sleepTimerConfirmations.set(choice) { playback.setSleepTimer(null) }
+        sleepTimerConfirmations.confirm(choice) { playback.setSleepTimer(null) }
     }
 
     fun cancelSleepTimer() {
         playback.setSleepTimer(null)
-        sleepTimerConfirmations.cancelled()
+        sleepTimerConfirmations.takeDown()
     }
 
     /**

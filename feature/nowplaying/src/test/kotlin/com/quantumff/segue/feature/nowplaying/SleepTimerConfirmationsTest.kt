@@ -11,7 +11,7 @@ class SleepTimerConfirmationsTest {
     private val confirmations = SleepTimerConfirmations(snackbars)
     private var cleared = 0
 
-    private fun set(choice: SleepTimerChoice) = confirmations.set(choice) { cleared++ }
+    private fun set(choice: SleepTimerChoice) = confirmations.confirm(choice) { cleared++ }
 
     private fun shownText() = snackbars.current.value?.text
 
@@ -76,7 +76,7 @@ class SleepTimerConfirmationsTest {
     fun `cancelling the timer from the sheet takes its snackbar down`() {
         set(SleepTimerChoice.Minutes(30))
 
-        confirmations.cancelled()
+        confirmations.takeDown()
 
         assertThat(snackbars.current.value).isNull()
         assertThat(cleared).isEqualTo(0)

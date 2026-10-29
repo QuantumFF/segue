@@ -56,8 +56,8 @@ class SnackbarsTest {
         val second = snackbars.post(SnackbarText.of(TEXT, "second"))
         snackbars.post(SnackbarText.of(TEXT, "third"))
 
-        snackbars.onDismiss(second)
-        snackbars.onDismiss(first)
+        snackbars.takeBack(second)
+        snackbars.takeBack(first)
 
         assertThat(calls).containsExactly("dismiss")
         assertThat(snackbars.shownTexts()).containsExactly("third")

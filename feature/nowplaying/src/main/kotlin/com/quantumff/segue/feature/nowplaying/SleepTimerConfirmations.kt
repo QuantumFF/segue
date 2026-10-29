@@ -1,9 +1,10 @@
 package com.quantumff.segue.feature.nowplaying
 
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
-import com.quantumff.segue.core.data.snackbar.SnackbarMessage
+import com.quantumff.segue.core.data.snackbar.SnackbarSlot
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.data.snackbar.post
 
 /**
  * "Pausing in 30 min" with Cancel (DESIGN.md §5.7), posted to the app's [Snackbars] when a sleep
@@ -11,23 +12,19 @@ import com.quantumff.segue.core.data.snackbar.Snackbars
  * cancelling it from the sheet, takes down the snackbar of the one before: its Cancel would clear
  * a timer it doesn't name.
  */
-class SleepTimerConfirmations(private val snackbars: Snackbars) {
-    private var last: SnackbarMessage? = null
+class SleepTimerConfirmations(snackbars: Snackbars) {
+    private val slot = SnackbarSlot<Unit>(snackbars)
 
-    /** A timer was set for [choice]; Cancel runs [onCancel], which should not need Now Playing. */
-    fun set(choice: SleepTimerChoice, onCancel: () -> Unit) {
-        cancelled()
-        last = snackbars.post(
+    /** Confirms a timer set for [choice]; Cancel runs [onCancel], which should not need Now Playing. */
+    fun confirm(choice: SleepTimerChoice, onCancel: () -> Unit) {
+        slot.post(
             choice.confirmation(),
             SnackbarAction(SnackbarText.of(R.string.feature_nowplaying_sleep_set_cancel), onClick = onCancel),
         )
     }
 
-    /** The timer was cancelled some other way, as from the sheet. */
-    fun cancelled() {
-        last?.let(snackbars::onDismiss)
-        last = null
-    }
+    /** Takes the confirmation down, as when the timer is cancelled from the sheet. */
+    fun takeDown() = slot.takeDown()
 }
 
 /** "Pausing in 45 min", "in 1 h", "in 1 h 30 min", like the sheet's labels, or "at end of track". */

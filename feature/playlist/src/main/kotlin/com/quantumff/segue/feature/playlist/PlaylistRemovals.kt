@@ -4,7 +4,7 @@ import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
-import com.quantumff.segue.core.data.snackbar.SnackbarMessage
+import com.quantumff.segue.core.data.snackbar.SnackbarSlot
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.Song
@@ -48,8 +48,8 @@ class PlaylistRemovals @Inject constructor(
     private val writes = Mutex()
     private val ids = AtomicLong()
 
-    /** The removal whose Undo is showing, and its snackbar. */
-    private var last: Pair<Removal, SnackbarMessage>? = null
+    /** The removal whose Undo is showing. */
+    private val undo = SnackbarSlot<Removal>(snackbars)
 
     /** [playlistId]'s saved order, without the songs removed from it that are not written yet. */
     fun entries(playlistId: String): Flow<ImmutableList<PlaylistEntry>> =
@@ -62,18 +62,15 @@ class PlaylistRemovals @Inject constructor(
     fun remove(playlistId: String, entry: PlaylistEntry) {
         val removal = Removal(ids.incrementAndGet(), playlistId, entry.song.id, entry.copy)
         removals.update { it + removal }
-        takeDown { true }
-        val message = snackbars.post(
+        undo.post(
             SnackbarText.of(R.string.feature_playlist_removed, entry.song.title),
-            SnackbarAction.undo(onDismiss = { write(removal.id) }) {
-                removals.update { all -> all.filterNot { it.id == removal.id } }
-            },
+            SnackbarAction.undo(onDismiss = { write(removal.id) }) { drop(removal) },
+            about = removal,
         )
-        last = removal to message
     }
 
     /** Starts writing [playlistId]'s pending removal now, taking its Undo away; as when editing starts. */
-    fun flush(playlistId: String) = takeDown { it.playlistId == playlistId }
+    fun flush(playlistId: String) = undo.takeDown { it.playlistId == playlistId }
 
     /**
      * Runs [block], another change to [playlistId] such as saving an edit or deleting it, once its
@@ -82,14 +79,6 @@ class PlaylistRemovals @Inject constructor(
     suspend fun <T> afterRemovals(playlistId: String, block: suspend () -> T): T {
         flush(playlistId)
         return writes.withLock { block() }
-    }
-
-    /** Takes down the showing Undo if its removal matches [which]; dismissing it starts the write. */
-    private fun takeDown(which: (Removal) -> Boolean) {
-        val (removal, message) = last ?: return
-        if (!which(removal)) return
-        last = null
-        snackbars.onDismiss(message)
     }
 
     /**

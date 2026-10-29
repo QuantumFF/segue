@@ -11,7 +11,7 @@ class QueueRemovalsTest {
     private val removals = QueueRemovals(snackbars)
     private val undone = mutableListOf<String>()
 
-    private fun remove(title: String) = removals.removed(title) { undone += title }
+    private fun remove(title: String) = removals.offerUndo(title) { undone += title }
 
     @Test
     fun `a removal says what was removed and offers Undo`() {
