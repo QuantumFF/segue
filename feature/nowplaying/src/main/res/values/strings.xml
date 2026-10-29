@@ -73,6 +73,12 @@
     <string name="feature_nowplaying_sleep_active_remaining">%1$s left</string>
     <string name="feature_nowplaying_sleep_active_end_of_track">Pauses when this track ends</string>
     <string name="feature_nowplaying_sleep_active_end_of_album">Pauses when this album ends</string>
+    <string name="feature_nowplaying_sleep_set_minutes">Pausing in %1$d min</string>
+    <string name="feature_nowplaying_sleep_set_hours">Pausing in %1$d h</string>
+    <string name="feature_nowplaying_sleep_set_hours_minutes">Pausing in %1$d h %2$d min</string>
+    <string name="feature_nowplaying_sleep_set_end_of_track">Pausing at end of track</string>
+    <string name="feature_nowplaying_sleep_set_end_of_album">Pausing at end of album</string>
+    <string name="feature_nowplaying_sleep_set_cancel">Cancel</string>
 
     <string name="feature_nowplaying_details_title">Details</string>
     <string name="feature_nowplaying_details_format">Format</string>

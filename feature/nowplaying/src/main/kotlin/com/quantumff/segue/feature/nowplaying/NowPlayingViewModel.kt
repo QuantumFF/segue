@@ -94,6 +94,8 @@ class NowPlayingViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
 
+    private val sleepTimerConfirmations = SleepTimerConfirmations(snackbars)
+
     private val visiblePanels = MutableStateFlow(emptySet<NowPlayingPanel>())
     private val retryLyrics = MutableStateFlow(0)
     private val retryRelated = MutableStateFlow(0)
@@ -173,10 +175,16 @@ class NowPlayingViewModel @Inject constructor(
 
     fun toggleFavorite() = playback.toggleFavorite()
 
-    fun setSleepTimer(choice: SleepTimerChoice) =
+    /** Starts the sleep timer and confirms it, with Cancel; Cancel works after Now Playing collapses. */
+    fun setSleepTimer(choice: SleepTimerChoice) {
         playback.setSleepTimer(choice.toSleepTimer(System.currentTimeMillis()))
+        sleepTimerConfirmations.set(choice) { playback.setSleepTimer(null) }
+    }
 
-    fun cancelSleepTimer() = playback.setSleepTimer(null)
+    fun cancelSleepTimer() {
+        playback.setSleepTimer(null)
+        sleepTimerConfirmations.cancelled()
+    }
 
     /**
      * Replaces the queue with an instant mix seeded by the current track. Like every play intent
