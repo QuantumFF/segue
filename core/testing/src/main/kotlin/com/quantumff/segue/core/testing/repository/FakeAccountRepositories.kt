@@ -137,10 +137,11 @@ class FakePlaylistRepository : PlaylistRepository {
     /** Records in [added] only the songs [songsByPlaylist] does not have for [id] yet, as the real one sends. */
     override suspend fun addSongs(id: String, songIds: List<String>): AddedSongs {
         error?.let { throw it }
+        val requested = songIds.distinct()
         val present = songsByPlaylist.value[id].orEmpty().map { it.id }.toSet()
-        val toAdd = songIds.filterNot { it in present }
+        val toAdd = requested.filterNot { it in present }
         if (toAdd.isNotEmpty()) added += id to toAdd
-        return AddedSongs(added = toAdd.size, alreadyPresent = songIds.size - toAdd.size)
+        return AddedSongs(added = toAdd.size, alreadyPresent = requested.size - toAdd.size)
     }
 
     override suspend fun removeSongs(id: String, positions: List<Int>) {

@@ -93,6 +93,17 @@ class PlaybackController @Inject constructor(
 
     private var lastRemoval: SegueSessionCommands.Removed? = null
 
+    /** The number of the queue the last Instant mix replaced (QueueEditor.replacedQueue), 0 if none. */
+    private val replacedQueue = MutableStateFlow(0)
+
+    /**
+     * Whether [undoInstantMix] still has a queue to bring back: false once the queue changes after
+     * the Instant mix, or the service goes.
+     */
+    val canUndoInstantMix: Flow<Boolean> = combine(replacedQueue, sessionExtras) { replaced, extras ->
+        replaced > SegueSessionCommands.replacedQueuesGone(extras)
+    }
+
     private val autoAdoptionEvents = Channel<AutoAdoption>(Channel.BUFFERED)
 
     /** Each automatic adoption of another device's queue, for the "Continued from" snackbar. */
@@ -367,10 +378,10 @@ class PlaybackController @Inject constructor(
             keepReplaced = true,
         )
         val result = sendForResult(SegueSessionCommands.QUEUE_SONGS, SegueSessionCommands.queueSongsArgs(request))
-        return InstantMixStart(
-            queued = result?.getInt(SegueSessionCommands.ARG_QUEUED) ?: 0,
-            replacedQueue = result?.getBoolean(SegueSessionCommands.ARG_REPLACED) ?: false,
-        )
+        val replaced = result?.getInt(SegueSessionCommands.ARG_REPLACED_QUEUE) ?: 0
+        if (replaced > 0) replacedQueue.value = replaced
+        val queued = result?.getInt(SegueSessionCommands.ARG_QUEUED) ?: 0
+        return InstantMixStart(queued, replacedQueue = replaced > 0)
     }
 
     /**
@@ -440,6 +451,7 @@ class PlaybackController @Inject constructor(
 
                     override fun onDisconnected(controller: MediaController) {
                         controllerFuture = null
+                        replacedQueue.value = 0
                         if (connected.value === controller) connected.value = null
                     }
                 },

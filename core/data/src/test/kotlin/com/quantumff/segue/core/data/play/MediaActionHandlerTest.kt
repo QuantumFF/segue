@@ -2,7 +2,10 @@ package com.quantumff.segue.core.data.play
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.quantumff.segue.core.data.R
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
@@ -32,7 +35,8 @@ class MediaActionHandlerTest {
     private val albums = FakeAlbumRepository().apply {
         songsByAlbum.value = mapOf("al" to listOf(TestData.song("s1"), TestData.song("s2")))
     }
-    private val handler = mediaActionHandler(intents, downloads, stars, albums)
+    private val snackbars = Snackbars()
+    private val handler = mediaActionHandler(intents, downloads, stars, albums, snackbars = snackbars)
 
     /** Everything the screen was asked to do. */
     private val hostCalls = mutableListOf<Any>()
@@ -214,6 +218,58 @@ class MediaActionHandlerTest {
         handler.artists(listOf(TestData.artist("a"), TestData.artist("b")), MediaAction.RemoveDownload, host)
 
         assertThat(downloads.pins.value).isEmpty()
+    }
+
+    @Test
+    fun `a menu's download confirms it by name`() = runTest {
+        val album = TestData.album("al")
+
+        handler.album(album, MediaAction.Download, host)
+
+        assertThat(snackbars.current.value!!.text)
+            .isEqualTo(SnackbarText.of(R.string.core_data_downloading_name, album.name))
+    }
+
+    @Test
+    fun `a selection's download confirms how many items it started`() = runTest {
+        downloads.pins.value = mapOf((PinKind.Album to "pinned") to DownloadStatus.Downloaded)
+        val selected = listOf(TestData.album("a"), TestData.album("b"), TestData.album("pinned"))
+
+        handler.albums(selected, MediaAction.Download, host)
+
+        assertThat(snackbars.current.value!!.text)
+            .isEqualTo(SnackbarText.plural(R.plurals.core_data_downloading_items, 2, 2))
+    }
+
+    @Test
+    fun `a menu's remove download can be undone, and deletes only once its undo is gone`() = runTest {
+        val song = TestData.song("s1")
+        downloads.pins.value = mapOf((PinKind.Song to "s1") to DownloadStatus.Downloaded)
+
+        handler.song(song, MediaAction.RemoveDownload, host)
+
+        val message = snackbars.current.value!!
+        assertThat(message.text).isEqualTo(SnackbarText.of(R.string.core_data_download_removed, song.title))
+        assertThat(downloads.pins.value).isEmpty()
+        assertThat(downloads.deleted).isEmpty()
+        snackbars.onAction(message)
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Song to "s1")
+        assertThat(downloads.deleted).isEmpty()
+    }
+
+    @Test
+    fun `a selection's remove download is one undo for every item`() = runTest {
+        downloads.pins.value = mapOf(
+            (PinKind.Artist to "a") to DownloadStatus.Downloaded,
+            (PinKind.Artist to "b") to DownloadStatus.Downloaded,
+        )
+
+        handler.artists(listOf(TestData.artist("a"), TestData.artist("b")), MediaAction.RemoveDownload, host)
+
+        val message = snackbars.current.value!!
+        assertThat(message.text).isEqualTo(SnackbarText.plural(R.plurals.core_data_downloads_removed, 2, 2))
+        snackbars.onDismiss(message)
+        assertThat(downloads.deleted).containsExactly(PinKind.Artist to "a", PinKind.Artist to "b")
     }
 
     @Test

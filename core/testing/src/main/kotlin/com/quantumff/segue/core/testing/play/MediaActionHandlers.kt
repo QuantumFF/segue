@@ -8,6 +8,7 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
@@ -22,4 +23,5 @@ fun mediaActionHandler(
     albums: AlbumRepository = FakeAlbumRepository(),
     playlists: PlaylistRepository = FakePlaylistRepository(),
     artists: ArtistRepository = FakeArtistRepository(),
-) = MediaActionHandler(playIntents, PlayTargetSongs(albums, playlists, artists), downloads, stars)
+    snackbars: Snackbars = Snackbars(),
+) = MediaActionHandler(playIntents, PlayTargetSongs(albums, playlists, artists), downloads, stars, snackbars)

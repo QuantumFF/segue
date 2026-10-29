@@ -41,6 +41,7 @@ data class AddToPlaylistUiState(
 @HiltViewModel
 class AddToPlaylistViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
+    private val removals: PlaylistRemovals,
     private val snackbars: Snackbars,
 ) : ViewModel() {
     private val local = MutableStateFlow(AddToPlaylistUiState())
@@ -53,14 +54,20 @@ class AddToPlaylistViewModel @Inject constructor(
     /** IDs of playlists whose confirmation's View was tapped, for the app to open. */
     val playlistsToOpen: Flow<String> = openRequests.receiveAsFlow()
 
-    /** Songs already in [playlist] are skipped, and the confirmation says how many. */
+    /**
+     * Songs already in [playlist] are skipped, and the confirmation says how many. Its removals
+     * that Undo could still cancel are written first, so a song just removed counts as gone.
+     */
     fun addTo(playlist: Playlist, songIds: List<String>) = save {
-        confirm(playlist.id, playlist.name, playlistRepository.addSongs(playlist.id, songIds))
+        val result = removals.afterRemovals(playlist.id) { playlistRepository.addSongs(playlist.id, songIds) }
+        confirm(playlist.id, playlist.name, result)
     }
 
+    /** A song listed more than once goes in once, as when adding to a playlist. */
     fun createWith(name: String, songIds: List<String>) = save {
-        val id = playlistRepository.createPlaylist(name, songIds)
-        confirm(id, name, AddedSongs(added = songIds.size, alreadyPresent = 0))
+        val songs = songIds.distinct()
+        val id = playlistRepository.createPlaylist(name, songs)
+        confirm(id, name, AddedSongs(added = songs.size, alreadyPresent = 0))
     }
 
     /**

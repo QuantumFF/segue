@@ -50,6 +50,7 @@ interface PlaylistRepository {
     /**
      * Appends [songIds] the playlist does not have yet, as stored in Room (fetched first when its
      * songs have not been synced). Those it has already are skipped and counted, not added again.
+     * A song listed more than once in [songIds] is added, or counted, once.
      */
     suspend fun addSongs(id: String, songIds: List<String>): AddedSongs
 
@@ -114,15 +115,16 @@ internal class OfflineFirstPlaylistRepository @Inject constructor(
         }
 
     override suspend fun addSongs(id: String, songIds: List<String>): AddedSongs {
+        val requested = songIds.distinct()
         val present = songsForPlayback(id).mapTo(HashSet()) { it.id }
-        val toAdd = songIds.filterNot { it in present }
+        val toAdd = requested.filterNot { it in present }
         if (toAdd.isNotEmpty()) {
             edit { serverId, client ->
                 client.updatePlaylist(id, songIdsToAdd = toAdd)
                 refetch(serverId, client, id)
             }
         }
-        return AddedSongs(added = toAdd.size, alreadyPresent = songIds.size - toAdd.size)
+        return AddedSongs(added = toAdd.size, alreadyPresent = requested.size - toAdd.size)
     }
 
     override suspend fun removeSongs(id: String, positions: List<Int>) = edit { serverId, client ->

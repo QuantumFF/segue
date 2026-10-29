@@ -229,7 +229,7 @@ class QueueEditorTest {
 
         val mix = QueueSource.InstantMix("Airbag")
         editor.queue(items("m1", "m2"), QueuePlacement.Replace, source = mix, keepReplaced = true)
-        assertThat(editor.hasReplaced).isTrue()
+        assertThat(editor.replacedQueue).isGreaterThan(0)
         player.repeatMode = Player.REPEAT_MODE_ONE
 
         assertThat(editor.restoreReplaced()).isTrue()
@@ -242,7 +242,7 @@ class QueueEditorTest {
         assertThat(player.queueSource.value).isEqualTo(album)
         assertThat(exo.getMediaItemAt(0).localConfiguration).isNotNull()
         // Once only.
-        assertThat(editor.hasReplaced).isFalse()
+        assertThat(editor.replacedQueue).isEqualTo(0)
         assertThat(editor.restoreReplaced()).isFalse()
     }
 
@@ -250,7 +250,7 @@ class QueueEditorTest {
     fun `an instant mix over an empty queue keeps nothing to undo`() = runTest {
         editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
 
-        assertThat(editor.hasReplaced).isFalse()
+        assertThat(editor.replacedQueue).isEqualTo(0)
         assertThat(editor.restoreReplaced()).isFalse()
         assertThat(queueIds()).containsExactly("m1", "m2").inOrder()
     }
@@ -269,10 +269,28 @@ class QueueEditorTest {
         for (change in changes) {
             player.setMediaItems(items("a", "b"))
             editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+            val replaced = editor.replacedQueue
             change()
 
+            assertThat(editor.replacedQueuesGone.value).isEqualTo(replaced)
             assertThat(editor.restoreReplaced()).isFalse()
         }
+    }
+
+    @Test
+    fun `each replaced queue counts as gone once it can no longer be brought back`() = runTest {
+        player.setMediaItems(items("a", "b"))
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+        val first = editor.replacedQueue
+        assertThat(editor.replacedQueuesGone.value).isLessThan(first)
+
+        editor.queue(items("m3", "m4"), QueuePlacement.Replace, keepReplaced = true)
+        val second = editor.replacedQueue
+        assertThat(second).isGreaterThan(first)
+        assertThat(editor.replacedQueuesGone.value).isEqualTo(first)
+
+        editor.restoreReplaced()
+        assertThat(editor.replacedQueuesGone.value).isEqualTo(second)
     }
 
     @Test

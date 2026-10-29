@@ -4,7 +4,7 @@ import com.quantumff.segue.core.common.ApplicationScope
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
-import com.quantumff.segue.core.data.snackbar.SnackbarMessage
+import com.quantumff.segue.core.data.snackbar.SnackbarSlot
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.Song
@@ -34,7 +34,7 @@ import kotlinx.coroutines.sync.withLock
  * snackbar down, which writes it.
  *
  * Subsonic removes songs by position, and positions shift as songs are removed. So a removal is
- * held as which copy of which song it is ([PlaylistEntry.copy]), and only turned into a position
+ * held as which copy of which song it is ([SongCopy]), and only turned into a position
  * against the saved order when its write runs. Writes, and the other changes passed to
  * [afterRemovals], run one at a time in the order they were started.
  */
@@ -48,8 +48,8 @@ class PlaylistRemovals @Inject constructor(
     private val writes = Mutex()
     private val ids = AtomicLong()
 
-    /** The removal whose Undo is showing, and its snackbar. */
-    private var last: Pair<Removal, SnackbarMessage>? = null
+    /** The removal whose Undo is showing. */
+    private val undo = SnackbarSlot<Removal>(snackbars)
 
     /** [playlistId]'s saved order, without the songs removed from it that are not written yet. */
     fun entries(playlistId: String): Flow<ImmutableList<PlaylistEntry>> =
@@ -60,20 +60,17 @@ class PlaylistRemovals @Inject constructor(
 
     /** Removes [entry] from [playlistId]'s saved order once its Undo is gone. */
     fun remove(playlistId: String, entry: PlaylistEntry) {
-        val removal = Removal(ids.incrementAndGet(), playlistId, entry.song.id, entry.copy)
+        val removal = Removal(ids.incrementAndGet(), playlistId, SongCopy(entry.song.id, entry.copy))
         removals.update { it + removal }
-        takeDown { true }
-        val message = snackbars.post(
+        undo.post(
             SnackbarText.of(R.string.feature_playlist_removed, entry.song.title),
-            SnackbarAction.undo(onDismiss = { write(removal.id) }) {
-                removals.update { all -> all.filterNot { it.id == removal.id } }
-            },
+            SnackbarAction.undo(onDismiss = { write(removal.id) }) { drop(removal) },
+            about = removal,
         )
-        last = removal to message
     }
 
     /** Starts writing [playlistId]'s pending removal now, taking its Undo away; as when editing starts. */
-    fun flush(playlistId: String) = takeDown { it.playlistId == playlistId }
+    fun flush(playlistId: String) = undo.takeDown { it.playlistId == playlistId }
 
     /**
      * Runs [block], another change to [playlistId] such as saving an edit or deleting it, once its
@@ -84,14 +81,6 @@ class PlaylistRemovals @Inject constructor(
         return writes.withLock { block() }
     }
 
-    /** Takes down the showing Undo if its removal matches [which]; dismissing it starts the write. */
-    private fun takeDown(which: (Removal) -> Boolean) {
-        val (removal, message) = last ?: return
-        if (!which(removal)) return
-        last = null
-        snackbars.onDismiss(message)
-    }
-
     /**
      * Writes removal [id], turning it into a position in the saved order as it is now. Undispatched,
      * so it queues for [writes] before the caller's next change does.
@@ -100,7 +89,7 @@ class PlaylistRemovals @Inject constructor(
         writes.withLock {
             val removal = removals.value.firstOrNull { it.id == id } ?: return@withLock
             val songs = repository.playlistSongs(removal.playlistId).first()
-            val position = songs.toEntries().indexOfFirst { it.song.id == removal.songId && it.copy == removal.copy }
+            val position = removal.song.positionIn(songs.map { it.id })
             if (position < 0) {
                 drop(removal)
                 return@withLock
@@ -110,7 +99,7 @@ class PlaylistRemovals @Inject constructor(
                 snackbars.post(SnackbarText.of(R.string.feature_playlist_error_generic))
                 return@withLock
             }
-            written(removal, copiesBefore = songs.count { it.id == removal.songId })
+            written(removal, copiesBefore = songs.count { it.id == removal.song.songId })
         }
         delay(SETTLE_MS)
         removals.value.firstOrNull { it.id == id }?.let(::drop)
@@ -127,44 +116,29 @@ class PlaylistRemovals @Inject constructor(
         all.map {
             when {
                 it.id == removal.id -> it.copy(copiesBefore = copiesBefore)
-
-                it.playlistId == removal.playlistId && it.songId == removal.songId && it.copy > removal.copy ->
-                    it.copy(copy = it.copy - 1)
-
+                it.playlistId == removal.playlistId -> it.copy(song = it.song.afterRemovalOf(removal.song))
                 else -> it
             }
         }
     }
 
     /**
-     * One removed row: copy [copy] (from 0) of [songId] in [playlistId]. [copiesBefore] is set once
-     * it is written: how many copies of the song the saved order had before.
+     * One removed row: [song] in [playlistId]. [copiesBefore] is set once it is written: how many
+     * copies of the song the saved order had before.
      */
     private data class Removal(
         val id: Long,
         val playlistId: String,
-        val songId: String,
-        val copy: Int,
+        val song: SongCopy,
         val copiesBefore: Int? = null,
     ) {
         /** Whether this hides [entry] of [songs]; once written, only until [songs] no longer lists it. */
-        fun hides(entry: PlaylistEntry, songs: List<Song>): Boolean = entry.song.id == songId &&
-            entry.copy == copy &&
-            (copiesBefore == null || songs.count { it.id == songId } == copiesBefore)
+        fun hides(entry: PlaylistEntry, songs: List<Song>): Boolean = song.isOf(entry) &&
+            (copiesBefore == null || songs.count { it.id == song.songId } == copiesBefore)
     }
 
     private companion object {
         /** How long a written removal waits for the saved order to drop its song. */
         const val SETTLE_MS = 1_000L
-    }
-}
-
-/** [this] saved order as entries, each numbered among the copies of its song. */
-internal fun List<Song>.toEntries(): List<PlaylistEntry> {
-    val copies = mutableMapOf<String, Int>()
-    return map { song ->
-        val copy = copies.getOrDefault(song.id, 0)
-        copies[song.id] = copy + 1
-        PlaylistEntry(song, copy)
     }
 }
