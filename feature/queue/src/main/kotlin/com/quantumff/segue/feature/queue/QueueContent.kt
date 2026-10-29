@@ -1,7 +1,6 @@
 package com.quantumff.segue.feature.queue
 
 import android.text.format.DateUtils
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,9 +14,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,12 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,7 +35,6 @@ import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBanner
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
-import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -52,8 +44,6 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.RemoteQueueOffer
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
@@ -83,25 +73,25 @@ internal fun QueueViewModel.actions() = QueueActions(
 
 /**
  * The queue (DESIGN.md §4.8), ready to embed in Now Playing's Queue panel: the header (jump to
- * current, upload, download), the "Continue from <device>" banner, and the reorderable list,
- * with its own snackbar unless [snackbarHostState] is given (then the host shows it).
+ * current, upload, download), the "Continue from <device>" banner, and the reorderable list. Its
+ * snackbars, such as Undo for a removal, show in the app's host, so they outlive the panel.
  */
 @Composable
 fun QueueContent(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
-    snackbarHostState: SnackbarHostState? = null,
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val hostState = snackbarHostState ?: remember { SnackbarHostState() }
     val actions = remember(viewModel) { viewModel.actions() }
     val headerActions = remember(viewModel) { viewModel.headerActions() }
-    QueueMessages(state.message, hostState, onUndo = viewModel::undoRemove, onShow = viewModel::onMessageShown)
-    Box(modifier) {
-        QueueContent(state = state, actions = actions, headerActions = headerActions, contentPadding = contentPadding)
-        if (snackbarHostState == null) SegueSnackbarHost(hostState, Modifier.align(Alignment.BottomCenter))
-    }
+    QueueContent(
+        state = state,
+        actions = actions,
+        modifier = modifier,
+        headerActions = headerActions,
+        contentPadding = contentPadding,
+    )
 }
 
 /** Stateless queue: see the stateful overload. */
@@ -285,50 +275,6 @@ private fun rememberCurrentTrackVisible(listState: LazyListState, currentKey: St
 internal fun queueIndexOf(rows: List<QueueListItem>, key: String, hasBanner: Boolean): Int {
     val index = rows.indexOfFirst { it.key == key }
     return if (index < 0) -1 else index + if (hasBanner) 1 else 0
-}
-
-/** Undo for removals and the save results, as snackbars. */
-@Composable
-internal fun QueueMessages(
-    message: QueueMessage?,
-    hostState: SnackbarHostState,
-    onUndo: () -> Unit,
-    onShow: () -> Unit,
-) {
-    val resources = LocalResources.current
-    val latestMessage by rememberUpdatedState(message)
-    val latestOnUndo by rememberUpdatedState(onUndo)
-    val latestOnShown by rememberUpdatedState(onShow)
-    LaunchedEffect(hostState) {
-        // Clearing the message must not cancel the snackbar on screen; a newer message replaces it.
-        snapshotFlow { latestMessage }.filterNotNull().collectLatest { shown ->
-            latestOnShown()
-            val text = when (shown) {
-                is QueueMessage.Removed -> resources.getString(R.string.feature_queue_removed, shown.title)
-
-                QueueMessage.Uploaded -> resources.getString(R.string.feature_queue_uploaded)
-
-                QueueMessage.UploadFailed -> resources.getString(R.string.feature_queue_upload_failed)
-
-                is QueueMessage.Downloaded -> resources.getQuantityString(
-                    R.plurals.feature_queue_downloaded,
-                    shown.trackCount,
-                    shown.trackCount,
-                )
-
-                QueueMessage.NothingToDownload -> resources.getString(R.string.feature_queue_nothing_to_download)
-
-                QueueMessage.DownloadFailed -> resources.getString(R.string.feature_queue_download_failed)
-            }
-            val undoable = shown is QueueMessage.Removed
-            val result = hostState.showSnackbar(
-                message = text,
-                actionLabel = if (undoable) resources.getString(R.string.feature_queue_undo) else null,
-                duration = if (undoable) SnackbarDuration.Long else SnackbarDuration.Short,
-            )
-            if (undoable && result == SnackbarResult.ActionPerformed) latestOnUndo()
-        }
-    }
 }
 
 /**

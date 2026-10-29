@@ -71,13 +71,9 @@ class PlayerViewModel @Inject constructor(
         onCycleRepeat = ::cycleRepeatMode,
         onContinueRemote = playback::adoptRemoteQueue,
         onDismissRemote = playback::dismissRemoteQueue,
+        onSkipPastError = playback::skipPastError,
+        onRetryPlayback = playback::retry,
     )
-
-    /** The playback error snackbar's Skip: plays the next item. */
-    fun skipPastError() = playback.skipPastError()
-
-    /** The playback error snackbar's Retry, for a network error: prepares the song again and plays it. */
-    fun retryPlayback() = playback.retry()
 
     fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.next())
 

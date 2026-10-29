@@ -45,6 +45,25 @@ class SnackbarsTest {
     }
 
     @Test
+    fun `a poster takes back its message, shown or waiting, as if dismissed`() {
+        val calls = mutableListOf<String>()
+        val first = snackbars.post(
+            SnackbarText.of(TEXT, "first"),
+            SnackbarAction(SnackbarText.of(LABEL), onDismiss = {
+                calls += "dismiss"
+            }) {},
+        )
+        val second = snackbars.post(SnackbarText.of(TEXT, "second"))
+        snackbars.post(SnackbarText.of(TEXT, "third"))
+
+        snackbars.onDismiss(second)
+        snackbars.onDismiss(first)
+
+        assertThat(calls).containsExactly("dismiss")
+        assertThat(snackbars.shownTexts()).containsExactly("third")
+    }
+
+    @Test
     fun `tapping the action runs it, not its dismissal, and moves on`() {
         val calls = mutableListOf<String>()
         snackbars.post(

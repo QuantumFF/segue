@@ -43,10 +43,15 @@ class Snackbars @Inject constructor() {
     /** The message to show now, or null when none is waiting. */
     val current: StateFlow<SnackbarMessage?> = head.asStateFlow()
 
-    /** Queues [text], with [action] when there is one; safe to call from any thread. */
-    fun post(text: SnackbarText, action: SnackbarAction? = null) = synchronized(pending) {
-        pending.addLast(SnackbarMessage(text, action))
-        head.value = pending.first()
+    /**
+     * Queues [text], with [action] when there is one; safe to call from any thread. Returns the
+     * message, which the poster can take back with [onDismiss].
+     */
+    fun post(text: SnackbarText, action: SnackbarAction? = null): SnackbarMessage = synchronized(pending) {
+        SnackbarMessage(text, action).also { message ->
+            pending.addLast(message)
+            head.value = pending.first()
+        }
     }
 
     /** For the host: the user tapped [message]'s action. */
@@ -54,7 +59,10 @@ class Snackbars @Inject constructor() {
         if (remove(message)) message.action?.onClick?.invoke()
     }
 
-    /** For the host: [message] was dismissed or timed out without its action. */
+    /**
+     * For the host: [message] was dismissed or timed out without its action. For a poster: take
+     * [message] back, down if it is showing, as if dismissed.
+     */
     fun onDismiss(message: SnackbarMessage) {
         if (remove(message)) message.action?.onDismiss?.invoke()
     }
