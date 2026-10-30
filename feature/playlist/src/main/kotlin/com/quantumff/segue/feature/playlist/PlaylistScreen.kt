@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.playlist
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -12,11 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Text
@@ -70,6 +69,7 @@ import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -102,9 +102,12 @@ fun PlaylistScreen(
             val host = MediaActionHost(onAlbumClick, onArtistClick, onAddToPlaylist) { viewModel.removeAt(index) }
             viewModel.onSongAction(song, action, host)
         },
+        onTrackSwipe = viewModel::onSongSwipe,
         onEditClick = viewModel::startEditing,
         onCancelEditClick = viewModel::cancelEditing,
         onSaveClick = viewModel::save,
+        onEditBack = viewModel::onEditBack,
+        onKeepEditingClick = viewModel::keepEditing,
         onMove = viewModel::move,
         onRemoveEntry = viewModel::removeEntry,
         onRename = viewModel::rename,
@@ -119,7 +122,8 @@ fun PlaylistScreen(
 
 /**
  * Stateless playlist detail. [onPlayClick] is the hero's Play (or Pause, while the playlist is the
- * playing queue source) and the collapsed top bar's.
+ * playing queue source) and the collapsed top bar's. While editing, Back calls [onEditBack], and
+ * the discard prompt's Discard is [onCancelEditClick].
  */
 @Suppress("LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,9 +136,12 @@ fun PlaylistScreenContent(
     onShuffleAlbumsClick: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
     onTrackAction: (index: Int, song: Song, action: MediaAction) -> Unit,
+    onTrackSwipe: (Song, QueuePlacement) -> Unit,
     onEditClick: () -> Unit,
     onCancelEditClick: () -> Unit,
     onSaveClick: () -> Unit,
+    onEditBack: () -> Unit,
+    onKeepEditingClick: () -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemoveEntry: (key: String) -> Unit,
     onRename: (String) -> Unit,
@@ -177,22 +184,20 @@ fun PlaylistScreenContent(
     val canPlay = uiState.entries.isNotEmpty() && !uiState.isEditing
     val isSourcePlaying = uiState.heroPlayback == HeroPlayback.Playing
 
+    BackHandler(enabled = uiState.isEditing, onBack = onEditBack)
+
     Box(modifier.fillMaxSize()) {
         HeroDetailLayout(
             hero = hero,
-            onBackClick = onBackClick,
+            onBackClick = if (uiState.isEditing) onEditBack else onBackClick,
             onPlayClick = if (canPlay) onPlayClick else null,
             isPlaying = isSourcePlaying,
             onMoreClick = if (uiState.isEditable && !uiState.isEditing) ({ showPlaylistMenu = true }) else null,
+            topBarActions = {
+                if (uiState.isEditing) EditActions(uiState, onCancelEditClick, onSaveClick)
+            },
             heroActions = {
-                if (uiState.isEditing) {
-                    OutlinedButton(onClick = onCancelEditClick, enabled = !uiState.isSaving) {
-                        Text(stringResource(R.string.feature_playlist_cancel))
-                    }
-                    Button(onClick = onSaveClick, enabled = !uiState.isSaving) {
-                        if (uiState.isSaving) InlineSpinner() else Text(stringResource(R.string.feature_playlist_save))
-                    }
-                } else {
+                if (!uiState.isEditing) {
                     PlayButton(onClick = onPlayClick, isPlaying = isSourcePlaying)
                     SegueIconButton(
                         icon = SegueIcons.Shuffle,
@@ -266,8 +271,8 @@ fun PlaylistScreenContent(
                 ) { index, entry ->
                     val row = remember(entry, uiState.availability, uiState.currentSong) { uiState.trackRow(entry) }
                     TrackSwipeBox(
-                        onPlayNext = { onTrackAction(index, entry.song, MediaAction.PlayNext) },
-                        onAddToQueue = { onTrackAction(index, entry.song, MediaAction.AddToQueue) },
+                        onPlayNext = { onTrackSwipe(entry.song, QueuePlacement.Next) },
+                        onAddToQueue = { onTrackSwipe(entry.song, QueuePlacement.End) },
                         enabled = row.isAvailable,
                     ) {
                         TrackRow(
@@ -314,6 +319,9 @@ fun PlaylistScreenContent(
             onDismissRequest = { trackMenu = null },
         )
     }
+    if (uiState.isDiscardPromptShown) {
+        DiscardChangesDialog(onDiscard = onCancelEditClick, onKeepEditing = onKeepEditingClick)
+    }
     PlaylistDialogHost(
         dialog = dialog,
         onCreate = {},
@@ -321,6 +329,27 @@ fun PlaylistScreenContent(
         onDelete = { onDelete() },
         onDismissRequest = { dialog = null },
     )
+}
+
+/** Edit mode's Cancel (✕) and Save (✓), in the top bar so they stay in reach (DESIGN.md §4.5). */
+@Composable
+private fun EditActions(uiState: PlaylistUiState, onCancelClick: () -> Unit, onSaveClick: () -> Unit) {
+    SegueIconButton(
+        icon = SegueIcons.Close,
+        contentDescription = stringResource(R.string.feature_playlist_cancel),
+        onClick = onCancelClick,
+        enabled = !uiState.isSaving,
+    )
+    if (uiState.isSaving) {
+        Box(Modifier.size(SegueSizes.touchTarget), contentAlignment = Alignment.Center) { InlineSpinner() }
+    } else {
+        SegueIconButton(
+            icon = SegueIcons.Check,
+            contentDescription = stringResource(R.string.feature_playlist_save),
+            onClick = onSaveClick,
+            enabled = uiState.canSave,
+        )
+    }
 }
 
 @Composable
@@ -536,7 +565,7 @@ private val PreviewEntries = listOf(
     Song(id = "s1", title = "15 Step", albumId = "a1", album = "In Rainbows", artist = "Radiohead", artistId = "r1"),
     Song(id = "s2", title = "Nude", albumId = "a1", album = "In Rainbows", artist = "Radiohead", artistId = "r1"),
     Song(id = "s3", title = "Reckoner", albumId = "a1", album = "In Rainbows", artist = "Radiohead", artistId = "r1"),
-).mapIndexed { index, song -> PlaylistEntry("$index:${song.id}", song.copy(durationSeconds = 240)) }
+).map { song -> PlaylistEntry(song.copy(durationSeconds = 240)) }
     .toImmutableList()
 
 @Composable
@@ -549,9 +578,12 @@ private fun PreviewPlaylistScreen(uiState: PlaylistUiState) {
         onShuffleAlbumsClick = {},
         onTrackClick = {},
         onTrackAction = { _, _, _ -> },
+        onTrackSwipe = { _, _ -> },
         onEditClick = {},
         onCancelEditClick = {},
         onSaveClick = {},
+        onEditBack = {},
+        onKeepEditingClick = {},
         onMove = { _, _ -> },
         onRemoveEntry = {},
         onRename = {},
@@ -581,6 +613,7 @@ private fun PlaylistScreenEditingPreview() {
                 entries = PreviewEntries,
                 loadState = LoadState.Loaded,
                 isEditing = true,
+                hasChanges = true,
             ),
         )
     }

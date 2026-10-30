@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.pinAndConfirm
+import com.quantumff.segue.core.data.download.unpinWithUndo
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -15,6 +17,8 @@ import com.quantumff.segue.core.data.play.heroPlay
 import com.quantumff.segue.core.data.play.pagePlayback
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.PlaylistRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.AlbumOrder
@@ -27,6 +31,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
@@ -44,8 +49,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A playlist entry with a key that stays unique when a song appears twice, and stable while reordering. */
-data class PlaylistEntry(val key: String, val song: Song)
+/**
+ * A playlist entry: its [song], and which [copy] of that song it is (from 0), for playlists that
+ * list a song more than once. Its [key] stays unique, and stable while reordering.
+ */
+data class PlaylistEntry(val song: Song, val copy: Int = 0) {
+    val key: String get() = "$copy:${song.id}"
+}
 
 enum class LoadState {
     Loading,
@@ -63,6 +73,10 @@ data class PlaylistUiState(
     /** The refresh could not reach the server: cached rows show with the offline chip. */
     val isOffline: Boolean = false,
     val isEditing: Boolean = false,
+    /** The working order differs from the saved one. */
+    val hasChanges: Boolean = false,
+    /** Back was pressed with unsaved changes: "Discard changes?" shows. */
+    val isDiscardPromptShown: Boolean = false,
     val isSaving: Boolean = false,
     /** Set once the playlist was deleted from this screen; the screen then navigates back. */
     val isDeleted: Boolean = false,
@@ -80,6 +94,9 @@ data class PlaylistUiState(
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
 
     val songs: List<Song> get() = entries.map { it.song }
+
+    /** Save is enabled only when there is a change to save. */
+    val canSave: Boolean get() = hasChanges && !isSaving
 
     /** [entry]'s track row: its download badge, whether it is available, and whether it is playing. */
     fun trackRow(entry: PlaylistEntry): TrackRowState =
@@ -100,6 +117,8 @@ class PlaylistViewModel @Inject constructor(
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
+    private val removals: PlaylistRemovals,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val playlistId: String = checkNotNull(savedStateHandle[PLAYLIST_ID_KEY]) { "Missing $PLAYLIST_ID_KEY" }
     private val local = MutableStateFlow(LocalState())
@@ -109,18 +128,18 @@ class PlaylistViewModel @Inject constructor(
 
     val uiState: StateFlow<PlaylistUiState> = combine(
         playlistRepository.playlist(playlistId),
-        playlistRepository.playlistSongs(playlistId),
+        removals.entries(playlistId),
         local,
         combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
         player,
-    ) { playlist, songs, local, (download, availability), player ->
+    ) { playlist, saved, local, (download, availability), player ->
         PlaylistUiState(
             download = download,
             availability = availability,
             currentSong = player.currentSong,
             heroPlayback = player.hero,
             playlist = playlist,
-            entries = local.working ?: songs.toEntries(),
+            entries = local.working ?: saved,
             loadState = when {
                 local.refreshFailed -> LoadState.Failed
                 playlist == null && local.refreshing -> LoadState.Loading
@@ -128,6 +147,8 @@ class PlaylistViewModel @Inject constructor(
             },
             isOffline = local.refreshOffline,
             isEditing = local.working != null,
+            hasChanges = local.working != null && local.working.map { it.song.id } != saved.map { it.song.id },
+            isDiscardPromptShown = local.discardPrompt,
             isSaving = local.saving,
             isDeleted = local.deleted,
             message = local.message,
@@ -152,13 +173,24 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
+    /** Enters edit mode. A removal's Undo goes away: its write must land before the edit is saved. */
     fun startEditing() {
         val state = uiState.value
         if (!state.isEditable || state.isEditing) return
+        removals.flush(playlistId)
         local.update { it.copy(working = state.entries) }
     }
 
-    fun cancelEditing() = local.update { it.copy(working = null) }
+    /** Leaves edit mode, dropping the working order; also the discard prompt's Discard. */
+    fun cancelEditing() = local.update { it.copy(working = null, discardPrompt = false) }
+
+    /** Back while editing: asks before discarding changes, and otherwise just leaves edit mode. */
+    fun onEditBack() {
+        if (uiState.value.hasChanges) local.update { it.copy(discardPrompt = true) } else cancelEditing()
+    }
+
+    /** The discard prompt's Keep editing. */
+    fun keepEditing() = local.update { it.copy(discardPrompt = false) }
 
     /** Moves the entry at [from] to [to] in the working order. */
     fun move(from: Int, to: Int) = local.update { state ->
@@ -182,7 +214,9 @@ class PlaylistViewModel @Inject constructor(
         local.update { it.copy(saving = true) }
         viewModelScope.launch {
             val failed = remoteOutcome {
-                playlistRepository.replaceSongs(playlistId, working.map { it.song.id })
+                removals.afterRemovals(playlistId) {
+                    playlistRepository.replaceSongs(playlistId, working.map { it.song.id })
+                }
             }.isFailure
             local.update {
                 if (failed) {
@@ -194,26 +228,48 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /** Removes one track outside edit mode, from its menu. [index] is the position in the saved order. */
-    fun removeAt(index: Int) = write { playlistRepository.removeSongs(playlistId, listOf(index)) }
+    /**
+     * Removes one track outside edit mode, from its menu: [index] is its row. The row hides at once;
+     * [PlaylistRemovals] writes the removal once its Undo is gone.
+     */
+    fun removeAt(index: Int) {
+        val state = uiState.value
+        if (state.isEditing) return
+        removals.remove(playlistId, state.entries.getOrNull(index) ?: return)
+    }
 
     fun rename(name: String) = write { playlistRepository.updatePlaylist(playlistId, name = name) }
 
+    /**
+     * Deletes the playlist, after its confirm dialog. "Deleted <name>" goes to the app's snackbars,
+     * so it still shows once this screen has closed.
+     */
     fun delete() {
+        val name = uiState.value.playlist?.name ?: return
         viewModelScope.launch {
-            val failed = remoteOutcome { playlistRepository.deletePlaylist(playlistId) }.isFailure
+            val failed = remoteOutcome {
+                removals.afterRemovals(playlistId) { playlistRepository.deletePlaylist(playlistId) }
+            }.isFailure
+            if (!failed) snackbars.post(SnackbarText.of(R.string.feature_playlist_deleted, name))
             local.update { if (failed) it.copy(message = PlaylistMessage.Failed) else it.copy(deleted = true) }
         }
     }
 
-    /** Pins the playlist for offline use; it then follows the server copy on every library sync. */
+    /**
+     * Pins the playlist for offline use, confirmed with its name; it then follows the server copy on
+     * every library sync.
+     */
     fun download() {
         val playlist = uiState.value.playlist ?: return
-        write { downloadRepository.pin(PinTarget.of(playlist)) }
+        write { downloadRepository.pinAndConfirm(PinTarget.of(playlist), snackbars) }
     }
 
+    /** Unpins the playlist with Undo; files no other pin needs are deleted once the snackbar has gone. */
     fun removeDownload() {
-        viewModelScope.launch { downloadRepository.unpin(PinKind.Playlist, playlistId) }
+        val playlist = uiState.value.playlist ?: return
+        viewModelScope.launch {
+            downloadRepository.unpinWithUndo(PinKind.Playlist, playlistId, playlist.name, snackbars)
+        }
     }
 
     /** Plays the playlist as shown from [startIndex]; [shuffle] shuffles its tracks. */
@@ -252,6 +308,11 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
+    }
+
     fun onMessageDismiss() = local.update { it.copy(message = null) }
 
     private fun write(block: suspend () -> Unit) {
@@ -266,6 +327,7 @@ class PlaylistViewModel @Inject constructor(
         val refreshOffline: Boolean = false,
         /** The working order while editing; null outside edit mode. */
         val working: ImmutableList<PlaylistEntry>? = null,
+        val discardPrompt: Boolean = false,
         val saving: Boolean = false,
         val deleted: Boolean = false,
         val message: PlaylistMessage? = null,
@@ -276,6 +338,3 @@ class PlaylistViewModel @Inject constructor(
         const val PLAYLIST_ID_KEY = "playlistId"
     }
 }
-
-private fun List<Song>.toEntries(): ImmutableList<PlaylistEntry> =
-    mapIndexed { index, song -> PlaylistEntry(key = "$index:${song.id}", song = song) }.toImmutableList()

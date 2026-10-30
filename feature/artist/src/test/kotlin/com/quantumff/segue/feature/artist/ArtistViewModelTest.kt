@@ -3,8 +3,11 @@ package com.quantumff.segue.feature.artist
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.data.R as DataR
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
@@ -45,6 +48,7 @@ class ArtistViewModelTest {
     private val play = RecordingPlayIntents()
     private val player = FakePlayerStateSource()
     private val transport = RecordingPlayerTransport()
+    private val snackbars = Snackbars()
 
     private val ownAlbum = TestData.album("own", artistId = "artist-1", songCount = 10)
     private val guestAlbum = TestData.album("guest", artistId = "someone-else", songCount = 12)
@@ -59,6 +63,7 @@ class ArtistViewModelTest {
         playerState = player,
         transport = transport,
         mediaActions = mediaActionHandler(play, downloads, stars, artists = artists),
+        snackbars = snackbars,
     )
 
     private val downloads = FakeDownloadRepository()
@@ -287,6 +292,20 @@ class ArtistViewModelTest {
     }
 
     @Test
+    fun swipingATrackQueuesItWithoutAConfirmation() = runTest {
+        val viewModel = viewModel()
+        val song = TestData.song("s1")
+
+        viewModel.onSongSwipe(song, QueuePlacement.Next)
+        viewModel.onSongSwipe(song, QueuePlacement.End)
+
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.Next, false, confirm = false),
+            RecordingPlayIntents.Play(PlayTarget.Songs(listOf(song)), QueuePlacement.End, false, confirm = false),
+        ).inOrder()
+    }
+
+    @Test
     fun menusGoThroughTheMediaActionHandler() = runTest {
         seed()
         val viewModel = viewModel()
@@ -306,5 +325,27 @@ class ArtistViewModelTest {
         assertThat(opened).containsExactly("album-1")
         assertThat(downloads.pins.value.keys).containsExactly(PinKind.Song to "t1")
         assertThat(play.plays.single().target).isEqualTo(PlayTarget.Artist("artist-1"))
+    }
+
+    @Test
+    fun heroDownloadConfirmsWithTheArtistNameAndRemovingDeletesOnceTheSnackbarIsGone() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val name = "Artist artist-1"
+
+        viewModel.download()
+        val downloading = checkNotNull(snackbars.current.value)
+        assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, name))
+        snackbars.onDismiss(downloading)
+
+        viewModel.removeDownload()
+        assertThat(downloads.pins.value).isEmpty()
+        val removed = checkNotNull(snackbars.current.value)
+        assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, name))
+        assertThat(downloads.deleted).isEmpty()
+
+        snackbars.onDismiss(removed)
+        assertThat(downloads.deleted).containsExactly(PinKind.Artist to "artist-1")
     }
 }

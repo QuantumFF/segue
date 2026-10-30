@@ -8,6 +8,8 @@ import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.pinAndConfirm
+import com.quantumff.segue.core.data.download.unpinWithUndo
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -19,6 +21,7 @@ import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.ArtistRepository
 import com.quantumff.segue.core.data.repository.StarRatingRepository
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.Album
@@ -33,6 +36,7 @@ import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
+import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongAvailability
@@ -68,6 +72,7 @@ class AlbumViewModel @Inject constructor(
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
     private val mediaActions: MediaActionHandler,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val albumId: String = checkNotNull(savedStateHandle[ALBUM_ID_KEY]) { "Missing $ALBUM_ID_KEY" }
 
@@ -147,21 +152,22 @@ class AlbumViewModel @Inject constructor(
         transport.heroPlay(success.heroPlayback) { play() }
     }
 
-    /** Pins the album for offline use. */
+    /** Pins the album for offline use, confirmed with its name. */
     fun download() {
         val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
         viewModelScope.launch {
             try {
-                downloadRepository.pin(PinTarget.of(album))
+                downloadRepository.pinAndConfirm(PinTarget.of(album), snackbars)
             } catch (_: RemoteException) {
                 message.value = AlbumMessage.ActionFailed(MediaActionFailure.DownloadFailed)
             }
         }
     }
 
-    /** Unpins the album; files no other pin needs are deleted. */
+    /** Unpins the album with Undo; files no other pin needs are deleted once the snackbar has gone. */
     fun removeDownload() {
-        viewModelScope.launch { downloadRepository.unpin(PinKind.Album, albumId) }
+        val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
+        viewModelScope.launch { downloadRepository.unpinWithUndo(PinKind.Album, albumId, album.name, snackbars) }
     }
 
     fun shuffleAlbums(option: ShuffleAlbumsOption) {
@@ -178,6 +184,11 @@ class AlbumViewModel @Inject constructor(
     /** A track's ⋮ menu. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) =
         menuAction { mediaActions.song(song, action, host) }
+
+    /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */
+    fun onSongSwipe(song: Song, placement: QueuePlacement) {
+        viewModelScope.launch { mediaActions.swipeSong(song, placement) }
+    }
 
     private fun menuAction(run: suspend () -> MediaActionFailure?) {
         viewModelScope.launch { run()?.let { message.value = AlbumMessage.ActionFailed(it) } }

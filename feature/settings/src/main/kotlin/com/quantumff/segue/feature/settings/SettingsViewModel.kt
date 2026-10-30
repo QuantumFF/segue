@@ -7,6 +7,8 @@ import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.repository.AppUpdateRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StorageLimit
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -32,7 +35,26 @@ data class SettingsUiState(
     val preferences: UserPreferences = UserPreferences(),
     val downloads: DownloadPreferences = DownloadPreferences(),
     val updateCheck: UpdateCheck = UpdateCheck.Idle,
-)
+) {
+    /** What removing [server] does to the active server: the first one left takes over, as in the accounts. */
+    fun removalOf(server: Server): ServerRemoval {
+        if (server.id != activeServerId) return ServerRemoval.KeepsActive
+        val next = servers.firstOrNull { it.id != server.id } ?: return ServerRemoval.SignsOut
+        return ServerRemoval.SwitchesTo(next)
+    }
+}
+
+/** What the remove dialog says happens to the active server. */
+sealed interface ServerRemoval {
+    /** The removed server isn't the active one. */
+    data object KeepsActive : ServerRemoval
+
+    /** [server] becomes active in place of the removed one. */
+    data class SwitchesTo(val server: Server) : ServerRemoval
+
+    /** No server is left, so the user is signed out. */
+    data object SignsOut : ServerRemoval
+}
 
 /** The "Check for updates" row, after a check from Settings. */
 sealed interface UpdateCheck {
@@ -53,6 +75,7 @@ class SettingsViewModel @Inject constructor(
     private val preferencesRepository: UserPreferencesRepository,
     private val downloadRepository: DownloadRepository,
     private val updateRepository: AppUpdateRepository,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val updateCheck = MutableStateFlow<UpdateCheck>(UpdateCheck.Idle)
     private val releasesToOpen = Channel<String>(Channel.CONFLATED)
@@ -79,7 +102,16 @@ class SettingsViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SettingsUiState())
 
-    fun switchServer(serverId: String) = launch { serverRepository.switchTo(serverId) }
+    /**
+     * Makes [serverId] active and says "Switched to <name>". Tapping the server that already is does
+     * nothing, so it starts no sync.
+     */
+    fun switchServer(serverId: String) = launch {
+        if (serverRepository.activeServer.first()?.id == serverId) return@launch
+        val server = serverRepository.servers.first().firstOrNull { it.id == serverId } ?: return@launch
+        serverRepository.switchTo(serverId)
+        snackbars.post(SnackbarText.of(R.string.feature_settings_switched_to, server.name))
+    }
 
     fun removeServer(serverId: String) = launch { serverRepository.remove(serverId) }
 

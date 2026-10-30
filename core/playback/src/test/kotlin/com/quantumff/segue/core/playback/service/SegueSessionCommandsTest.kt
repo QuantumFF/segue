@@ -54,6 +54,7 @@ class SegueSessionCommandsTest {
             startIndex = 2,
             shuffle = true,
             source = QueueSource.Album("al", "A"),
+            keepReplaced = true,
         )
 
         val received = SegueSessionCommands.queueSongs(SegueSessionCommands.queueSongsArgs(request))!!

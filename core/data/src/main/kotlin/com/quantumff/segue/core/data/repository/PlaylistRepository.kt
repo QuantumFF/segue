@@ -47,7 +47,12 @@ interface PlaylistRepository {
 
     suspend fun updatePlaylist(id: String, name: String? = null, comment: String? = null, isPublic: Boolean? = null)
 
-    suspend fun addSongs(id: String, songIds: List<String>)
+    /**
+     * Appends [songIds] the playlist does not have yet, as stored in Room (fetched first when its
+     * songs have not been synced). Those it has already are skipped and counted, not added again.
+     * A song listed more than once in [songIds] is added, or counted, once.
+     */
+    suspend fun addSongs(id: String, songIds: List<String>): AddedSongs
 
     /** [positions] are 0-based indexes into the playlist. */
     suspend fun removeSongs(id: String, positions: List<Int>)
@@ -109,9 +114,17 @@ internal class OfflineFirstPlaylistRepository @Inject constructor(
             refetch(serverId, client, id)
         }
 
-    override suspend fun addSongs(id: String, songIds: List<String>) = edit { serverId, client ->
-        client.updatePlaylist(id, songIdsToAdd = songIds)
-        refetch(serverId, client, id)
+    override suspend fun addSongs(id: String, songIds: List<String>): AddedSongs {
+        val requested = songIds.distinct()
+        val present = songsForPlayback(id).mapTo(HashSet()) { it.id }
+        val toAdd = requested.filterNot { it in present }
+        if (toAdd.isNotEmpty()) {
+            edit { serverId, client ->
+                client.updatePlaylist(id, songIdsToAdd = toAdd)
+                refetch(serverId, client, id)
+            }
+        }
+        return AddedSongs(added = toAdd.size, alreadyPresent = requested.size - toAdd.size)
     }
 
     override suspend fun removeSongs(id: String, positions: List<Int>) = edit { serverId, client ->
@@ -144,6 +157,9 @@ internal class OfflineFirstPlaylistRepository @Inject constructor(
             remote { block(serverId, client) }
         }
 }
+
+/** What [PlaylistRepository.addSongs] did: [added] songs appended, [alreadyPresent] skipped as already there. */
+data class AddedSongs(val added: Int, val alreadyPresent: Int)
 
 /** The append-only `updatePlaylist` edit that turns one track list into another. */
 internal data class PlaylistEdit(val indexesToRemove: List<Int>, val idsToAdd: List<String>) {

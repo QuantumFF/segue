@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.PlayerStateSource
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
@@ -22,23 +24,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A one-off message for the snackbar. */
-@Immutable
-sealed interface QueueMessage {
-    /** A track was removed; the snackbar offers Undo. */
-    data class Removed(val title: String) : QueueMessage
-
-    data object Uploaded : QueueMessage
-
-    data object UploadFailed : QueueMessage
-
-    data class Downloaded(val trackCount: Int) : QueueMessage
-
-    /** The server has no saved queue. */
-    data object NothingToDownload : QueueMessage
-
-    data object DownloadFailed : QueueMessage
-}
+/** A manual queue transfer that is running. */
+enum class QueueTransfer { Upload, Download }
 
 /** "Download queue" over a queue with tracks: replace it with [trackCount] tracks saved by [deviceName]? */
 @Immutable
@@ -54,11 +41,12 @@ data class QueueUiState(
     val remoteOffer: RemoteQueueOffer? = null,
     /** True until the player state first arrives, so the empty state does not flash. */
     val isLoading: Boolean = true,
-    /** A manual upload or download is running: the menu's sync items wait for it. */
-    val isTransferring: Boolean = false,
+    /** The manual upload or download that is running, if any. Both buttons wait for it. */
+    val transfer: QueueTransfer? = null,
     val downloadConfirmation: DownloadConfirmation? = null,
-    val message: QueueMessage? = null,
-)
+) {
+    val isTransferring: Boolean get() = transfer != null
+}
 
 /**
  * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, upload or download the
@@ -66,13 +54,16 @@ data class QueueUiState(
  * playlist are Now Playing's.
  * Queues are shuffled only when music is added, never in place, so the queue order is the play
  * order. It reads the queue from [PlayerStateSource] and edits it through [PlaybackController].
+ * Its messages go to the app's [Snackbars].
  */
 @HiltViewModel
 class QueueViewModel @Inject constructor(
     private val player: PlayerStateSource,
     private val playback: PlaybackController,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
+    private val removals = QueueRemovals(snackbars)
 
     val uiState: StateFlow<QueueUiState> = combine(player.state, local) { state, local ->
         state.toUiState(local)
@@ -89,19 +80,17 @@ class QueueViewModel @Inject constructor(
 
     fun remove(track: QueueListItem.Track) {
         playback.remove(track.position)
-        local.update { it.copy(message = QueueMessage.Removed(track.row.title)) }
+        removals.offerUndo(track.row.title, onUndo = playback::undoRemove)
     }
-
-    fun undoRemove() = playback.undoRemove()
 
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }
 
     /** Saves the queue to the server now, whatever the queue sync setting. */
-    fun uploadQueue() = runTransfer {
+    fun uploadQueue() = runTransfer(QueueTransfer.Upload) {
         try {
-            if (playback.uploadQueue()) QueueMessage.Uploaded else QueueMessage.UploadFailed
+            if (playback.uploadQueue()) UPLOADED else UPLOAD_FAILED
         } catch (_: RemoteException) {
-            QueueMessage.UploadFailed
+            UPLOAD_FAILED
         }
     }
 
@@ -109,14 +98,14 @@ class QueueViewModel @Inject constructor(
      * Fetches the server's saved queue. It replaces an empty queue at once; a queue with tracks
      * asks first, through [QueueUiState.downloadConfirmation].
      */
-    fun downloadQueue() = runTransfer {
+    fun downloadQueue() = runTransfer(QueueTransfer.Download) {
         val queue = try {
             playback.fetchRemoteQueue()
         } catch (_: RemoteException) {
-            return@runTransfer QueueMessage.DownloadFailed
+            return@runTransfer DOWNLOAD_FAILED
         }
         when {
-            queue == null -> QueueMessage.NothingToDownload
+            queue == null -> NOTHING_TO_DOWNLOAD
 
             player.state.value.queue.isEmpty() -> adoptDownloaded(queue)
 
@@ -130,29 +119,29 @@ class QueueViewModel @Inject constructor(
     fun confirmDownload() {
         val queue = local.value.pendingDownload ?: return
         local.update { it.copy(pendingDownload = null) }
-        runTransfer { adoptDownloaded(queue) }
+        runTransfer(QueueTransfer.Download) { adoptDownloaded(queue) }
     }
 
     fun cancelDownload() = local.update { it.copy(pendingDownload = null) }
 
-    private suspend fun adoptDownloaded(queue: RemotePlayQueue): QueueMessage =
+    private suspend fun adoptDownloaded(queue: RemotePlayQueue): SnackbarText =
         if (playback.adoptDownloadedQueue(queue)) {
-            QueueMessage.Downloaded(queue.songs.size)
+            SnackbarText.plural(R.plurals.feature_queue_downloaded, queue.songs.size, queue.songs.size)
         } else {
-            QueueMessage.DownloadFailed
+            DOWNLOAD_FAILED
         }
 
     /** Runs one upload or download at a time, then shows its message, if any. */
-    private fun runTransfer(block: suspend () -> QueueMessage?) {
-        if (local.value.isTransferring) return
-        local.update { it.copy(isTransferring = true) }
+    private fun runTransfer(transfer: QueueTransfer, block: suspend () -> SnackbarText?) {
+        if (local.value.transfer != null) return
+        local.update { it.copy(transfer = transfer) }
         viewModelScope.launch {
             val message = try {
                 block()
             } finally {
-                local.update { it.copy(isTransferring = false) }
+                local.update { it.copy(transfer = null) }
             }
-            if (message != null) local.update { it.copy(message = message) }
+            if (message != null) snackbars.post(message)
         }
     }
 
@@ -160,13 +149,10 @@ class QueueViewModel @Inject constructor(
 
     fun dismissOtherDevice() = playback.dismissRemoteQueue()
 
-    fun onMessageShown() = local.update { it.copy(message = null) }
-
     private data class LocalState(
         val historyExpanded: Boolean = false,
-        val isTransferring: Boolean = false,
+        val transfer: QueueTransfer? = null,
         val pendingDownload: RemotePlayQueue? = null,
-        val message: QueueMessage? = null,
     )
 
     private fun PlayerUiState.toUiState(local: LocalState): QueueUiState {
@@ -177,13 +163,16 @@ class QueueViewModel @Inject constructor(
             trackCount = queue.size,
             remoteOffer = remoteQueue,
             isLoading = false,
-            isTransferring = local.isTransferring,
+            transfer = local.transfer,
             downloadConfirmation = local.pendingDownload?.let { DownloadConfirmation(it.songs.size, it.deviceName) },
-            message = local.message,
         )
     }
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        val UPLOADED = SnackbarText.of(R.string.feature_queue_uploaded)
+        val UPLOAD_FAILED = SnackbarText.of(R.string.feature_queue_upload_failed)
+        val NOTHING_TO_DOWNLOAD = SnackbarText.of(R.string.feature_queue_nothing_to_download)
+        val DOWNLOAD_FAILED = SnackbarText.of(R.string.feature_queue_download_failed)
     }
 }

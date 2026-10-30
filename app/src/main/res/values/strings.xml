@@ -11,8 +11,18 @@
     <string name="player_load_failed">Couldn\'t load the songs. Check your connection.</string>
     <string name="player_instant_mix_failed">Couldn\'t start an instant mix</string>
     <string name="player_instant_mix_offline">Instant mix needs a connection to the server</string>
+    <string name="player_instant_mix_replaced">Replaced the queue with an Instant mix</string>
+    <string name="player_playing_next">Playing next: %1$s</string>
+    <string name="player_added_to_queue">Added %1$s to the queue</string>
+    <plurals name="player_playing_songs_next">
+        <item quantity="one">Playing %d song next</item>
+        <item quantity="other">Playing %d songs next</item>
+    </plurals>
+    <plurals name="player_added_songs">
+        <item quantity="one">Added %d song to the queue</item>
+        <item quantity="other">Added %d songs to the queue</item>
+    </plurals>
     <string name="player_continued_from">Continued from %1$s</string>
-    <string name="player_undo">Undo</string>
     <string name="update_available">Segue %1$s is available</string>
     <string name="update_view">View</string>
 </resources>

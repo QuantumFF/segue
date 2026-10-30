@@ -41,7 +41,7 @@ class QueueEditorTest {
     fun `replace sets the queue from the start song and plays`() = runTest {
         player.setMediaItems(items("x"))
 
-        assertThat(editor.queue(items("a", "b", "c"), QueuePlacement.Replace, startIndex = 1)).isTrue()
+        assertThat(editor.queue(items("a", "b", "c"), QueuePlacement.Replace, startIndex = 1)).isEqualTo(3)
 
         assertThat(queueIds()).containsExactly("a", "b", "c").inOrder()
         assertThat(exo.currentMediaItemIndex).isEqualTo(1)
@@ -100,7 +100,7 @@ class QueueEditorTest {
 
         downloaded = null
         player.setMediaItems(items("x"))
-        assertThat(editor.queue(emptyList(), QueuePlacement.Replace)).isFalse()
+        assertThat(editor.queue(emptyList(), QueuePlacement.Replace)).isEqualTo(0)
         assertThat(queueIds()).containsExactly("x")
     }
 
@@ -138,12 +138,22 @@ class QueueEditorTest {
     }
 
     @Test
+    fun `offline the count queued is of the downloaded songs only`() = runTest {
+        downloaded = setOf("a", "c")
+        player.setMediaItems(items("x"))
+
+        assertThat(editor.queue(items("a", "b", "c"), QueuePlacement.End)).isEqualTo(2)
+
+        assertThat(queueIds()).containsExactly("x", "a", "c").inOrder()
+    }
+
+    @Test
     fun `nothing downloaded offline leaves the queue alone`() = runTest {
         downloaded = emptySet()
         player.setMediaItems(items("x"))
 
-        assertThat(editor.queue(items("a", "b"), QueuePlacement.Replace)).isFalse()
-        assertThat(editor.queue(emptyList(), QueuePlacement.End)).isFalse()
+        assertThat(editor.queue(items("a", "b"), QueuePlacement.Replace)).isEqualTo(0)
+        assertThat(editor.queue(emptyList(), QueuePlacement.End)).isEqualTo(0)
 
         assertThat(queueIds()).containsExactly("x")
     }
@@ -208,5 +218,90 @@ class QueueEditorTest {
         editor.queue(items("b"), QueuePlacement.Replace, source = QueueSource.Genre("Rock"))
 
         assertThat(player.queueSource.value).isEqualTo(album)
+    }
+
+    @Test
+    fun `undoing an instant mix restores the replaced queue, paused`() = runTest {
+        val album = QueueSource.Album("al", "In Rainbows")
+        editor.queue(items("a", "b", "c"), QueuePlacement.Replace, source = album)
+        player.seekTo(1, 5_000)
+        player.repeatMode = Player.REPEAT_MODE_ALL
+
+        val mix = QueueSource.InstantMix("Airbag")
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, source = mix, keepReplaced = true)
+        assertThat(editor.replacedQueue).isGreaterThan(0)
+        player.repeatMode = Player.REPEAT_MODE_ONE
+
+        assertThat(editor.restoreReplaced()).isTrue()
+
+        assertThat(queueIds()).containsExactly("a", "b", "c").inOrder()
+        assertThat(exo.currentMediaItemIndex).isEqualTo(1)
+        assertThat(exo.currentPosition).isEqualTo(5_000)
+        assertThat(exo.repeatMode).isEqualTo(Player.REPEAT_MODE_ALL)
+        assertThat(exo.playWhenReady).isFalse()
+        assertThat(player.queueSource.value).isEqualTo(album)
+        assertThat(exo.getMediaItemAt(0).localConfiguration).isNotNull()
+        // Once only.
+        assertThat(editor.replacedQueue).isEqualTo(0)
+        assertThat(editor.restoreReplaced()).isFalse()
+    }
+
+    @Test
+    fun `an instant mix over an empty queue keeps nothing to undo`() = runTest {
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+
+        assertThat(editor.replacedQueue).isEqualTo(0)
+        assertThat(editor.restoreReplaced()).isFalse()
+        assertThat(queueIds()).containsExactly("m1", "m2").inOrder()
+    }
+
+    @Test
+    fun `any other queue change drops the queue an instant mix replaced`() = runTest {
+        val changes = listOf<suspend () -> Unit>(
+            { editor.queue(items("n"), QueuePlacement.Next) },
+            { editor.queue(items("e"), QueuePlacement.End) },
+            { editor.queue(items("r"), QueuePlacement.Replace) },
+            { player.removeMediaItem(1) },
+            { player.moveMediaItem(0, 1) },
+            { player.clearMediaItems() },
+            { editor.putBack(items("p").single(), 0) },
+        )
+        for (change in changes) {
+            player.setMediaItems(items("a", "b"))
+            editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+            val replaced = editor.replacedQueue
+            change()
+
+            assertThat(editor.replacedQueuesGone.value).isEqualTo(replaced)
+            assertThat(editor.restoreReplaced()).isFalse()
+        }
+    }
+
+    @Test
+    fun `each replaced queue counts as gone once it can no longer be brought back`() = runTest {
+        player.setMediaItems(items("a", "b"))
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+        val first = editor.replacedQueue
+        assertThat(editor.replacedQueuesGone.value).isLessThan(first)
+
+        editor.queue(items("m3", "m4"), QueuePlacement.Replace, keepReplaced = true)
+        val second = editor.replacedQueue
+        assertThat(second).isGreaterThan(first)
+        assertThat(editor.replacedQueuesGone.value).isEqualTo(first)
+
+        editor.restoreReplaced()
+        assertThat(editor.replacedQueuesGone.value).isEqualTo(second)
+    }
+
+    @Test
+    fun `playing on through an instant mix keeps the replaced queue`() = runTest {
+        player.setMediaItems(items("a", "b"))
+        editor.queue(items("m1", "m2"), QueuePlacement.Replace, keepReplaced = true)
+
+        player.seekToNextMediaItem()
+        player.repeatMode = Player.REPEAT_MODE_ONE
+
+        assertThat(editor.restoreReplaced()).isTrue()
+        assertThat(queueIds()).containsExactly("a", "b").inOrder()
     }
 }

@@ -37,10 +37,13 @@ internal object SegueSessionCommands {
     /** A playback error's Skip (PlaybackErrorReporter.skip). */
     const val SKIP_PAST_ERROR = PREFIX + "SKIP_PAST_ERROR"
 
-    /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_STARTED]. */
+    /** "Play albums" / "Shuffle albums" / "Shuffle all", queued by AlbumPlays. Answers [ARG_QUEUED]. */
     const val PLAY_ALBUMS = PREFIX + "PLAY_ALBUMS"
 
-    /** "Play", "Play next", "Add to queue" of songs: queued by QueueEditor. Answers [ARG_STARTED]. */
+    /**
+     * "Play", "Play next", "Add to queue" of songs, and Instant mix: queued by QueueEditor. Answers
+     * [ARG_QUEUED] and, for an Instant mix, [ARG_REPLACED_QUEUE].
+     */
     const val QUEUE_SONGS = PREFIX + "QUEUE_SONGS"
 
     /**
@@ -49,9 +52,15 @@ internal object SegueSessionCommands {
      */
     const val UNDO_REMOVE = PREFIX + "UNDO_REMOVE"
 
+    /** Brings back the queue the last Instant mix replaced, paused (QueueEditor.restoreReplaced). */
+    const val UNDO_INSTANT_MIX = PREFIX + "UNDO_INSTANT_MIX"
+
     const val ARG_SLEEP_KIND = "sleepKind"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
+    const val ARG_QUEUED = "queued"
+    const val ARG_REPLACED_QUEUE = "replacedQueue"
+    private const val ARG_REPLACED_QUEUES_GONE = "replacedQueuesGone"
     private const val ARG_SOURCE_KIND = "sourceKind"
     private const val ARG_SOURCE_ID = "sourceId"
     private const val ARG_SORT = "sort"
@@ -64,6 +73,7 @@ internal object SegueSessionCommands {
     private const val ARG_ITEMS = "items"
     private const val ARG_START_INDEX = "startIndex"
     private const val ARG_SHUFFLE = "shuffle"
+    private const val ARG_KEEP_REPLACED = "keepReplaced"
     private const val ARG_ITEM = "item"
     private const val ARG_INDEX = "index"
     private const val ARG_PLAY = "play"
@@ -93,6 +103,7 @@ internal object SegueSessionCommands {
             PLAY_ALBUMS,
             QUEUE_SONGS,
             UNDO_REMOVE,
+            UNDO_INSTANT_MIX,
             SKIP_PAST_ERROR,
         )
             .map { SessionCommand(it, Bundle.EMPTY) }
@@ -135,6 +146,15 @@ internal object SegueSessionCommands {
      * reads it back.
      */
     fun queueSourceArgs(source: QueueSource) = Bundle().apply { putQueueSource(source) }
+
+    /**
+     * Session extras: the queues Instant mixes replaced that [UNDO_INSTANT_MIX] can no longer bring
+     * back are those numbered up to [gone] (QueueEditor.replacedQueuesGone). [replacedQueuesGone]
+     * reads it back.
+     */
+    fun replacedQueuesGoneArgs(gone: Int) = Bundle().apply { putInt(ARG_REPLACED_QUEUES_GONE, gone) }
+
+    fun replacedQueuesGone(bundle: Bundle): Int = bundle.getInt(ARG_REPLACED_QUEUES_GONE)
 
     /** The queue source in [bundle]: the session extras or a play intent's args. Unknown if none. */
     fun queueSource(bundle: Bundle): QueueSource {
@@ -236,7 +256,8 @@ internal object SegueSessionCommands {
 
     /**
      * A [QUEUE_SONGS] request: [items] at [placement], from [startIndex] or with [shuffle]. [source]
-     * becomes the queue source if they replace the queue.
+     * becomes the queue source if they replace the queue. With [keepReplaced] (an Instant mix) the
+     * replaced queue is kept for [UNDO_INSTANT_MIX].
      */
     data class QueueSongs(
         val items: List<MediaItem>,
@@ -244,6 +265,7 @@ internal object SegueSessionCommands {
         val startIndex: Int,
         val shuffle: Boolean,
         val source: QueueSource = QueueSource.Unknown,
+        val keepReplaced: Boolean = false,
     )
 
     fun queueSongsArgs(request: QueueSongs) = Bundle().apply {
@@ -253,6 +275,7 @@ internal object SegueSessionCommands {
         putString(ARG_PLACEMENT, request.placement.name)
         putInt(ARG_START_INDEX, request.startIndex)
         putBoolean(ARG_SHUFFLE, request.shuffle)
+        putBoolean(ARG_KEEP_REPLACED, request.keepReplaced)
         putQueueSource(request.source)
     }
 
@@ -266,6 +289,7 @@ internal object SegueSessionCommands {
             bundle.getInt(ARG_START_INDEX),
             bundle.getBoolean(ARG_SHUFFLE),
             queueSource(bundle),
+            bundle.getBoolean(ARG_KEEP_REPLACED),
         )
     }
 
@@ -283,8 +307,18 @@ internal object SegueSessionCommands {
         return Removed(MediaItem.fromBundle(item), bundle.getInt(ARG_INDEX))
     }
 
-    /** The answer to [PLAY_ALBUMS], [QUEUE_SONGS] and [ADOPT_QUEUE]: whether anything was queued. */
+    /** The answer to [ADOPT_QUEUE]: whether anything was queued. */
     fun startedResult(started: Boolean) = Bundle().apply { putBoolean(ARG_STARTED, started) }
+
+    /**
+     * The answer to [PLAY_ALBUMS] and [QUEUE_SONGS]: how many songs were queued, offline only the
+     * downloaded ones; 0 if none. [replacedQueue]: the number of the queue an Instant mix replaced
+     * that [UNDO_INSTANT_MIX] can bring back (QueueEditor.replacedQueue), 0 if none.
+     */
+    fun queuedResult(count: Int, replacedQueue: Int = 0) = Bundle().apply {
+        putInt(ARG_QUEUED, count)
+        putInt(ARG_REPLACED_QUEUE, replacedQueue)
+    }
 
     private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? =
         enumValues<E>().firstOrNull { it.name == name }

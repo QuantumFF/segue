@@ -12,6 +12,7 @@ import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.playback.mix.InstantMixStart
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeArtistRepository
@@ -21,8 +22,10 @@ import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -36,6 +39,8 @@ class SessionPlayIntentsTest {
     private val session = FakeIntentSession()
     private val library = FakeLibraryRepository()
     private val songs = listOf(TestData.song("s1"), TestData.song("s2"))
+    private val rock = QueueSource.Genre("Rock")
+    private val wholeLibrary = QueueSource.Library(shuffled = true)
 
     private fun TestScope.intents() = SessionPlayIntents(
         session,
@@ -44,6 +49,13 @@ class SessionPlayIntentsTest {
         offline,
         backgroundScope,
     )
+
+    /** Every message [intents] sends from now on, as it is sent. */
+    private fun TestScope.messagesOf(intents: SessionPlayIntents): List<PlayIntentMessage> {
+        val messages = mutableListOf<PlayIntentMessage>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { intents.messages.toList(messages) }
+        return messages
+    }
 
     @Test
     fun `an album's songs go to the session at the placement`() = runTest {
@@ -81,6 +93,75 @@ class SessionPlayIntentsTest {
     }
 
     @Test
+    fun `play next and add to queue confirm how many songs were queued, and from what`() = runTest {
+        albums.songsByAlbum.value = mapOf("al" to songs)
+        val intents = intents()
+        val messages = messagesOf(intents)
+
+        intents.play(PlayTarget.Album("al"), QueuePlacement.Next, source = QueueSource.Album("al", "In Rainbows"))
+        intents.play(PlayTarget.Songs(songs.take(1)), QueuePlacement.End)
+
+        assertThat(messages).containsExactly(
+            PlayIntentMessage.Queued(2, QueuePlacement.Next, "In Rainbows"),
+            PlayIntentMessage.Queued(1, QueuePlacement.End, songs[0].title),
+        ).inOrder()
+    }
+
+    @Test
+    fun `the count confirmed is what the session queued, offline only the downloaded songs`() = runTest {
+        val intents = intents()
+        val messages = messagesOf(intents)
+        session.answer = 1
+
+        intents.play(PlayTarget.Songs(songs), QueuePlacement.End)
+
+        assertThat(messages).containsExactly(PlayIntentMessage.Queued(1, QueuePlacement.End, null))
+    }
+
+    @Test
+    fun `play albums next or at the end confirms how many songs were queued`() = runTest {
+        val intents = intents()
+        val messages = messagesOf(intents)
+        session.answer = 24
+
+        intents.playAlbums(AlbumPlayRequest(AlbumSource.Genre("Rock"), AlbumOrder.InOrder, QueuePlacement.Next), rock)
+        intents.playAlbums(AlbumPlayRequest(AlbumSource.Library, AlbumOrder.Shuffled, QueuePlacement.End), wholeLibrary)
+
+        assertThat(messages).containsExactly(
+            PlayIntentMessage.Queued(24, QueuePlacement.Next, "Rock"),
+            PlayIntentMessage.Queued(24, QueuePlacement.End, null),
+        ).inOrder()
+    }
+
+    @Test
+    fun `replacing the queue confirms nothing, the music starting is enough`() = runTest {
+        albums.songsByAlbum.value = mapOf("al" to songs)
+        val intents = intents()
+        val messages = messagesOf(intents)
+
+        intents.play(PlayTarget.Album("al"), source = QueueSource.Album("al", "In Rainbows"))
+        intents.play(PlayTarget.Songs(songs), shuffle = true)
+        intents.playAlbums(AlbumPlayRequest(AlbumSource.Genre("Rock"), AlbumOrder.Shuffled), rock)
+
+        assertThat(session.queued).hasSize(2)
+        assertThat(session.albumPlays).hasSize(1)
+        assertThat(messages).isEmpty()
+    }
+
+    @Test
+    fun `an intent that does not confirm still says when it queued nothing`() = runTest {
+        val intents = intents()
+        val messages = messagesOf(intents)
+
+        intents.play(PlayTarget.Songs(songs), QueuePlacement.Next, confirm = false)
+        session.answer = 0
+        intents.play(PlayTarget.Songs(songs), QueuePlacement.End, confirm = false)
+
+        assertThat(session.queued).hasSize(2)
+        assertThat(messages).containsExactly(PlayIntentMessage.NothingToPlay)
+    }
+
+    @Test
     fun `nothing queued says nothing to play`() = runTest {
         val intents = intents()
 
@@ -88,7 +169,7 @@ class SessionPlayIntentsTest {
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.NothingToPlay)
         assertThat(session.queued).isEmpty()
 
-        session.answer = false
+        session.answer = 0
         intents.play(PlayTarget.Songs(songs))
         assertThat(intents.messages.first()).isEqualTo(PlayIntentMessage.NothingToPlay)
 
@@ -144,6 +225,22 @@ class SessionPlayIntentsTest {
     }
 
     @Test
+    fun `a started instant mix says whether it replaced a queue`() = runTest {
+        val intents = intents()
+        val messages = messagesOf(intents)
+
+        session.mixReplaced = true
+        intents.instantMix(InstantMixSeed.OfArtist("ar", "Radiohead"))
+        session.mixReplaced = false
+        intents.instantMix(InstantMixSeed.OfSong(songs[0]))
+
+        assertThat(messages).containsExactly(
+            PlayIntentMessage.MixStarted(replacedQueue = true),
+            PlayIntentMessage.MixStarted(replacedQueue = false),
+        ).inOrder()
+    }
+
+    @Test
     fun `an instant mix with no seed to start from says so`() = runTest {
         val intents = intents()
 
@@ -184,8 +281,13 @@ private class FakeIntentSession : IntentSession {
     val queued = mutableListOf<Queued>()
     val mixes = mutableListOf<Mix>()
     val albumPlays = mutableListOf<Pair<AlbumPlayRequest, QueueSource>>()
-    var answer = true
+
+    /** How many songs the session says it queued; null for all it was given (10 for album plays). */
+    var answer: Int? = null
     var mixError: RemoteException? = null
+
+    /** Whether the session says a mix replaced a queue. */
+    var mixReplaced = false
 
     /** When set, queueing waits for it. */
     var gate: CompletableDeferred<Unit>? = null
@@ -196,20 +298,20 @@ private class FakeIntentSession : IntentSession {
         startIndex: Int,
         shuffle: Boolean,
         source: QueueSource,
-    ): Boolean {
+    ): Int {
         gate?.await()
         queued += Queued(songs, placement, startIndex, shuffle, source)
-        return answer
+        return answer ?: songs.size
     }
 
-    override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Boolean {
+    override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource): Int {
         albumPlays += request to source
-        return answer
+        return answer ?: 10
     }
 
-    override suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): Boolean {
+    override suspend fun instantMix(seed: Song?, artistId: String, source: QueueSource): InstantMixStart {
         mixes += Mix(seed, artistId, source)
         mixError?.let { throw it }
-        return answer
+        return InstantMixStart(answer ?: 10, mixReplaced)
     }
 }

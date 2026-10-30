@@ -260,7 +260,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.5 Playlist detail
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
 - Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
-- Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar.
+- Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar. Save stays disabled until the order differs from the saved one. Back with unsaved changes asks "Discard changes?" (Discard / Keep editing); without changes it just leaves edit mode.
+- A track's ⋮ "Remove from playlist" (outside edit mode) hides the row at once and shows "Removed <title>" with Undo (§5.7). The server write waits until the snackbar has gone, so Undo sends nothing; a newer removal takes down the snackbar of the one before, as in the queue (§4.8). Starting edit mode takes the Undo away too, so the removal is written before the new order. Delete asks first, then shows "Deleted <name>" once the screen has closed.
 
 ### 4.6 Search
 - Search field pinned at the top: 48 tall, `surfaceContainerHighest`, radius `full`, leading search icon, trailing clear. It auto-focuses when the tab is opened.
@@ -301,7 +302,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
   When the name opens a page, the whole overline-and-name block is the tap target (48 tall), and Now Playing collapses before it navigates. A queue that empties forgets its source.
 
-  The source is saved with the saved queue, so after a restart (or the system's "resume playback") Now Playing names it as before. An adopted queue, whether taken from *Continue from &lt;device&gt;* or adopted automatically, reads "CONTINUED FROM" over the device's name, such as "Feishin". Undo brings back the replaced queue's source. A queue saved by an older version has no source: PLAYING FROM QUEUE.
+  The source is saved with the saved queue, so after a restart (or the system's "resume playback") Now Playing names it as before. An adopted queue, whether taken from *Continue from <device>* or adopted automatically, reads "CONTINUED FROM" over the device's name, such as "Feishin". Undo brings back the replaced queue's source. A queue saved by an older version has no source: PLAYING FROM QUEUE.
 - **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either (ADR-0002).
 - **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
@@ -320,7 +321,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
 - **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
-- **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). Now Playing shows it in its own snackbar host, and the shell shows the same one above the mini player. It goes away when playback moves to another item or a retry plays.
+- **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). It shows in the app's one snackbar host (§5.7): above the mini player, or over Now Playing while it is open. It goes away when playback moves to another item or a retry plays.
 
   | Kind | Copy | Actions |
   |---|---|---|
@@ -369,7 +370,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Row actions:
   - Drag handle (Lucide `grip-vertical`) on the right to reorder. Long-press anywhere on a row also starts a drag.
   - Swipe right: play next (icon `list-start`, `primary`).
-  - Swipe left: remove (icon `trash`, `error`), with an "Undo" snackbar.
+  - Swipe left: remove (icon `trash`, `error`), with a "Removed <title>" snackbar and Undo. It stays when Now Playing switches panels or collapses. Undo puts back only the last removal, so a newer removal takes down the snackbar of the one before.
   - Both swipes trigger at 40% of the width with haptic feedback.
 
 ### 4.9 Downloads (Library tab)
@@ -385,7 +386,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.10 Settings
 - `LazyColumn` of M3 `ListItem`s: 56 tall for one line, 72 for two. Section headers in `labelLarge` `primary`, with 24 top padding.
 - Groups:
-  - **Servers:** list, add, switch.
+  - **Servers:** list, add, switch, remove. Tapping a server switches to it and says "Switched to <server>" (§5.7); tapping the active one does nothing. Removing asks first, and when the server is the active one the dialog names the server that takes over (the first one left), or says the user will be signed out.
   - **Appearance:** Theme, Accent source with preset swatches, Now Playing background, Hero style (Tint / Blurred art), Compact headers, Dense rows (48), Home sections.
   - **Playback:** gapless; ReplayGain mode (Off, Track, Album), ReplayGain normalisation (−18 LUFS ReplayGain 2.0, the default, or −23 LUFS EBU; a picker), and "Boost quiet tracks" (a switch, off by default; its summary says it uses more battery). Normalisation and boost are disabled while the mode is Off. "Play when Bluetooth connects" (a switch, off by default): a Bluetooth audio device connecting resumes the queue, or this device's saved queue, unless something is already playing; turning it on asks for the Nearby devices permission, and losing that permission turns it off. Audio offload, crossfade (later).
   - **Streaming:** max bitrate and format for Wi-Fi and for mobile data.
@@ -427,7 +428,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 - Expanded width gets a sticky column header row: 36 tall, `labelSmall` uppercase muted, `outlineVariant` bottom divider. Columns can be configured via the header's ⋮.
 - Playing: title and number in `primary`, and the equalizer bars replace the number or overlay the art. Unavailable offline: 38% alpha, not clickable.
-- **Swipes** (Symfonium, like the queue's §4.8): swipe right for Play next (Lucide `list-start`), left for Add to queue (`list-end`), both `primary`, revealed on `surfaceContainerHigh`. Both trigger at 40% of the width with a haptic tick, then the row springs back (`player`); there is no snackbar, as for the menu's own Play next. They apply to album, artist (top songs), playlist, search and Library Songs rows. They do not apply in the queue (which has its own), in playlist edit mode, to unavailable rows, or while the Library is selecting. Accessibility services get both as custom actions.
+- **Swipes** (Symfonium, like the queue's §4.8): swipe right for Play next (Lucide `list-start`), left for Add to queue (`list-end`), both `primary`, revealed on `surfaceContainerHigh`. Both trigger at 40% of the width with a haptic tick, then the row springs back (`player`); there is no snackbar: the haptic tick and the revealed row are the feedback, unlike the menu's Play next (§5.7). They apply to album, artist (top songs), playlist, search and Library Songs rows. They do not apply in the queue (which has its own), in playlist edit mode, to unavailable rows, or while the Library is selecting. Accessibility services get both as custom actions.
 
 ### 5.3 Section header
 - 48 tall, horizontal padding 16. Title in `titleLarge`. Trailing: a `TextButton` "See all" (muted) or a 24 chevron. Optional extra icon (Explore refresh).
@@ -466,7 +467,12 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Order for a song: Play next · Add to queue · Instant mix · Add to playlist · Favorite · Go to album · Go to artist · Download · Info.
 - Albums, artists and playlists add Play, Shuffle and **Shuffle albums** at the top. Destructive items use `error`.
 - Expanded width: `DropdownMenu` anchored at the press point, radius `lg`, same items.
-- Snackbars: `inverseSurface`, radius `sm`, placed above the mini player.
+- Snackbars: `inverseSurface`, radius `sm`, placed above the mini player, and over Now Playing while it is open. The app has one host for them, whatever screen raised them: they show one at a time in order, stay up for the long duration when they have an action and the short one otherwise, and screen readers announce each.
+- **Feedback:** every action started from a menu or button says what happened, and every destructive one without a confirm dialog offers Undo instead.
+  - Confirm: Play next and Add to queue ("Playing next: <title>", "Added 12 songs to the queue"), Add to playlist ("Added 3 songs to Road trip", and how many were already there, with View), Download from a hero or menu ("Downloading <name>", or "Downloading 3 items" for a selection), the sleep timer ("Pausing in 30 min", with Cancel), switching servers ("Switched to <server>"), and deleting a playlist ("Deleted <name>", after its confirm dialog).
+  - Undo: removing a song from the queue (§4.8) or from a playlist, an instant mix that replaced a queue, cancelling or removing a download (one Undo for a selection's, "Removed 3 downloads"), and an automatic adoption (§4.8). The server write or the file deletion waits until the snackbar has gone.
+  - Silent: playing now (the music starting is the feedback) and the track-row swipes (§5.2).
+  - Clear queue and Remove all downloads keep their confirm dialogs, with no Undo.
 
 ### 5.8 Empty, loading, error
 - **Empty:** centered, 48 Lucide icon muted, 16 gap, `titleMedium`, `bodyMedium` muted (max 2 lines), optional `FilledTonalButton`. Example: "No downloads yet / Pin albums or playlists to listen offline".

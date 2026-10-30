@@ -3,17 +3,24 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.remoteOutcome
+import com.quantumff.segue.core.data.repository.AddedSongs
 import com.quantumff.segue.core.data.repository.PlaylistRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarAction
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,18 +34,41 @@ data class AddToPlaylistUiState(
     val isDone: Boolean = false,
 )
 
-/** Backs [AddToPlaylistSheet]: adds songs to an existing playlist or to a new one. */
+/**
+ * Backs [AddToPlaylistSheet]: adds songs to an existing playlist or to a new one, then confirms it
+ * with a snackbar whose View asks the app, through [playlistsToOpen], to open the playlist.
+ */
 @HiltViewModel
-class AddToPlaylistViewModel @Inject constructor(private val playlistRepository: PlaylistRepository) : ViewModel() {
+class AddToPlaylistViewModel @Inject constructor(
+    private val playlistRepository: PlaylistRepository,
+    private val removals: PlaylistRemovals,
+    private val snackbars: Snackbars,
+) : ViewModel() {
     private val local = MutableStateFlow(AddToPlaylistUiState())
+    private val openRequests = Channel<String>(Channel.BUFFERED)
 
     val uiState: StateFlow<AddToPlaylistUiState> = combine(playlistRepository.playlists, local) { playlists, local ->
         local.copy(playlists = playlists.filterNot { it.readonly }.toImmutableList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AddToPlaylistUiState())
 
-    fun addTo(playlistId: String, songIds: List<String>) = save { playlistRepository.addSongs(playlistId, songIds) }
+    /** IDs of playlists whose confirmation's View was tapped, for the app to open. */
+    val playlistsToOpen: Flow<String> = openRequests.receiveAsFlow()
 
-    fun createWith(name: String, songIds: List<String>) = save { playlistRepository.createPlaylist(name, songIds) }
+    /**
+     * Songs already in [playlist] are skipped, and the confirmation says how many. Its removals
+     * that Undo could still cancel are written first, so a song just removed counts as gone.
+     */
+    fun addTo(playlist: Playlist, songIds: List<String>) = save {
+        val result = removals.afterRemovals(playlist.id) { playlistRepository.addSongs(playlist.id, songIds) }
+        confirm(playlist.id, playlist.name, result)
+    }
+
+    /** A song listed more than once goes in once, as when adding to a playlist. */
+    fun createWith(name: String, songIds: List<String>) = save {
+        val songs = songIds.distinct()
+        val id = playlistRepository.createPlaylist(name, songs)
+        confirm(id, name, AddedSongs(added = songs.size, alreadyPresent = 0))
+    }
 
     /**
      * Clears saving results when the sheet closes. The app may host the sheet outside a navigation
@@ -53,5 +83,21 @@ class AddToPlaylistViewModel @Inject constructor(private val playlistRepository:
             val failed = remoteOutcome { block() }.isFailure
             local.update { it.copy(isSaving = false, failed = failed, isDone = !failed) }
         }
+    }
+
+    /** "Added 3 songs to Road trip", and how many were already there, with View. */
+    private fun confirm(playlistId: String, name: String, result: AddedSongs) {
+        val (added, skipped) = result
+        val text = when {
+            added == 0 -> SnackbarText.plural(R.plurals.feature_playlist_already_in, skipped, skipped, name)
+            skipped == 0 -> SnackbarText.plural(R.plurals.feature_playlist_added_to, added, added, name)
+            else -> SnackbarText.plural(R.plurals.feature_playlist_added_to_skipping, added, added, name, skipped)
+        }
+        snackbars.post(
+            text,
+            SnackbarAction(SnackbarText.of(R.string.feature_playlist_view)) {
+                openRequests.trySend(playlistId)
+            },
+        )
     }
 }

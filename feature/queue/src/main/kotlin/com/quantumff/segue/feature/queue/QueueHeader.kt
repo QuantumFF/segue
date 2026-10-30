@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -12,13 +14,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueBaseColors
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
+import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 
 /** What the queue header can ask for: upload, download, and the download's confirmation. */
@@ -75,23 +82,49 @@ internal fun QueueHeader(
                 onClick = onJumpToCurrent,
             )
         }
-        SegueIconButton(
+        TransferButton(
             icon = SegueIcons.UploadQueue,
-            contentDescription = stringResource(R.string.feature_queue_upload),
+            label = stringResource(R.string.feature_queue_upload),
             onClick = actions.onUpload,
             enabled = state.trackCount > 0 && !state.isTransferring,
+            isRunning = state.transfer == QueueTransfer.Upload,
         )
-        SegueIconButton(
+        TransferButton(
             icon = SegueIcons.DownloadQueue,
-            contentDescription = stringResource(R.string.feature_queue_download),
+            label = stringResource(R.string.feature_queue_download),
             onClick = actions.onDownload,
             enabled = !state.isTransferring,
+            isRunning = state.transfer == QueueTransfer.Download,
         )
     }
     state.downloadConfirmation?.let {
         SegueBaseColors {
             DownloadQueueDialog(it, onConfirm = actions.onConfirmDownload, onDismiss = actions.onCancelDownload)
         }
+    }
+}
+
+/** Upload or Download: its icon gives way to an inline spinner while its own transfer runs. */
+@Composable
+private fun TransferButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    isRunning: Boolean,
+) {
+    if (!isRunning) {
+        SegueIconButton(icon = icon, contentDescription = label, onClick = onClick, enabled = enabled)
+        return
+    }
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(SegueSizes.touchTarget)
+            .semantics { contentDescription = label },
+    ) {
+        InlineSpinner()
     }
 }
 

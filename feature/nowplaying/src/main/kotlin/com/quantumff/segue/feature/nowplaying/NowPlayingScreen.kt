@@ -30,7 +30,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -47,7 +46,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -55,7 +53,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -64,8 +61,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
-import com.quantumff.segue.core.designsystem.component.PlaybackErrorSnackbar
-import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -121,19 +116,6 @@ fun NowPlayingScreen(
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val activeLyricLine = viewModel.activeLyricLine.collectAsStateWithLifecycle()
     val related by viewModel.related.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val resources = LocalResources.current
-    LaunchedEffect(viewModel) {
-        viewModel.messages.collect { message ->
-            val text = when (message) {
-                is NowPlayingMessage.QueueSavedAsPlaylist ->
-                    resources.getString(R.string.feature_nowplaying_queue_saved, message.name)
-
-                NowPlayingMessage.QueueSaveFailed -> resources.getString(R.string.feature_nowplaying_queue_save_failed)
-            }
-            snackbarHostState.showSnackbar(text)
-        }
-    }
     val actions = remember(
         viewModel,
         onCollapse,
@@ -175,8 +157,6 @@ fun NowPlayingScreen(
             onAddToQueue = viewModel::addToQueue,
             onSaveQueueAsPlaylist = viewModel::saveQueueAsPlaylist,
             onClearQueue = viewModel::clearQueue,
-            onSkipPastError = viewModel::skipPastError,
-            onRetryPlayback = viewModel::retryPlayback,
         )
     }
     NowPlayingScreen(
@@ -187,7 +167,6 @@ fun NowPlayingScreen(
         related = related,
         actions = actions,
         queueContent = queueContent,
-        snackbarHostState = snackbarHostState,
         modifier = modifier,
     )
 }
@@ -216,12 +195,10 @@ internal fun NowPlayingScreen(
     actions: NowPlayingActions,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
-    PlaybackErrorSnackbar(state.error, snackbarHostState, actions.onSkipPastError, actions.onRetryPlayback)
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH
@@ -249,7 +226,6 @@ internal fun NowPlayingScreen(
                 onOpenPanelChange = { openPanel = it },
                 panelDrag = panelDrag,
                 onMenuClick = { sheet = NowPlayingSheet.Menu },
-                snackbarHostState = snackbarHostState,
             )
         }
         gestures.predictiveBack()
@@ -316,7 +292,7 @@ internal fun NowPlayingScreen(
     }
 }
 
-/** The backdrop, the layout for this width, and the snackbar host. */
+/** The backdrop and the layout for this width. The shell draws the snackbar host over it. */
 @Composable
 private fun NowPlayingContent(
     state: NowPlayingUiState,
@@ -328,7 +304,6 @@ private fun NowPlayingContent(
     onOpenPanelChange: (NowPlayingPanel?) -> Unit,
     panelDrag: PanelDrag,
     onMenuClick: () -> Unit,
-    snackbarHostState: SnackbarHostState,
 ) {
     Box(Modifier.fillMaxSize()) {
         NowPlayingBackground(coverArtId = state.track?.coverArtId, modifier = Modifier.fillMaxSize())
@@ -357,12 +332,6 @@ private fun NowPlayingContent(
                 onMenuClick = onMenuClick,
             )
         }
-        SegueSnackbarHost(
-            snackbarHostState,
-            Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding(),
-        )
         if (track != null && !twoPane) {
             LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
         }
@@ -666,7 +635,7 @@ private fun NothingPlaying(onCollapse: () -> Unit) {
             sourceLabel = stringResource(R.string.feature_nowplaying_source_queue),
             sourceName = stringResource(R.string.feature_nowplaying_nothing_playing),
             onCollapseClick = onCollapse,
-            onMoreClick = {},
+            onMoreClick = null,
         )
         OnArtContent {
             EmptyState(

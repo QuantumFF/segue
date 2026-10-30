@@ -138,6 +138,8 @@ class SeguePlaybackService : MediaLibraryService() {
             }
         }
         scope.launch { components.networkType.drop(1).collect { updatePrefetch() } }
+        // An Instant mix's Undo snackbar goes once its queue is gone.
+        scope.launch { queueEditor.replacedQueuesGone.collect { updateSessionState() } }
         scope.launch { savedQueues.restore() }
         // A replaced queue publishes its source with its timeline change; this catches the rest.
         scope.launch { player.queueSource.drop(1).collect { updateSessionState() } }
@@ -208,6 +210,7 @@ class SeguePlaybackService : MediaLibraryService() {
     private fun sessionExtras() = Bundle().apply {
         putAll(SegueSessionCommands.sleepArgs(sleepTimer.timer))
         putAll(SegueSessionCommands.queueSourceArgs(player.queueSource.value))
+        putAll(SegueSessionCommands.replacedQueuesGoneArgs(queueEditor.replacedQueuesGone.value))
         streamRequestArgs()?.let(::putAll)
         putAll(SegueSessionCommands.playbackErrorArgs(playbackErrors.error))
     }
@@ -315,8 +318,8 @@ class SeguePlaybackService : MediaLibraryService() {
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                     val source = SegueSessionCommands.queueSource(args)
                     return scope.launchFuture {
-                        val started = albumPlays.start(request, source)
-                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(started))
+                        val queued = albumPlays.start(request, source)
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued))
                     }
                 }
 
@@ -326,12 +329,17 @@ class SeguePlaybackService : MediaLibraryService() {
                     queueEditor.putBack(removed.item, removed.index)
                 }
 
+                SegueSessionCommands.UNDO_INSTANT_MIX -> queueEditor.restoreReplaced()
+
                 SegueSessionCommands.QUEUE_SONGS -> {
                     val songs = SegueSessionCommands.queueSongs(args)
                         ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                     return scope.launchFuture {
-                        val queued = with(songs) { queueEditor.queue(items, placement, startIndex, shuffle, source) }
-                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(queued))
+                        val queued = with(songs) {
+                            queueEditor.queue(items, placement, startIndex, shuffle, source, keepReplaced)
+                        }
+                        val replaced = if (songs.keepReplaced && queued > 0) queueEditor.replacedQueue else 0
+                        SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.queuedResult(queued, replaced))
                     }
                 }
 

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineModeRepository
+import com.quantumff.segue.core.data.download.unpinWithUndo
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.PinnedDownload
@@ -83,6 +85,7 @@ data class DownloadsUiState(
 class DownloadsViewModel @Inject constructor(
     private val downloads: DownloadRepository,
     offlineMode: OfflineModeRepository,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
     val uiState: StateFlow<DownloadsUiState> = combine(
         downloads.overview,
@@ -97,8 +100,11 @@ class DownloadsViewModel @Inject constructor(
     /** Resumes a paused pin, or retries a failed one. */
     fun resume(pin: PinnedDownload) = launch { downloads.resume(pin.kind, pin.id) }
 
-    /** Cancels an active download or removes a finished one: unpins it. */
-    fun remove(pin: PinnedDownload) = launch { downloads.unpin(pin.kind, pin.id) }
+    /**
+     * Cancels an active download or removes a finished one: unpins it at once, with Undo; its files
+     * are deleted once the snackbar has gone.
+     */
+    fun remove(pin: PinnedDownload) = launch { downloads.unpinWithUndo(pin.kind, pin.id, pin.name, snackbars) }
 
     fun removeAll() = launch { downloads.removeAll() }
 

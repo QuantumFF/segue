@@ -84,6 +84,70 @@ class PlaylistAndAlbumRepositoryTest {
     }
 
     @Test
+    fun `adding songs appends them all when none are in the playlist`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("a", "al")))
+        val repository = playlists()
+        repository.refreshPlaylist("p")
+
+        val result = repository.addSongs("p", listOf("b", "c"))
+
+        assertThat(result).isEqualTo(AddedSongs(added = 2, alreadyPresent = 0))
+        assertThat(server.playlistEdits.single()).isEqualTo("update p name=null add=[b, c] remove=[]")
+        assertThat(repository.playlistSongs("p").first().map { it.id }).containsExactly("a", "b", "c").inOrder()
+    }
+
+    @Test
+    fun `adding songs skips those already in the playlist and counts them`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(
+            id = "p",
+            name = "Mix",
+            entry = listOf(networkSong("a", "al"), networkSong("b", "al")),
+        )
+        val repository = playlists()
+        repository.refreshPlaylist("p")
+
+        val result = repository.addSongs("p", listOf("a", "c", "b"))
+
+        assertThat(result).isEqualTo(AddedSongs(added = 1, alreadyPresent = 2))
+        assertThat(server.playlistEdits.single()).isEqualTo("update p name=null add=[c] remove=[]")
+    }
+
+    @Test
+    fun `a song repeated in one request is added and counted once`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("a", "al")))
+        val repository = playlists()
+        repository.refreshPlaylist("p")
+
+        val result = repository.addSongs("p", listOf("b", "a", "b", "a"))
+
+        assertThat(result).isEqualTo(AddedSongs(added = 1, alreadyPresent = 1))
+        assertThat(server.playlistEdits.single()).isEqualTo("update p name=null add=[b] remove=[]")
+    }
+
+    @Test
+    fun `adding only songs already in the playlist sends nothing`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("a", "al")))
+        val repository = playlists()
+        repository.refreshPlaylist("p")
+
+        val result = repository.addSongs("p", listOf("a"))
+
+        assertThat(result).isEqualTo(AddedSongs(added = 0, alreadyPresent = 1))
+        assertThat(server.playlistEdits).isEmpty()
+    }
+
+    @Test
+    fun `adding to a playlist whose songs are not stored yet fetches them first`() = runTest {
+        server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix", entry = listOf(networkSong("a", "al")))
+        val repository = playlists()
+
+        val result = repository.addSongs("p", listOf("a", "b"))
+
+        assertThat(result).isEqualTo(AddedSongs(added = 1, alreadyPresent = 1))
+        assertThat(server.playlistEdits.single()).isEqualTo("update p name=null add=[b] remove=[]")
+    }
+
+    @Test
     fun `a failed edit is reported and Room is untouched`() = runTest {
         server.playlists["p"] = NetworkPlaylist(id = "p", name = "Mix")
         val repository = playlists()

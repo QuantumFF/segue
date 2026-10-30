@@ -101,7 +101,7 @@ fun AddToPlaylistSheet(
 @Composable
 fun AddToPlaylistSheetContent(
     uiState: AddToPlaylistUiState,
-    onPlaylistClick: (String) -> Unit,
+    onPlaylistClick: (Playlist) -> Unit,
     onNewPlaylistClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -140,7 +140,7 @@ fun AddToPlaylistSheetContent(
                     title = playlist.name,
                     subtitle = playlistSummary(playlist.songCount, playlist.durationSeconds),
                     coverArtId = playlist.coverArtId,
-                    onClick = { if (enabled) onPlaylistClick(playlist.id) },
+                    onClick = { if (enabled) onPlaylistClick(playlist) },
                     placeholderIcon = SegueIcons.Playlists,
                 )
             }

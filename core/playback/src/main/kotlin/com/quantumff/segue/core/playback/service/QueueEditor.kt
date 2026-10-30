@@ -2,12 +2,17 @@ package com.quantumff.segue.core.playback.service
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
 import com.quantumff.segue.core.playback.media.withPlayableUri
 import kotlin.random.Random
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Turns a play intent into a queue edit, in the playback service. Every play intent that reaches the
@@ -25,8 +30,8 @@ import kotlin.random.Random
  *
  * [queue] does all three. A media session applies set and add requests itself; [playable] gives it
  * what to apply. [place] is the bare placement, for album plays, which queue playable songs.
- * [putBack] undoes a removal, which is no play intent and keeps none of these rules.
- * Call on the player's thread.
+ * [putBack] undoes a removal and [restoreReplaced] an Instant mix; neither is a play intent, so
+ * they keep none of these rules. Call on the player's thread.
  */
 class QueueEditor(
     private val player: SeguePlayer,
@@ -35,8 +40,51 @@ class QueueEditor(
     private val random: Random = Random.Default,
 ) {
     /**
+     * How many queues Instant mixes replaced and kept, numbering them from 1: [replaced], when there
+     * is one, is the last.
+     */
+    private var replacedCount = 0
+
+    /** The queue an Instant mix replaced, until the next queue change. */
+    private var replaced: Replaced? = null
+        set(value) {
+            field = value
+            gone.value = if (value != null) replacedCount - 1 else replacedCount
+        }
+    private val gone = MutableStateFlow(0)
+
+    private class Replaced(
+        val items: List<MediaItem>,
+        val index: Int,
+        val positionMs: Long,
+        @Player.RepeatMode val repeatMode: Int,
+        val source: QueueSource,
+    )
+
+    init {
+        player.addListener(
+            object : Player.Listener {
+                override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                    if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) replaced = null
+                }
+            },
+        )
+    }
+
+    /** The number of the queue an Instant mix replaced that [restoreReplaced] can bring back, or 0. */
+    val replacedQueue: Int get() = if (replaced != null) replacedCount else 0
+
+    /**
+     * The replaced queues numbered up to this one can no longer be brought back: the queue changed
+     * since, or they were. So an Undo for queue n has nothing left to do once this reaches n.
+     */
+    val replacedQueuesGone: StateFlow<Int> = gone.asStateFlow()
+
+    /**
      * Queues [items] at [placement], from [startIndex] (ignored with [shuffle]); replacing the queue
-     * makes [source] its source. False if none of them can play; the queue is then left alone.
+     * makes [source] its source. With [keepReplaced] (an Instant mix), a replaced queue that was not
+     * empty is kept for [restoreReplaced] until the next queue change. Returns how many were queued:
+     * offline only the downloaded ones, and 0 if none of them can play, when the queue is left alone.
      */
     suspend fun queue(
         items: List<MediaItem>,
@@ -44,11 +92,42 @@ class QueueEditor(
         startIndex: Int = 0,
         shuffle: Boolean = false,
         source: QueueSource = QueueSource.Unknown,
-    ): Boolean {
+        keepReplaced: Boolean = false,
+    ): Int {
         val playable = playable(items, startIndex, shuffle = shuffle)
-        if (playable == null || playable.mediaItems.isEmpty()) return false
+        if (playable == null || playable.mediaItems.isEmpty()) return 0
+        val kept = if (keepReplaced && placement == QueuePlacement.Replace) currentQueue() else null
         place(playable.mediaItems, placement, playable.startIndex, source)
+        // After the new queue, whose own change drops the queue kept before.
+        if (kept != null) replacedCount++
+        replaced = kept
+        return playable.mediaItems.size
+    }
+
+    /**
+     * Undo of an Instant mix: brings back the queue it replaced, at the same song and position, with
+     * its repeat mode and source, paused. Not a play intent: it was the user's own queue, so it is
+     * not narrowed offline. False if no queue is kept: none was replaced, or the queue changed since.
+     */
+    fun restoreReplaced(): Boolean {
+        val queue = replaced ?: return false
+        replaced = null
+        player.pause()
+        player.setQueueSource(queue.source)
+        player.setMediaItems(queue.items, queue.index, queue.positionMs)
+        player.repeatMode = queue.repeatMode
         return true
+    }
+
+    private fun currentQueue(): Replaced? {
+        if (player.mediaItemCount == 0) return null
+        return Replaced(
+            items = List(player.mediaItemCount) { player.getMediaItemAt(it) },
+            index = player.currentMediaItemIndex,
+            positionMs = player.currentPosition,
+            repeatMode = player.repeatMode,
+            source = player.queueSource.value,
+        )
     }
 
     /**
