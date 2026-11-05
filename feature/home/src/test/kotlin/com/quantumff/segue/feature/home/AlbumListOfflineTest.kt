@@ -97,6 +97,18 @@ class AlbumListOfflineTest {
     }
 
     @Test
+    fun `a failed refresh with nothing to show is an error whose retry refreshes`() {
+        state = AlbumListUiState(type = AlbumListType.Newest, isLoading = false, refreshFailed = true)
+        show()
+
+        compose.onNodeWithText("Couldn't load this list").assertIsDisplayed()
+        compose.onNodeWithText("Nothing here yet").assertDoesNotExist()
+        compose.onNodeWithText("Retry").performClick()
+
+        assertThat(taps).containsExactly("refresh")
+    }
+
+    @Test
     fun `online with nothing in the list shows the plain empty state`() {
         state = AlbumListUiState(type = AlbumListType.Newest, isLoading = false)
         show()

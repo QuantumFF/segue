@@ -28,6 +28,7 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.AlbumCardSkeleton
 import com.quantumff.segue.core.designsystem.component.EmptyState
+import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
@@ -131,7 +132,14 @@ fun AlbumListScreen(
 
                     ScreenState.Loading -> AlbumGridSkeleton()
 
-                    ScreenState.Empty, is ScreenState.Error -> if (uiState.offlineStatus.isShowingDownloads) {
+                    is ScreenState.Error -> ErrorState(
+                        title = stringResource(R.string.feature_home_album_list_error_title),
+                        message = stringResource(R.string.feature_home_album_list_error_message),
+                        onRetryClick = onRefresh,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    ScreenState.Empty -> if (uiState.offlineStatus.isShowingDownloads) {
                         EmptyState(
                             icon = SegueIcons.Offline,
                             title = stringResource(R.string.feature_home_album_list_offline_empty_title),
