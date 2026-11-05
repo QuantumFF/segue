@@ -42,6 +42,7 @@ import com.quantumff.segue.feature.playlist.navigation.playlistScreen
 import com.quantumff.segue.feature.playlist.navigation.playlistsScreen
 import com.quantumff.segue.feature.search.navigation.SearchRoute
 import com.quantumff.segue.feature.search.navigation.searchScreen
+import com.quantumff.segue.feature.settings.SettingsSection
 import com.quantumff.segue.feature.settings.navigation.licensesScreen
 import com.quantumff.segue.feature.settings.navigation.navigateToLicenses
 import com.quantumff.segue.feature.settings.navigation.navigateToSettings
@@ -65,6 +66,8 @@ fun SegueNavHost(
 ) {
     val transitions = rememberSegueTransitions(appState)
     val onAccountClick = { appState.navigate { navigateToSettings() } }
+    // The offline chip in Offline mode: Settings at Downloads & storage, where the switch is.
+    val onOfflineModeSettingClick = { appState.navigate { navigateToSettings(SettingsSection.DownloadsAndStorage) } }
     val onAlbumClick = { id: String -> appState.navigate { navigateToAlbum(id) } }
     val onArtistClick = { id: String -> appState.navigate { navigateToArtist(id) } }
     val onPlaylistClick = { id: String -> appState.navigate { navigateToPlaylist(id) } }
@@ -101,6 +104,7 @@ fun SegueNavHost(
                 onGenreClick = onGenreClick,
                 onSeeAllClick = { type -> appState.navigate { navigateToAlbumList(type) } },
                 onAddToPlaylist = onAddToPlaylist,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
             )
         }
         navigation<LibraryGraph>(startDestination = LibraryRoute) {
