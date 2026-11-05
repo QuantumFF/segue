@@ -412,6 +412,27 @@ class PlaylistViewModelTest {
     }
 
     @Test
+    fun aRefreshThatLeavesNothingCachedIsNotFoundRatherThanLoadingForever() = runTest {
+        playlists.playlistsState.value = emptyList()
+        playlists.songsByPlaylist.value = emptyMap()
+
+        val state = viewModel().uiState.value
+
+        assertThat(state.loadState).isEqualTo(LoadState.NotFound)
+        assertThat(state.isRefreshing).isFalse()
+    }
+
+    @Test
+    fun theFirstRefreshCountsAsRunningBeforeItEnds() = runTest {
+        playlists.playlistRefreshGate = CompletableDeferred()
+
+        val state = viewModel().uiState.value
+
+        assertThat(state.isRefreshing).isTrue()
+        assertThat(state.isEmpty).isFalse()
+    }
+
+    @Test
     fun aDeletedPlaylistIsNotFoundEvenWhileStillCached() = runTest {
         playlists.error = RemoteException.NotFound(IOException("70"))
 
