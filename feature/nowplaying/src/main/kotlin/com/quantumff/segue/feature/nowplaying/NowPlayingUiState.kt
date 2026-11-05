@@ -2,8 +2,11 @@ package com.quantumff.segue.feature.nowplaying
 
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
+import com.quantumff.segue.core.designsystem.component.TrackRowState
+import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.CurrentSong
+import com.quantumff.segue.core.model.Lyrics
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.QueueSource
@@ -11,6 +14,7 @@ import com.quantumff.segue.core.model.RepeatMode
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.model.SongFileInfo
 import com.quantumff.segue.core.model.StreamFormat
 import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
@@ -103,7 +107,20 @@ sealed interface LyricsUiState {
     /** [content] is null when the server has no lyrics for the song. */
     data class Loaded(val content: LyricsContent?) : LyricsUiState
 
+    /** Offline with no lyrics kept on the device: only a downloaded song's lyrics are. */
+    data object Offline : LyricsUiState
+
     data object Error : LyricsUiState
+}
+
+/**
+ * The lyrics panel for a lookup's result: [lookup] is null when the lookup failed. Offline that
+ * means nothing is stored for the song, which is not worth a retry.
+ */
+internal fun lyricsUiState(lookup: List<Lyrics>?, isOffline: Boolean): LyricsUiState = when {
+    lookup != null -> LyricsUiState.Loaded(LyricsContent.from(lookup.firstOrNull()))
+    isOffline -> LyricsUiState.Offline
+    else -> LyricsUiState.Error
 }
 
 /** The related panel: songs similar to the current track's artist. */
@@ -111,27 +128,54 @@ sealed interface LyricsUiState {
 sealed interface RelatedUiState {
     data object Loading : RelatedUiState
 
-    /** [currentSong] marks the current song's rows, as in other song lists. */
-    data class Loaded(val songs: ImmutableList<Song>, val currentSong: CurrentSong? = null) : RelatedUiState
+    /**
+     * [currentSong] marks the current song's rows, as in other song lists; [availability] dims the
+     * rows that cannot play and gives them their download badges.
+     */
+    data class Loaded(
+        val songs: ImmutableList<Song>,
+        val currentSong: CurrentSong? = null,
+        val availability: SongAvailability = SongAvailability(),
+    ) : RelatedUiState
 
     /** The track has no known artist to find similar songs for. */
     data object Unavailable : RelatedUiState
 
+    /** Offline and the related songs could not load: they come from the server. */
+    data object Offline : RelatedUiState
+
     data object Error : RelatedUiState
+}
+
+/** The related panel for a load's result: [songs] is null when the load failed. */
+internal fun relatedUiState(songs: List<Song>?, isOffline: Boolean): RelatedUiState = when {
+    songs != null -> RelatedUiState.Loaded(songs.toImmutableList())
+    isOffline -> RelatedUiState.Offline
+    else -> RelatedUiState.Error
 }
 
 /**
  * The related songs as shown while [current] is the current song: without it, since "related"
- * never means the same song, and with rows marked like other song lists.
+ * never means the same song, and with rows marked and following [availability] like other song
+ * lists.
  */
-internal fun RelatedUiState.shownWhile(current: CurrentSong?): RelatedUiState = when (this) {
+internal fun RelatedUiState.shownWhile(
+    current: CurrentSong?,
+    availability: SongAvailability = SongAvailability(),
+): RelatedUiState = when (this) {
     is RelatedUiState.Loaded -> copy(
         songs = if (current == null) songs else songs.filterNot(current::isOf).toImmutableList(),
         currentSong = current,
+        availability = availability,
     )
 
     else -> this
 }
+
+/** The rows of [RelatedUiState.Loaded.songs], keyed by position since the server may repeat a song. */
+internal fun RelatedUiState.Loaded.trackRows(): ImmutableList<TrackRowState> = songs
+    .mapIndexed { index, song -> song.toTrackRowState(availability, currentSong, rowKey = "$index:${song.id}") }
+    .toImmutableList()
 
 /** What a sleep timer choice in the sheet means. */
 sealed interface SleepTimerChoice {
