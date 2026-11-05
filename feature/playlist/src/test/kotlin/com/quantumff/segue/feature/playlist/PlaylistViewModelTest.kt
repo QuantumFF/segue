@@ -8,6 +8,7 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.snackbar.SnackbarMessage
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
@@ -15,6 +16,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
 import com.quantumff.segue.core.testing.play.FakePlayerStateSource
@@ -27,6 +29,8 @@ import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -369,12 +373,102 @@ class PlaylistViewModelTest {
     }
 
     @Test
-    fun refreshFailureWithCachedDataShowsOfflineState() = runTest {
+    fun withNothingCachedTheFirstRefreshShowsLoading() = runTest {
+        playlists.playlistsState.value = emptyList()
+        playlists.songsByPlaylist.value = emptyMap()
+        val refresh = CompletableDeferred<Unit>()
+        playlists.playlistRefreshGate = refresh
+        val viewModel = viewModel()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(LoadState.Loading)
+
+        playlists.playlistsState.value = listOf(TestData.playlist("p1"))
+        refresh.complete(Unit)
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(LoadState.Loaded)
+    }
+
+    @Test
+    fun aFailedFirstRefreshShowsAnErrorThatRetryClears() = runTest {
+        playlists.playlistsState.value = emptyList()
+        playlists.error = RemoteException.ServerError("broken", IOException("500"))
+        val viewModel = viewModel()
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(LoadState.Failed)
+
+        playlists.error = null
+        playlists.playlistsState.value = listOf(TestData.playlist("p1"))
+        viewModel.refresh()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(LoadState.Loaded)
+    }
+
+    @Test
+    fun aPlaylistTheServerDoesNotHaveIsNotFound() = runTest {
+        playlists.playlistsState.value = emptyList()
+        playlists.error = RemoteException.NotFound(IOException("70"))
+
+        assertThat(viewModel().uiState.value.loadState).isEqualTo(LoadState.NotFound)
+    }
+
+    @Test
+    fun aDeletedPlaylistIsNotFoundEvenWhileStillCached() = runTest {
+        playlists.error = RemoteException.NotFound(IOException("70"))
+
+        assertThat(viewModel().uiState.value.loadState).isEqualTo(LoadState.NotFound)
+    }
+
+    @Test
+    fun aPlaylistWithNoSongsIsEmptyOnceItsRefreshEnds() = runTest {
+        playlists.songsByPlaylist.value = emptyMap()
+        val refresh = CompletableDeferred<Unit>()
+        playlists.playlistRefreshGate = refresh
+        val viewModel = viewModel()
+        assertThat(viewModel.uiState.value.isEmpty).isFalse()
+
+        refresh.complete(Unit)
+
+        assertThat(viewModel.uiState.value.isEmpty).isTrue()
+    }
+
+    @Test
+    fun aPlaylistWithSongsIsNotEmpty() = runTest {
+        assertThat(viewModel().uiState.value.isEmpty).isFalse()
+    }
+
+    @Test
+    fun offlineThePlaylistCanPlayOnlyWithADownloadedSong() = runTest {
+        offlineMode.isOffline.value = true
+        val viewModel = viewModel()
+        assertThat(viewModel.uiState.value.canPlay).isFalse()
+
+        downloads.songDownloads.value = persistentMapOf("b" to SongDownload("b", DownloadState.Completed, 1f))
+
+        assertThat(viewModel.uiState.value.canPlay).isTrue()
+    }
+
+    @Test
+    fun anEmptyPlaylistCannotPlay() = runTest {
+        playlists.songsByPlaylist.value = emptyMap()
+
+        assertThat(viewModel().uiState.value.canPlay).isFalse()
+    }
+
+    @Test
+    fun whileEditingThePlaylistCannotPlay() = runTest {
+        val viewModel = viewModel()
+        assertThat(viewModel.uiState.value.canPlay).isTrue()
+
+        viewModel.startEditing()
+
+        assertThat(viewModel.uiState.value.canPlay).isFalse()
+    }
+
+    @Test
+    fun refreshFailureWithCachedDataKeepsTheRowsWithTheOfflineChip() = runTest {
         playlists.error = RemoteException.Unreachable(IOException("offline"))
 
         val state = viewModel().uiState.value
 
-        assertThat(state.loadState).isEqualTo(LoadState.Failed)
+        assertThat(state.loadState).isEqualTo(LoadState.Loaded)
         assertThat(state.isOffline).isTrue()
         assertThat(state.playlist).isNotNull()
         assertThat(state.entries).hasSize(3)
@@ -386,7 +480,7 @@ class PlaylistViewModelTest {
 
         val state = viewModel().uiState.value
 
-        assertThat(state.loadState).isEqualTo(LoadState.Failed)
+        assertThat(state.loadState).isEqualTo(LoadState.Loaded)
         assertThat(state.isOffline).isFalse()
         assertThat(state.entries).hasSize(3)
     }

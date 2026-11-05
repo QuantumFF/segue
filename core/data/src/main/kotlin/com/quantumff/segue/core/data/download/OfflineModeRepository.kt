@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** Whether the device has a validated internet connection, from connectivity callbacks (no polling). */
@@ -56,7 +57,11 @@ internal class ConnectivityManagerNetworkConnectivity @Inject constructor(@Appli
  * screens show downloaded content and play actions skip songs that are not downloaded.
  */
 interface OfflineModeRepository {
+    /** Offline, for either reason. */
     val isOffline: StateFlow<Boolean>
+
+    /** The user's Offline mode switch is on: [isOffline] holds then, whatever the network does. */
+    val isOfflineModeOn: StateFlow<Boolean>
 }
 
 @Singleton
@@ -71,4 +76,7 @@ internal class DefaultOfflineModeRepository @Inject constructor(
                 prefs.forceOffline
         }
             .stateIn(scope, SharingStarted.Eagerly, !connectivity.isConnected.value)
+
+    override val isOfflineModeOn: StateFlow<Boolean> =
+        preferences.preferences.map { it.forceOffline }.stateIn(scope, SharingStarted.Eagerly, false)
 }

@@ -23,7 +23,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 
 /**
  * Circular `primary` play button. 56 on hero action rows, 36 in the collapsed detail top bar,
- * 48 on feature carousel items. Shows pause while [isPlaying].
+ * 48 on feature carousel items. Shows pause while [isPlaying]; disabled when nothing could play.
  */
 @Composable
 fun PlayButton(
@@ -31,9 +31,11 @@ fun PlayButton(
     modifier: Modifier = Modifier,
     isPlaying: Boolean = false,
     size: Dp = SegueSizes.primaryPlayButton,
+    enabled: Boolean = true,
 ) {
     FilledIconButton(
         onClick = onClick,
+        enabled = enabled,
         shape = SegueShapes.full,
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = MaterialTheme.colorScheme.primary,
