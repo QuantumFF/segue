@@ -42,7 +42,8 @@ import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
-import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
+import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
@@ -57,9 +58,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
-import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
-import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -148,9 +147,9 @@ fun AlbumScreen(
 
     Box(modifier.fillMaxSize()) {
         when (state) {
-            AlbumUiState.Loading -> LoadingAlbum(onBackClick)
+            AlbumUiState.Loading -> DetailLoadingSkeleton(onBackClick)
 
-            AlbumUiState.Error -> MessageWithBackBar(onBackClick) {
+            AlbumUiState.Error -> DetailStateLayout(onBackClick) {
                 ErrorState(
                     title = stringResource(R.string.feature_album_error_title),
                     message = stringResource(R.string.feature_album_error_message),
@@ -158,7 +157,7 @@ fun AlbumScreen(
                 )
             }
 
-            AlbumUiState.NotFound -> MessageWithBackBar(onBackClick) {
+            AlbumUiState.NotFound -> DetailStateLayout(onBackClick) {
                 EmptyState(
                     icon = SegueIcons.Disc3,
                     title = stringResource(R.string.feature_album_not_found_title),
@@ -519,29 +518,7 @@ private fun ShuffleAlbumsSheet(
     )
 }
 
-@Composable
-private fun LoadingAlbum(onBackClick: () -> Unit) {
-    val showSkeleton = rememberDelayedVisibility()
-    MessageWithBackBar(onBackClick) {
-        if (showSkeleton) {
-            Column(Modifier.fillMaxSize().padding(top = SKELETON_TOP)) {
-                repeat(SKELETON_ROWS) { TrackRowSkeleton() }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MessageWithBackBar(onBackClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        content()
-        DetailTopBar(title = "", collapsed = false, onBackClick = onBackClick)
-    }
-}
-
 private const val SECONDS_PER_MINUTE = 60L
-private const val SKELETON_ROWS = 8
-private val SKELETON_TOP = SegueSizes.topBar * 2
 private val DISC_HEADER_HEIGHT = SegueSizes.touchTarget - SegueSpacing.sm
 
 internal val PreviewAlbumState = run {

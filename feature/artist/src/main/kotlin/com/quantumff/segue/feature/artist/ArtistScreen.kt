@@ -32,7 +32,8 @@ import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ArtistCard
-import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
+import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
@@ -49,10 +50,8 @@ import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
-import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
-import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -141,18 +140,9 @@ fun ArtistScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     Box(modifier.fillMaxSize()) {
         when (state) {
-            ArtistUiState.Loading -> {
-                val showSkeleton = rememberDelayedVisibility()
-                WithBackBar(onBackClick) {
-                    if (showSkeleton) {
-                        Column(Modifier.fillMaxSize().padding(top = SegueSizes.topBar * 2)) {
-                            repeat(SKELETON_ROWS) { TrackRowSkeleton() }
-                        }
-                    }
-                }
-            }
+            ArtistUiState.Loading -> DetailLoadingSkeleton(onBackClick)
 
-            ArtistUiState.Error -> WithBackBar(onBackClick) {
+            ArtistUiState.Error -> DetailStateLayout(onBackClick) {
                 ErrorState(
                     title = stringResource(R.string.feature_artist_error_title),
                     message = stringResource(R.string.feature_artist_error_message),
@@ -160,7 +150,7 @@ fun ArtistScreen(
                 )
             }
 
-            ArtistUiState.NotFound -> WithBackBar(onBackClick) {
+            ArtistUiState.NotFound -> DetailStateLayout(onBackClick) {
                 EmptyState(
                     icon = SegueIcons.Artist,
                     title = stringResource(R.string.feature_artist_not_found_title),
@@ -441,17 +431,8 @@ private fun About(biography: String, expanded: Boolean, onToggle: () -> Unit) {
     }
 }
 
-@Composable
-private fun WithBackBar(onBackClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        content()
-        DetailTopBar(title = "", collapsed = false, onBackClick = onBackClick)
-    }
-}
-
 private const val TOP_SONGS_PREVIEW = 5
 private const val BIOGRAPHY_LINES = 3
-private const val SKELETON_ROWS = 8
 
 private val PreviewArtistState = run {
     val artist = Artist("ar-1", "Radiohead", albumCount = 9, coverArtId = null, starredAt = null, null, null)

@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +44,8 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
+import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
+import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
@@ -54,10 +56,13 @@ import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.SkeletonPulse
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
+import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
+import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.model.toTrackRowState
@@ -171,120 +176,46 @@ fun PlaylistScreenContent(
     val currentOnMove = rememberUpdatedState(onMove)
     val reorder = remember(rowHeightPx) { DragReorderState(rowHeightPx, entries, currentOnMove) }
 
-    val hero = HeroHeaderState(
-        overline = stringResource(R.string.feature_playlist_overline),
-        title = playlist?.name.orEmpty(),
-        subtitle = playlist?.comment?.takeIf { it.isNotBlank() },
-        metadata = playlist?.let {
-            playlistMetadata(it, uiState.entries.size, uiState.entries.sumOf { entry -> entry.song.durationSeconds })
-        },
-        coverArtId = playlist?.coverArtId,
-        tint = rememberHeroTint(playlist?.coverArtId),
-    )
-    val canPlay = uiState.entries.isNotEmpty() && !uiState.isEditing
-    val isSourcePlaying = uiState.heroPlayback == HeroPlayback.Playing
-
     BackHandler(enabled = uiState.isEditing, onBack = onEditBack)
 
     Box(modifier.fillMaxSize()) {
-        HeroDetailLayout(
-            hero = hero,
-            onBackClick = if (uiState.isEditing) onEditBack else onBackClick,
-            onPlayClick = if (canPlay) onPlayClick else null,
-            isPlaying = isSourcePlaying,
-            onMoreClick = if (uiState.isEditable && !uiState.isEditing) ({ showPlaylistMenu = true }) else null,
-            topBarActions = {
-                if (uiState.isEditing) EditActions(uiState, onCancelEditClick, onSaveClick)
-            },
-            heroActions = {
-                if (!uiState.isEditing) {
-                    PlayButton(onClick = onPlayClick, isPlaying = isSourcePlaying)
-                    SegueIconButton(
-                        icon = SegueIcons.Shuffle,
-                        contentDescription = stringResource(R.string.feature_playlist_shuffle),
-                        onClick = onShuffleClick,
-                        enabled = canPlay,
-                    )
-                    SegueIconButton(
-                        icon = SegueIcons.ShuffleAlbums,
-                        contentDescription = stringResource(R.string.feature_playlist_shuffle_albums),
-                        onClick = onShuffleAlbumsClick,
-                        enabled = canPlay,
-                    )
-                    DownloadButton(
-                        status = uiState.download,
-                        onClick = { if (uiState.download == null) onDownloadClick() else showDownloadMenu = true },
-                    )
-                    if (uiState.isEditable) {
-                        SegueIconButton(
-                            icon = SegueIcons.MoreVertical,
-                            contentDescription = stringResource(R.string.feature_playlist_more),
-                            onClick = { showPlaylistMenu = true },
-                        )
-                    }
-                }
-            },
-        ) {
-            if (uiState.isOffline && playlist != null) {
-                item(key = "offline", contentType = "offline") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(SegueSpacing.sm),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        StatusChip(label = stringResource(R.string.feature_playlist_offline), onClick = onRetryClick)
-                    }
-                }
+        when {
+            uiState.loadState == LoadState.Loading -> DetailLoadingSkeleton(onBackClick, showHero = true)
+
+            uiState.loadState == LoadState.Failed -> DetailStateLayout(onBackClick) {
+                ErrorState(
+                    title = stringResource(R.string.feature_playlist_load_failed),
+                    message = stringResource(R.string.feature_playlist_load_failed_message),
+                    onRetryClick = onRetryClick,
+                )
             }
-            when {
-                playlist == null -> item(key = "status", contentType = "status") {
-                    PlaylistStatus(uiState.loadState, onRetryClick)
-                }
 
-                uiState.entries.isEmpty() -> item(key = "empty", contentType = "status") {
-                    Text(
-                        text = stringResource(R.string.feature_playlist_no_tracks),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(SegueSpacing.lg),
-                    )
-                }
-
-                uiState.isEditing -> itemsIndexed(
-                    items = uiState.entries,
-                    key = { _, entry -> entry.key },
-                    contentType = { _, _ -> "editableTrack" },
-                ) { index, entry ->
-                    EditableTrackRow(
-                        entry = entry,
-                        index = index,
-                        reorder = reorder,
-                        onRemove = { onRemoveEntry(entry.key) },
-                    )
-                }
-
-                else -> itemsIndexed(
-                    items = uiState.entries,
-                    key = { _, entry -> entry.key },
-                    contentType = { _, _ -> "track" },
-                ) { index, entry ->
-                    val row = remember(entry, uiState.availability, uiState.currentSong) { uiState.trackRow(entry) }
-                    TrackSwipeBox(
-                        onPlayNext = { onTrackSwipe(entry.song, QueuePlacement.Next) },
-                        onAddToQueue = { onTrackSwipe(entry.song, QueuePlacement.End) },
-                        enabled = row.isAvailable,
-                    ) {
-                        TrackRow(
-                            state = row,
-                            onClick = { onTrackClick(index) },
-                            leading = TrackRowLeading.Art,
-                            onLongClick = { trackMenu = index to entry.song },
-                            onMoreClick = { trackMenu = index to entry.song },
-                        )
-                    }
-                }
+            uiState.loadState == LoadState.NotFound || playlist == null -> DetailStateLayout(onBackClick) {
+                EmptyState(
+                    icon = SegueIcons.Playlists,
+                    title = stringResource(R.string.feature_playlist_not_found),
+                    message = stringResource(R.string.feature_playlist_not_found_message),
+                )
             }
+
+            else -> PlaylistDetail(
+                playlist = playlist,
+                uiState = uiState,
+                reorder = reorder,
+                onBackClick = if (uiState.isEditing) onEditBack else onBackClick,
+                onPlayClick = onPlayClick,
+                onShuffleClick = onShuffleClick,
+                onShuffleAlbumsClick = onShuffleAlbumsClick,
+                onDownloadClick = { if (uiState.download == null) onDownloadClick() else showDownloadMenu = true },
+                onMoreClick = { showPlaylistMenu = true },
+                onCancelEditClick = onCancelEditClick,
+                onSaveClick = onSaveClick,
+                onRetryClick = onRetryClick,
+                onTrackClick = onTrackClick,
+                onTrackMenu = { index, song -> trackMenu = index to song },
+                onTrackSwipe = onTrackSwipe,
+                onRemoveEntry = onRemoveEntry,
+            )
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
@@ -331,6 +262,151 @@ fun PlaylistScreenContent(
     )
 }
 
+/** The playlist itself: its hero, then its rows, its empty state, or its edit rows. */
+@Suppress("LongParameterList", "LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlaylistDetail(
+    playlist: Playlist,
+    uiState: PlaylistUiState,
+    reorder: DragReorderState,
+    onBackClick: () -> Unit,
+    onPlayClick: () -> Unit,
+    onShuffleClick: () -> Unit,
+    onShuffleAlbumsClick: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onMoreClick: () -> Unit,
+    onCancelEditClick: () -> Unit,
+    onSaveClick: () -> Unit,
+    onRetryClick: () -> Unit,
+    onTrackClick: (index: Int) -> Unit,
+    onTrackMenu: (index: Int, song: Song) -> Unit,
+    onTrackSwipe: (Song, QueuePlacement) -> Unit,
+    onRemoveEntry: (key: String) -> Unit,
+) {
+    val hero = HeroHeaderState(
+        overline = stringResource(R.string.feature_playlist_overline),
+        title = playlist.name,
+        subtitle = playlist.comment?.takeIf { it.isNotBlank() },
+        metadata = playlistMetadata(
+            playlist,
+            uiState.entries.size,
+            uiState.entries.sumOf { entry -> entry.song.durationSeconds },
+        ),
+        coverArtId = playlist.coverArtId,
+        tint = rememberHeroTint(playlist.coverArtId),
+    )
+    val isSourcePlaying = uiState.heroPlayback == HeroPlayback.Playing
+    // Pause stays in reach while this playlist plays, even if nothing in it is Available any more.
+    val canPlayOrPause = uiState.canPlay || isSourcePlaying
+
+    HeroDetailLayout(
+        hero = hero,
+        onBackClick = onBackClick,
+        onPlayClick = if (canPlayOrPause && !uiState.isEditing) onPlayClick else null,
+        isPlaying = isSourcePlaying,
+        onMoreClick = if (uiState.isEditable && !uiState.isEditing) onMoreClick else null,
+        topBarActions = {
+            if (uiState.isEditing) EditActions(uiState, onCancelEditClick, onSaveClick)
+        },
+        heroActions = {
+            if (!uiState.isEditing) {
+                PlayButton(onClick = onPlayClick, isPlaying = isSourcePlaying, enabled = canPlayOrPause)
+                SegueIconButton(
+                    icon = SegueIcons.Shuffle,
+                    contentDescription = stringResource(R.string.feature_playlist_shuffle),
+                    onClick = onShuffleClick,
+                    enabled = uiState.canPlay,
+                )
+                SegueIconButton(
+                    icon = SegueIcons.ShuffleAlbums,
+                    contentDescription = stringResource(R.string.feature_playlist_shuffle_albums),
+                    onClick = onShuffleAlbumsClick,
+                    enabled = uiState.canPlay,
+                )
+                DownloadButton(status = uiState.download, onClick = onDownloadClick)
+                if (uiState.isEditable) {
+                    SegueIconButton(
+                        icon = SegueIcons.MoreVertical,
+                        contentDescription = stringResource(R.string.feature_playlist_more),
+                        onClick = onMoreClick,
+                    )
+                }
+            }
+        },
+    ) {
+        if (uiState.isOffline) {
+            item(key = "offline", contentType = "offline") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(SegueSpacing.sm),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    StatusChip(label = stringResource(R.string.feature_playlist_offline), onClick = onRetryClick)
+                }
+            }
+        }
+        when {
+            uiState.entries.isEmpty() && uiState.isRefreshing -> item(key = "skeleton", contentType = "status") {
+                TrackRowsSkeleton()
+            }
+
+            uiState.isEmpty -> item(key = "empty", contentType = "status") {
+                EmptyState(
+                    icon = SegueIcons.Playlists,
+                    title = stringResource(R.string.feature_playlist_no_tracks),
+                    message = stringResource(R.string.feature_playlist_no_tracks_message),
+                )
+            }
+
+            uiState.isEditing -> itemsIndexed(
+                items = uiState.entries,
+                key = { _, entry -> entry.key },
+                contentType = { _, _ -> "editableTrack" },
+            ) { index, entry ->
+                EditableTrackRow(
+                    entry = entry,
+                    index = index,
+                    reorder = reorder,
+                    onRemove = { onRemoveEntry(entry.key) },
+                )
+            }
+
+            else -> itemsIndexed(
+                items = uiState.entries,
+                key = { _, entry -> entry.key },
+                contentType = { _, _ -> "track" },
+            ) { index, entry ->
+                val row = remember(entry, uiState.availability, uiState.currentSong) { uiState.trackRow(entry) }
+                TrackSwipeBox(
+                    onPlayNext = { onTrackSwipe(entry.song, QueuePlacement.Next) },
+                    onAddToQueue = { onTrackSwipe(entry.song, QueuePlacement.End) },
+                    enabled = row.isAvailable,
+                ) {
+                    TrackRow(
+                        state = row,
+                        onClick = { onTrackClick(index) },
+                        leading = TrackRowLeading.Art,
+                        onLongClick = { onTrackMenu(index, entry.song) },
+                        onMoreClick = { onTrackMenu(index, entry.song) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A cached playlist's rows while its first refresh runs, after 150ms. */
+@Composable
+private fun TrackRowsSkeleton() {
+    if (rememberDelayedVisibility()) {
+        SkeletonPulse {
+            Column { repeat(SKELETON_ROWS) { TrackRowSkeleton() } }
+        }
+    }
+}
+
 /** Edit mode's Cancel (✕) and Save (✓), in the top bar so they stay in reach (DESIGN.md §4.5). */
 @Composable
 private fun EditActions(uiState: PlaylistUiState, onCancelClick: () -> Unit, onSaveClick: () -> Unit) {
@@ -348,32 +424,6 @@ private fun EditActions(uiState: PlaylistUiState, onCancelClick: () -> Unit, onS
             contentDescription = stringResource(R.string.feature_playlist_save),
             onClick = onSaveClick,
             enabled = uiState.canSave,
-        )
-    }
-}
-
-@Composable
-private fun PlaylistStatus(loadState: LoadState, onRetryClick: () -> Unit) {
-    when (loadState) {
-        LoadState.Loading -> Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(SegueSpacing.xl),
-            contentAlignment = Alignment.Center,
-        ) {
-            InlineSpinner()
-        }
-
-        LoadState.Failed -> ErrorState(
-            title = stringResource(R.string.feature_playlist_load_failed),
-            message = null,
-            onRetryClick = onRetryClick,
-        )
-
-        LoadState.Loaded -> EmptyState(
-            icon = SegueIcons.Playlists,
-            title = stringResource(R.string.feature_playlist_not_found),
-            message = null,
         )
     }
 }
@@ -554,6 +604,7 @@ private fun RemoveBackground() {
     }
 }
 
+private const val SKELETON_ROWS = 4
 private const val MENU_EDIT = "edit"
 private const val MENU_RENAME = "rename"
 private const val MENU_DELETE = "delete"
