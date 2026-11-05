@@ -2,6 +2,9 @@ package com.quantumff.segue.core.database.util
 
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.DiscTitle
+import com.quantumff.segue.core.model.LyricLine
+import com.quantumff.segue.core.model.Lyrics
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
@@ -16,6 +19,7 @@ internal object JsonColumns {
     private val json = Json { ignoreUnknownKeys = true }
     private val artistRefs = ListSerializer(StoredArtistRef.serializer())
     private val discTitles = ListSerializer(StoredDiscTitle.serializer())
+    private val lyrics = ListSerializer(StoredLyrics.serializer())
     private val extensions = MapSerializer(String.serializer(), ListSerializer(Int.serializer()))
 
     fun encodeArtistRefs(value: List<ArtistRef>): String =
@@ -34,9 +38,46 @@ internal object JsonColumns {
 
     fun decodeExtensions(value: String): Map<String, List<Int>> = json.decodeFromString(extensions, value)
 
+    fun encodeLyrics(value: List<Lyrics>): String = json.encodeToString(lyrics, value.map(StoredLyrics::from))
+
+    fun decodeLyrics(value: String): List<Lyrics> = json.decodeFromString(lyrics, value).map { it.toLyrics() }
+
     @Serializable
     private data class StoredArtistRef(val id: String, val name: String)
 
     @Serializable
     private data class StoredDiscTitle(val disc: Int, val title: String)
+
+    @Serializable
+    private data class StoredLyrics(
+        val language: String,
+        val synced: Boolean,
+        val offsetMillis: Long,
+        val displayArtist: String? = null,
+        val displayTitle: String? = null,
+        val lines: List<StoredLyricLine>,
+    ) {
+        fun toLyrics() = Lyrics(
+            language = language,
+            synced = synced,
+            offsetMillis = offsetMillis,
+            displayArtist = displayArtist,
+            displayTitle = displayTitle,
+            lines = lines.map { LyricLine(it.startMillis, it.text) }.toImmutableList(),
+        )
+
+        companion object {
+            fun from(lyrics: Lyrics) = StoredLyrics(
+                language = lyrics.language,
+                synced = lyrics.synced,
+                offsetMillis = lyrics.offsetMillis,
+                displayArtist = lyrics.displayArtist,
+                displayTitle = lyrics.displayTitle,
+                lines = lyrics.lines.map { StoredLyricLine(it.startMillis, it.text) },
+            )
+        }
+    }
+
+    @Serializable
+    private data class StoredLyricLine(val startMillis: Long? = null, val text: String)
 }

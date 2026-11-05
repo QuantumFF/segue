@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.Lyrics
 import com.quantumff.segue.core.model.PinKind
 
 /**
@@ -113,3 +114,13 @@ data class ServerCapabilitiesEntity(
 
 /** OpenSubsonic extension names to supported versions. */
 data class ExtensionMap(val versions: Map<String, List<Int>> = emptyMap())
+
+/**
+ * The lyrics of a downloaded song, kept with the download so they show offline (DESIGN.md §4.9).
+ * A row with no [lyrics] means the server has none for the song.
+ */
+@Entity(tableName = "lyrics", primaryKeys = ["serverId", "songId"])
+data class LyricsEntity(val serverId: String, val songId: String, val lyrics: LyricsList)
+
+/** Every lyrics track of a song, synced ones first. */
+data class LyricsList(val items: List<Lyrics> = emptyList())
