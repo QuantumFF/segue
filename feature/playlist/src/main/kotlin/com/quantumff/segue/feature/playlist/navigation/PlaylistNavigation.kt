@@ -19,9 +19,17 @@ data class PlaylistRoute(val playlistId: String)
 fun NavController.navigateToPlaylist(playlistId: String, navOptions: NavOptions? = null) =
     navigate(PlaylistRoute(playlistId), navOptions)
 
-fun NavGraphBuilder.playlistsScreen(onAccountClick: () -> Unit, onPlaylistClick: (String) -> Unit) {
+fun NavGraphBuilder.playlistsScreen(
+    onAccountClick: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
+    onPlaylistClick: (String) -> Unit,
+) {
     composable<PlaylistsRoute> {
-        PlaylistsScreen(onAccountClick = onAccountClick, onPlaylistClick = onPlaylistClick)
+        PlaylistsScreen(
+            onAccountClick = onAccountClick,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
+            onPlaylistClick = onPlaylistClick,
+        )
     }
 }
 
