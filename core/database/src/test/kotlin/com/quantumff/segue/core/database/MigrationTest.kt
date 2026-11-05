@@ -213,6 +213,29 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `7 to 8 keeps the downloads and adds an empty table for their lyrics`() {
+        helper.createDatabase(DB_NAME, 7).use { db ->
+            db.execSQL(
+                "INSERT INTO downloads (serverId, songId, state, bytesDownloaded, filePath, updatedAt) " +
+                    "VALUES ('s1', 'so', 'Completed', 10, '/f', 5)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 8, true, SegueMigrations.MIGRATION_7_8).use { db ->
+            db.query("SELECT state, filePath FROM downloads WHERE songId = 'so'").use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getString(0)).isEqualTo("Completed")
+                assertThat(cursor.getString(1)).isEqualTo("/f")
+            }
+            db.query("SELECT COUNT(*) FROM lyrics").use { cursor ->
+                cursor.moveToFirst()
+                assertThat(cursor.getInt(0)).isEqualTo(0)
+            }
+            db.execSQL("INSERT INTO lyrics VALUES ('s1', 'so', '[]')")
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

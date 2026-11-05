@@ -67,6 +67,7 @@ class FakeSubsonicClient : SubsonicClient {
     val starCalls = mutableListOf<String>()
     val lyrics = mutableMapOf<String, List<NetworkStructuredLyrics>>()
     val lyricsRequests = mutableListOf<String>()
+    var lyricsError: SubsonicException? = null
 
     data class SavedQueue(
         val indexBased: Boolean,
@@ -275,6 +276,7 @@ class FakeSubsonicClient : SubsonicClient {
 
     override suspend fun getLyricsBySongId(id: String): List<NetworkStructuredLyrics> {
         lyricsRequests += id
+        lyricsError?.let { throw it }
         return lyrics[id].orEmpty()
     }
 
