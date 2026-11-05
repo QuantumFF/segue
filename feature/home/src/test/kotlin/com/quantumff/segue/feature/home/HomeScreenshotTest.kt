@@ -41,6 +41,7 @@ class HomeScreenshotTest {
             onRefreshExplore = {},
             onRetrySync = {},
             onMessageDismiss = {},
+            onOfflineModeSettingClick = {},
         )
     }
 

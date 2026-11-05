@@ -195,6 +195,7 @@ class ComponentScreenshotTest {
             verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
         ) {
             OfflineStatusChip(status = OfflineStatus.ShowingDownloads)
+            OfflineStatusChip(status = OfflineStatus.ShowingDownloadsInOfflineMode)
             Row(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
                 SegueFilterChip(label = "Downloaded", selected = false, lockedOffline = true, onClick = {})

@@ -8,6 +8,7 @@ import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.SongDownload
@@ -70,6 +71,20 @@ class OfflineLibraryViewTest {
         assertThat(view.downloadedWhileOffline.first()).isNull()
         assertThat(view.albumFilter(AlbumFilter(starred = true))).isEqualTo(AlbumFilter(starred = true))
         assertThat(songs.map(view.songAvailability.first()::isAvailable)).containsExactly(true, true, true)
+    }
+
+    @Test
+    fun `the offline status tells a missing network apart from offline mode`() = runTest {
+        assertThat(view.offlineStatus.first()).isEqualTo(OfflineStatus.Online)
+
+        offlineMode.isOffline.value = true
+        assertThat(view.offlineStatus.first()).isEqualTo(OfflineStatus.ShowingDownloads)
+
+        offlineMode.setOfflineMode(true)
+        assertThat(view.offlineStatus.first()).isEqualTo(OfflineStatus.ShowingDownloadsInOfflineMode)
+
+        offlineMode.setOfflineMode(false)
+        assertThat(view.offlineStatus.first()).isEqualTo(OfflineStatus.Online)
     }
 
     @Test

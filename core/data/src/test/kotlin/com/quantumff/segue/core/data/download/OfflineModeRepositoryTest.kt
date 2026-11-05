@@ -39,4 +39,17 @@ class OfflineModeRepositoryTest {
         preferences.setForceOffline(true)
         assertThat(repository.isOffline.first { it }).isTrue()
     }
+
+    @Test
+    fun `offline mode is told apart from a missing network`() = runTest {
+        val preferences = preferences()
+        val repository = DefaultOfflineModeRepository(network, preferences, backgroundScope)
+
+        network.isConnected.value = false
+        repository.isOffline.first { it }
+        assertThat(repository.isOfflineModeOn.value).isFalse()
+
+        preferences.setForceOffline(true)
+        assertThat(repository.isOfflineModeOn.first { it }).isTrue()
+    }
 }

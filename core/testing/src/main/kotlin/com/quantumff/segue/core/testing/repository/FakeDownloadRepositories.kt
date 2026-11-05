@@ -109,8 +109,19 @@ class FakeDownloadRepository : DownloadRepository {
     override suspend fun setForceOffline(enabled: Boolean) = preferences.update { it.copy(forceOffline = enabled) }
 }
 
+/**
+ * Set [isOffline] alone for a device without a network; [setOfflineMode] for the Offline mode switch
+ * on a connected device.
+ */
 class FakeOfflineModeRepository(offline: Boolean = false) : OfflineModeRepository {
     override val isOffline = MutableStateFlow(offline)
+    override val isOfflineModeOn = MutableStateFlow(false)
+
+    /** Turns Offline mode [on] or off on a connected device: [isOffline] follows it. */
+    fun setOfflineMode(on: Boolean) {
+        isOfflineModeOn.value = on
+        isOffline.value = on
+    }
 }
 
 /** The real [OfflineLibraryView] over fakes; pass the ones a test drives. */

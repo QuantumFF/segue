@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -80,6 +81,7 @@ fun SettingsScreen(
     onAddServerClick: () -> Unit,
     onLicensesClick: () -> Unit,
     modifier: Modifier = Modifier,
+    section: SettingsSection? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -173,6 +175,7 @@ fun SettingsScreen(
         onBackClick = onBackClick,
         modifier = modifier,
         canNotify = canNotify,
+        section = section,
     )
 }
 
@@ -212,6 +215,23 @@ class SettingsActions(
     }
 }
 
+/** A group of settings the screen can open at. */
+enum class SettingsSection {
+    /** Downloads & storage, with the Offline mode switch: where the offline chip sends the user in Offline mode. */
+    DownloadsAndStorage,
+}
+
+/** The index of [section]'s header among [SettingsContent]'s items; keep in step with them. */
+private fun SettingsUiState.indexOf(section: SettingsSection): Int = when (section) {
+    SettingsSection.DownloadsAndStorage -> {
+        val servers = 1 + servers.size + 1 // header, servers, Add server
+        val appearance = if (preferences.accentSource == AccentSource.Fixed) 4 else 3
+        val playback = 6 // header, ReplayGain, its target and boost, Stop when paused, Play on Bluetooth
+        val streaming = 3 // header, Wi-Fi and mobile data quality
+        servers + appearance + playback + streaming
+    }
+}
+
 /** Which picker sheet is open. */
 private enum class SettingsPicker {
     Theme,
@@ -228,7 +248,8 @@ private enum class SettingsPicker {
 
 /**
  * The stateless settings screen. [canNotify]: whether Segue may post notifications, which "Ask in
- * a notification" needs.
+ * a notification" needs. [section]: the group to open at, or null for the top; once the user has
+ * scrolled, the screen keeps their position.
  */
 @Composable
 fun SettingsContent(
@@ -238,15 +259,22 @@ fun SettingsContent(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     canNotify: Boolean = true,
+    section: SettingsSection? = null,
 ) {
     var picker by rememberSaveable { mutableStateOf<SettingsPicker?>(null) }
     var removing by remember { mutableStateOf<Server?>(null) }
     val prefs = uiState.preferences
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
+    // Items are keyed, so the group stays at the top as servers and other rows above it load.
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = section?.let { uiState.indexOf(it) } ?: 0)
 
     Column(modifier.fillMaxSize()) {
         SubScreenTopBar(title = stringResource(R.string.feature_settings_title), onBackClick = onBackClick)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom + SegueSpacing.lg)) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(bottom = bottom + SegueSpacing.lg),
+        ) {
             item(key = "servers", contentType = "header") {
                 SettingsSectionHeader(stringResource(R.string.feature_settings_servers))
             }
