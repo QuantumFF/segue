@@ -7,6 +7,7 @@
     <string name="feature_home_most_played">Most played</string>
     <string name="feature_home_explore">Explore</string>
     <string name="feature_home_explore_refresh">New random albums</string>
+    <string name="feature_home_explore_refresh_failed">Couldn\'t load new albums for Explore</string>
     <string name="feature_home_favorites">Favorites</string>
     <string name="feature_home_playlists">Playlists</string>
     <string name="feature_home_genres">Genres</string>

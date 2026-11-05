@@ -112,6 +112,81 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun exploreRefreshShowsAsRunningUntilItIsDone() = runTest {
+        val viewModel = viewModel()
+        val gate = CompletableDeferred<Unit>()
+        albums.listRefreshGate = gate
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().isRefreshingExplore).isFalse()
+            viewModel.refreshExplore()
+            assertThat(expectMostRecentItem().isRefreshingExplore).isTrue()
+            gate.complete(Unit)
+            assertThat(awaitItem().isRefreshingExplore).isFalse()
+        }
+    }
+
+    @Test
+    fun aFailedExploreRefreshSaysSoAndKeepsFeatured() = runTest {
+        val random = (1..30).map { TestData.album("a$it") }
+        albums.lists.value = mapOf(AlbumListType.Random to random)
+        val viewModel = viewModel()
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel.uiState.test {
+            viewModel.refreshExplore()
+
+            val state = expectMostRecentItem()
+            assertThat(state.isRefreshingExplore).isFalse()
+            assertThat(state.featured.map { it.id }).isEqualTo(random.take(10).map { it.id })
+            assertThat(state.explore.map { it.id }).isEqualTo(random.drop(10).map { it.id })
+        }
+        assertThat(
+            snackbars.current.value?.text,
+        ).isEqualTo(SnackbarText.of(R.string.feature_home_explore_refresh_failed))
+    }
+
+    @Test
+    fun aSuccessfulExploreRefreshSaysNothing() = runTest {
+        viewModel().refreshExplore()
+
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun exploreRefreshIsDisabledOffline() = runTest {
+        offline.isOffline.value = true
+        val viewModel = viewModel()
+
+        viewModel.refreshExplore()
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.canRefreshExplore).isFalse()
+            assertThat(state.isRefreshingExplore).isFalse()
+        }
+        assertThat(albums.refreshedLists).isEmpty()
+    }
+
+    @Test
+    fun exploreRefreshIsDisabledInOfflineModeToo() = runTest {
+        offline.setOfflineMode(true)
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().canRefreshExplore).isFalse()
+        }
+    }
+
+    @Test
+    fun exploreRefreshIsEnabledOnlineEvenWhenTheServerWasUnreachable() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().canRefreshExplore).isTrue()
+        }
+    }
+
+    @Test
     fun sectionsComeFromTheirLists() = runTest {
         albums.lists.value = mapOf(
             AlbumListType.Recent to listOf(TestData.album("recent")),

@@ -253,6 +253,8 @@ private fun LazyListScope.homeSections(
                     extraIcon = SegueIcons.Refresh,
                     extraIconDescription = stringResource(R.string.feature_home_explore_refresh),
                     onExtraIconClick = onRefreshExplore,
+                    extraIconLoading = uiState.isRefreshingExplore,
+                    extraIconEnabled = uiState.canRefreshExplore,
                 )
                 AlbumRow(uiState.explore, callbacks)
             }

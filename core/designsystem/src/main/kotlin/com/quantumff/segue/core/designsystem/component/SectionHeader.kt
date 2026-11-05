@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.designsystem.component
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,14 +10,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,7 +42,9 @@ enum class SectionHeaderTrailing {
 
 /**
  * Section header (DESIGN.md §5.3): 48 tall, horizontal padding 16, `titleLarge`. [onSeeAllClick]
- * adds the trailing link; [extraIcon] adds one more action before it (the Explore refresh).
+ * adds the trailing link; [extraIcon] adds one more action before it (the Explore refresh). While
+ * [extraIconLoading] the icon turns into the inline spinner (DESIGN.md §5.8) in the same 48 slot, so
+ * the header does not shift; [extraIconEnabled] false greys it out and ignores taps (as while Offline).
  */
 @Composable
 fun SectionHeader(
@@ -49,6 +55,8 @@ fun SectionHeader(
     extraIcon: ImageVector? = null,
     extraIconDescription: String? = null,
     onExtraIconClick: () -> Unit = {},
+    extraIconLoading: Boolean = false,
+    extraIconEnabled: Boolean = true,
 ) {
     Row(
         modifier = modifier
@@ -67,12 +75,26 @@ fun SectionHeader(
                 .weight(1f)
                 .semantics { heading() },
         )
-        if (extraIcon != null) {
-            IconButton(onClick = onExtraIconClick) {
+        if (extraIcon != null && extraIconLoading) {
+            Box(
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .semantics { extraIconDescription?.let { contentDescription = it } },
+                contentAlignment = Alignment.Center,
+            ) {
+                InlineSpinner()
+            }
+        } else if (extraIcon != null) {
+            IconButton(
+                onClick = onExtraIconClick,
+                enabled = extraIconEnabled,
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            ) {
                 Icon(
                     imageVector = extraIcon,
                     contentDescription = extraIconDescription,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(SegueSizes.iconSmall),
                 )
             }
@@ -113,6 +135,18 @@ private fun SectionHeaderPreview() {
                 onSeeAllClick = {},
                 extraIcon = SegueIcons.Refresh,
                 extraIconDescription = stringResource(R.string.ds_refresh),
+            )
+            SectionHeader(
+                title = "Explore",
+                onSeeAllClick = {},
+                extraIcon = SegueIcons.Refresh,
+                extraIconLoading = true,
+            )
+            SectionHeader(
+                title = "Explore",
+                onSeeAllClick = {},
+                extraIcon = SegueIcons.Refresh,
+                extraIconEnabled = false,
             )
         }
     }
