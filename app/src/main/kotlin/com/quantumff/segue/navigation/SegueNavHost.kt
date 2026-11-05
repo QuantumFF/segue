@@ -165,6 +165,7 @@ fun SegueNavHost(
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
         )
         settingsScreen(
             onBackClick = onBackClick,
