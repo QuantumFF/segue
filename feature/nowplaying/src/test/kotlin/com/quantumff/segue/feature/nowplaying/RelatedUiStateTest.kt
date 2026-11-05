@@ -1,9 +1,14 @@
 package com.quantumff.segue.feature.nowplaying
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.designsystem.component.DownloadBadgeState
 import com.quantumff.segue.core.model.CurrentSong
+import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.SongAvailability
+import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import org.junit.Test
 
 class RelatedUiStateTest {
@@ -45,5 +50,66 @@ class RelatedUiStateTest {
         assertThat(RelatedUiState.Loading.shownWhile(playing)).isEqualTo(RelatedUiState.Loading)
         assertThat(RelatedUiState.Error.shownWhile(playing)).isEqualTo(RelatedUiState.Error)
         assertThat(RelatedUiState.Unavailable.shownWhile(playing)).isEqualTo(RelatedUiState.Unavailable)
+    }
+
+    @Test
+    fun offlineWithoutRelatedSongsSaysTheyNeedAConnection() {
+        assertThat(relatedUiState(songs = null, isOffline = true)).isEqualTo(RelatedUiState.Offline)
+    }
+
+    @Test
+    fun aFailedLoadOnlineIsAnErrorWithRetry() {
+        assertThat(relatedUiState(songs = null, isOffline = false)).isEqualTo(RelatedUiState.Error)
+    }
+
+    @Test
+    fun loadedSongsShowWhetherOnlineOrOffline() {
+        val songs = listOf(TestData.song("s1"))
+
+        assertThat(relatedUiState(songs, isOffline = true)).isEqualTo(RelatedUiState.Loaded(persistentListOf(songs[0])))
+        assertThat(
+            relatedUiState(songs, isOffline = false),
+        ).isEqualTo(RelatedUiState.Loaded(persistentListOf(songs[0])))
+    }
+
+    @Test
+    fun relatedRowsThatCannotPlayAreDimmedAndShowDownloadBadges() {
+        val availability = SongAvailability(
+            isOffline = true,
+            downloads = persistentMapOf(
+                "s1" to SongDownload("s1", DownloadState.Completed, progress = 1f),
+                "s2" to SongDownload("s2", DownloadState.Downloading, progress = 0.5f),
+            ),
+        )
+
+        val rows = (loaded.shownWhile(current = null, availability = availability) as RelatedUiState.Loaded).trackRows()
+
+        assertThat(rows.map { it.isAvailable }).containsExactly(true, false).inOrder()
+        assertThat(rows.map { it.download })
+            .containsExactly(DownloadBadgeState.Done, DownloadBadgeState.InProgress(0.5f))
+            .inOrder()
+    }
+
+    @Test
+    fun onlineEveryRelatedRowPlays() {
+        val rows = (loaded.shownWhile(current = null, availability = SongAvailability()) as RelatedUiState.Loaded)
+            .trackRows()
+
+        assertThat(rows.map { it.isAvailable }).containsExactly(true, true)
+        assertThat(rows.map { it.download }).containsExactly(null, null)
+    }
+
+    @Test
+    fun relatedRowsKeepTheirPositionInTheirKey() {
+        val twice = RelatedUiState.Loaded(persistentListOf(TestData.song("s1"), TestData.song("s1")))
+
+        assertThat(twice.trackRows().map { it.id }).containsExactly("0:s1", "1:s1").inOrder()
+    }
+
+    @Test
+    fun theOfflineStateIsNotFiltered() {
+        val playing = CurrentSong("s1", isPlaying = true)
+
+        assertThat(RelatedUiState.Offline.shownWhile(playing)).isEqualTo(RelatedUiState.Offline)
     }
 }
