@@ -17,6 +17,7 @@ import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -34,6 +35,10 @@ import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -124,7 +129,71 @@ class HomeViewModelTest {
             assertThat(state.mostPlayed.single().id).isEqualTo("often")
             assertThat(state.favorites.single().id).isEqualTo("fav")
             assertThat(state.serverName).isEqualTo(TestData.server.name)
-            assertThat(state.isEmpty).isFalse()
+            assertThat(state.screenState).isEqualTo(ScreenState.Content)
+        }
+    }
+
+    @Test
+    fun theFirstRefreshWithNothingInRoomIsLoading() = runTest {
+        albums.listRefreshGate = CompletableDeferred()
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Loading)
+        }
+    }
+
+    @Test
+    fun aReallyEmptyLibraryIsEmptyOnlyOnceTheFirstRefreshIsDone() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        albums.listRefreshGate = gate
+        val viewModel = viewModel()
+        val states = mutableListOf<ScreenState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { states += it.screenState }
+        }
+
+        assertThat(states).doesNotContain(ScreenState.Empty)
+        assertThat(states.last()).isEqualTo(ScreenState.Loading)
+        gate.complete(Unit)
+        runCurrent()
+
+        assertThat(states.last()).isEqualTo(ScreenState.Empty)
+    }
+
+    @Test
+    fun aRefusingServerWithNothingInRoomIsAServerError() = runTest {
+        albums.refreshError = RemoteException.ServerError("Internal error", IOException("500"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+        }
+    }
+
+    @Test
+    fun anUnreachableServerWithNothingInRoomIsAServerError() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+        }
+    }
+
+    @Test
+    fun offlineWithNothingDownloadedIsAnOfflineError() = runTest {
+        offline.isOffline.value = true
+        albums.lists.value = mapOf(AlbumListType.Random to listOf(TestData.album("r1")))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Offline))
+        }
+    }
+
+    @Test
+    fun offlineModeWithNothingDownloadedIsAnOfflineErrorToo() = runTest {
+        offline.setOfflineMode(true)
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Offline))
         }
     }
 
@@ -134,7 +203,7 @@ class HomeViewModelTest {
 
         viewModel().uiState.test {
             val state = expectMostRecentItem()
-            assertThat(state.isEmpty).isTrue()
+            assertThat(state.screenState).isEqualTo(ScreenState.Empty)
             assertThat(state.isSyncing).isTrue()
             assertThat(state.isLoading).isFalse()
         }

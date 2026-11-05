@@ -1,10 +1,12 @@
 package com.quantumff.segue.feature.home
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -27,13 +30,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.AlbumCard
+import com.quantumff.segue.core.designsystem.component.AlbumCardSkeleton
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.EmptyState
+import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
@@ -41,15 +47,19 @@ import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.SkeletonBlock
+import com.quantumff.segue.core.designsystem.component.SkeletonPulse
 import com.quantumff.segue.core.designsystem.component.StatusBarScrim
 import com.quantumff.segue.core.designsystem.component.SyncStatusBar
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
+import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.Album
@@ -59,6 +69,7 @@ import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
 import kotlinx.collections.immutable.ImmutableList
@@ -169,10 +180,20 @@ fun HomeScreen(
                         )
                     }
                 }
-                if (uiState.isEmpty && !uiState.isLoading) {
-                    item(key = "empty", contentType = "empty") { HomeEmptyState(uiState.isSyncing, onRefresh) }
+                when (val screen = uiState.screenState) {
+                    ScreenState.Loading -> item(key = "skeleton", contentType = "skeleton") { HomeSkeleton() }
+
+                    is ScreenState.Error -> item(key = "error", contentType = "error") {
+                        HomeErrorState(screen.cause, onRefresh)
+                    }
+
+                    ScreenState.Empty -> item(key = "empty", contentType = "empty") {
+                        HomeEmptyState(uiState.isSyncing, onRefresh)
+                    }
+
+                    ScreenState.Content ->
+                        homeSections(uiState, sections, onPlayAlbum, onPlaylistClick, onGenreClick, onRefreshExplore)
                 }
-                homeSections(uiState, sections, onPlayAlbum, onPlaylistClick, onGenreClick, onRefreshExplore)
             }
         }
         StatusBarScrim(Modifier.align(Alignment.TopCenter))
@@ -349,6 +370,78 @@ private fun HomeEmptyState(syncing: Boolean, onRefresh: () -> Unit) {
         )
     }
 }
+
+/**
+ * Home with nothing in Room, still loading: skeletons after the feature card and album carousels,
+ * shown only once loading has taken longer than 150ms (DESIGN.md §5.8).
+ */
+@Composable
+private fun HomeSkeleton() {
+    if (!rememberDelayedVisibility()) return
+    SkeletonPulse {
+        Column(Modifier.padding(top = SegueSpacing.sm)) {
+            SkeletonBlock(
+                Modifier
+                    .padding(horizontal = SegueSpacing.lg + SegueSpacing.gutter)
+                    .fillMaxWidth()
+                    .height(CARD_HEIGHT),
+                shape = SegueShapes.md,
+            )
+            repeat(SKELETON_SECTIONS) { CarouselSkeleton() }
+        }
+    }
+}
+
+/** A carousel section's skeleton: its header's title, then a row of album cards. */
+@Composable
+private fun CarouselSkeleton() {
+    Column(Modifier.padding(top = SegueSpacing.sectionGap)) {
+        Box(
+            contentAlignment = Alignment.CenterStart,
+            modifier = Modifier
+                .height(SegueSizes.sectionHeader)
+                .padding(horizontal = SegueSpacing.lg),
+        ) {
+            SkeletonBlock(
+                Modifier
+                    .width(SKELETON_HEADER_WIDTH)
+                    .height(SegueSpacing.lg),
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState(), enabled = false)
+                .padding(horizontal = SegueSpacing.lg),
+        ) {
+            repeat(SKELETON_CARDS) { AlbumCardSkeleton(width = SegueSizes.albumCard) }
+        }
+    }
+}
+
+/** No data because loading failed: offline with nothing downloaded, or the server failed. */
+@Composable
+private fun HomeErrorState(cause: ScreenState.Cause, onRetry: () -> Unit) {
+    val (title, message) = when (cause) {
+        ScreenState.Cause.Offline ->
+            R.string.feature_home_error_offline_title to
+                R.string.feature_home_error_offline_message
+
+        ScreenState.Cause.Server ->
+            R.string.feature_home_error_server_title to
+                R.string.feature_home_error_server_message
+    }
+    ErrorState(
+        title = stringResource(title),
+        message = stringResource(message),
+        onRetryClick = onRetry,
+        modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
+    )
+}
+
+private const val SKELETON_SECTIONS = 3
+private const val SKELETON_CARDS = 4
+private val SKELETON_HEADER_WIDTH = 140.dp
 
 @PreviewSegueThemes
 @Composable

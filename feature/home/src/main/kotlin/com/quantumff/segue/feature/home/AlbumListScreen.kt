@@ -144,7 +144,7 @@ fun AlbumListScreen(
                     } else {
                         EmptyState(
                             icon = SegueIcons.Disc3,
-                            title = stringResource(R.string.feature_home_empty_title),
+                            title = stringResource(R.string.feature_home_album_list_empty_title),
                             message = null,
                             actionLabel = stringResource(R.string.feature_home_refresh),
                             onActionClick = onRefresh,

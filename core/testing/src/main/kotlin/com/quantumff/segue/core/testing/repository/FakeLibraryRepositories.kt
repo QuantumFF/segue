@@ -26,6 +26,7 @@ import com.quantumff.segue.core.model.SyncProgress
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -44,6 +45,9 @@ class FakeAlbumRepository : AlbumRepository {
 
     /** Thrown by refresh calls when set. */
     var refreshError: RemoteException? = null
+
+    /** When set, [refreshAlbumList] waits for it, so a test can hold a list refresh running. */
+    var listRefreshGate: CompletableDeferred<Unit>? = null
 
     /** Albums that count as downloaded for [AlbumFilter.downloaded]. */
     var downloadedAlbumIds: Set<String> = emptySet()
@@ -89,6 +93,7 @@ class FakeAlbumRepository : AlbumRepository {
 
     override suspend fun refreshAlbumList(type: AlbumListType, size: Int) {
         refreshedLists += type
+        listRefreshGate?.await()
         refreshError?.let { throw it }
     }
 }

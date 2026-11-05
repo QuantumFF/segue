@@ -12,8 +12,12 @@
     <string name="feature_home_genres">Genres</string>
     <string name="feature_home_play_album">Play %1$s</string>
     <string name="feature_home_featured_page">Featured album %1$d of %2$d</string>
-    <string name="feature_home_empty_title">Nothing here yet</string>
-    <string name="feature_home_empty_message">Your library is empty, or Segue could not reach the server.</string>
+    <string name="feature_home_empty_title">Your library is empty</string>
+    <string name="feature_home_empty_message">Add music on your server, then refresh.</string>
+    <string name="feature_home_error_offline_title">You\'re offline</string>
+    <string name="feature_home_error_offline_message">Nothing downloaded to show. Connect, then try again.</string>
+    <string name="feature_home_error_server_title">Couldn\'t load your library</string>
+    <string name="feature_home_error_server_message">Segue couldn\'t get your music from the server. Try again.</string>
     <string name="feature_home_syncing_title">Syncing your library</string>
     <string name="feature_home_syncing_message">Albums appear here as soon as they are copied.</string>
     <string name="feature_home_refresh">Refresh</string>
@@ -21,6 +25,7 @@
         <item quantity="one">%d track</item>
         <item quantity="other">%d tracks</item>
     </plurals>
+    <string name="feature_home_album_list_empty_title">Nothing here yet</string>
     <string name="feature_home_album_list_title_recent">Recently played</string>
     <string name="feature_home_album_list_title_newest">Recently added</string>
     <string name="feature_home_album_list_title_frequent">Most played</string>
