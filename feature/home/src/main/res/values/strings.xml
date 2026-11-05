@@ -28,4 +28,6 @@
     <string name="feature_home_album_list_title_starred">Favorites</string>
     <string name="feature_home_album_list_title_highest">Top rated</string>
     <string name="feature_home_album_list_title_alphabetical">Albums</string>
+    <string name="feature_home_album_list_offline_empty_title">You\'re offline</string>
+    <string name="feature_home_album_list_offline_empty_message">Downloaded albums from this list show here. Pin albums to listen offline.</string>
 </resources>
