@@ -24,6 +24,7 @@ import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -61,6 +62,8 @@ data class HomeUiState(
      * reached the server, so the cached library shows.
      */
     val offlineStatus: OfflineStatus = OfflineStatus.Online,
+    /** The last refresh failed: the server could not be reached, or refused. */
+    val refreshFailed: Boolean = false,
     /** True until Room has answered, so the empty state does not flash on start. */
     val isLoading: Boolean = true,
     /** A failed menu action, for the snackbar. */
@@ -69,6 +72,27 @@ data class HomeUiState(
     val isEmpty: Boolean
         get() = featured.isEmpty() && recentlyPlayed.isEmpty() && recentlyAdded.isEmpty() &&
             mostPlayed.isEmpty() && favorites.isEmpty() && playlists.isEmpty()
+
+    /**
+     * What Home shows (DESIGN.md §5.8). With nothing in Room, a refresh still running counts as
+     * loading, so the empty state never flashes during the first refresh. Without data, offline
+     * with nothing downloaded or after a failed refresh is an error with Retry, not an empty
+     * library. A first sync filling an empty library shows as empty, with the sync's own copy.
+     */
+    val screenState: ScreenState
+        get() = ScreenState.of(
+            itemCount = when {
+                isLoading -> null
+                isEmpty -> 0
+                else -> 1
+            },
+            isLoading = isRefreshing,
+            failure = when {
+                offlineStatus.isShowingDownloads -> ScreenState.Cause.Offline
+                refreshFailed -> ScreenState.Cause.Server
+                else -> null
+            },
+        )
 
     /** The first sync is still filling the library. */
     val isSyncing: Boolean
@@ -87,6 +111,8 @@ private data class Status(
     val isRefreshing: Boolean = false,
     /** The last refresh could not reach the server. */
     val serverUnreachable: Boolean = false,
+    /** The last refresh failed, unreachable or refused. */
+    val refreshFailed: Boolean = false,
     val message: MediaActionFailure? = null,
 )
 
@@ -150,6 +176,7 @@ class HomeViewModel @Inject constructor(
             syncProgress = progress,
             isRefreshing = status.isRefreshing,
             offlineStatus = offlineStatus.withServerUnreachable(status.serverUnreachable),
+            refreshFailed = status.refreshFailed,
             isLoading = false,
             message = status.message,
         )
@@ -185,7 +212,8 @@ class HomeViewModel @Inject constructor(
                 }
             }.awaitAll()
             val unreachable = results.any { it.showsOfflineChip }
-            status.update { it.copy(isRefreshing = false, serverUnreachable = unreachable) }
+            val failed = results.any { it.isFailure }
+            status.update { it.copy(isRefreshing = false, serverUnreachable = unreachable, refreshFailed = failed) }
         }
     }
 
