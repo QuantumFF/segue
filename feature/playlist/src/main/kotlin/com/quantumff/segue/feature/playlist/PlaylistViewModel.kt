@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
@@ -57,12 +58,19 @@ data class PlaylistEntry(val song: Song, val copy: Int = 0) {
     val key: String get() = "$copy:${song.id}"
 }
 
+/** What the playlist screen shows: the playlist, or a full-screen state under a back bar. */
 enum class LoadState {
+    /** Nothing is cached and the first refresh is running: skeletons. */
     Loading,
+
+    /** The playlist shows, cached or fresh, even when its refresh failed. */
     Loaded,
 
-    /** The refresh failed: cached rows (if any) stay; with none, the screen shows an error. */
+    /** Nothing is cached and the refresh failed: an error with Retry. */
     Failed,
+
+    /** The server does not have the playlist (it was deleted), cached or not. */
+    NotFound,
 }
 
 data class PlaylistUiState(
@@ -70,6 +78,8 @@ data class PlaylistUiState(
     /** The saved order, or the working order while [isEditing]. */
     val entries: ImmutableList<PlaylistEntry> = persistentListOf(),
     val loadState: LoadState = LoadState.Loading,
+    /** A refresh is running; the rows shown, if any, are cached. */
+    val isRefreshing: Boolean = false,
     /** The refresh could not reach the server: cached rows show with the offline chip. */
     val isOffline: Boolean = false,
     val isEditing: Boolean = false,
@@ -94,6 +104,18 @@ data class PlaylistUiState(
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
 
     val songs: List<Song> get() = entries.map { it.song }
+
+    /**
+     * The playlist has no songs: its empty state shows. Not while a refresh runs, since a playlist
+     * cached from the playlist list has no rows until its first refresh.
+     */
+    val isEmpty: Boolean get() = loadState == LoadState.Loaded && entries.isEmpty() && !isRefreshing
+
+    /**
+     * Play, Shuffle and Shuffle albums are enabled: outside edit mode, with a song that is
+     * Available (offline, only downloaded songs are).
+     */
+    val canPlay: Boolean get() = !isEditing && entries.any { availability.isAvailable(it.song) }
 
     /** Save is enabled only when there is a change to save. */
     val canSave: Boolean get() = hasChanges && !isSaving
@@ -141,11 +163,14 @@ class PlaylistViewModel @Inject constructor(
             playlist = playlist,
             entries = local.working ?: saved,
             loadState = when {
-                local.refreshFailed -> LoadState.Failed
-                playlist == null && local.refreshing -> LoadState.Loading
-                else -> LoadState.Loaded
+                local.refresh is RemoteOutcome.NotFound -> LoadState.NotFound
+                playlist != null -> LoadState.Loaded
+                local.refresh == null -> LoadState.Loading
+                local.refresh.isFailure -> LoadState.Failed
+                else -> LoadState.NotFound
             },
-            isOffline = local.refreshOffline,
+            isRefreshing = local.refresh == null,
+            isOffline = local.refresh?.showsOfflineChip == true,
             isEditing = local.working != null,
             hasChanges = local.working != null && local.working.map { it.song.id } != saved.map { it.song.id },
             isDiscardPromptShown = local.discardPrompt,
@@ -160,16 +185,10 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun refresh() {
-        local.update { it.copy(refreshing = true, refreshFailed = false, refreshOffline = false) }
+        local.update { it.copy(refresh = null) }
         viewModelScope.launch {
             val outcome = remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }
-            local.update {
-                it.copy(
-                    refreshing = false,
-                    refreshFailed = outcome.isFailure,
-                    refreshOffline = outcome.showsOfflineChip,
-                )
-            }
+            local.update { it.copy(refresh = outcome) }
         }
     }
 
@@ -322,9 +341,8 @@ class PlaylistViewModel @Inject constructor(
     }
 
     private data class LocalState(
-        val refreshing: Boolean = false,
-        val refreshFailed: Boolean = false,
-        val refreshOffline: Boolean = false,
+        /** How the last refresh ended; null while one runs. */
+        val refresh: RemoteOutcome<*>? = null,
         /** The working order while editing; null outside edit mode. */
         val working: ImmutableList<PlaylistEntry>? = null,
         val discardPrompt: Boolean = false,
