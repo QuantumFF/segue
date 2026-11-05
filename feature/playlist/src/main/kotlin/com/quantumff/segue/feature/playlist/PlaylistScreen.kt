@@ -53,6 +53,7 @@ import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.PinSheet
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
@@ -73,6 +74,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
@@ -121,7 +123,7 @@ fun PlaylistScreen(
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
         onDownloadClick = viewModel::download,
-        onRemoveDownloadClick = viewModel::removeDownload,
+        onPinAction = viewModel::onPinAction,
     )
 }
 
@@ -155,7 +157,7 @@ fun PlaylistScreenContent(
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onDownloadClick: () -> Unit = {},
-    onRemoveDownloadClick: () -> Unit = {},
+    onPinAction: (PinAction) -> Unit = {},
 ) {
     val playlist = uiState.playlist
     var showPlaylistMenu by remember { mutableStateOf(false) }
@@ -229,11 +231,12 @@ fun PlaylistScreenContent(
             onDismissRequest = { showPlaylistMenu = false },
         )
     }
-    if (showDownloadMenu && playlist != null) {
-        MediaContextMenu(
+    val download = uiState.download
+    if (showDownloadMenu && playlist != null && download != null) {
+        PinSheet(
             header = playlist.toMenuHeader(),
-            actions = persistentListOf(MediaAction.RemoveDownload),
-            onAction = { onRemoveDownloadClick() },
+            status = download,
+            onAction = onPinAction,
             onDismissRequest = { showDownloadMenu = false },
         )
     }

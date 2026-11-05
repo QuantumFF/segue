@@ -8,8 +8,8 @@ import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.carryOut
 import com.quantumff.segue.core.data.download.pinAndConfirm
-import com.quantumff.segue.core.data.download.unpinWithUndo
 import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
@@ -38,6 +38,7 @@ import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
@@ -219,10 +220,15 @@ class ArtistViewModel @Inject constructor(
         }
     }
 
-    /** Unpins the artist with Undo; files no other pin needs are deleted once the snackbar has gone. */
-    fun removeDownload() {
+    /**
+     * An action from the artist's download sheet: Retry, Resume and Pause act on its download; Cancel
+     * and Remove unpin it with Undo, and files no other pin needs go once the snackbar has gone.
+     */
+    fun onPinAction(action: PinAction) {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
-        viewModelScope.launch { downloadRepository.unpinWithUndo(PinKind.Artist, artistId, artist.name, snackbars) }
+        viewModelScope.launch {
+            downloadRepository.carryOut(action, PinKind.Artist, artistId, artist.name, snackbars)
+        }
     }
 
     fun onMessageDismiss() {

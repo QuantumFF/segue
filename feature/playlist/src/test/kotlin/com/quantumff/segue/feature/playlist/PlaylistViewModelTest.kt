@@ -9,9 +9,11 @@ import com.quantumff.segue.core.data.snackbar.SnackbarMessage
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.DownloadState
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
@@ -609,7 +611,7 @@ class PlaylistViewModelTest {
         assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, name))
         snackbars.onDismiss(downloading)
 
-        viewModel.removeDownload()
+        viewModel.onPinAction(PinAction.Remove)
         assertThat(downloads.pins.value).isEmpty()
         val removed = checkNotNull(snackbars.current.value)
         assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, name))
@@ -617,5 +619,18 @@ class PlaylistViewModelTest {
         snackbars.onAction(removed)
         assertThat(downloads.pins.value.keys).containsExactly(PinKind.Playlist to "p1")
         assertThat(downloads.deleted).isEmpty()
+    }
+
+    @Test
+    fun theDownloadSheetPausesResumesAndRetriesThePlaylistsPin() = runTest {
+        downloads.pins.value = mapOf((PinKind.Playlist to "p1") to DownloadStatus.Downloading(0.2f))
+        val viewModel = viewModel()
+
+        viewModel.onPinAction(PinAction.Pause)
+        viewModel.onPinAction(PinAction.Resume)
+        viewModel.onPinAction(PinAction.Retry)
+
+        assertThat(downloads.paused).containsExactly(PinKind.Playlist to "p1")
+        assertThat(downloads.resumed).containsExactly(PinKind.Playlist to "p1", PinKind.Playlist to "p1")
     }
 }
