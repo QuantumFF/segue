@@ -9,6 +9,8 @@ import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class RelatedUiStateTest {
@@ -53,23 +55,38 @@ class RelatedUiStateTest {
     }
 
     @Test
-    fun offlineWithoutRelatedSongsSaysTheyNeedAConnection() {
-        assertThat(relatedUiState(songs = null, isOffline = true)).isEqualTo(RelatedUiState.Offline)
+    fun offlineTheOfflineStateShowsAtOnceWithoutAskingTheServer() = runTest {
+        val asked = mutableListOf<String>()
+
+        val states = relatedPanel("ar1", isOffline = true) {
+            asked += it
+            listOf(TestData.song("s1"))
+        }.toList()
+
+        assertThat(states).containsExactly(RelatedUiState.Offline)
+        assertThat(asked).isEmpty()
     }
 
     @Test
-    fun aFailedLoadOnlineIsAnErrorWithRetry() {
-        assertThat(relatedUiState(songs = null, isOffline = false)).isEqualTo(RelatedUiState.Error)
+    fun onlineTheServerIsAskedForTheArtistsSimilarSongs() = runTest {
+        val asked = mutableListOf<String>()
+        val song = TestData.song("s1")
+
+        val states = relatedPanel("ar1", isOffline = false) {
+            asked += it
+            listOf(song)
+        }.toList()
+
+        assertThat(states).containsExactly(RelatedUiState.Loading, RelatedUiState.Loaded(persistentListOf(song)))
+            .inOrder()
+        assertThat(asked).containsExactly("ar1")
     }
 
     @Test
-    fun loadedSongsShowWhetherOnlineOrOffline() {
-        val songs = listOf(TestData.song("s1"))
+    fun aFailedLoadOnlineIsAnErrorWithRetry() = runTest {
+        val states = relatedPanel("ar1", isOffline = false) { null }.toList()
 
-        assertThat(relatedUiState(songs, isOffline = true)).isEqualTo(RelatedUiState.Loaded(persistentListOf(songs[0])))
-        assertThat(
-            relatedUiState(songs, isOffline = false),
-        ).isEqualTo(RelatedUiState.Loaded(persistentListOf(songs[0])))
+        assertThat(states.last()).isEqualTo(RelatedUiState.Error)
     }
 
     @Test

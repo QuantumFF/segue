@@ -273,14 +273,44 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun emptyLibraryWhileSyncingIsReportedAsSyncing() = runTest {
+    fun theFirstSyncFillingAnEmptyLibraryIsLoading() = runTest {
         sync.progress.value = SyncProgress.Running(SyncPhase.Albums, 1, 10)
 
         viewModel().uiState.test {
             val state = expectMostRecentItem()
-            assertThat(state.screenState).isEqualTo(ScreenState.Empty)
+            assertThat(state.screenState).isEqualTo(ScreenState.Loading)
             assertThat(state.isSyncing).isTrue()
-            assertThat(state.isLoading).isFalse()
+        }
+    }
+
+    @Test
+    fun aSyncWaitingForTheNetworkWhileOfflineIsTheOfflineErrorNotEndlessSkeletons() = runTest {
+        offline.isOffline.value = true
+        sync.progress.value = SyncProgress.Pending
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Offline))
+        }
+    }
+
+    @Test
+    fun thePullToRefreshSpinnerStaysHiddenWhileSkeletonsShow() = runTest {
+        albums.listRefreshGate = CompletableDeferred()
+
+        viewModel().uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.isRefreshing).isTrue()
+            assertThat(state.showsRefreshIndicator).isFalse()
+        }
+    }
+
+    @Test
+    fun thePullToRefreshSpinnerShowsOverContent() = runTest {
+        albums.lists.value = mapOf(AlbumListType.Random to listOf(TestData.album("r1")))
+        albums.listRefreshGate = CompletableDeferred()
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().showsRefreshIndicator).isTrue()
         }
     }
 

@@ -67,7 +67,6 @@ import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.SyncPhase
@@ -152,7 +151,7 @@ fun HomeScreen(
 
     Box(modifier.fillMaxSize()) {
         PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
+            isRefreshing = uiState.showsRefreshIndicator,
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -170,7 +169,7 @@ fun HomeScreen(
                 }
                 // Offline the chip explains an empty Home too; an unreachable server with nothing cached has the empty state.
                 val status = uiState.offlineStatus
-                if (status.isShowingDownloads || (status == OfflineStatus.ShowingCachedLibrary && !uiState.isEmpty)) {
+                if (status.showsChip(hasContent = !uiState.isEmpty)) {
                     item(key = "offline", contentType = "offline") {
                         OfflineStatusChip(
                             status = status,
@@ -187,9 +186,7 @@ fun HomeScreen(
                         HomeErrorState(screen.cause, onRefresh)
                     }
 
-                    ScreenState.Empty -> item(key = "empty", contentType = "empty") {
-                        HomeEmptyState(uiState.isSyncing, onRefresh)
-                    }
+                    ScreenState.Empty -> item(key = "empty", contentType = "empty") { HomeEmptyState(onRefresh) }
 
                     ScreenState.Content ->
                         homeSections(uiState, sections, onPlayAlbum, onPlaylistClick, onGenreClick, onRefreshExplore)
@@ -353,24 +350,15 @@ private fun GenreSection(genres: ImmutableList<Genre>, onGenreClick: (String) ->
 }
 
 @Composable
-private fun HomeEmptyState(syncing: Boolean, onRefresh: () -> Unit) {
-    if (syncing) {
-        EmptyState(
-            icon = SegueIcons.Refresh,
-            title = stringResource(R.string.feature_home_syncing_title),
-            message = stringResource(R.string.feature_home_syncing_message),
-            modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
-        )
-    } else {
-        EmptyState(
-            icon = SegueIcons.Disc3,
-            title = stringResource(R.string.feature_home_empty_title),
-            message = stringResource(R.string.feature_home_empty_message),
-            actionLabel = stringResource(R.string.feature_home_refresh),
-            onActionClick = onRefresh,
-            modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
-        )
-    }
+private fun HomeEmptyState(onRefresh: () -> Unit) {
+    EmptyState(
+        icon = SegueIcons.Disc3,
+        title = stringResource(R.string.feature_home_empty_title),
+        message = stringResource(R.string.feature_home_empty_message),
+        actionLabel = stringResource(R.string.feature_home_refresh),
+        onActionClick = onRefresh,
+        modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
+    )
 }
 
 /**

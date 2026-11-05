@@ -22,6 +22,9 @@ import java.util.Locale
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 
 /** The panels that replace the art (phone) or fill the right pane (two-pane). */
 enum class NowPlayingPanel {
@@ -114,12 +117,13 @@ sealed interface LyricsUiState {
 }
 
 /**
- * The lyrics panel for a lookup's result: [lookup] is null when the lookup failed. Offline that
- * means nothing is stored for the song, which is not worth a retry.
+ * The lyrics panel for a lookup's result: [lookup] is null when the lookup failed. Offline, a
+ * lookup with nothing, failed or empty, shows the offline state: only downloaded songs keep their
+ * lyrics, and a retry would not help.
  */
 internal fun lyricsUiState(lookup: List<Lyrics>?, isOffline: Boolean): LyricsUiState = when {
+    isOffline && lookup.isNullOrEmpty() -> LyricsUiState.Offline
     lookup != null -> LyricsUiState.Loaded(LyricsContent.from(lookup.firstOrNull()))
-    isOffline -> LyricsUiState.Offline
     else -> LyricsUiState.Error
 }
 
@@ -147,11 +151,22 @@ sealed interface RelatedUiState {
     data object Error : RelatedUiState
 }
 
-/** The related panel for a load's result: [songs] is null when the load failed. */
-internal fun relatedUiState(songs: List<Song>?, isOffline: Boolean): RelatedUiState = when {
-    songs != null -> RelatedUiState.Loaded(songs.toImmutableList())
-    isOffline -> RelatedUiState.Offline
-    else -> RelatedUiState.Error
+/**
+ * The related panel for [artistId]'s similar songs. They come only from the server, and nothing is
+ * kept on the device, so Offline the offline state shows at once and [load] is not called; the
+ * panel reloads once back online. Online it is loading until [load] returns, null when it failed.
+ */
+internal fun relatedPanel(
+    artistId: String,
+    isOffline: Boolean,
+    load: suspend (artistId: String) -> List<Song>?,
+): Flow<RelatedUiState> = if (isOffline) {
+    flowOf(RelatedUiState.Offline)
+} else {
+    flow {
+        emit(RelatedUiState.Loading)
+        emit(load(artistId)?.let { RelatedUiState.Loaded(it.toImmutableList()) } ?: RelatedUiState.Error)
+    }
 }
 
 /**

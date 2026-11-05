@@ -151,7 +151,9 @@ class NowPlayingViewModel @Inject constructor(
                 request.artistId == null ->
                     flowOf(if (request.known) RelatedUiState.Unavailable else RelatedUiState.Loading)
 
-                else -> loadRelated(request.artistId, request.offline)
+                else -> relatedPanel(request.artistId, request.offline) { artistId ->
+                    loadOrNull("related songs") { artists.similarSongs(artistId, RELATED_COUNT) }
+                }
             }
         }
         .holdLastNonNull(RelatedUiState.Loading)
@@ -238,11 +240,6 @@ class NowPlayingViewModel @Inject constructor(
     private fun loadLyrics(songId: String, offline: Boolean): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)
         emit(lyricsUiState(loadOrNull("lyrics") { lyricsRepository.lyrics(songId) }, offline))
-    }
-
-    private fun loadRelated(artistId: String, offline: Boolean): Flow<RelatedUiState> = flow {
-        emit(RelatedUiState.Loading)
-        emit(relatedUiState(loadOrNull("related songs") { artists.similarSongs(artistId, RELATED_COUNT) }, offline))
     }
 
     private inline fun <T> loadOrNull(what: String, block: () -> T): T? = remoteOutcome(block)

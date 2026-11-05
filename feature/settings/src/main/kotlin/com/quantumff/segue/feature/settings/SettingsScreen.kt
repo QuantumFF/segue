@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
@@ -216,19 +218,40 @@ class SettingsActions(
 }
 
 /** A group of settings the screen can open at. */
-enum class SettingsSection {
+enum class SettingsSection(
+    /** The key of the group's header among [SettingsContent]'s items. */
+    internal val headerKey: String,
+) {
     /** Downloads & storage, with the Offline mode switch: where the offline chip sends the user in Offline mode. */
-    DownloadsAndStorage,
+    DownloadsAndStorage("storage"),
 }
 
-/** The index of [section]'s header among [SettingsContent]'s items; keep in step with them. */
-private fun SettingsUiState.indexOf(section: SettingsSection): Int = when (section) {
-    SettingsSection.DownloadsAndStorage -> {
-        val servers = 1 + servers.size + 1 // header, servers, Add server
-        val appearance = if (preferences.accentSource == AccentSource.Fixed) 4 else 3
-        val playback = 6 // header, ReplayGain, its target and boost, Stop when paused, Play on Bluetooth
-        val streaming = 3 // header, Wi-Fi and mobile data quality
-        servers + appearance + playback + streaming
+/**
+ * The index of the item keyed [key] among the items [content] declares, or 0 when there is none.
+ * Runs the builder against a scope that only records keys, so no item is composed.
+ */
+private fun indexOfKey(content: LazyListScope.() -> Unit, key: Any): Int =
+    ItemKeys().apply(content).keys.indexOf(key).coerceAtLeast(0)
+
+/** A [LazyListScope] that records the keys of the items declared in it, in order. */
+private class ItemKeys : LazyListScope {
+    val keys = mutableListOf<Any?>()
+
+    override fun item(key: Any?, contentType: Any?, content: @Composable LazyItemScope.() -> Unit) {
+        keys += key
+    }
+
+    override fun items(
+        count: Int,
+        key: ((index: Int) -> Any)?,
+        contentType: (index: Int) -> Any?,
+        itemContent: @Composable LazyItemScope.(index: Int) -> Unit,
+    ) {
+        repeat(count) { keys += key?.invoke(it) }
+    }
+
+    override fun stickyHeader(key: Any?, contentType: Any?, content: @Composable LazyItemScope.(Int) -> Unit) {
+        keys += key
     }
 }
 
@@ -265,16 +288,10 @@ fun SettingsContent(
     var removing by remember { mutableStateOf<Server?>(null) }
     val prefs = uiState.preferences
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
-    // Items are keyed, so the group stays at the top as servers and other rows above it load.
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = section?.let { uiState.indexOf(it) } ?: 0)
 
     Column(modifier.fillMaxSize()) {
         SubScreenTopBar(title = stringResource(R.string.feature_settings_title), onBackClick = onBackClick)
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            state = listState,
-            contentPadding = PaddingValues(bottom = bottom + SegueSpacing.lg),
-        ) {
+        val items: LazyListScope.() -> Unit = {
             item(key = "servers", contentType = "header") {
                 SettingsSectionHeader(stringResource(R.string.feature_settings_servers))
             }
@@ -506,6 +523,16 @@ fun SettingsContent(
                 )
             }
         }
+        // Found by its key, so rows added above the group never break it. Items are keyed, so the
+        // group stays at the top as servers and other rows above it load.
+        val initialIndex = remember { section?.let { indexOfKey(items, it.headerKey) } ?: 0 }
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(bottom = bottom + SegueSpacing.lg),
+            content = items,
+        )
     }
 
     SettingsPickerSheet(

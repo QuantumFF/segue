@@ -4,13 +4,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.refreshIfOnline
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AlbumRepository
-import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
-import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.MediaAction
@@ -40,22 +40,31 @@ data class AlbumListUiState(
      * show; online, the last refresh may not have reached the server, so the cached list shows.
      */
     val offlineStatus: OfflineStatus = OfflineStatus.Online,
+    /** The last refresh failed: the server could not be reached, or refused. */
+    val refreshFailed: Boolean = false,
     val isLoading: Boolean = true,
     /** A failed menu action, for the snackbar. */
     val message: MediaActionFailure? = null,
 ) {
     /**
-     * What the grid shows (DESIGN.md §5.8). With no albums, a running refresh is loading. Offline,
-     * empty means nothing in this list is downloaded, which the screen says rather than "nothing here".
+     * What the grid shows (DESIGN.md §5.8). With no albums, a running refresh is loading and a
+     * failed one is an error with Retry. Offline, empty means nothing in this list is downloaded,
+     * which the screen says rather than "nothing here": the server was not asked, so nothing failed.
      */
     val screenState: ScreenState
-        get() = ScreenState.of(itemCount = albums.size.takeUnless { isLoading }, isLoading = isRefreshing)
+        get() = ScreenState.of(
+            itemCount = albums.size.takeUnless { isLoading },
+            isLoading = isRefreshing,
+            failure = ScreenState.Cause.Server.takeIf { refreshFailed && !offlineStatus.isShowingDownloads },
+        )
 }
 
 private data class AlbumListStatus(
     val isRefreshing: Boolean = false,
     /** The last refresh could not reach the server. */
     val serverUnreachable: Boolean = false,
+    /** The last refresh failed, unreachable or refused. */
+    val refreshFailed: Boolean = false,
     val message: MediaActionFailure? = null,
 )
 
@@ -87,6 +96,7 @@ class AlbumListViewModel @Inject constructor(
             albums = OfflineLibrary.albums(albums, downloaded).toImmutableList(),
             isRefreshing = status.isRefreshing,
             offlineStatus = offlineStatus.withServerUnreachable(status.serverUnreachable),
+            refreshFailed = status.refreshFailed,
             isLoading = false,
             message = status.message,
         )
@@ -94,27 +104,27 @@ class AlbumListViewModel @Inject constructor(
 
     init {
         // Offline the server is not asked on entry: the downloaded albums are what there is, and the chip says so.
-        if (!offlineView.isOffline.value) refreshList()
+        offlineView.refreshIfOnline(::refreshList)
     }
 
     /**
      * Pull to refresh, and the chip's retry: refetches the list while Room keeps showing the cached
      * one. Offline the server is not asked, and a snackbar says why.
      */
-    fun refresh() {
-        if (offlineView.isOffline.value) {
-            snackbars.post(SnackbarText.offline)
-        } else {
-            refreshList()
-        }
-    }
+    fun refresh() = offlineView.requestRefresh(snackbars, ::refreshList)
 
     private fun refreshList() {
         if (status.value.isRefreshing) return
         status.update { it.copy(isRefreshing = true) }
         viewModelScope.launch {
             val outcome = remoteOutcome { albumRepository.refreshAlbumList(type, SEE_ALL_SIZE) }
-            status.update { it.copy(isRefreshing = false, serverUnreachable = outcome.showsOfflineChip) }
+            status.update {
+                it.copy(
+                    isRefreshing = false,
+                    serverUnreachable = outcome.showsOfflineChip,
+                    refreshFailed = outcome.isFailure,
+                )
+            }
         }
     }
 

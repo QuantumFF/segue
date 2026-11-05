@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.refreshIfOnline
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -13,7 +15,6 @@ import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
-import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
@@ -76,10 +77,10 @@ data class HomeUiState(
             mostPlayed.isEmpty() && favorites.isEmpty() && playlists.isEmpty()
 
     /**
-     * What Home shows (DESIGN.md §5.8). With nothing in Room, a refresh still running counts as
-     * loading, so the empty state never flashes during the first refresh. Without data, offline
-     * with nothing downloaded or after a failed refresh is an error with Retry, not an empty
-     * library. A first sync filling an empty library shows as empty, with the sync's own copy.
+     * What Home shows (DESIGN.md §5.8). With nothing in Room, a refresh or the first library sync
+     * still running counts as loading, so the empty state never flashes while the library fills.
+     * Without data, offline with nothing downloaded or after a failed refresh is an error with
+     * Retry, not an empty library. A sync waiting for the network does not count while Offline.
      */
     val screenState: ScreenState
         get() = ScreenState.of(
@@ -88,13 +89,17 @@ data class HomeUiState(
                 isEmpty -> 0
                 else -> 1
             },
-            isLoading = isRefreshing,
+            isLoading = isRefreshing || (isSyncing && !offlineStatus.isShowingDownloads),
             failure = when {
                 offlineStatus.isShowingDownloads -> ScreenState.Cause.Offline
                 refreshFailed -> ScreenState.Cause.Server
                 else -> null
             },
         )
+
+    /** Pull to refresh's spinner: not over the skeletons, which already say Home is loading. */
+    val showsRefreshIndicator: Boolean
+        get() = isRefreshing && screenState != ScreenState.Loading
 
     /** Explore's refresh needs the server, so its icon is disabled while Offline (GLOSSARY.md). */
     val canRefreshExplore: Boolean
@@ -192,20 +197,14 @@ class HomeViewModel @Inject constructor(
 
     init {
         // Offline the server is not asked on entry: the downloaded music is what there is, and the chip says so.
-        if (!offlineView.isOffline.value) refreshLists()
+        offlineView.refreshIfOnline(::refreshLists)
     }
 
     /**
      * Pull to refresh, and the chip's retry: refetches the server-ordered lists while Room keeps
      * showing the cached ones. Offline the server is not asked, and a snackbar says why.
      */
-    fun refresh() {
-        if (offlineView.isOffline.value) {
-            snackbars.post(SnackbarText.offline)
-        } else {
-            refreshLists()
-        }
-    }
+    fun refresh() = offlineView.requestRefresh(snackbars, ::refreshLists)
 
     private fun refreshLists() {
         if (status.value.isRefreshing) return

@@ -8,6 +8,7 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
@@ -17,6 +18,7 @@ import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -125,13 +127,66 @@ class ArtistViewModelTest {
     }
 
     @Test
+    fun onlineTheStatusIsOnline() = runTest {
+        seed()
+        viewModel().uiState.test {
+            assertThat((awaitItem() as ArtistUiState.Success).offlineStatus).isEqualTo(OfflineStatus.Online)
+        }
+    }
+
+    @Test
+    fun offlineWithoutANetworkShowsTheDownloadsStatus() = runTest {
+        seed()
+        offlineMode.isOffline.value = true
+        artists.error = RemoteException.Unreachable(IOException("offline"))
+        viewModel().uiState.test {
+            assertThat((awaitItem() as ArtistUiState.Success).offlineStatus).isEqualTo(OfflineStatus.ShowingDownloads)
+        }
+    }
+
+    @Test
+    fun offlineModeShowsItsOwnStatus() = runTest {
+        seed()
+        offlineMode.setOfflineMode(true)
+        viewModel().uiState.test {
+            assertThat(
+                (awaitItem() as ArtistUiState.Success).offlineStatus,
+            ).isEqualTo(OfflineStatus.ShowingDownloadsInOfflineMode)
+        }
+    }
+
+    @Test
+    fun retryWhileOfflineSaysSoWithoutAskingTheServer() = runTest {
+        seed()
+        val viewModel = viewModel()
+        offlineMode.isOffline.value = true
+        val refreshes = artists.refreshed.size
+
+        viewModel.retry()
+
+        assertThat(artists.refreshed).hasSize(refreshes)
+        assertThat(snackbars.current.value?.text).isEqualTo(SnackbarText.offline)
+    }
+
+    @Test
+    fun retryOnlineRefetchesTheArtist() = runTest {
+        seed()
+        val viewModel = viewModel()
+        val refreshes = artists.refreshed.size
+
+        viewModel.retry()
+
+        assertThat(artists.refreshed).hasSize(refreshes + 1)
+    }
+
+    @Test
     fun remoteFailuresHideOptionalSectionsAndMarkOffline() = runTest {
         seed()
         artists.info = ArtistInfo("Bio", persistentListOf(TestData.artist("artist-2")))
         artists.error = RemoteException.Unreachable(IOException("offline"))
         viewModel().uiState.test {
             val state = awaitItem() as ArtistUiState.Success
-            assertThat(state.isOffline).isTrue()
+            assertThat(state.offlineStatus).isEqualTo(OfflineStatus.ShowingCachedLibrary)
             assertThat(state.similarArtists).isEmpty()
             assertThat(state.biography).isNull()
             assertThat(state.topSongs).isEmpty()

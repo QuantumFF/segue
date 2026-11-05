@@ -28,13 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.data.play.MediaActionHost
-import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
 import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
+import com.quantumff.segue.core.designsystem.component.DownloadSheet
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtons
@@ -44,12 +44,11 @@ import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
-import com.quantumff.segue.core.designsystem.component.PinSheet
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
-import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
@@ -68,6 +67,7 @@ import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
@@ -82,6 +82,7 @@ fun ArtistDetailRoute(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ArtistViewModel = hiltViewModel(),
 ) {
@@ -101,9 +102,10 @@ fun ArtistDetailRoute(
         onPlayAlbums = viewModel::playAlbums,
         onInstantMix = viewModel::startInstantMix,
         onToggleStar = viewModel::toggleArtistStar,
-        onRetry = viewModel::refresh,
+        onRetry = viewModel::retry,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         onDownload = viewModel::download,
         onPinAction = viewModel::onPinAction,
         onArtistAction = { viewModel.onArtistAction(it, menuHost) },
@@ -114,7 +116,8 @@ fun ArtistDetailRoute(
 
 /**
  * Artist detail (DESIGN.md §4.4): circular-art hero, actions, then top songs, albums, appears on,
- * similar artists and the biography.
+ * similar artists and the biography. The offline chip retries through [onRetry], or in Offline mode
+ * opens the setting through [onOfflineModeSettingClick].
  */
 @Suppress("LongParameterList")
 @Composable
@@ -138,6 +141,7 @@ fun ArtistScreen(
     onArtistAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
     onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
+    onOfflineModeSettingClick: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     Box(modifier.fillMaxSize()) {
@@ -173,6 +177,7 @@ fun ArtistScreen(
                 onInstantMix = onInstantMix,
                 onToggleStar = onToggleStar,
                 onRetry = onRetry,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onDownload = onDownload,
                 onPinAction = onPinAction,
                 onArtistAction = onArtistAction,
@@ -209,6 +214,7 @@ private fun ArtistContent(
     onInstantMix: () -> Unit,
     onToggleStar: () -> Unit,
     onRetry: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onDownload: () -> Unit,
     onPinAction: (PinAction) -> Unit,
     onArtistAction: (MediaAction) -> Unit,
@@ -279,13 +285,17 @@ private fun ArtistContent(
             )
         },
     ) {
-        if (state.isOffline || state.isPreparingPlayback) {
+        if (state.offlineStatus != OfflineStatus.Online || state.isPreparingPlayback) {
             item(key = "status", contentType = "status") {
                 Box(Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs)) {
                     if (state.isPreparingPlayback) {
                         InlineSpinner()
                     } else {
-                        StatusChip(label = stringResource(DesignR.string.ds_offline_cached), onClick = onRetry)
+                        OfflineStatusChip(
+                            status = state.offlineStatus,
+                            onRetry = onRetry,
+                            onOpenOfflineModeSetting = onOfflineModeSettingClick,
+                        )
                     }
                 }
             }
@@ -357,7 +367,7 @@ private fun ArtistContent(
     }
     if (downloadMenuOpen) {
         state.download?.let { status ->
-            PinSheet(
+            DownloadSheet(
                 header = artist.toMenuHeader(),
                 status = status,
                 onAction = onPinAction,

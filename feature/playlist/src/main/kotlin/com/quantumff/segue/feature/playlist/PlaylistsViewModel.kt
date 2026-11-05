@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.refreshIfOnline
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
@@ -10,7 +12,6 @@ import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
-import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.OfflineStatus
@@ -77,17 +78,12 @@ data class PlaylistsUiState(
             failure = ScreenState.Cause.Server.takeIf { fetchFailed && !isOffline },
         )
 
-    /**
-     * Whether the offline chip shows under the top bar: always offline, where it explains a short or
-     * empty list; for an unreachable server only over cached playlists, since with none the error
-     * state says so.
-     */
+    /** Whether the offline chip shows under the top bar ([OfflineStatus.showsChip]). */
     val showsOfflineChip: Boolean
-        get() = offlineStatus.isShowingDownloads ||
-            (offlineStatus == OfflineStatus.ShowingCachedLibrary && screenState == ScreenState.Content)
+        get() = offlineStatus.showsChip(hasContent = screenState == ScreenState.Content)
 }
 
-/** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh, plus CRUD. */
+/** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh while online, plus CRUD. */
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
@@ -120,16 +116,14 @@ class PlaylistsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlaylistsUiState())
 
     init {
-        fetch()
+        offlineView.refreshIfOnline(::fetch)
     }
 
     /**
      * Retry after a failed fetch left no playlists to show, and the offline chip's tap. Offline the
      * server is not asked, and a snackbar says why.
      */
-    fun retry() {
-        if (offlineView.isOffline.value) snackbars.post(SnackbarText.offline) else fetch()
-    }
+    fun retry() = offlineView.requestRefresh(snackbars, ::fetch)
 
     /**
      * Fetches the playlists. A failure stays silent: the cached list is shown (offline is
@@ -146,8 +140,13 @@ class PlaylistsViewModel @Inject constructor(
         }
     }
 
-    /** Pull-to-refresh. Reports a failure, since the user asked for it. */
-    fun refresh() {
+    /**
+     * Pull-to-refresh. Reports a failure, since the user asked for it. Offline the server is not
+     * asked, and a snackbar says why.
+     */
+    fun refresh() = offlineView.requestRefresh(snackbars, ::refreshPlaylists)
+
+    private fun refreshPlaylists() {
         if (local.value.refreshing) return
         local.update { it.copy(refreshing = true) }
         viewModelScope.launch {

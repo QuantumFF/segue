@@ -6,13 +6,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
 import com.quantumff.segue.core.data.repository.AlbumRepository
-import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
-import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumFilter
 import com.quantumff.segue.core.model.AlbumOrder
@@ -105,9 +104,7 @@ class GenreViewModel @Inject constructor(
      * The offline chip's retry. The grid reads Room only, so there is no server to ask: while still
      * offline a snackbar says why only downloaded albums show, as on Home. Back online the grid has already widened.
      */
-    fun retry() {
-        if (offlineView.isOffline.value) snackbars.post(SnackbarText.offline)
-    }
+    fun retry() = offlineView.requestRefresh(snackbars) {}
 
     /** A card's long-press menu. */
     fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {

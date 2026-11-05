@@ -251,6 +251,41 @@ class PlaylistsViewModelTest {
     }
 
     @Test
+    fun offlineTheServerIsNotAskedOnEntry() = runTest {
+        offlineMode.isOffline.value = true
+
+        val viewModel = viewModel()
+
+        assertThat(playlists.refreshAllCount).isEqualTo(0)
+        assertThat(viewModel.uiState.value.isFetching).isFalse()
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun pullToRefreshOfflineSaysSoWithoutAskingTheServer() = runTest {
+        offlineMode.setOfflineMode(true)
+        val viewModel = viewModel()
+
+        viewModel.refresh()
+
+        assertThat(playlists.refreshAllCount).isEqualTo(0)
+        assertThat(viewModel.uiState.value.isRefreshing).isFalse()
+        assertThat(snackbars.current.value?.text).isEqualTo(SnackbarText.offline)
+    }
+
+    @Test
+    fun pullToRefreshOnceBackOnlineAsksTheServer() = runTest {
+        offlineMode.isOffline.value = true
+        val viewModel = viewModel()
+        offlineMode.isOffline.value = false
+
+        viewModel.refresh()
+
+        assertThat(playlists.refreshAllCount).isEqualTo(1)
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
     fun menuPlaysThePlaylistAndShufflesItsAlbums() = runTest {
         val viewModel = viewModel()
         val playlist = TestData.playlist("p1")

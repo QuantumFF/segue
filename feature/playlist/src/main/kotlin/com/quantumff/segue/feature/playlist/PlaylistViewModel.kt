@@ -9,6 +9,7 @@ import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
 import com.quantumff.segue.core.data.download.carryOut
 import com.quantumff.segue.core.data.download.pinAndConfirm
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -29,6 +30,7 @@ import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -81,8 +83,11 @@ data class PlaylistUiState(
     val loadState: LoadState = LoadState.Loading,
     /** A refresh is running; the rows shown, if any, are cached. */
     val isRefreshing: Boolean = false,
-    /** The refresh could not reach the server: cached rows show with the offline chip. */
-    val isOffline: Boolean = false,
+    /**
+     * Why the page may show less than the server has, for the chip: Offline only downloaded songs
+     * are available; online, a refresh that could not reach the server leaves the cached rows.
+     */
+    val offlineStatus: OfflineStatus = OfflineStatus.Online,
     val isEditing: Boolean = false,
     /** The working order differs from the saved one. */
     val hasChanges: Boolean = false,
@@ -135,7 +140,7 @@ class PlaylistViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistRepository: PlaylistRepository,
     private val downloadRepository: DownloadRepository,
-    offlineView: OfflineLibraryView,
+    private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
@@ -153,9 +158,14 @@ class PlaylistViewModel @Inject constructor(
         playlistRepository.playlist(playlistId),
         removals.entries(playlistId),
         local,
-        combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
+        combine(
+            downloadRepository.pinStatus(PinKind.Playlist, playlistId),
+            offlineView.songAvailability,
+            offlineView.offlineStatus,
+            ::Triple,
+        ),
         player,
-    ) { playlist, saved, local, (download, availability), player ->
+    ) { playlist, saved, local, (download, availability, offlineStatus), player ->
         PlaylistUiState(
             download = download,
             availability = availability,
@@ -171,7 +181,7 @@ class PlaylistViewModel @Inject constructor(
                 else -> LoadState.NotFound
             },
             isRefreshing = local.refresh == null,
-            isOffline = local.refresh?.showsOfflineChip == true,
+            offlineStatus = offlineStatus.withServerUnreachable(local.refresh?.showsOfflineChip == true),
             isEditing = local.working != null,
             hasChanges = local.working != null && local.working.map { it.song.id } != saved.map { it.song.id },
             isDiscardPromptShown = local.discardPrompt,
@@ -184,6 +194,12 @@ class PlaylistViewModel @Inject constructor(
     init {
         refresh()
     }
+
+    /**
+     * Retry, and the offline chip's tap: refetches the playlist. Offline the server is not asked, and
+     * a snackbar says why.
+     */
+    fun retry() = offlineView.requestRefresh(snackbars, ::refresh)
 
     fun refresh() {
         local.update { it.copy(refresh = null) }

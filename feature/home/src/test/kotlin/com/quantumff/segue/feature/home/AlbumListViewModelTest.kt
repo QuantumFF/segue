@@ -123,6 +123,47 @@ class AlbumListViewModelTest {
     }
 
     @Test
+    fun anUnreachableServerWithNothingCachedIsAnErrorWithRetry() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+        }
+    }
+
+    @Test
+    fun aRefusedRefreshWithNothingCachedIsAnErrorWithRetry() = runTest {
+        albums.refreshError = RemoteException.ServerError("broken", IOException("500"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+        }
+    }
+
+    @Test
+    fun aFailedRefreshOverCachedAlbumsKeepsTheGrid() = runTest {
+        albums.lists.value = mapOf(AlbumListType.Newest to listOf(TestData.album("a1")))
+        albums.refreshError = RemoteException.ServerError("broken", IOException("500"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Content)
+        }
+    }
+
+    @Test
+    fun retryThatReachesTheServerClearsTheError() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+        val viewModel = viewModel()
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().screenState).isInstanceOf(ScreenState.Error::class.java)
+            albums.refreshError = null
+            viewModel.refresh()
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Empty)
+        }
+    }
+
+    @Test
     fun refreshesTheServerListOnEntry() = runTest {
         viewModel(AlbumListType.Frequent)
 
