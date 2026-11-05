@@ -47,7 +47,6 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.ScreenState
 import kotlinx.collections.immutable.ImmutableList
 
@@ -110,9 +109,7 @@ fun AlbumListScreen(
             SubScreenTopBar(title = stringResource(uiState.type.title), onBackClick = onBackClick)
             // Offline the chip explains an empty grid too; an unreachable server with nothing cached has the empty state.
             val status = uiState.offlineStatus
-            if (status.isShowingDownloads ||
-                (status == OfflineStatus.ShowingCachedLibrary && uiState.albums.isNotEmpty())
-            ) {
+            if (status.showsChip(hasContent = uiState.albums.isNotEmpty())) {
                 OfflineStatusChip(
                     status = status,
                     onRetry = onRefresh,

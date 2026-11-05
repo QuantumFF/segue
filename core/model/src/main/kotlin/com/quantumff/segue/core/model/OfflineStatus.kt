@@ -27,6 +27,13 @@ enum class OfflineStatus {
         get() = this == ShowingDownloadsInOfflineMode
 
     /**
+     * Whether a screen shows the chip, given whether it [hasContent]: always while Offline, where it
+     * explains a short or empty list; for an unreachable server only over cached content, since with
+     * none the error state says so.
+     */
+    fun showsChip(hasContent: Boolean): Boolean = isShowingDownloads || (this == ShowingCachedLibrary && hasContent)
+
+    /**
      * This status once a screen's last server refresh is known: online, a refresh that could not reach
      * the server ([serverUnreachable]) makes it [ShowingCachedLibrary]. Offline it stays as it is.
      */

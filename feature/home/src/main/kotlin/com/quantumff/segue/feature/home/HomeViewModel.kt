@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.refreshIfOnline
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -13,7 +15,6 @@ import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
-import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
@@ -192,20 +193,14 @@ class HomeViewModel @Inject constructor(
 
     init {
         // Offline the server is not asked on entry: the downloaded music is what there is, and the chip says so.
-        if (!offlineView.isOffline.value) refreshLists()
+        offlineView.refreshIfOnline(::refreshLists)
     }
 
     /**
      * Pull to refresh, and the chip's retry: refetches the server-ordered lists while Room keeps
      * showing the cached ones. Offline the server is not asked, and a snackbar says why.
      */
-    fun refresh() {
-        if (offlineView.isOffline.value) {
-            snackbars.post(SnackbarText.offline)
-        } else {
-            refreshLists()
-        }
-    }
+    fun refresh() = offlineView.requestRefresh(snackbars, ::refreshLists)
 
     private fun refreshLists() {
         if (status.value.isRefreshing) return

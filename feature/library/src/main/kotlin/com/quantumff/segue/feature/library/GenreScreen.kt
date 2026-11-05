@@ -112,12 +112,14 @@ internal fun GenreContent(
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             SubScreenTopBar(title = state.genre, subtitle = count, onBackClick = onBackClick)
-            OfflineStatusChip(
-                status = state.offlineStatus,
-                onRetry = onRetry,
-                onOpenOfflineModeSetting = onOfflineModeSettingClick,
-                modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs),
-            )
+            if (state.offlineStatus.showsChip(hasContent = (state.albumCount ?: 0) > 0)) {
+                OfflineStatusChip(
+                    status = state.offlineStatus,
+                    onRetry = onRetry,
+                    onOpenOfflineModeSetting = onOfflineModeSettingClick,
+                    modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs),
+                )
+            }
             val bottom = LocalShellContentPadding.current.calculateBottomPadding()
             val gridPadding = PaddingValues(
                 start = SegueSpacing.lg,

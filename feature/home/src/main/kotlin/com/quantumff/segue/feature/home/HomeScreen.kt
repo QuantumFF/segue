@@ -67,7 +67,6 @@ import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
-import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.SyncPhase
@@ -170,7 +169,7 @@ fun HomeScreen(
                 }
                 // Offline the chip explains an empty Home too; an unreachable server with nothing cached has the empty state.
                 val status = uiState.offlineStatus
-                if (status.isShowingDownloads || (status == OfflineStatus.ShowingCachedLibrary && !uiState.isEmpty)) {
+                if (status.showsChip(hasContent = !uiState.isEmpty)) {
                     item(key = "offline", contentType = "offline") {
                         OfflineStatusChip(
                             status = status,
