@@ -11,6 +11,7 @@ import com.quantumff.segue.core.data.repository.forActiveServer
 import com.quantumff.segue.core.data.session.SubsonicClientProvider
 import com.quantumff.segue.core.data.util.Clock
 import com.quantumff.segue.core.database.dao.DownloadDao
+import com.quantumff.segue.core.database.dao.LyricsDao
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.PinEntity
 import com.quantumff.segue.core.datastore.DownloadPreferencesDataSource
@@ -151,6 +152,7 @@ interface DownloadRepository {
 internal class OfflineDownloadRepository @Inject constructor(
     private val clients: SubsonicClientProvider,
     private val dao: DownloadDao,
+    private val lyrics: LyricsDao,
     private val files: DownloadFiles,
     private val progress: DownloadProgressTracker,
     private val scheduler: DownloadScheduler,
@@ -327,7 +329,7 @@ internal class OfflineDownloadRepository @Inject constructor(
 
     /**
      * Makes the server's download rows match its pins: queues songs a pin covers that have no row,
-     * and deletes rows and files of songs no pin covers any more, except those a removal still
+     * and deletes rows, files and kept lyrics of songs no pin covers any more, except those a removal still
      * waiting on its Undo holds back ([unpinUndoably]).
      */
     suspend fun reconcile(serverId: String) = withContext(ioDispatcher) {
@@ -339,6 +341,8 @@ internal class OfflineDownloadRepository @Inject constructor(
             if (toRemove.isNotEmpty()) {
                 // Rows first, so the player and the worker stop using the files before they go.
                 dao.delete(serverId, toRemove)
+                // After the rows, so lyrics kept for a download finishing meanwhile go too.
+                lyrics.delete(serverId, toRemove)
                 toRemove.forEach { songId ->
                     files.delete(existing[songId]?.filePath)
                     files.deleteSong(serverId, songId)

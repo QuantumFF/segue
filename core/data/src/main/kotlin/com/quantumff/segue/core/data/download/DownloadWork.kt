@@ -18,6 +18,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.quantumff.segue.core.data.R
+import com.quantumff.segue.core.data.repository.SubsonicLyricsRepository
 import com.quantumff.segue.core.data.util.Clock
 import com.quantumff.segue.core.database.dao.DownloadDao
 import com.quantumff.segue.core.database.model.DownloadEntity
@@ -97,7 +98,8 @@ internal class WorkManagerDownloadScheduler @Inject constructor(private val work
  * notification (with Pause all and Cancel). Each song resumes from its partial file. Network
  * trouble puts the song back in the queue and retries the worker later (with backoff, once the
  * constraints hold again). Once the storage limit is full no new song starts: the rest stay
- * queued until space is freed or the limit is raised, which schedules the worker again.
+ * queued until space is freed or the limit is raised, which schedules the worker again. A song
+ * that completes gets its lyrics kept too.
  */
 @HiltWorker
 internal class DownloadWorker @AssistedInject constructor(
@@ -109,6 +111,7 @@ internal class DownloadWorker @AssistedInject constructor(
     private val progress: DownloadProgressTracker,
     private val preferences: DownloadPreferencesDataSource,
     private val clock: Clock,
+    private val lyrics: SubsonicLyricsRepository,
 ) : CoroutineWorker(context, params) {
     private val notifications = DownloadNotifications(context)
     private val finished = AtomicInteger(0)
@@ -145,6 +148,15 @@ internal class DownloadWorker @AssistedInject constructor(
 
     /** False when the network failed and the worker should retry later. */
     private suspend fun downloadOne(row: DownloadEntity, quality: StreamingQuality): Boolean {
+        var saved = false
+        val keepGoing = transfer(row, quality) { saved = true }
+        // Lyrics are kept with downloads; best effort, so they never fail the song.
+        if (saved) lyrics.keep(row.serverId, row.songId)
+        return keepGoing
+    }
+
+    /** Downloads one song; calls [onSaved] once it is complete on the device. */
+    private suspend fun transfer(row: DownloadEntity, quality: StreamingQuality, onSaved: () -> Unit): Boolean {
         var bytes = row.bytesDownloaded
         var total = row.totalBytes
         try {
@@ -167,6 +179,7 @@ internal class DownloadWorker @AssistedInject constructor(
                         outcome.bytes,
                         clock.nowMillis(),
                     )
+                    if (saved) onSaved()
                     // Unpinned (or paused) during the last bytes: the row no longer wants this file.
                     if (!saved && dao.get(row.serverId, row.songId) == null) files.delete(outcome.file.path)
                     true
