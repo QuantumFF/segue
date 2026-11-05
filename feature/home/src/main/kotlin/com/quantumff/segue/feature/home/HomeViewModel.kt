@@ -56,6 +56,8 @@ data class HomeUiState(
     val genres: ImmutableList<Genre> = persistentListOf(),
     val syncProgress: SyncProgress = SyncProgress.Idle,
     val isRefreshing: Boolean = false,
+    /** Explore's own refresh is running: its header shows the inline spinner in place of the icon. */
+    val isRefreshingExplore: Boolean = false,
     /**
      * Why Home shows less than the server has, for the chip: offline (no network or Offline mode) the
      * carousels show downloaded albums and pinned playlists only; online, the last refresh may not have
@@ -94,6 +96,10 @@ data class HomeUiState(
             },
         )
 
+    /** Explore's refresh needs the server, so its icon is disabled while Offline (GLOSSARY.md). */
+    val canRefreshExplore: Boolean
+        get() = !offlineStatus.isShowingDownloads
+
     /** The first sync is still filling the library. */
     val isSyncing: Boolean
         get() = syncProgress is SyncProgress.Running || syncProgress == SyncProgress.Pending
@@ -109,6 +115,7 @@ private data class AlbumSections(
 
 private data class Status(
     val isRefreshing: Boolean = false,
+    val isRefreshingExplore: Boolean = false,
     /** The last refresh could not reach the server. */
     val serverUnreachable: Boolean = false,
     /** The last refresh failed, unreachable or refused. */
@@ -175,6 +182,7 @@ class HomeViewModel @Inject constructor(
             genres = genres.sortedByDescending { it.albumCount }.take(GENRE_COUNT).toImmutableList(),
             syncProgress = progress,
             isRefreshing = status.isRefreshing,
+            isRefreshingExplore = status.isRefreshingExplore,
             offlineStatus = offlineStatus.withServerUnreachable(status.serverUnreachable),
             refreshFailed = status.refreshFailed,
             isLoading = false,
@@ -217,12 +225,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    /** The Explore header's refresh: a new random selection. */
+    /**
+     * The Explore header's refresh: a new random selection, with the header's spinner while it
+     * runs. Offline the icon is disabled; a failure leaves the lists as they were and says so.
+     */
     fun refreshExplore() {
-        if (offlineView.isOffline.value) return
+        if (offlineView.isOffline.value || status.value.isRefreshingExplore) return
         uiState.value.featured.takeIf { it.isNotEmpty() }?.let { pinnedFeatured.value = it }
+        status.update { it.copy(isRefreshingExplore = true) }
         viewModelScope.launch {
-            remoteOutcome { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
+            val outcome = remoteOutcome { albumRepository.refreshAlbumList(AlbumListType.Random, RANDOM_SIZE) }
+            status.update { it.copy(isRefreshingExplore = false) }
+            // Room keeps the old selection, so Featured and Explore stay as they were.
+            if (outcome.isFailure) snackbars.post(SnackbarText.of(R.string.feature_home_explore_refresh_failed))
         }
     }
 
