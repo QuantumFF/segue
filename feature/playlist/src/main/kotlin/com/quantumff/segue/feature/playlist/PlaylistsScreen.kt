@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +30,7 @@ import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.MediaRow
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.SkeletonPulse
@@ -40,6 +42,7 @@ import com.quantumff.segue.core.designsystem.model.toBadgeState
 import com.quantumff.segue.core.designsystem.model.toMenuHeader
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
@@ -53,6 +56,7 @@ import kotlinx.collections.immutable.persistentListOf
 @Composable
 fun PlaylistsScreen(
     onAccountClick: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onPlaylistClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistsViewModel = hiltViewModel(),
@@ -61,6 +65,7 @@ fun PlaylistsScreen(
     PlaylistsScreenContent(
         uiState = uiState,
         onAccountClick = onAccountClick,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         onPlaylistClick = onPlaylistClick,
         onRefresh = viewModel::refresh,
         onRetry = viewModel::retry,
@@ -73,11 +78,16 @@ fun PlaylistsScreen(
     )
 }
 
-/** Stateless Playlists screen: its top bar over [PlaylistsBody]. */
+/**
+ * Stateless Playlists screen: its top bar and offline chip over [PlaylistsBody]. The chip retries
+ * with [onRetry], or opens the Offline mode setting with [onOfflineModeSettingClick] in Offline mode.
+ * Offline there is no "+": only pinned playlists show, and a new playlist needs the server.
+ */
 @Composable
 fun PlaylistsScreenContent(
     uiState: PlaylistsUiState,
     onAccountClick: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onPlaylistClick: (String) -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
@@ -91,13 +101,23 @@ fun PlaylistsScreenContent(
     var creating by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
         TopLevelTopBar(title = stringResource(R.string.feature_playlist_list_title)) {
-            SegueIconButton(
-                icon = SegueIcons.Plus,
-                contentDescription = stringResource(R.string.feature_playlist_create),
-                onClick = { creating = true },
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!uiState.isOffline) {
+                SegueIconButton(
+                    icon = SegueIcons.Plus,
+                    contentDescription = stringResource(R.string.feature_playlist_create),
+                    onClick = { creating = true },
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             AccountAction(serverName = uiState.serverName, onClick = onAccountClick)
+        }
+        if (uiState.showsOfflineChip) {
+            OfflineStatusChip(
+                status = uiState.offlineStatus,
+                onRetry = onRetry,
+                onOpenOfflineModeSetting = onOfflineModeSettingClick,
+                modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs),
+            )
         }
         PlaylistsBody(
             uiState = uiState,
@@ -323,6 +343,7 @@ private fun PlaylistsScreenPreview() {
         PlaylistsScreenContent(
             uiState = PlaylistsUiState(playlists = PreviewPlaylists, serverName = "demo", isLoading = false),
             onAccountClick = {},
+            onOfflineModeSettingClick = {},
             onPlaylistClick = {},
             onRefresh = {},
             onRetry = {},
@@ -342,6 +363,7 @@ private fun PlaylistsScreenEmptyPreview() {
         PlaylistsScreenContent(
             uiState = PlaylistsUiState(isLoading = false),
             onAccountClick = {},
+            onOfflineModeSettingClick = {},
             onPlaylistClick = {},
             onRefresh = {},
             onRetry = {},

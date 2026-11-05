@@ -128,6 +128,7 @@ fun SegueNavHost(
         navigation<PlaylistsGraph>(startDestination = PlaylistsRoute) {
             playlistsScreen(
                 onAccountClick = onAccountClick,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onPlaylistClick = onPlaylistClick,
             )
         }
