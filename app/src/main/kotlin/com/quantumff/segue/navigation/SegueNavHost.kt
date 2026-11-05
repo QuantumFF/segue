@@ -159,7 +159,13 @@ fun SegueNavHost(
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
         )
-        genreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick)
+        genreScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
+        )
         albumListScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
