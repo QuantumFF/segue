@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.refreshIfOnline
 import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
@@ -82,7 +83,7 @@ data class PlaylistsUiState(
         get() = offlineStatus.showsChip(hasContent = screenState == ScreenState.Content)
 }
 
-/** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh, plus CRUD. */
+/** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh while online, plus CRUD. */
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
@@ -115,7 +116,7 @@ class PlaylistsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlaylistsUiState())
 
     init {
-        fetch()
+        offlineView.refreshIfOnline(::fetch)
     }
 
     /**
@@ -139,8 +140,13 @@ class PlaylistsViewModel @Inject constructor(
         }
     }
 
-    /** Pull-to-refresh. Reports a failure, since the user asked for it. */
-    fun refresh() {
+    /**
+     * Pull-to-refresh. Reports a failure, since the user asked for it. Offline the server is not
+     * asked, and a snackbar says why.
+     */
+    fun refresh() = offlineView.requestRefresh(snackbars, ::refreshPlaylists)
+
+    private fun refreshPlaylists() {
         if (local.value.refreshing) return
         local.update { it.copy(refreshing = true) }
         viewModelScope.launch {
