@@ -21,6 +21,7 @@ import com.quantumff.segue.core.network.model.NetworkStructuredLyrics
 import com.quantumff.segue.core.testing.repository.FakeServerCapabilitiesRepository
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -223,6 +224,16 @@ class PlaylistAndAlbumRepositoryTest {
         }
     }
 
+    private fun lyrics(capabilities: ServerCapabilitiesRepository, dispatcher: CoroutineDispatcher) =
+        SubsonicLyricsRepository(
+            clients = clients,
+            capabilities = capabilities,
+            lyricsDao = db.lyricsDao(),
+            downloads = db.downloadDao(),
+            transactions = TestTransactionRunner(db),
+            ioDispatcher = dispatcher,
+        )
+
     @Test
     fun `lyrics are fetched only when supported, synced first, and cached`() = runTest {
         val capabilities = FakeServerCapabilitiesRepository()
@@ -240,7 +251,7 @@ class PlaylistAndAlbumRepositoryTest {
             ),
         )
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val repository = SubsonicLyricsRepository(clients, capabilities, dispatcher)
+        val repository = lyrics(capabilities, dispatcher)
 
         val lyrics = repository.lyrics("s")
         repository.lyrics("s")
@@ -255,7 +266,7 @@ class PlaylistAndAlbumRepositoryTest {
     @Test
     fun `lyrics are empty without the songLyrics extension`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val repository = SubsonicLyricsRepository(clients, FakeServerCapabilitiesRepository(), dispatcher)
+        val repository = lyrics(FakeServerCapabilitiesRepository(), dispatcher)
 
         assertThat(repository.lyrics("s")).isEmpty()
         assertThat(server.lyricsRequests).isEmpty()

@@ -12,6 +12,7 @@ import com.quantumff.segue.core.database.dao.ArtistDao
 import com.quantumff.segue.core.database.dao.BrowseDao
 import com.quantumff.segue.core.database.dao.DownloadDao
 import com.quantumff.segue.core.database.dao.GenreDao
+import com.quantumff.segue.core.database.dao.LyricsDao
 import com.quantumff.segue.core.database.dao.PlaylistDao
 import com.quantumff.segue.core.database.dao.QueueDao
 import com.quantumff.segue.core.database.dao.ScrobbleDao
@@ -79,6 +80,9 @@ object DatabaseModule {
 
     @Provides
     fun browseDao(db: SegueDatabase): BrowseDao = db.browseDao()
+
+    @Provides
+    fun lyricsDao(db: SegueDatabase): LyricsDao = db.lyricsDao()
 }
 
 @Module

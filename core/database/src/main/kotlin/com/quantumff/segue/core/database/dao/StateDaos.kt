@@ -9,6 +9,7 @@ import androidx.room.Upsert
 import com.quantumff.segue.core.database.model.AlbumEntity
 import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.DownloadEntity
+import com.quantumff.segue.core.database.model.LyricsEntity
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
 import com.quantumff.segue.core.database.model.PinEntity
 import com.quantumff.segue.core.database.model.PinSongRow
@@ -328,6 +329,24 @@ interface ServerCapabilitiesDao {
     suspend fun upsert(capabilities: ServerCapabilitiesEntity)
 }
 
+/** Lyrics kept with downloaded songs. */
+@Dao
+abstract class LyricsDao {
+    @Query("SELECT * FROM lyrics WHERE serverId = :serverId AND songId = :songId")
+    abstract suspend fun get(serverId: String, songId: String): LyricsEntity?
+
+    @Upsert
+    abstract suspend fun upsert(lyrics: LyricsEntity)
+
+    @Transaction
+    open suspend fun delete(serverId: String, songIds: Collection<String>) {
+        songIds.chunked(SQL_CHUNK).forEach { deleteChunk(serverId, it) }
+    }
+
+    @Query("DELETE FROM lyrics WHERE serverId = :serverId AND songId IN (:songIds)")
+    protected abstract suspend fun deleteChunk(serverId: String, songIds: List<String>)
+}
+
 /** Full-text search over the FTS4 tables. Pass a `MATCH` expression from FtsQuery. */
 @Dao
 interface SearchDao {
@@ -384,6 +403,7 @@ abstract class ServerDataDao {
         deletePins(serverId)
         deleteSyncMetadata(serverId)
         deleteCapabilities(serverId)
+        deleteLyrics(serverId)
     }
 
     @Query("DELETE FROM songs WHERE serverId = :serverId")
@@ -436,4 +456,7 @@ abstract class ServerDataDao {
 
     @Query("DELETE FROM server_capabilities WHERE serverId = :serverId")
     protected abstract suspend fun deleteCapabilities(serverId: String)
+
+    @Query("DELETE FROM lyrics WHERE serverId = :serverId")
+    protected abstract suspend fun deleteLyrics(serverId: String)
 }
