@@ -128,6 +128,7 @@ fun SegueNavHost(
         navigation<PlaylistsGraph>(startDestination = PlaylistsRoute) {
             playlistsScreen(
                 onAccountClick = onAccountClick,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onPlaylistClick = onPlaylistClick,
             )
         }
@@ -159,12 +160,19 @@ fun SegueNavHost(
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
         )
-        genreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick)
+        genreScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
+        )
         albumListScreen(
             onBackClick = onBackClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
         )
         settingsScreen(
             onBackClick = onBackClick,

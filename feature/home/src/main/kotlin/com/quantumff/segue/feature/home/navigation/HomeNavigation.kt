@@ -49,6 +49,7 @@ fun NavGraphBuilder.albumListScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<AlbumListRoute> {
         AlbumListScreen(
@@ -56,6 +57,7 @@ fun NavGraphBuilder.albumListScreen(
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
         )
     }
 }

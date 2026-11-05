@@ -30,9 +30,9 @@ import com.quantumff.segue.core.designsystem.component.AlbumCardSkeleton
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.SkeletonPulse
-import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.SubScreenTopBar
 import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
@@ -47,6 +47,8 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.ScreenState
 import kotlinx.collections.immutable.ImmutableList
 
 @Composable
@@ -55,6 +57,7 @@ fun AlbumListScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlbumListViewModel = hiltViewModel(),
 ) {
@@ -69,11 +72,16 @@ fun AlbumListScreen(
         onAlbumAction = { album, action -> viewModel.onAlbumAction(album, action, menuHost) },
         onRefresh = viewModel::refresh,
         onMessageDismiss = viewModel::messageShown,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         modifier = modifier,
     )
 }
 
-/** A Home section's "See all": the albums in a `GridCells.Adaptive(150)` grid. */
+/**
+ * A Home section's "See all": the albums in a `GridCells.Adaptive(150)` grid. The offline chip
+ * behaves as Home's: it retries through [onRefresh], or in Offline mode opens the setting through
+ * [onOfflineModeSettingClick].
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumListScreen(
@@ -83,6 +91,7 @@ fun AlbumListScreen(
     onAlbumAction: (Album, MediaAction) -> Unit,
     onRefresh: () -> Unit,
     onMessageDismiss: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuAlbum by remember { mutableStateOf<Album?>(null) }
@@ -99,10 +108,15 @@ fun AlbumListScreen(
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             SubScreenTopBar(title = stringResource(uiState.type.title), onBackClick = onBackClick)
-            if (uiState.isOffline && uiState.albums.isNotEmpty()) {
-                StatusChip(
-                    label = stringResource(com.quantumff.segue.core.designsystem.R.string.ds_offline_cached),
-                    onClick = onRefresh,
+            // Offline the chip explains an empty grid too; an unreachable server with nothing cached has the empty state.
+            val status = uiState.offlineStatus
+            if (status.isShowingDownloads ||
+                (status == OfflineStatus.ShowingCachedLibrary && uiState.albums.isNotEmpty())
+            ) {
+                OfflineStatusChip(
+                    status = status,
+                    onRetry = onRefresh,
+                    onOpenOfflineModeSetting = onOfflineModeSettingClick,
                     modifier = Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs),
                 )
             }
@@ -111,23 +125,32 @@ fun AlbumListScreen(
                 onRefresh = onRefresh,
                 modifier = Modifier.weight(1f),
             ) {
-                when {
-                    uiState.albums.isNotEmpty() -> AlbumGrid(
+                when (uiState.screenState) {
+                    ScreenState.Content -> AlbumGrid(
                         albums = uiState.albums,
                         onAlbumClick = { onAlbumClick(it.id) },
                         onAlbumLongClick = { menuAlbum = it },
                     )
 
-                    uiState.isLoading || uiState.isRefreshing -> AlbumGridSkeleton()
+                    ScreenState.Loading -> AlbumGridSkeleton()
 
-                    else -> EmptyState(
-                        icon = SegueIcons.Disc3,
-                        title = stringResource(R.string.feature_home_album_list_empty_title),
-                        message = null,
-                        actionLabel = stringResource(R.string.feature_home_refresh),
-                        onActionClick = onRefresh,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    ScreenState.Empty, is ScreenState.Error -> if (uiState.offlineStatus.isShowingDownloads) {
+                        EmptyState(
+                            icon = SegueIcons.Offline,
+                            title = stringResource(R.string.feature_home_album_list_offline_empty_title),
+                            message = stringResource(R.string.feature_home_album_list_offline_empty_message),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        EmptyState(
+                            icon = SegueIcons.Disc3,
+                            title = stringResource(R.string.feature_home_album_list_empty_title),
+                            message = null,
+                            actionLabel = stringResource(R.string.feature_home_refresh),
+                            onActionClick = onRefresh,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
             }
         }
@@ -217,6 +240,7 @@ private fun AlbumListScreenPreview() {
             onAlbumAction = { _, _ -> },
             onRefresh = {},
             onMessageDismiss = {},
+            onOfflineModeSettingClick = {},
         )
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.OfflineStatus
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,7 +48,7 @@ class PlaylistsBodyTest {
 
     @Test
     fun `offline with no pinned playlists says so, without Create or Retry`() {
-        state = state.copy(isOffline = true, fetchFailed = true)
+        state = state.copy(offlineStatus = OfflineStatus.ShowingDownloads, fetchFailed = true)
         show()
 
         compose.onNodeWithText("You're offline").assertIsDisplayed()
