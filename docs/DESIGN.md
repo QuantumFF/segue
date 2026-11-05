@@ -321,7 +321,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - The active line is at 100% opacity and scale 1.0. Other lines are at 35% and scale 0.96 (`lyric` motion). The active line is held at 35% of the panel height.
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
-- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
+  - Offline with no lyrics kept on the device (§4.9): "Lyrics aren't available offline" empty state, with no Retry.
+- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top. Rows follow Available like every track list (§5.2): download badges, and rows that can't play are dimmed and not clickable. Offline, when they can't load: "Related songs need a connection" empty state, with no Retry.
 - **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). It shows in the app's one snackbar host (§5.7): above the mini player, or over Now Playing while it is open. It goes away when playback moves to another item or a retry plays.
 
   | Kind | Copy | Actions |
@@ -485,7 +486,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Error:**
   - Room has data and the server can't be reached: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
   - Room has data and the server answered with an error (signed out, refused, server error): show it without the chip. It is not offline.
-  - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads" (the Library shows it under the tab row). A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
+  - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads", or "Offline mode · showing downloads" while the user's Offline mode is on (the Library shows it under the tab row). Without a network, tapping the chip retries; in Offline mode it opens Settings at Downloads & storage, where the switch is. A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
+  - Offline, a pull to refresh does not reach the server; a "You're offline" snackbar says so.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
   - Lyrics follow the downloads: offline, a downloaded song still shows its lyrics, kept with the download (§4.9).
   - Image load failure: keep the placeholder. Never show a broken-image icon.

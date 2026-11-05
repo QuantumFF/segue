@@ -11,12 +11,16 @@ import com.quantumff.segue.core.data.repository.AlbumRepository
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueueSource
@@ -51,10 +55,12 @@ data class HomeUiState(
     val genres: ImmutableList<Genre> = persistentListOf(),
     val syncProgress: SyncProgress = SyncProgress.Idle,
     val isRefreshing: Boolean = false,
-    /** The last refresh could not reach the server: cached data is shown with an offline chip. */
-    val isOffline: Boolean = false,
-    /** Offline (no network or offline mode): the carousels show downloaded albums and pinned playlists only. */
-    val showsDownloadedOnly: Boolean = false,
+    /**
+     * Why Home shows less than the server has, for the chip: offline (no network or Offline mode) the
+     * carousels show downloaded albums and pinned playlists only; online, the last refresh may not have
+     * reached the server, so the cached library shows.
+     */
+    val offlineStatus: OfflineStatus = OfflineStatus.Online,
     /** True until Room has answered, so the empty state does not flash on start. */
     val isLoading: Boolean = true,
     /** A failed menu action, for the snackbar. */
@@ -77,7 +83,12 @@ private data class AlbumSections(
     val favorites: List<Album>,
 )
 
-private data class Status(val isRefreshing: Boolean, val isOffline: Boolean, val message: MediaActionFailure?)
+private data class Status(
+    val isRefreshing: Boolean = false,
+    /** The last refresh could not reach the server. */
+    val serverUnreachable: Boolean = false,
+    val message: MediaActionFailure? = null,
+)
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -88,8 +99,9 @@ class HomeViewModel @Inject constructor(
     private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     private val mediaActions: MediaActionHandler,
+    private val snackbars: Snackbars,
 ) : ViewModel() {
-    private val status = MutableStateFlow(Status(isRefreshing = false, isOffline = false, message = null))
+    private val status = MutableStateFlow(Status())
 
     /** Featured albums held while Explore alone is refreshed, so the carousel does not reshuffle under the user. */
     private val pinnedFeatured = MutableStateFlow<List<Album>?>(null)
@@ -120,8 +132,8 @@ class HomeViewModel @Inject constructor(
         offlineView.playlists,
         libraryRepository.genres,
         combine(serverRepository.activeServer, syncRepository.progress, ::Pair),
-        combine(status, pinnedFeatured, ::Pair),
-    ) { (sections, downloaded), playlists, genres, (server, progress), (status, pinned) ->
+        combine(status, pinnedFeatured, offlineView.offlineStatus, ::Triple),
+    ) { (sections, downloaded), playlists, genres, (server, progress), (status, pinned, offlineStatus) ->
         // Featured albums held through an Explore refresh still follow the offline filter.
         val featured = pinned?.let { OfflineLibrary.albums(it, downloaded) } ?: sections.random.take(FEATURED_COUNT)
         val featuredIds = featured.mapTo(HashSet()) { it.id }
@@ -137,22 +149,31 @@ class HomeViewModel @Inject constructor(
             genres = genres.sortedByDescending { it.albumCount }.take(GENRE_COUNT).toImmutableList(),
             syncProgress = progress,
             isRefreshing = status.isRefreshing,
-            isOffline = status.isOffline,
-            showsDownloadedOnly = downloaded != null,
+            offlineStatus = offlineStatus.withServerUnreachable(status.serverUnreachable),
             isLoading = false,
             message = status.message,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), HomeUiState())
 
     init {
-        refresh()
+        // Offline the server is not asked on entry: the downloaded music is what there is, and the chip says so.
+        if (!offlineView.isOffline.value) refreshLists()
     }
 
-    /** Refetches the server-ordered lists. Room keeps showing the cached ones meanwhile. */
+    /**
+     * Pull to refresh, and the chip's retry: refetches the server-ordered lists while Room keeps
+     * showing the cached ones. Offline the server is not asked, and a snackbar says why.
+     */
     fun refresh() {
+        if (offlineView.isOffline.value) {
+            snackbars.post(SnackbarText.offline)
+        } else {
+            refreshLists()
+        }
+    }
+
+    private fun refreshLists() {
         if (status.value.isRefreshing) return
-        // Offline the server is not asked: the cached, downloaded music is what there is.
-        if (offlineView.isOffline.value) return
         status.update { it.copy(isRefreshing = true) }
         // A full refresh may reshuffle Featured again.
         pinnedFeatured.value = null
@@ -163,8 +184,8 @@ class HomeViewModel @Inject constructor(
                     remoteOutcome { albumRepository.refreshAlbumList(type, size) }
                 }
             }.awaitAll()
-            val offline = results.any { it.showsOfflineChip }
-            status.update { it.copy(isRefreshing = false, isOffline = offline) }
+            val unreachable = results.any { it.showsOfflineChip }
+            status.update { it.copy(isRefreshing = false, serverUnreachable = unreachable) }
         }
     }
 

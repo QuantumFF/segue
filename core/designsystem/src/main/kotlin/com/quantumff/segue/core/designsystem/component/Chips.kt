@@ -194,16 +194,27 @@ fun StatusChip(
 
 /**
  * The offline status chip under a screen's top bar or tab row (DESIGN.md §5.8), with copy for each
- * [status]: "Offline · showing downloads" or "Offline · showing cached library". Nothing shows
- * while [OfflineStatus.Online].
+ * [status]: "Offline · showing downloads", "Offline mode · showing downloads" or "Offline · showing
+ * cached library". Nothing shows while [OfflineStatus.Online].
+ *
+ * A tap calls [onOpenOfflineModeSetting] in Offline mode, which only the user can turn off (Settings
+ * at Downloads & storage), and [onRetry] otherwise. Without the callback for its status the chip
+ * only informs.
  */
 @Composable
-fun OfflineStatusChip(status: OfflineStatus, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+fun OfflineStatusChip(
+    status: OfflineStatus,
+    modifier: Modifier = Modifier,
+    onRetry: (() -> Unit)? = null,
+    onOpenOfflineModeSetting: (() -> Unit)? = null,
+) {
     val label = when (status) {
         OfflineStatus.Online -> return
         OfflineStatus.ShowingCachedLibrary -> R.string.ds_offline_cached
         OfflineStatus.ShowingDownloads -> R.string.ds_offline_downloads
+        OfflineStatus.ShowingDownloadsInOfflineMode -> R.string.ds_offline_mode_downloads
     }
+    val onClick = if (status.opensOfflineModeSetting) onOpenOfflineModeSetting else onRetry
     StatusChip(label = stringResource(label), modifier = modifier, onClick = onClick)
 }
 
@@ -223,6 +234,7 @@ private fun ChipsPreview() {
                 Pill(label = "Rock", onClick = {})
             }
             OfflineStatusChip(OfflineStatus.ShowingDownloads)
+            OfflineStatusChip(OfflineStatus.ShowingDownloadsInOfflineMode)
         }
     }
 }

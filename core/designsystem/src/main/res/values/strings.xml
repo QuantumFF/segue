@@ -34,6 +34,7 @@
     <string name="ds_dismiss">Dismiss</string>
     <string name="ds_offline_cached">Offline · showing cached library</string>
     <string name="ds_offline_downloads">Offline · showing downloads</string>
+    <string name="ds_offline_mode_downloads">Offline mode · showing downloads</string>
     <string name="ds_search_hint">Search</string>
     <string name="ds_playing_from">Playing from %1$s</string>
     <string name="ds_overline_album">Album</string>
