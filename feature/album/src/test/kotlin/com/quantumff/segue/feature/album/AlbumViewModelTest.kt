@@ -19,6 +19,7 @@ import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
@@ -362,7 +363,7 @@ class AlbumViewModelTest {
             assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, album.name))
             snackbars.onDismiss(downloading)
 
-            viewModel.removeDownload()
+            viewModel.onPinAction(PinAction.Remove)
             assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
             val removed = checkNotNull(snackbars.current.value)
             assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, album.name))
@@ -370,6 +371,41 @@ class AlbumViewModelTest {
             snackbars.onAction(removed)
             assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Queued)
             assertThat(downloads.deleted).isEmpty()
+        }
+    }
+
+    @Test
+    fun retryAndResumePutThePinBackInTheQueueAndPauseHoldsIt() = runTest {
+        seed()
+        downloads.pins.value = mapOf((PinKind.Album to "album-1") to DownloadStatus.Failed)
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Failed)
+
+            viewModel.onPinAction(PinAction.Retry)
+            viewModel.onPinAction(PinAction.Resume)
+            viewModel.onPinAction(PinAction.Pause)
+
+            assertThat(downloads.resumed).containsExactly(PinKind.Album to "album-1", PinKind.Album to "album-1")
+            assertThat(downloads.paused).containsExactly(PinKind.Album to "album-1")
+        }
+    }
+
+    @Test
+    fun cancelUnpinsTheAlbumWithUndo() = runTest {
+        seed()
+        downloads.pins.value = mapOf((PinKind.Album to "album-1") to DownloadStatus.Downloading(0.5f))
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Downloading(0.5f))
+
+            viewModel.onPinAction(PinAction.Cancel)
+            assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
+            val removed = checkNotNull(snackbars.current.value)
+            assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, album.name))
+
+            snackbars.onAction(removed)
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Downloading(0.5f))
         }
     }
 }

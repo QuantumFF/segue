@@ -12,10 +12,12 @@ import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
 import com.quantumff.segue.core.model.ArtistInfo
+import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
@@ -339,7 +341,7 @@ class ArtistViewModelTest {
         assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, name))
         snackbars.onDismiss(downloading)
 
-        viewModel.removeDownload()
+        viewModel.onPinAction(PinAction.Remove)
         assertThat(downloads.pins.value).isEmpty()
         val removed = checkNotNull(snackbars.current.value)
         assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, name))
@@ -347,5 +349,20 @@ class ArtistViewModelTest {
 
         snackbars.onDismiss(removed)
         assertThat(downloads.deleted).containsExactly(PinKind.Artist to "artist-1")
+    }
+
+    @Test
+    fun theDownloadSheetRetriesResumesAndPausesTheArtistsPin() = runTest {
+        seed()
+        downloads.pins.value = mapOf((PinKind.Artist to "artist-1") to DownloadStatus.Failed)
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+        viewModel.onPinAction(PinAction.Retry)
+        viewModel.onPinAction(PinAction.Pause)
+        viewModel.onPinAction(PinAction.Resume)
+
+        assertThat(downloads.resumed).containsExactly(PinKind.Artist to "artist-1", PinKind.Artist to "artist-1")
+        assertThat(downloads.paused).containsExactly(PinKind.Artist to "artist-1")
     }
 }

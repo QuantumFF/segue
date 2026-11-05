@@ -217,6 +217,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.3 Album detail (Feishin hero)
 - Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
 - Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle replaces the queue with the tracks in a fresh shuffled order, as does every "Shuffle" action (there is no player shuffle mode, §4.7). Shuffle long-press opens "Shuffle albums" options where relevant.
+- Download on a page that is already pinned opens its download sheet, whose rows follow the pin's status: failed offers Retry download and Remove download, paused Resume download and Remove download, queued or downloading Pause download and Cancel download, and downloaded only Remove download. Cancel and Remove unpin with Undo (§5.7). Artist and playlist pages open the same sheet.
 - While the album is the queue source and plays, Play shows Pause and a tap pauses. While it is the paused queue source, Play resumes the queue where it was. On any other page, Play replaces the queue with the page. Compare the kind and the id of the queue source: ids are unique per kind only. Shuffle always replaces the queue.
 - Genre pills below the actions (§5.6).
 - Track list: rows in album mode (number column, no art). For multi-disc albums, add a sticky "Disc N · subtitle" header (`labelLarge`, 40 tall).
