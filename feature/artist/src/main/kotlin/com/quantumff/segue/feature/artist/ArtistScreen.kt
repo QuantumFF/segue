@@ -44,6 +44,7 @@ import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.PinSheet
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -67,6 +68,7 @@ import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
@@ -103,7 +105,7 @@ fun ArtistDetailRoute(
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
         onDownload = viewModel::download,
-        onRemoveDownload = viewModel::removeDownload,
+        onPinAction = viewModel::onPinAction,
         onArtistAction = { viewModel.onArtistAction(it, menuHost) },
         onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
         onSongSwipe = viewModel::onSongSwipe,
@@ -132,7 +134,7 @@ fun ArtistScreen(
     modifier: Modifier = Modifier,
     onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit = { _, _ -> },
     onDownload: () -> Unit = {},
-    onRemoveDownload: () -> Unit = {},
+    onPinAction: (PinAction) -> Unit = {},
     onArtistAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
     onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
@@ -172,7 +174,7 @@ fun ArtistScreen(
                 onToggleStar = onToggleStar,
                 onRetry = onRetry,
                 onDownload = onDownload,
-                onRemoveDownload = onRemoveDownload,
+                onPinAction = onPinAction,
                 onArtistAction = onArtistAction,
                 onSongAction = onSongAction,
                 onSongSwipe = onSongSwipe,
@@ -208,7 +210,7 @@ private fun ArtistContent(
     onToggleStar: () -> Unit,
     onRetry: () -> Unit,
     onDownload: () -> Unit,
-    onRemoveDownload: () -> Unit,
+    onPinAction: (PinAction) -> Unit,
     onArtistAction: (MediaAction) -> Unit,
     onSongAction: (Song, MediaAction) -> Unit,
     onSongSwipe: (Song, QueuePlacement) -> Unit,
@@ -354,12 +356,14 @@ private fun ArtistContent(
         )
     }
     if (downloadMenuOpen) {
-        MediaContextMenu(
-            header = artist.toMenuHeader(),
-            actions = persistentListOf(MediaAction.RemoveDownload),
-            onAction = { onRemoveDownload() },
-            onDismissRequest = { downloadMenuOpen = false },
-        )
+        state.download?.let { status ->
+            PinSheet(
+                header = artist.toMenuHeader(),
+                status = status,
+                onAction = onPinAction,
+                onDismissRequest = { downloadMenuOpen = false },
+            )
+        }
     }
     state.topSongs.firstOrNull { it.id == menuSongId }?.let { song ->
         MediaContextMenu(

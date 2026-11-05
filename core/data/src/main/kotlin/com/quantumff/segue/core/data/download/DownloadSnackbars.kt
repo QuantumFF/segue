@@ -4,6 +4,7 @@ import com.quantumff.segue.core.data.R
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 
 /** Pins [target] and confirms it on [snackbars]: "Downloading <name>". */
@@ -45,4 +46,21 @@ suspend fun DownloadRepository.unpinWithUndo(targets: List<PinTarget>, snackbars
         text,
         SnackbarAction.undo(onDismiss = { removals.forEach { it.commit() } }) { removals.forEach { it.undo() } },
     )
+}
+
+/**
+ * Carries out an action from a page's download sheet on the pin [kind] [id]: Retry and Resume
+ * [resume][DownloadRepository.resume] it, Pause [pause][DownloadRepository.pause]s it, and Cancel
+ * and Remove [unpinWithUndo] it under "Removed <name>".
+ */
+suspend fun DownloadRepository.carryOut(
+    action: PinAction,
+    kind: PinKind,
+    id: String,
+    name: String,
+    snackbars: Snackbars,
+) = when (action) {
+    PinAction.Retry, PinAction.Resume -> resume(kind, id)
+    PinAction.Pause -> pause(kind, id)
+    PinAction.Cancel, PinAction.Remove -> unpinWithUndo(kind, id, name, snackbars)
 }
