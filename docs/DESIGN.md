@@ -320,7 +320,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - The active line is at 100% opacity and scale 1.0. Other lines are at 35% and scale 0.96 (`lyric` motion). The active line is held at 35% of the panel height.
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
-- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
+  - Offline with no lyrics kept on the device (§4.9): "Lyrics aren't available offline" empty state, with no Retry.
+- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top. Rows follow Available like every track list (§5.2): download badges, and rows that can't play are dimmed and not clickable. Offline, when they can't load: "Related songs need a connection" empty state, with no Retry.
 - **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). It shows in the app's one snackbar host (§5.7): above the mini player, or over Now Playing while it is open. It goes away when playback moves to another item or a retry plays.
 
   | Kind | Copy | Actions |

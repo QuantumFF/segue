@@ -48,6 +48,8 @@
     <string name="feature_nowplaying_lyrics_empty_title">No lyrics</string>
     <string name="feature_nowplaying_lyrics_empty_message">The server has no lyrics for this track</string>
     <string name="feature_nowplaying_lyrics_error">Couldn\'t load lyrics</string>
+    <string name="feature_nowplaying_lyrics_offline_title">Lyrics aren\'t available offline</string>
+    <string name="feature_nowplaying_lyrics_offline_message">Downloaded songs keep their lyrics on this device</string>
     <string name="feature_nowplaying_lyrics_sync">Sync</string>
 
     <string name="feature_nowplaying_related_play_all">Play all</string>
@@ -55,6 +57,8 @@
     <string name="feature_nowplaying_related_empty_title">Nothing related</string>
     <string name="feature_nowplaying_related_empty_message">The server found no similar songs</string>
     <string name="feature_nowplaying_related_unavailable">This track has no artist to find similar songs for</string>
+    <string name="feature_nowplaying_related_offline_title">Related songs need a connection</string>
+    <string name="feature_nowplaying_related_offline_message">The server finds them, so they come back when you\'re online</string>
     <string name="feature_nowplaying_related_error">Couldn\'t load related songs</string>
 
 

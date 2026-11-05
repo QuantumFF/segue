@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.exceptionOrNull
 import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -29,7 +30,6 @@ import com.quantumff.segue.feature.nowplaying.lyrics.LyricsContent
 import com.quantumff.segue.feature.nowplaying.lyrics.PlaybackSample
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +62,7 @@ class NowPlayingViewModel @Inject constructor(
     private val playIntents: PlayIntents,
     private val playlists: PlaylistRepository,
     private val snackbars: Snackbars,
+    private val offlineView: OfflineLibraryView,
 ) : ViewModel() {
     private val currentSongId: Flow<String?> = player.state
         .map { it.currentItem?.songId }
@@ -103,12 +104,14 @@ class NowPlayingViewModel @Inject constructor(
     private fun visibility(panel: NowPlayingPanel): Flow<Boolean> =
         visiblePanels.map { panel in it }.distinctUntilChanged()
 
+    // Lyrics and related songs reload when the device goes offline or back online.
     val lyrics: StateFlow<LyricsUiState> = combine(
         currentSongId,
         visibility(NowPlayingPanel.Lyrics),
         retryLyrics,
-    ) { id, visible, _ -> id.takeIf { visible } }
-        .flatMapLatest { id -> if (id == null) flowOf(null) else loadLyrics(id) }
+        offlineView.isOffline,
+    ) { id, visible, _, offline -> id.takeIf { visible }?.let { it to offline } }
+        .flatMapLatest { request -> if (request == null) flowOf(null) else loadLyrics(request.first, request.second) }
         // Keep showing the last lyrics while the panel is hidden, so reopening does not flash.
         .holdLastNonNull(LyricsUiState.Loading)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), LyricsUiState.Loading)
@@ -139,16 +142,22 @@ class NowPlayingViewModel @Inject constructor(
         currentSong.map { it?.artistId to (it != null) }.distinctUntilChanged(),
         visibility(NowPlayingPanel.Related),
         retryRelated,
-    ) { (artistId, known), visible, _ -> Triple(artistId, known, visible) }
-        .flatMapLatest { (artistId, known, visible) ->
+        offlineView.isOffline,
+    ) { (artistId, known), visible, _, offline -> RelatedRequest(artistId, known, visible, offline) }
+        .flatMapLatest { request ->
             when {
-                !visible -> flowOf(null)
-                artistId == null -> flowOf(if (known) RelatedUiState.Unavailable else RelatedUiState.Loading)
-                else -> loadRelated(artistId)
+                !request.visible -> flowOf(null)
+
+                request.artistId == null ->
+                    flowOf(if (request.known) RelatedUiState.Unavailable else RelatedUiState.Loading)
+
+                else -> loadRelated(request.artistId, request.offline)
             }
         }
         .holdLastNonNull(RelatedUiState.Loading)
-        .combine(markedSong) { related, current -> related.shownWhile(current) }
+        .combine(combine(markedSong, offlineView.songAvailability, ::Pair)) { related, (current, availability) ->
+            related.shownWhile(current, availability)
+        }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), RelatedUiState.Loading)
 
@@ -226,24 +235,14 @@ class NowPlayingViewModel @Inject constructor(
 
     fun clearQueue() = playback.clearQueue()
 
-    private fun loadLyrics(songId: String): Flow<LyricsUiState> = flow {
+    private fun loadLyrics(songId: String, offline: Boolean): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)
-        val lyrics = loadOrNull("lyrics") { lyricsRepository.lyrics(songId) }
-        emit(
-            if (lyrics ==
-                null
-            ) {
-                LyricsUiState.Error
-            } else {
-                LyricsUiState.Loaded(LyricsContent.from(lyrics.firstOrNull()))
-            },
-        )
+        emit(lyricsUiState(loadOrNull("lyrics") { lyricsRepository.lyrics(songId) }, offline))
     }
 
-    private fun loadRelated(artistId: String): Flow<RelatedUiState> = flow {
+    private fun loadRelated(artistId: String, offline: Boolean): Flow<RelatedUiState> = flow {
         emit(RelatedUiState.Loading)
-        val songs = loadOrNull("related songs") { artists.similarSongs(artistId, RELATED_COUNT) }
-        emit(if (songs == null) RelatedUiState.Error else RelatedUiState.Loaded(songs.toImmutableList()))
+        emit(relatedUiState(loadOrNull("related songs") { artists.similarSongs(artistId, RELATED_COUNT) }, offline))
     }
 
     private inline fun <T> loadOrNull(what: String, block: () -> T): T? = remoteOutcome(block)
@@ -256,6 +255,8 @@ class NowPlayingViewModel @Inject constructor(
         const val RELATED_COUNT = 30
     }
 }
+
+private data class RelatedRequest(val artistId: String?, val known: Boolean, val visible: Boolean, val offline: Boolean)
 
 /** Emits [initial], then every non-null upstream value: null means "keep the last value". */
 private fun <T : Any> Flow<T?>.holdLastNonNull(initial: T): Flow<T> = flow {

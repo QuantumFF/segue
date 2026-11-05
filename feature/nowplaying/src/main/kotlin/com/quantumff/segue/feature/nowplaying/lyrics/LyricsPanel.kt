@@ -72,6 +72,13 @@ internal fun LyricsPanel(
             modifier = modifier,
         )
 
+        LyricsUiState.Offline -> EmptyState(
+            icon = SegueIcons.Offline,
+            title = stringResource(R.string.feature_nowplaying_lyrics_offline_title),
+            message = stringResource(R.string.feature_nowplaying_lyrics_offline_message),
+            modifier = modifier,
+        )
+
         is LyricsUiState.Loaded -> when (val content = state.content) {
             null -> EmptyState(
                 icon = SegueIcons.Lyrics,
