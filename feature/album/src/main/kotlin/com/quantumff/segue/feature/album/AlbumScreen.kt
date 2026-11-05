@@ -45,6 +45,7 @@ import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
 import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
 import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
+import com.quantumff.segue.core.designsystem.component.DownloadSheet
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
@@ -52,7 +53,6 @@ import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.Pill
-import com.quantumff.segue.core.designsystem.component.PinSheet
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.RatingBar
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
@@ -326,7 +326,7 @@ private fun AlbumContent(
     }
     if (downloadMenuOpen) {
         state.download?.let { status ->
-            PinSheet(
+            DownloadSheet(
                 header = album.toMenuHeader(),
                 status = status,
                 onAction = onPinAction,

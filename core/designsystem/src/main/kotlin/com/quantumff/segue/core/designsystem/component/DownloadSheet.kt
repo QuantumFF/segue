@@ -24,7 +24,7 @@ import kotlinx.collections.immutable.toImmutableList
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PinSheet(
+fun DownloadSheet(
     header: ContextMenuHeader,
     status: DownloadStatus,
     onAction: (PinAction) -> Unit,
@@ -78,7 +78,7 @@ private val PinAction.icon: ImageVector
 
 @PreviewSegueThemes
 @Composable
-private fun PinSheetPreview() {
+private fun DownloadSheetPreview() {
     SeguePreview {
         ContextMenuContent(
             header = ContextMenuHeader(title = "In Rainbows", subtitle = "Radiohead", coverArtId = null),

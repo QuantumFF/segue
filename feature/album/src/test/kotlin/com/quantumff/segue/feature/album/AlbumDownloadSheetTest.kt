@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 
 /** The album page's download sheet offers what fits the pin's download status. */
 @RunWith(RobolectricTestRunner::class)
-class AlbumPinSheetTest {
+class AlbumDownloadSheetTest {
     @get:Rule
     val compose = createComposeRule()
 
