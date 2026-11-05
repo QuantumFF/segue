@@ -77,10 +77,10 @@ data class HomeUiState(
             mostPlayed.isEmpty() && favorites.isEmpty() && playlists.isEmpty()
 
     /**
-     * What Home shows (DESIGN.md §5.8). With nothing in Room, a refresh still running counts as
-     * loading, so the empty state never flashes during the first refresh. Without data, offline
-     * with nothing downloaded or after a failed refresh is an error with Retry, not an empty
-     * library. A first sync filling an empty library shows as empty, with the sync's own copy.
+     * What Home shows (DESIGN.md §5.8). With nothing in Room, a refresh or the first library sync
+     * still running counts as loading, so the empty state never flashes while the library fills.
+     * Without data, offline with nothing downloaded or after a failed refresh is an error with
+     * Retry, not an empty library. A sync waiting for the network does not count while Offline.
      */
     val screenState: ScreenState
         get() = ScreenState.of(
@@ -89,13 +89,17 @@ data class HomeUiState(
                 isEmpty -> 0
                 else -> 1
             },
-            isLoading = isRefreshing,
+            isLoading = isRefreshing || (isSyncing && !offlineStatus.isShowingDownloads),
             failure = when {
                 offlineStatus.isShowingDownloads -> ScreenState.Cause.Offline
                 refreshFailed -> ScreenState.Cause.Server
                 else -> null
             },
         )
+
+    /** Pull to refresh's spinner: not over the skeletons, which already say Home is loading. */
+    val showsRefreshIndicator: Boolean
+        get() = isRefreshing && screenState != ScreenState.Loading
 
     /** Explore's refresh needs the server, so its icon is disabled while Offline (GLOSSARY.md). */
     val canRefreshExplore: Boolean

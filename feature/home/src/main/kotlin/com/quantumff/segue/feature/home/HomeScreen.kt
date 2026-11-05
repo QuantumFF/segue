@@ -151,7 +151,7 @@ fun HomeScreen(
 
     Box(modifier.fillMaxSize()) {
         PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
+            isRefreshing = uiState.showsRefreshIndicator,
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -186,9 +186,7 @@ fun HomeScreen(
                         HomeErrorState(screen.cause, onRefresh)
                     }
 
-                    ScreenState.Empty -> item(key = "empty", contentType = "empty") {
-                        HomeEmptyState(uiState.isSyncing, onRefresh)
-                    }
+                    ScreenState.Empty -> item(key = "empty", contentType = "empty") { HomeEmptyState(onRefresh) }
 
                     ScreenState.Content ->
                         homeSections(uiState, sections, onPlayAlbum, onPlaylistClick, onGenreClick, onRefreshExplore)
@@ -352,24 +350,15 @@ private fun GenreSection(genres: ImmutableList<Genre>, onGenreClick: (String) ->
 }
 
 @Composable
-private fun HomeEmptyState(syncing: Boolean, onRefresh: () -> Unit) {
-    if (syncing) {
-        EmptyState(
-            icon = SegueIcons.Refresh,
-            title = stringResource(R.string.feature_home_syncing_title),
-            message = stringResource(R.string.feature_home_syncing_message),
-            modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
-        )
-    } else {
-        EmptyState(
-            icon = SegueIcons.Disc3,
-            title = stringResource(R.string.feature_home_empty_title),
-            message = stringResource(R.string.feature_home_empty_message),
-            actionLabel = stringResource(R.string.feature_home_refresh),
-            onActionClick = onRefresh,
-            modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
-        )
-    }
+private fun HomeEmptyState(onRefresh: () -> Unit) {
+    EmptyState(
+        icon = SegueIcons.Disc3,
+        title = stringResource(R.string.feature_home_empty_title),
+        message = stringResource(R.string.feature_home_empty_message),
+        actionLabel = stringResource(R.string.feature_home_refresh),
+        onActionClick = onRefresh,
+        modifier = Modifier.padding(vertical = SegueSpacing.xxxl),
+    )
 }
 
 /**

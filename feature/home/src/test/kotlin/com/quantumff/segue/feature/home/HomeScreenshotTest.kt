@@ -31,28 +31,15 @@ class HomeScreenshotTest {
     @Test
     fun home() = capture("home") { Home(PreviewHomeState) }
 
+    /** The first sync filling an empty library: its progress bar over the skeletons. */
     @Test
-    fun homeFirstSync() = capture("home_first_sync") {
+    fun homeFirstSync() = captureSkeleton("home_first_sync") {
         Home(HomeUiState(isLoading = false, syncProgress = SyncProgress.Running(SyncPhase.Albums, 1240, 5600)))
     }
 
-    /**
-     * First open with nothing in Room, the first refresh still running. The skeleton pulses
-     * forever, so the clock is paused and moved just past the 150ms delay for a stable frame.
-     */
+    /** First open with nothing in Room, the first refresh still running: skeletons, no pull spinner over them. */
     @Test
-    fun homeSkeleton() {
-        var dark by mutableStateOf(true)
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            Themed(dark) { Home(HomeUiState(isLoading = false, isRefreshing = true)) }
-        }
-        listOf(true, false).forEach { isDark ->
-            dark = isDark
-            compose.mainClock.advanceTimeBy(SKELETON_SHOWN_MS)
-            compose.onRoot().captureRoboImage(path("home_skeleton", isDark))
-        }
-    }
+    fun homeSkeleton() = captureSkeleton("home_skeleton") { Home(HomeUiState(isLoading = false, isRefreshing = true)) }
 
     /** Nothing in Room and the server failed: an error with Retry, not the empty state. */
     @Test
@@ -85,6 +72,21 @@ class HomeScreenshotTest {
             onMessageDismiss = {},
             onOfflineModeSettingClick = {},
         )
+    }
+
+    /**
+     * The skeleton pulses forever, so the clock is paused and moved just past the 150ms delay for a
+     * stable frame.
+     */
+    private fun captureSkeleton(name: String, content: @Composable () -> Unit) {
+        var dark by mutableStateOf(true)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { Themed(dark, content) }
+        listOf(true, false).forEach { isDark ->
+            dark = isDark
+            compose.mainClock.advanceTimeBy(SKELETON_SHOWN_MS)
+            compose.onRoot().captureRoboImage(path(name, isDark))
+        }
     }
 
     private fun capture(name: String, content: @Composable () -> Unit) {

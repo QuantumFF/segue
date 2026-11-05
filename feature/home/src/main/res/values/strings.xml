@@ -19,8 +19,6 @@
     <string name="feature_home_error_offline_message">Nothing downloaded to show. Connect, then try again.</string>
     <string name="feature_home_error_server_title">Couldn\'t load your library</string>
     <string name="feature_home_error_server_message">Segue couldn\'t get your music from the server. Try again.</string>
-    <string name="feature_home_syncing_title">Syncing your library</string>
-    <string name="feature_home_syncing_message">Albums appear here as soon as they are copied.</string>
     <string name="feature_home_refresh">Refresh</string>
     <plurals name="feature_home_track_count">
         <item quantity="one">%d track</item>
