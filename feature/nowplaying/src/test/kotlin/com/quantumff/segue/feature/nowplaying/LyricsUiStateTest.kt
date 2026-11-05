@@ -39,8 +39,12 @@ class LyricsUiStateTest {
     }
 
     @Test
-    fun noLyricsOnTheServerReadsNoLyricsEvenOffline() {
-        assertThat(lyricsUiState(lookup = persistentListOf(), isOffline = true)).isEqualTo(LyricsUiState.Loaded(null))
+    fun noLyricsOnTheServerReadsNoLyricsOnline() {
         assertThat(lyricsUiState(lookup = persistentListOf(), isOffline = false)).isEqualTo(LyricsUiState.Loaded(null))
+    }
+
+    @Test
+    fun offlineALookupWithNothingShowsTheOfflineState() {
+        assertThat(lyricsUiState(lookup = persistentListOf(), isOffline = true)).isEqualTo(LyricsUiState.Offline)
     }
 }
