@@ -53,12 +53,12 @@ import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PinSheet
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.SkeletonPulse
-import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
@@ -74,6 +74,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
@@ -89,6 +90,7 @@ fun PlaylistScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistViewModel = hiltViewModel(),
 ) {
@@ -119,9 +121,10 @@ fun PlaylistScreen(
         onRemoveEntry = viewModel::removeEntry,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
-        onRetryClick = viewModel::refresh,
+        onRetryClick = viewModel::retry,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         onDownloadClick = viewModel::download,
         onPinAction = viewModel::onPinAction,
     )
@@ -130,7 +133,8 @@ fun PlaylistScreen(
 /**
  * Stateless playlist detail. [onPlayClick] is the hero's Play (or Pause, while the playlist is the
  * playing queue source) and the collapsed top bar's. While editing, Back calls [onEditBack], and
- * the discard prompt's Discard is [onCancelEditClick].
+ * the discard prompt's Discard is [onCancelEditClick]. The offline chip retries through
+ * [onRetryClick], or in Offline mode opens the setting through [onOfflineModeSettingClick].
  */
 @Suppress("LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,6 +162,7 @@ fun PlaylistScreenContent(
     modifier: Modifier = Modifier,
     onDownloadClick: () -> Unit = {},
     onPinAction: (PinAction) -> Unit = {},
+    onOfflineModeSettingClick: () -> Unit = {},
 ) {
     val playlist = uiState.playlist
     var showPlaylistMenu by remember { mutableStateOf(false) }
@@ -213,6 +218,7 @@ fun PlaylistScreenContent(
                 onCancelEditClick = onCancelEditClick,
                 onSaveClick = onSaveClick,
                 onRetryClick = onRetryClick,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onTrackClick = onTrackClick,
                 onTrackMenu = { index, song -> trackMenu = index to song },
                 onTrackSwipe = onTrackSwipe,
@@ -282,6 +288,7 @@ private fun PlaylistDetail(
     onCancelEditClick: () -> Unit,
     onSaveClick: () -> Unit,
     onRetryClick: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
     onTrackMenu: (index: Int, song: Song) -> Unit,
     onTrackSwipe: (Song, QueuePlacement) -> Unit,
@@ -338,7 +345,7 @@ private fun PlaylistDetail(
             }
         },
     ) {
-        if (uiState.isOffline) {
+        if (uiState.offlineStatus != OfflineStatus.Online) {
             item(key = "offline", contentType = "offline") {
                 Box(
                     modifier = Modifier
@@ -346,7 +353,11 @@ private fun PlaylistDetail(
                         .padding(SegueSpacing.sm),
                     contentAlignment = Alignment.Center,
                 ) {
-                    StatusChip(label = stringResource(R.string.feature_playlist_offline), onClick = onRetryClick)
+                    OfflineStatusChip(
+                        status = uiState.offlineStatus,
+                        onRetry = onRetryClick,
+                        onOpenOfflineModeSetting = onOfflineModeSettingClick,
+                    )
                 }
             }
         }

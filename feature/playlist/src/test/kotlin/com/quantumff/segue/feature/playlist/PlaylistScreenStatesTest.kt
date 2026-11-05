@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToKey
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.SongAvailability
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.collections.immutable.persistentListOf
@@ -29,6 +30,7 @@ class PlaylistScreenStatesTest {
 
     private var retries = 0
     private var backs = 0
+    private var settingsOpened = 0
 
     private val playlist = TestData.playlist("p1", name = "Road trip")
     private val entries = persistentListOf(PlaylistEntry(TestData.song("a")), PlaylistEntry(TestData.song("b")))
@@ -107,11 +109,36 @@ class PlaylistScreenStatesTest {
 
     @Test
     fun `cached rows with a failed refresh show with the cached chip`() {
-        show(PlaylistUiState(playlist = playlist, entries = entries, loadState = LoadState.Loaded, isOffline = true))
+        show(
+            PlaylistUiState(
+                playlist = playlist,
+                entries = entries,
+                loadState = LoadState.Loaded,
+                offlineStatus = OfflineStatus.ShowingCachedLibrary,
+            ),
+        )
 
         compose.onNode(hasScrollToKeyAction()).performScrollToKey("offline")
-        compose.onNodeWithText("Offline · showing cached playlist").assertExists()
+        compose.onNodeWithText("Offline · showing cached library").assertExists()
         compose.onNodeWithText(entries.first().song.title).assertExists()
+    }
+
+    @Test
+    fun `in Offline mode the chip opens the setting instead of retrying`() {
+        show(
+            PlaylistUiState(
+                playlist = playlist,
+                entries = entries,
+                loadState = LoadState.Loaded,
+                offlineStatus = OfflineStatus.ShowingDownloadsInOfflineMode,
+            ),
+        )
+
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey("offline")
+        compose.onNodeWithText("Offline mode · showing downloads").performClick()
+
+        assertThat(settingsOpened).isEqualTo(1)
+        assertThat(retries).isEqualTo(0)
     }
 
     private fun show(state: PlaylistUiState) {
@@ -137,6 +164,7 @@ class PlaylistScreenStatesTest {
                     onDelete = {},
                     onRetryClick = { retries++ },
                     onMessageDismiss = {},
+                    onOfflineModeSettingClick = { settingsOpened++ },
                 )
             }
         }

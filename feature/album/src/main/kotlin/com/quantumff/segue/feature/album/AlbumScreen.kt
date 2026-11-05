@@ -50,13 +50,13 @@ import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.PinSheet
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.RatingBar
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
-import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
@@ -77,6 +77,7 @@ import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
@@ -93,6 +94,7 @@ fun AlbumDetailRoute(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlbumViewModel = hiltViewModel(),
 ) {
@@ -111,9 +113,10 @@ fun AlbumDetailRoute(
         onShuffleAlbums = viewModel::shuffleAlbums,
         onToggleStar = viewModel::toggleAlbumStar,
         onRatingChange = viewModel::setRating,
-        onRetry = viewModel::refresh,
+        onRetry = viewModel::retry,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         onDownload = viewModel::download,
         onPinAction = viewModel::onPinAction,
         onAlbumAction = { viewModel.onAlbumAction(it, menuHost) },
@@ -122,7 +125,11 @@ fun AlbumDetailRoute(
     )
 }
 
-/** Album detail (DESIGN.md §4.3): tint hero, actions, rating and genres, disc-grouped tracks, "More by". */
+/**
+ * Album detail (DESIGN.md §4.3): tint hero, actions, rating and genres, disc-grouped tracks, "More by".
+ * The offline chip retries through [onRetry], or in Offline mode opens the setting through
+ * [onOfflineModeSettingClick].
+ */
 @Suppress("LongParameterList")
 @Composable
 fun AlbumScreen(
@@ -144,6 +151,7 @@ fun AlbumScreen(
     onAlbumAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
     onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
+    onOfflineModeSettingClick: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -179,6 +187,7 @@ fun AlbumScreen(
                 onToggleStar = onToggleStar,
                 onRatingChange = onRatingChange,
                 onRetry = onRetry,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onDownload = onDownload,
                 onPinAction = onPinAction,
                 onAlbumAction = onAlbumAction,
@@ -221,6 +230,7 @@ private fun AlbumContent(
     onToggleStar: () -> Unit,
     onRatingChange: (Int) -> Unit,
     onRetry: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onDownload: () -> Unit,
     onPinAction: (PinAction) -> Unit,
     onAlbumAction: (MediaAction) -> Unit,
@@ -276,10 +286,11 @@ private fun AlbumContent(
             AlbumDetailsRow(
                 rating = album.userRating ?: 0,
                 genres = album.genre?.let { persistentListOf(it) } ?: persistentListOf(),
-                isOffline = state.isOffline,
+                offlineStatus = state.offlineStatus,
                 onRatingChange = onRatingChange,
                 onGenreClick = onGenreClick,
                 onRetry = onRetry,
+                onOpenOfflineModeSetting = onOfflineModeSettingClick,
             )
         }
         trackItems(state, onPlay = { onPlay(it, false) }, onMoreClick = { menuSongId = it.id }, onSongSwipe)
@@ -416,10 +427,11 @@ private fun ShuffleButton(onClick: () -> Unit, onLongClick: (() -> Unit)?, modif
 private fun AlbumDetailsRow(
     rating: Int,
     genres: ImmutableList<String>,
-    isOffline: Boolean,
+    offlineStatus: OfflineStatus,
     onRatingChange: (Int) -> Unit,
     onGenreClick: (String) -> Unit,
     onRetry: () -> Unit,
+    onOpenOfflineModeSetting: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -435,12 +447,11 @@ private fun AlbumDetailsRow(
                 genres.forEach { genre -> Pill(label = genre, onClick = { onGenreClick(genre) }) }
             }
         }
-        if (isOffline) {
-            StatusChip(
-                label = stringResource(com.quantumff.segue.core.designsystem.R.string.ds_offline_cached),
-                onClick = onRetry,
-            )
-        }
+        OfflineStatusChip(
+            status = offlineStatus,
+            onRetry = onRetry,
+            onOpenOfflineModeSetting = onOpenOfflineModeSetting,
+        )
     }
 }
 

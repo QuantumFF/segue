@@ -8,11 +8,13 @@ import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.snackbar.SnackbarMessage
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
@@ -492,7 +494,7 @@ class PlaylistViewModelTest {
         val state = viewModel().uiState.value
 
         assertThat(state.loadState).isEqualTo(LoadState.Loaded)
-        assertThat(state.isOffline).isTrue()
+        assertThat(state.offlineStatus).isEqualTo(OfflineStatus.ShowingCachedLibrary)
         assertThat(state.playlist).isNotNull()
         assertThat(state.entries).hasSize(3)
     }
@@ -504,8 +506,45 @@ class PlaylistViewModelTest {
         val state = viewModel().uiState.value
 
         assertThat(state.loadState).isEqualTo(LoadState.Loaded)
-        assertThat(state.isOffline).isFalse()
+        assertThat(state.offlineStatus).isEqualTo(OfflineStatus.Online)
         assertThat(state.entries).hasSize(3)
+    }
+
+    @Test
+    fun offlineWithoutANetworkShowsTheDownloadsStatus() = runTest {
+        offlineMode.isOffline.value = true
+        playlists.error = RemoteException.Unreachable(IOException("offline"))
+
+        assertThat(viewModel().uiState.value.offlineStatus).isEqualTo(OfflineStatus.ShowingDownloads)
+    }
+
+    @Test
+    fun offlineModeShowsItsOwnStatus() = runTest {
+        offlineMode.setOfflineMode(true)
+
+        assertThat(viewModel().uiState.value.offlineStatus).isEqualTo(OfflineStatus.ShowingDownloadsInOfflineMode)
+    }
+
+    @Test
+    fun retryWhileOfflineSaysSoWithoutAskingTheServer() = runTest {
+        val viewModel = viewModel()
+        offlineMode.isOffline.value = true
+        val refreshes = playlists.refreshed.size
+
+        viewModel.retry()
+
+        assertThat(playlists.refreshed).hasSize(refreshes)
+        assertThat(snackbars.current.value?.text).isEqualTo(SnackbarText.offline)
+    }
+
+    @Test
+    fun retryOnlineRefetchesThePlaylist() = runTest {
+        val viewModel = viewModel()
+        val refreshes = playlists.refreshed.size
+
+        viewModel.retry()
+
+        assertThat(playlists.refreshed).hasSize(refreshes + 1)
     }
 
     @Test
