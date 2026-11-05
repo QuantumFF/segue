@@ -4,6 +4,7 @@ import androidx.room.TypeConverter
 import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
 import com.quantumff.segue.core.database.model.ExtensionMap
+import com.quantumff.segue.core.database.model.LyricsList
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.PinKind
 
@@ -26,6 +27,12 @@ internal class Converters {
 
     @TypeConverter
     fun jsonToExtensions(value: String): ExtensionMap = ExtensionMap(JsonColumns.decodeExtensions(value))
+
+    @TypeConverter
+    fun lyricsToJson(value: LyricsList): String = JsonColumns.encodeLyrics(value.items)
+
+    @TypeConverter
+    fun jsonToLyrics(value: String): LyricsList = LyricsList(JsonColumns.decodeLyrics(value))
 
     @TypeConverter
     fun downloadStateToName(value: DownloadState): String = value.name

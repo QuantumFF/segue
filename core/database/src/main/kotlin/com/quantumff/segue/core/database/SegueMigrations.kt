@@ -139,5 +139,26 @@ object SegueMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+    /**
+     * 7 → 8: lyrics kept with downloads, so a downloaded song has its lyrics offline. Songs
+     * downloaded before this version have none stored.
+     */
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `lyrics` (`serverId` TEXT NOT NULL, `songId` TEXT NOT NULL, " +
+                    "`lyrics` TEXT NOT NULL, PRIMARY KEY(`serverId`, `songId`))",
+            )
+        }
+    }
+
+    val ALL = arrayOf(
+        MIGRATION_1_2,
+        MIGRATION_2_3,
+        MIGRATION_3_4,
+        MIGRATION_4_5,
+        MIGRATION_5_6,
+        MIGRATION_6_7,
+        MIGRATION_7_8,
+    )
 }

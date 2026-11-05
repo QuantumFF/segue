@@ -382,6 +382,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Download state badge, used everywhere art appears:
   - 16dp circle at the bottom-right of the art (cards) or after the title (rows).
   - Queued: outline `arrow-down`. In progress: ring progress. Done: filled check in `success`.
+- Lyrics are kept with downloads. When a song finishes downloading its lyrics are fetched and stored on the device, so Now Playing shows them offline. This is best effort: a lyrics failure never fails the download, and servers without the `songLyrics` extension are skipped. Removing the download (once its Undo has passed) deletes them. Songs played without being downloaded keep their lyrics only in memory.
 
 ### 4.10 Settings
 - `LazyColumn` of M3 `ListItem`s: 56 tall for one line, 72 for two. Section headers in `labelLarge` `primary`, with 24 top padding.
@@ -486,6 +487,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads", or "Offline mode · showing downloads" while the user's Offline mode is on (the Library shows it under the tab row). Without a network, tapping the chip retries; in Offline mode it opens Settings at Downloads & storage, where the switch is. A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
   - Offline, a pull to refresh does not reach the server; a "You're offline" snackbar says so.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
+  - Lyrics follow the downloads: offline, a downloaded song still shows its lyrics, kept with the download (§4.9).
   - Image load failure: keep the placeholder. Never show a broken-image icon.
 
 ### 5.9 Play / Shuffle albums buttons

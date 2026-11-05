@@ -113,8 +113,12 @@ class FakePlaylistRepository : PlaylistRepository {
         error?.let { throw it }
     }
 
+    /** When set, [refreshPlaylist] waits for it, so a test sees the refresh still running. */
+    var playlistRefreshGate: CompletableDeferred<Unit>? = null
+
     override suspend fun refreshPlaylist(id: String) {
         refreshed += id
+        playlistRefreshGate?.await()
         error?.let { throw it }
     }
 
