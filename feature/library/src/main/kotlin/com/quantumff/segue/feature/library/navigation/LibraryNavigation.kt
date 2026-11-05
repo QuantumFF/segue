@@ -45,8 +45,21 @@ fun NavGraphBuilder.libraryScreen(
     }
 }
 
-fun NavGraphBuilder.genreScreen(onBackClick: () -> Unit, onAlbumClick: (String) -> Unit) {
+/** @param onOfflineModeSettingClick the offline chip in Offline mode: Settings at Downloads & storage. */
+fun NavGraphBuilder.genreScreen(
+    onBackClick: () -> Unit,
+    onAlbumClick: (String) -> Unit,
+    onArtistClick: (String) -> Unit,
+    onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
+) {
     composable<GenreRoute> {
-        GenreScreen(onBackClick = onBackClick, onAlbumClick = onAlbumClick)
+        GenreScreen(
+            onBackClick = onBackClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
+        )
     }
 }

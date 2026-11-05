@@ -81,4 +81,8 @@
     <string name="feature_library_filter_downloaded">Downloaded</string>
     <string name="feature_library_offline_empty_title">You\'re offline</string>
     <string name="feature_library_offline_empty_message">Downloaded music shows here. Pin albums or playlists to listen offline.</string>
+    <string name="feature_library_genre_empty_title">No albums in this genre</string>
+    <string name="feature_library_genre_empty_message">Albums of this genre appear here once the library has synced</string>
+    <string name="feature_library_genre_offline_empty_title">Nothing downloaded in this genre</string>
+    <string name="feature_library_genre_offline_empty_message">Pin albums of this genre to listen offline</string>
 </resources>
