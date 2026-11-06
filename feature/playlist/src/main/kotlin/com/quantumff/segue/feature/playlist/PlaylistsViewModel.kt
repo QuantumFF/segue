@@ -3,6 +3,8 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.download.OfflineLibraryView
+import com.quantumff.segue.core.data.download.refreshIfOnline
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.remoteOutcome
@@ -12,6 +14,7 @@ import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.ScreenState
@@ -52,9 +55,17 @@ data class PlaylistsUiState(
     val message: PlaylistMessage? = null,
     /** Pin status of pinned playlists by ID. */
     val downloads: ImmutableMap<String, DownloadStatus> = persistentMapOf(),
-    /** Offline: only pinned playlists are listed. */
-    val isOffline: Boolean = false,
+    /**
+     * Why the list shows less than the server has, for the chip: offline (no network or Offline
+     * mode) only pinned playlists are listed; online, a fetch that could not reach the server leaves
+     * the cached ones.
+     */
+    val offlineStatus: OfflineStatus = OfflineStatus.Online,
 ) {
+    /** Offline: only pinned playlists are listed. */
+    val isOffline: Boolean
+        get() = offlineStatus.isShowingDownloads
+
     /**
      * What the list shows (DESIGN.md §5.8). With no playlists in Room, a running fetch is loading
      * and a failed one is an error with Retry. Offline, no playlists is just empty: only pinned
@@ -66,14 +77,18 @@ data class PlaylistsUiState(
             isLoading = isFetching && !isOffline,
             failure = ScreenState.Cause.Server.takeIf { fetchFailed && !isOffline },
         )
+
+    /** Whether the offline chip shows under the top bar ([OfflineStatus.showsChip]). */
+    val showsOfflineChip: Boolean
+        get() = offlineStatus.showsChip(hasContent = screenState == ScreenState.Content)
 }
 
-/** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh, plus CRUD. */
+/** The Playlists tab: Room's playlists, refreshed on entry and on pull-to-refresh while online, plus CRUD. */
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     serverRepository: ServerRepository,
-    offlineView: OfflineLibraryView,
+    private val offlineView: OfflineLibraryView,
     private val mediaActions: MediaActionHandler,
     private val removals: PlaylistRemovals,
     private val snackbars: Snackbars,
@@ -85,12 +100,12 @@ class PlaylistsViewModel @Inject constructor(
         serverRepository.activeServer,
         local,
         offlineView.pinStatuses.map { it[PinKind.Playlist] },
-        offlineView.isOffline,
-    ) { playlists, server, local, downloads, offline ->
+        offlineView.offlineStatus,
+    ) { playlists, server, local, downloads, offlineStatus ->
         PlaylistsUiState(
             playlists = playlists,
             downloads = downloads,
-            isOffline = offline,
+            offlineStatus = offlineStatus.withServerUnreachable(local.serverUnreachable),
             serverName = server?.name,
             isLoading = false,
             isFetching = local.fetching,
@@ -101,11 +116,14 @@ class PlaylistsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlaylistsUiState())
 
     init {
-        fetch()
+        offlineView.refreshIfOnline(::fetch)
     }
 
-    /** Retry after a failed fetch left no playlists to show. */
-    fun retry() = fetch()
+    /**
+     * Retry after a failed fetch left no playlists to show, and the offline chip's tap. Offline the
+     * server is not asked, and a snackbar says why.
+     */
+    fun retry() = offlineView.requestRefresh(snackbars, ::fetch)
 
     /**
      * Fetches the playlists. A failure stays silent: the cached list is shown (offline is
@@ -115,21 +133,30 @@ class PlaylistsViewModel @Inject constructor(
         if (local.value.fetching) return
         local.update { it.copy(fetching = true, fetchFailed = false) }
         viewModelScope.launch {
-            val failed = remoteOutcome { playlistRepository.refreshPlaylists() }.isFailure
-            local.update { it.copy(fetching = false, fetchFailed = failed) }
+            val outcome = remoteOutcome { playlistRepository.refreshPlaylists() }
+            local.update {
+                it.copy(fetching = false, fetchFailed = outcome.isFailure, serverUnreachable = outcome.showsOfflineChip)
+            }
         }
     }
 
-    /** Pull-to-refresh. Reports a failure, since the user asked for it. */
-    fun refresh() {
+    /**
+     * Pull-to-refresh. Reports a failure, since the user asked for it. Offline the server is not
+     * asked, and a snackbar says why.
+     */
+    fun refresh() = offlineView.requestRefresh(snackbars, ::refreshPlaylists)
+
+    private fun refreshPlaylists() {
         if (local.value.refreshing) return
         local.update { it.copy(refreshing = true) }
         viewModelScope.launch {
-            val failed = remoteOutcome { playlistRepository.refreshPlaylists() }.isFailure
+            val outcome = remoteOutcome { playlistRepository.refreshPlaylists() }
+            val failed = outcome.isFailure
             local.update {
                 it.copy(
                     refreshing = false,
                     fetchFailed = failed,
+                    serverUnreachable = outcome.showsOfflineChip,
                     message = if (failed) PlaylistMessage.Failed else it.message,
                 )
             }
@@ -166,6 +193,8 @@ class PlaylistsViewModel @Inject constructor(
     private data class LocalState(
         val fetching: Boolean = false,
         val fetchFailed: Boolean = false,
+        /** The last fetch could not reach the server. */
+        val serverUnreachable: Boolean = false,
         val refreshing: Boolean = false,
         val message: PlaylistMessage? = null,
     )

@@ -22,6 +22,7 @@ import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.DetailTopBar
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HeroHeader
+import com.quantumff.segue.core.designsystem.component.HeroHeaderSkeleton
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
 import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
@@ -35,6 +36,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSortChip
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
+import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -187,6 +189,15 @@ class ComponentScreenshotTest {
         }
     }
 
+    /** A detail page loading with nothing cached: the hero skeleton over track-row skeletons, unpulsed. */
+    @Test
+    fun detailSkeleton() = capture("detail_skeleton") {
+        Column {
+            HeroHeaderSkeleton()
+            repeat(2) { TrackRowSkeleton() }
+        }
+    }
+
     /** Offline: the status chip, and the Downloaded chip locked on beside an ordinary one. */
     @Test
     fun offlineChips() = capture("offline_chips") {
@@ -195,6 +206,7 @@ class ComponentScreenshotTest {
             verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
         ) {
             OfflineStatusChip(status = OfflineStatus.ShowingDownloads)
+            OfflineStatusChip(status = OfflineStatus.ShowingDownloadsInOfflineMode)
             Row(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm)) {
                 SegueFilterChip(label = "Favorites", selected = true, onClick = {})
                 SegueFilterChip(label = "Downloaded", selected = false, lockedOffline = true, onClick = {})

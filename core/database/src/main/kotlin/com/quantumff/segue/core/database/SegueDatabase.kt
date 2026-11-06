@@ -9,6 +9,7 @@ import com.quantumff.segue.core.database.dao.ArtistDao
 import com.quantumff.segue.core.database.dao.BrowseDao
 import com.quantumff.segue.core.database.dao.DownloadDao
 import com.quantumff.segue.core.database.dao.GenreDao
+import com.quantumff.segue.core.database.dao.LyricsDao
 import com.quantumff.segue.core.database.dao.PlaylistDao
 import com.quantumff.segue.core.database.dao.QueueDao
 import com.quantumff.segue.core.database.dao.ScrobbleDao
@@ -26,6 +27,7 @@ import com.quantumff.segue.core.database.model.ArtistEntity
 import com.quantumff.segue.core.database.model.ArtistFtsEntity
 import com.quantumff.segue.core.database.model.DownloadEntity
 import com.quantumff.segue.core.database.model.GenreEntity
+import com.quantumff.segue.core.database.model.LyricsEntity
 import com.quantumff.segue.core.database.model.PendingScrobbleEntity
 import com.quantumff.segue.core.database.model.PinEntity
 import com.quantumff.segue.core.database.model.PlaylistEntity
@@ -67,8 +69,9 @@ import com.quantumff.segue.core.database.util.Converters
         PinEntity::class,
         SyncMetadataEntity::class,
         ServerCapabilitiesEntity::class,
+        LyricsEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -100,4 +103,6 @@ abstract class SegueDatabase : RoomDatabase() {
     abstract fun serverDataDao(): ServerDataDao
 
     abstract fun browseDao(): BrowseDao
+
+    abstract fun lyricsDao(): LyricsDao
 }

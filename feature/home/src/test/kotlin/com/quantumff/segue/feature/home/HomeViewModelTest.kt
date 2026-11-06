@@ -4,15 +4,20 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.ScreenState
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
@@ -30,6 +35,10 @@ import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -47,6 +56,7 @@ class HomeViewModelTest {
     private val downloads = FakeDownloadRepository()
     private val offline = FakeOfflineModeRepository()
     private val play = RecordingPlayIntents()
+    private val snackbars = Snackbars()
 
     private fun viewModel() = HomeViewModel(
         albums,
@@ -55,7 +65,8 @@ class HomeViewModelTest {
         sync,
         offlineLibraryView(offline, downloads, playlists = playlists),
         play,
-        mediaActionHandler(play, downloads, stars, albums),
+        mediaActionHandler(play, downloads, stars, albums, snackbars = snackbars),
+        snackbars,
     )
 
     @Test
@@ -101,6 +112,81 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun exploreRefreshShowsAsRunningUntilItIsDone() = runTest {
+        val viewModel = viewModel()
+        val gate = CompletableDeferred<Unit>()
+        albums.listRefreshGate = gate
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().isRefreshingExplore).isFalse()
+            viewModel.refreshExplore()
+            assertThat(expectMostRecentItem().isRefreshingExplore).isTrue()
+            gate.complete(Unit)
+            assertThat(awaitItem().isRefreshingExplore).isFalse()
+        }
+    }
+
+    @Test
+    fun aFailedExploreRefreshSaysSoAndKeepsFeatured() = runTest {
+        val random = (1..30).map { TestData.album("a$it") }
+        albums.lists.value = mapOf(AlbumListType.Random to random)
+        val viewModel = viewModel()
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel.uiState.test {
+            viewModel.refreshExplore()
+
+            val state = expectMostRecentItem()
+            assertThat(state.isRefreshingExplore).isFalse()
+            assertThat(state.featured.map { it.id }).isEqualTo(random.take(10).map { it.id })
+            assertThat(state.explore.map { it.id }).isEqualTo(random.drop(10).map { it.id })
+        }
+        assertThat(
+            snackbars.current.value?.text,
+        ).isEqualTo(SnackbarText.of(R.string.feature_home_explore_refresh_failed))
+    }
+
+    @Test
+    fun aSuccessfulExploreRefreshSaysNothing() = runTest {
+        viewModel().refreshExplore()
+
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun exploreRefreshIsDisabledOffline() = runTest {
+        offline.isOffline.value = true
+        val viewModel = viewModel()
+
+        viewModel.refreshExplore()
+
+        viewModel.uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.canRefreshExplore).isFalse()
+            assertThat(state.isRefreshingExplore).isFalse()
+        }
+        assertThat(albums.refreshedLists).isEmpty()
+    }
+
+    @Test
+    fun exploreRefreshIsDisabledInOfflineModeToo() = runTest {
+        offline.setOfflineMode(true)
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().canRefreshExplore).isFalse()
+        }
+    }
+
+    @Test
+    fun exploreRefreshIsEnabledOnlineEvenWhenTheServerWasUnreachable() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().canRefreshExplore).isTrue()
+        }
+    }
+
+    @Test
     fun sectionsComeFromTheirLists() = runTest {
         albums.lists.value = mapOf(
             AlbumListType.Recent to listOf(TestData.album("recent")),
@@ -118,19 +204,113 @@ class HomeViewModelTest {
             assertThat(state.mostPlayed.single().id).isEqualTo("often")
             assertThat(state.favorites.single().id).isEqualTo("fav")
             assertThat(state.serverName).isEqualTo(TestData.server.name)
-            assertThat(state.isEmpty).isFalse()
+            assertThat(state.screenState).isEqualTo(ScreenState.Content)
         }
     }
 
     @Test
-    fun emptyLibraryWhileSyncingIsReportedAsSyncing() = runTest {
+    fun theFirstRefreshWithNothingInRoomIsLoading() = runTest {
+        albums.listRefreshGate = CompletableDeferred()
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Loading)
+        }
+    }
+
+    @Test
+    fun aReallyEmptyLibraryIsEmptyOnlyOnceTheFirstRefreshIsDone() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        albums.listRefreshGate = gate
+        val viewModel = viewModel()
+        val states = mutableListOf<ScreenState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { states += it.screenState }
+        }
+
+        assertThat(states).doesNotContain(ScreenState.Empty)
+        assertThat(states.last()).isEqualTo(ScreenState.Loading)
+        gate.complete(Unit)
+        runCurrent()
+
+        assertThat(states.last()).isEqualTo(ScreenState.Empty)
+    }
+
+    @Test
+    fun aRefusingServerWithNothingInRoomIsAServerError() = runTest {
+        albums.refreshError = RemoteException.ServerError("Internal error", IOException("500"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+        }
+    }
+
+    @Test
+    fun anUnreachableServerWithNothingInRoomIsAServerError() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Server))
+        }
+    }
+
+    @Test
+    fun offlineWithNothingDownloadedIsAnOfflineError() = runTest {
+        offline.isOffline.value = true
+        albums.lists.value = mapOf(AlbumListType.Random to listOf(TestData.album("r1")))
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Offline))
+        }
+    }
+
+    @Test
+    fun offlineModeWithNothingDownloadedIsAnOfflineErrorToo() = runTest {
+        offline.setOfflineMode(true)
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Offline))
+        }
+    }
+
+    @Test
+    fun theFirstSyncFillingAnEmptyLibraryIsLoading() = runTest {
         sync.progress.value = SyncProgress.Running(SyncPhase.Albums, 1, 10)
 
         viewModel().uiState.test {
             val state = expectMostRecentItem()
-            assertThat(state.isEmpty).isTrue()
+            assertThat(state.screenState).isEqualTo(ScreenState.Loading)
             assertThat(state.isSyncing).isTrue()
-            assertThat(state.isLoading).isFalse()
+        }
+    }
+
+    @Test
+    fun aSyncWaitingForTheNetworkWhileOfflineIsTheOfflineErrorNotEndlessSkeletons() = runTest {
+        offline.isOffline.value = true
+        sync.progress.value = SyncProgress.Pending
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().screenState).isEqualTo(ScreenState.Error(ScreenState.Cause.Offline))
+        }
+    }
+
+    @Test
+    fun thePullToRefreshSpinnerStaysHiddenWhileSkeletonsShow() = runTest {
+        albums.listRefreshGate = CompletableDeferred()
+
+        viewModel().uiState.test {
+            val state = expectMostRecentItem()
+            assertThat(state.isRefreshing).isTrue()
+            assertThat(state.showsRefreshIndicator).isFalse()
+        }
+    }
+
+    @Test
+    fun thePullToRefreshSpinnerShowsOverContent() = runTest {
+        albums.lists.value = mapOf(AlbumListType.Random to listOf(TestData.album("r1")))
+        albums.listRefreshGate = CompletableDeferred()
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().showsRefreshIndicator).isTrue()
         }
     }
 
@@ -152,7 +332,7 @@ class HomeViewModelTest {
             assertThat(state.featured.map { it.id }).containsExactly("r2")
             assertThat(state.recentlyPlayed.map { it.id }).containsExactly("recent")
             assertThat(state.playlists.map { it.id }).containsExactly("p2")
-            assertThat(state.showsDownloadedOnly).isTrue()
+            assertThat(state.offlineStatus.isShowingDownloads).isTrue()
         }
     }
 
@@ -169,23 +349,93 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun offlineSkipsTheServerRefresh() = runTest {
+    fun offlineShowsTheDownloadsStatus() = runTest {
+        offline.isOffline.value = true
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.ShowingDownloads)
+        }
+    }
+
+    @Test
+    fun offlineModeShowsItsOwnStatus() = runTest {
+        offline.setOfflineMode(true)
+
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.ShowingDownloadsInOfflineMode)
+        }
+    }
+
+    @Test
+    fun onlineTheStatusIsOnline() = runTest {
+        viewModel().uiState.test {
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.Online)
+        }
+    }
+
+    @Test
+    fun offlineSkipsTheServerRefreshQuietlyOnEntry() = runTest {
         offline.isOffline.value = true
 
         viewModel().uiState.test {
             assertThat(expectMostRecentItem().isRefreshing).isFalse()
         }
         assertThat(albums.refreshedLists).isEmpty()
+        assertThat(snackbars.current.value).isNull()
     }
 
     @Test
-    fun unreachableServerMarksOffline() = runTest {
+    fun refreshWhileOfflineSaysSoInsteadOfAskingTheServer() = runTest {
+        offline.isOffline.value = true
+
+        viewModel().refresh()
+
+        assertThat(snackbars.current.value?.text).isEqualTo(SnackbarText.offline)
+        assertThat(albums.refreshedLists).isEmpty()
+    }
+
+    @Test
+    fun refreshInOfflineModeSaysSoToo() = runTest {
+        offline.setOfflineMode(true)
+
+        viewModel().refresh()
+
+        assertThat(snackbars.current.value?.text).isEqualTo(SnackbarText.offline)
+        assertThat(albums.refreshedLists).isEmpty()
+    }
+
+    @Test
+    fun refreshOnceBackOnlineAsksTheServer() = runTest {
+        offline.isOffline.value = true
+        val viewModel = viewModel()
+        offline.isOffline.value = false
+
+        viewModel.refresh()
+
+        assertThat(albums.refreshedLists).isNotEmpty()
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun unreachableServerShowsTheCachedLibraryStatus() = runTest {
         albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
 
         viewModel().uiState.test {
             val state = expectMostRecentItem()
-            assertThat(state.isOffline).isTrue()
+            assertThat(state.offlineStatus).isEqualTo(OfflineStatus.ShowingCachedLibrary)
             assertThat(state.isRefreshing).isFalse()
+        }
+    }
+
+    @Test
+    fun goingOfflineAfterAnUnreachableServerShowsDownloads() = runTest {
+        albums.refreshError = RemoteException.Unreachable(IOException("timeout"))
+        val viewModel = viewModel()
+
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.ShowingCachedLibrary)
+            offline.isOffline.value = true
+            assertThat(expectMostRecentItem().offlineStatus).isEqualTo(OfflineStatus.ShowingDownloads)
         }
     }
 

@@ -28,13 +28,12 @@ import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
-import com.quantumff.segue.core.designsystem.model.toTrackRowState
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
-import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.feature.nowplaying.R
 import com.quantumff.segue.feature.nowplaying.RelatedUiState
+import com.quantumff.segue.feature.nowplaying.trackRows
 import kotlinx.collections.immutable.persistentListOf
 
 /** What the related panel can ask for. */
@@ -71,6 +70,13 @@ internal fun RelatedPanel(state: RelatedUiState, actions: RelatedActions, modifi
             modifier = modifier,
         )
 
+        RelatedUiState.Offline -> EmptyState(
+            icon = SegueIcons.Offline,
+            title = stringResource(R.string.feature_nowplaying_related_offline_title),
+            message = stringResource(R.string.feature_nowplaying_related_offline_message),
+            modifier = modifier,
+        )
+
         is RelatedUiState.Loaded -> if (state.songs.isEmpty()) {
             EmptyState(
                 icon = SegueIcons.Related,
@@ -79,18 +85,15 @@ internal fun RelatedPanel(state: RelatedUiState, actions: RelatedActions, modifi
                 modifier = modifier,
             )
         } else {
-            RelatedSongs(state.songs, state.currentSong, actions, modifier)
+            RelatedSongs(state, actions, modifier)
         }
     }
 }
 
 @Composable
-private fun RelatedSongs(
-    songs: List<Song>,
-    currentSong: CurrentSong?,
-    actions: RelatedActions,
-    modifier: Modifier = Modifier,
-) {
+private fun RelatedSongs(state: RelatedUiState.Loaded, actions: RelatedActions, modifier: Modifier = Modifier) {
+    val songs = state.songs
+    val rows = remember(state) { state.trackRows() }
     var menuFor by remember { mutableStateOf<Song?>(null) }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = SegueSpacing.lg)) {
         item(key = "actions", contentType = "actions") {
@@ -114,13 +117,10 @@ private fun RelatedSongs(
                 }
             }
         }
-        itemsIndexed(songs, key = { index, song ->
-            "$index:${song.id}"
-        }, contentType = { _, _ -> "song" }) { index, song ->
+        itemsIndexed(rows, key = { _, row -> row.id }, contentType = { _, _ -> "song" }) { index, row ->
+            val song = songs[index]
             TrackRow(
-                state = remember(song, currentSong) {
-                    song.toTrackRowState(current = currentSong)
-                },
+                state = row,
                 onClick = { actions.onPlay(index) },
                 onLongClick = { menuFor = song },
                 onMoreClick = { menuFor = song },

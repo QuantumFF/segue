@@ -28,12 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.data.play.MediaActionHost
-import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
 import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ArtistCard
-import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
+import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
+import com.quantumff.segue.core.designsystem.component.DownloadSheet
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtons
@@ -43,16 +44,14 @@ import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
-import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
-import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
 import com.quantumff.segue.core.designsystem.component.rememberCollapseOnScrollState
-import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -68,6 +67,8 @@ import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
@@ -81,6 +82,7 @@ fun ArtistDetailRoute(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ArtistViewModel = hiltViewModel(),
 ) {
@@ -100,11 +102,12 @@ fun ArtistDetailRoute(
         onPlayAlbums = viewModel::playAlbums,
         onInstantMix = viewModel::startInstantMix,
         onToggleStar = viewModel::toggleArtistStar,
-        onRetry = viewModel::refresh,
+        onRetry = viewModel::retry,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         onDownload = viewModel::download,
-        onRemoveDownload = viewModel::removeDownload,
+        onPinAction = viewModel::onPinAction,
         onArtistAction = { viewModel.onArtistAction(it, menuHost) },
         onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
         onSongSwipe = viewModel::onSongSwipe,
@@ -113,7 +116,8 @@ fun ArtistDetailRoute(
 
 /**
  * Artist detail (DESIGN.md §4.4): circular-art hero, actions, then top songs, albums, appears on,
- * similar artists and the biography.
+ * similar artists and the biography. The offline chip retries through [onRetry], or in Offline mode
+ * opens the setting through [onOfflineModeSettingClick].
  */
 @Suppress("LongParameterList")
 @Composable
@@ -133,26 +137,18 @@ fun ArtistScreen(
     modifier: Modifier = Modifier,
     onPlayAlbums: (AlbumOrder, QueuePlacement) -> Unit = { _, _ -> },
     onDownload: () -> Unit = {},
-    onRemoveDownload: () -> Unit = {},
+    onPinAction: (PinAction) -> Unit = {},
     onArtistAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
     onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
+    onOfflineModeSettingClick: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     Box(modifier.fillMaxSize()) {
         when (state) {
-            ArtistUiState.Loading -> {
-                val showSkeleton = rememberDelayedVisibility()
-                WithBackBar(onBackClick) {
-                    if (showSkeleton) {
-                        Column(Modifier.fillMaxSize().padding(top = SegueSizes.topBar * 2)) {
-                            repeat(SKELETON_ROWS) { TrackRowSkeleton() }
-                        }
-                    }
-                }
-            }
+            ArtistUiState.Loading -> DetailLoadingSkeleton(onBackClick)
 
-            ArtistUiState.Error -> WithBackBar(onBackClick) {
+            ArtistUiState.Error -> DetailStateLayout(onBackClick) {
                 ErrorState(
                     title = stringResource(R.string.feature_artist_error_title),
                     message = stringResource(R.string.feature_artist_error_message),
@@ -160,7 +156,7 @@ fun ArtistScreen(
                 )
             }
 
-            ArtistUiState.NotFound -> WithBackBar(onBackClick) {
+            ArtistUiState.NotFound -> DetailStateLayout(onBackClick) {
                 EmptyState(
                     icon = SegueIcons.Artist,
                     title = stringResource(R.string.feature_artist_not_found_title),
@@ -181,8 +177,9 @@ fun ArtistScreen(
                 onInstantMix = onInstantMix,
                 onToggleStar = onToggleStar,
                 onRetry = onRetry,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onDownload = onDownload,
-                onRemoveDownload = onRemoveDownload,
+                onPinAction = onPinAction,
                 onArtistAction = onArtistAction,
                 onSongAction = onSongAction,
                 onSongSwipe = onSongSwipe,
@@ -217,8 +214,9 @@ private fun ArtistContent(
     onInstantMix: () -> Unit,
     onToggleStar: () -> Unit,
     onRetry: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onDownload: () -> Unit,
-    onRemoveDownload: () -> Unit,
+    onPinAction: (PinAction) -> Unit,
     onArtistAction: (MediaAction) -> Unit,
     onSongAction: (Song, MediaAction) -> Unit,
     onSongSwipe: (Song, QueuePlacement) -> Unit,
@@ -287,13 +285,17 @@ private fun ArtistContent(
             )
         },
     ) {
-        if (state.isOffline || state.isPreparingPlayback) {
+        if (state.offlineStatus != OfflineStatus.Online || state.isPreparingPlayback) {
             item(key = "status", contentType = "status") {
                 Box(Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs)) {
                     if (state.isPreparingPlayback) {
                         InlineSpinner()
                     } else {
-                        StatusChip(label = stringResource(DesignR.string.ds_offline_cached), onClick = onRetry)
+                        OfflineStatusChip(
+                            status = state.offlineStatus,
+                            onRetry = onRetry,
+                            onOpenOfflineModeSetting = onOfflineModeSettingClick,
+                        )
                     }
                 }
             }
@@ -364,12 +366,14 @@ private fun ArtistContent(
         )
     }
     if (downloadMenuOpen) {
-        MediaContextMenu(
-            header = artist.toMenuHeader(),
-            actions = persistentListOf(MediaAction.RemoveDownload),
-            onAction = { onRemoveDownload() },
-            onDismissRequest = { downloadMenuOpen = false },
-        )
+        state.download?.let { status ->
+            DownloadSheet(
+                header = artist.toMenuHeader(),
+                status = status,
+                onAction = onPinAction,
+                onDismissRequest = { downloadMenuOpen = false },
+            )
+        }
     }
     state.topSongs.firstOrNull { it.id == menuSongId }?.let { song ->
         MediaContextMenu(
@@ -441,17 +445,8 @@ private fun About(biography: String, expanded: Boolean, onToggle: () -> Unit) {
     }
 }
 
-@Composable
-private fun WithBackBar(onBackClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        content()
-        DetailTopBar(title = "", collapsed = false, onBackClick = onBackClick)
-    }
-}
-
 private const val TOP_SONGS_PREVIEW = 5
 private const val BIOGRAPHY_LINES = 3
-private const val SKELETON_ROWS = 8
 
 private val PreviewArtistState = run {
     val artist = Artist("ar-1", "Radiohead", albumCount = 9, coverArtId = null, starredAt = null, null, null)

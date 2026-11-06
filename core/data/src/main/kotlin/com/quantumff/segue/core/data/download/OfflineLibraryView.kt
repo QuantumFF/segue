@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.ArtistFilter
 import com.quantumff.segue.core.model.ArtistSortOrder
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.DownloadedLibrary
+import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.Song
@@ -39,13 +40,27 @@ import kotlinx.coroutines.flow.map
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OfflineLibraryView @Inject constructor(
-    offlineMode: OfflineModeRepository,
+    private val offlineMode: OfflineModeRepository,
     private val downloads: DownloadRepository,
     private val artistRepository: ArtistRepository,
     private val libraryRepository: LibraryRepository,
     private val playlistRepository: PlaylistRepository,
 ) {
     val isOffline: StateFlow<Boolean> = offlineMode.isOffline
+
+    /**
+     * Whether lists show everything ([OfflineStatus.Online]) or downloads only, and why: no network
+     * ([OfflineStatus.ShowingDownloads]) or Offline mode ([OfflineStatus.ShowingDownloadsInOfflineMode]).
+     * A screen that refreshes from the server adds its own outcome with [OfflineStatus.withServerUnreachable].
+     */
+    val offlineStatus: Flow<OfflineStatus> =
+        combine(isOffline, offlineMode.isOfflineModeOn) { offline, offlineModeOn ->
+            when {
+                !offline -> OfflineStatus.Online
+                offlineModeOn -> OfflineStatus.ShowingDownloadsInOfflineMode
+                else -> OfflineStatus.ShowingDownloads
+            }
+        }.distinctUntilChanged()
 
     /** What is downloaded while offline, and null online: what album lists and search narrow to. */
     val downloadedWhileOffline: Flow<DownloadedLibrary?> = offlineMode.downloadedWhileOffline(downloads)

@@ -7,20 +7,26 @@
     <string name="feature_home_most_played">Most played</string>
     <string name="feature_home_explore">Explore</string>
     <string name="feature_home_explore_refresh">New random albums</string>
+    <string name="feature_home_explore_refresh_failed">Couldn\'t load new albums for Explore</string>
     <string name="feature_home_favorites">Favorites</string>
     <string name="feature_home_playlists">Playlists</string>
     <string name="feature_home_genres">Genres</string>
     <string name="feature_home_play_album">Play %1$s</string>
     <string name="feature_home_featured_page">Featured album %1$d of %2$d</string>
-    <string name="feature_home_empty_title">Nothing here yet</string>
-    <string name="feature_home_empty_message">Your library is empty, or Segue could not reach the server.</string>
-    <string name="feature_home_syncing_title">Syncing your library</string>
-    <string name="feature_home_syncing_message">Albums appear here as soon as they are copied.</string>
+    <string name="feature_home_empty_title">Your library is empty</string>
+    <string name="feature_home_empty_message">Add music on your server, then refresh.</string>
+    <string name="feature_home_error_offline_title">You\'re offline</string>
+    <string name="feature_home_error_offline_message">Nothing downloaded to show. Connect, then try again.</string>
+    <string name="feature_home_error_server_title">Couldn\'t load your library</string>
+    <string name="feature_home_error_server_message">Segue couldn\'t get your music from the server. Try again.</string>
     <string name="feature_home_refresh">Refresh</string>
     <plurals name="feature_home_track_count">
         <item quantity="one">%d track</item>
         <item quantity="other">%d tracks</item>
     </plurals>
+    <string name="feature_home_album_list_empty_title">Nothing here yet</string>
+    <string name="feature_home_album_list_error_title">Couldn\'t load this list</string>
+    <string name="feature_home_album_list_error_message">Segue couldn\'t get these albums from the server. Try again.</string>
     <string name="feature_home_album_list_title_recent">Recently played</string>
     <string name="feature_home_album_list_title_newest">Recently added</string>
     <string name="feature_home_album_list_title_frequent">Most played</string>
@@ -28,4 +34,6 @@
     <string name="feature_home_album_list_title_starred">Favorites</string>
     <string name="feature_home_album_list_title_highest">Top rated</string>
     <string name="feature_home_album_list_title_alphabetical">Albums</string>
+    <string name="feature_home_album_list_offline_empty_title">You\'re offline</string>
+    <string name="feature_home_album_list_offline_empty_message">Downloaded albums from this list show here. Pin albums to listen offline.</string>
 </resources>

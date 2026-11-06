@@ -217,6 +217,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.3 Album detail (Feishin hero)
 - Hero header (§5.4): 220 centered art, the overline "ALBUM", title, artist link, then "2019 · 12 tracks · 48 min".
 - Action row, centered, gap 16: Play (56 circle, `primary`) · Shuffle · Favorite · Download · ⋮. Shuffle replaces the queue with the tracks in a fresh shuffled order, as does every "Shuffle" action (there is no player shuffle mode, §4.7). Shuffle long-press opens "Shuffle albums" options where relevant.
+- Download on a page that is already pinned opens its download sheet, whose rows follow the pin's status: failed offers Retry download and Remove download, paused Resume download and Remove download, queued or downloading Pause download and Cancel download, and downloaded only Remove download. Cancel and Remove unpin with Undo (§5.7). Artist and playlist pages open the same sheet.
 - While the album is the queue source and plays, Play shows Pause and a tap pauses. While it is the paused queue source, Play resumes the queue where it was. On any other page, Play replaces the queue with the page. Compare the kind and the id of the queue source: ids are unique per kind only. Shuffle always replaces the queue.
 - Genre pills below the actions (§5.6).
 - Track list: rows in album mode (number column, no art). For multi-disc albums, add a sticky "Disc N · subtitle" header (`labelLarge`, 40 tall).
@@ -320,7 +321,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - The active line is at 100% opacity and scale 1.0. Other lines are at 35% and scale 0.96 (`lyric` motion). The active line is held at 35% of the panel height.
   - When the user scrolls manually, auto-follow pauses until they tap the "Sync" chip (bottom-right) or 5s pass.
   - Tapping a line seeks to it. Unsynced lyrics: 18sp, weight 500, 100% opacity. No lyrics: empty state.
-- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top.
+  - Offline with no lyrics kept on the device (§4.9): "Lyrics aren't available offline" empty state, with no Retry.
+- **Related:** `getSimilarSongs2` / `getTopSongs` as track rows, with "Play all" and "Add to queue" at the top. Rows follow Available like every track list (§5.2): download badges, and rows that can't play are dimmed and not clickable. Offline, when they can't load: "Related songs need a connection" empty state, with no Retry.
 - **Playback errors:** when a song fails to play, a snackbar names it and says why, with its actions on their own line: Skip (plays the next item) and, for network errors only, Retry (prepares the song again and plays it). It shows in the app's one snackbar host (§5.7): above the mini player, or over Now Playing while it is open. It goes away when playback moves to another item or a retry plays.
 
   | Kind | Copy | Actions |
@@ -382,6 +384,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Download state badge, used everywhere art appears:
   - 16dp circle at the bottom-right of the art (cards) or after the title (rows).
   - Queued: outline `arrow-down`. In progress: ring progress. Done: filled check in `success`.
+- Lyrics are kept with downloads. When a song finishes downloading its lyrics are fetched and stored on the device, so Now Playing shows them offline. This is best effort: a lyrics failure never fails the download, and servers without the `songLyrics` extension are skipped. Removing the download (once its Undo has passed) deletes them. Songs played without being downloaded keep their lyrics only in memory.
 
 ### 4.10 Settings
 - `LazyColumn` of M3 `ListItem`s: 56 tall for one line, 72 for two. Section headers in `labelLarge` `primary`, with 24 top padding.
@@ -483,8 +486,10 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Error:**
   - Room has data and the server can't be reached: show it, plus an "Offline · showing cached library" chip under the top bar (`surfaceContainerHighest`, `cloud-off` icon). Tapping the chip retries.
   - Room has data and the server answered with an error (signed out, refused, server error): show it without the chip. It is not offline.
-  - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads" (the Library shows it under the tab row). A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
+  - Offline, lists narrowed to downloaded music get the same chip with "Offline · showing downloads", or "Offline mode · showing downloads" while the user's Offline mode is on (the Library shows it under the tab row). Without a network, tapping the chip retries; in Offline mode it opens Settings at Downloads & storage, where the switch is. A Downloaded filter chip is then locked on: a leading lock, the state description "On while offline", and taps do nothing.
+  - Offline, a pull to refresh does not reach the server; a "You're offline" snackbar says so.
   - No data: the empty state with `error`-tinted icon, message, and a "Retry" button.
+  - Lyrics follow the downloads: offline, a downloaded song still shows its lyrics, kept with the download (§4.9).
   - Image load failure: keep the placeholder. Never show a broken-image icon.
 
 ### 5.9 Play / Shuffle albums buttons

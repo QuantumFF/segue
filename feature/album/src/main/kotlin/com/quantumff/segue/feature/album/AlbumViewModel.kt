@@ -8,8 +8,9 @@ import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.carryOut
 import com.quantumff.segue.core.data.download.pinAndConfirm
-import com.quantumff.segue.core.data.download.unpinWithUndo
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -34,6 +35,8 @@ import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
@@ -67,7 +70,7 @@ class AlbumViewModel @Inject constructor(
     artistRepository: ArtistRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineView: OfflineLibraryView,
+    private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
@@ -99,15 +102,20 @@ class AlbumViewModel @Inject constructor(
         albumRepository.albumSongs(albumId),
         moreByArtist,
         combine(refresh, message, player, ::Triple),
-        combine(downloadRepository.pinStatus(PinKind.Album, albumId), offlineView.songAvailability, ::Pair),
-    ) { album, songs, more, (refresh, message, player), (download, availability) ->
+        combine(
+            downloadRepository.pinStatus(PinKind.Album, albumId),
+            offlineView.songAvailability,
+            offlineView.offlineStatus,
+            ::Triple,
+        ),
+    ) { album, songs, more, (refresh, message, player), (download, availability, offlineStatus) ->
         when {
             album != null -> AlbumUiState.Success(
                 album = album,
                 songs = songs,
                 discs = groupDiscs(album, songs),
                 moreByArtist = more,
-                isOffline = refresh?.showsOfflineChip == true,
+                offlineStatus = offlineStatus.withServerUnreachable(refresh?.showsOfflineChip == true),
                 message = message,
                 download = download,
                 availability = availability,
@@ -126,6 +134,12 @@ class AlbumViewModel @Inject constructor(
     init {
         refresh()
     }
+
+    /**
+     * Retry, and the offline chip's tap: refetches the album. Offline the server is not asked, and a
+     * snackbar says why.
+     */
+    fun retry() = offlineView.requestRefresh(snackbars, ::refresh)
 
     /** Refetches the album; the cached copy stays on screen meanwhile. */
     fun refresh() {
@@ -164,10 +178,15 @@ class AlbumViewModel @Inject constructor(
         }
     }
 
-    /** Unpins the album with Undo; files no other pin needs are deleted once the snackbar has gone. */
-    fun removeDownload() {
+    /**
+     * An action from the album's download sheet: Retry, Resume and Pause act on its download; Cancel
+     * and Remove unpin it with Undo, and files no other pin needs go once the snackbar has gone.
+     */
+    fun onPinAction(action: PinAction) {
         val album = (uiState.value as? AlbumUiState.Success)?.album ?: return
-        viewModelScope.launch { downloadRepository.unpinWithUndo(PinKind.Album, albumId, album.name, snackbars) }
+        viewModelScope.launch {
+            downloadRepository.carryOut(action, PinKind.Album, albumId, album.name, snackbars)
+        }
     }
 
     fun shuffleAlbums(option: ShuffleAlbumsOption) {
@@ -246,8 +265,11 @@ sealed interface AlbumUiState {
         val songs: ImmutableList<Song>,
         val discs: ImmutableList<Disc>,
         val moreByArtist: ImmutableList<Album>,
-        /** The refresh failed: cached data is shown with an offline chip. */
-        val isOffline: Boolean = false,
+        /**
+         * Why the page may show less than the server has, for the chip: Offline only downloaded
+         * songs are available; online, a refresh that could not reach the server leaves the cached album.
+         */
+        val offlineStatus: OfflineStatus = OfflineStatus.Online,
         val message: AlbumMessage? = null,
         /** The album's pin status; null when it is not pinned for offline. */
         val download: DownloadStatus? = null,

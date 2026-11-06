@@ -193,7 +193,8 @@ private fun PagerDots(count: Int, current: () -> Int, modifier: Modifier = Modif
     }
 }
 
-private val CARD_HEIGHT = 200.dp
+/** The feature card's height, which Home's skeleton follows too. */
+internal val CARD_HEIGHT = 200.dp
 private val ART_SIZE = 120.dp
 private val DOT_SIZE = 6.dp
 private const val BACKDROP_ALPHA = 0.8f

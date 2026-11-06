@@ -34,6 +34,7 @@
     <string name="ds_dismiss">Dismiss</string>
     <string name="ds_offline_cached">Offline · showing cached library</string>
     <string name="ds_offline_downloads">Offline · showing downloads</string>
+    <string name="ds_offline_mode_downloads">Offline mode · showing downloads</string>
     <string name="ds_search_hint">Search</string>
     <string name="ds_playing_from">Playing from %1$s</string>
     <string name="ds_overline_album">Album</string>
@@ -51,6 +52,10 @@
     <string name="ds_action_go_to_artist">Go to artist</string>
     <string name="ds_action_download">Download</string>
     <string name="ds_action_remove_download">Remove download</string>
+    <string name="ds_pin_retry">Retry download</string>
+    <string name="ds_pin_resume">Resume download</string>
+    <string name="ds_pin_pause">Pause download</string>
+    <string name="ds_pin_cancel">Cancel download</string>
     <string name="ds_action_rename">Rename</string>
     <string name="ds_action_remove_from_playlist">Remove from playlist</string>
     <string name="ds_action_delete">Delete</string>

@@ -8,6 +8,7 @@ import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.data.snackbar.offline
 import com.quantumff.segue.core.model.AlbumOrder
 import com.quantumff.segue.core.model.AlbumPlayRequest
 import com.quantumff.segue.core.model.AlbumSource
@@ -19,6 +20,8 @@ import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
@@ -162,11 +165,13 @@ class AlbumViewModelTest {
     }
 
     @Test
-    fun refreshFailureWithCachedDataShowsOffline() = runTest {
+    fun anUnreachableServerWithCachedDataShowsTheCachedLibraryStatus() = runTest {
         seed()
         albums.refreshError = RemoteException.Unreachable(IOException("offline"))
         viewModel().uiState.test {
-            assertThat((awaitItem() as AlbumUiState.Success).isOffline).isTrue()
+            assertThat(
+                (awaitItem() as AlbumUiState.Success).offlineStatus,
+            ).isEqualTo(OfflineStatus.ShowingCachedLibrary)
         }
     }
 
@@ -175,8 +180,54 @@ class AlbumViewModelTest {
         seed()
         albums.refreshError = RemoteException.ServerError("broken", IOException("500"))
         viewModel().uiState.test {
-            assertThat((awaitItem() as AlbumUiState.Success).isOffline).isFalse()
+            assertThat((awaitItem() as AlbumUiState.Success).offlineStatus).isEqualTo(OfflineStatus.Online)
         }
+    }
+
+    @Test
+    fun offlineWithoutANetworkShowsTheDownloadsStatus() = runTest {
+        seed()
+        offlineMode.isOffline.value = true
+        albums.refreshError = RemoteException.Unreachable(IOException("offline"))
+        viewModel().uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).offlineStatus).isEqualTo(OfflineStatus.ShowingDownloads)
+        }
+    }
+
+    @Test
+    fun offlineModeShowsItsOwnStatus() = runTest {
+        seed()
+        offlineMode.setOfflineMode(true)
+        viewModel().uiState.test {
+            assertThat(
+                (awaitItem() as AlbumUiState.Success).offlineStatus,
+            ).isEqualTo(OfflineStatus.ShowingDownloadsInOfflineMode)
+        }
+    }
+
+    @Test
+    fun retryWhileOfflineSaysSoWithoutAskingTheServer() = runTest {
+        seed()
+        val viewModel = viewModel()
+        offlineMode.isOffline.value = true
+        val refreshes = albums.refreshedAlbums.size
+
+        viewModel.retry()
+
+        assertThat(albums.refreshedAlbums).hasSize(refreshes)
+        assertThat(snackbars.current.value?.text).isEqualTo(SnackbarText.offline)
+    }
+
+    @Test
+    fun retryOnlineRefetchesTheAlbum() = runTest {
+        seed()
+        val viewModel = viewModel()
+        val refreshes = albums.refreshedAlbums.size
+
+        viewModel.retry()
+
+        assertThat(albums.refreshedAlbums).hasSize(refreshes + 1)
+        assertThat(snackbars.current.value).isNull()
     }
 
     @Test
@@ -362,7 +413,7 @@ class AlbumViewModelTest {
             assertThat(downloading.text).isEqualTo(SnackbarText.of(DataR.string.core_data_downloading_name, album.name))
             snackbars.onDismiss(downloading)
 
-            viewModel.removeDownload()
+            viewModel.onPinAction(PinAction.Remove)
             assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
             val removed = checkNotNull(snackbars.current.value)
             assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, album.name))
@@ -370,6 +421,41 @@ class AlbumViewModelTest {
             snackbars.onAction(removed)
             assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Queued)
             assertThat(downloads.deleted).isEmpty()
+        }
+    }
+
+    @Test
+    fun retryAndResumePutThePinBackInTheQueueAndPauseHoldsIt() = runTest {
+        seed()
+        downloads.pins.value = mapOf((PinKind.Album to "album-1") to DownloadStatus.Failed)
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Failed)
+
+            viewModel.onPinAction(PinAction.Retry)
+            viewModel.onPinAction(PinAction.Resume)
+            viewModel.onPinAction(PinAction.Pause)
+
+            assertThat(downloads.resumed).containsExactly(PinKind.Album to "album-1", PinKind.Album to "album-1")
+            assertThat(downloads.paused).containsExactly(PinKind.Album to "album-1")
+        }
+    }
+
+    @Test
+    fun cancelUnpinsTheAlbumWithUndo() = runTest {
+        seed()
+        downloads.pins.value = mapOf((PinKind.Album to "album-1") to DownloadStatus.Downloading(0.5f))
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Downloading(0.5f))
+
+            viewModel.onPinAction(PinAction.Cancel)
+            assertThat((awaitItem() as AlbumUiState.Success).download).isNull()
+            val removed = checkNotNull(snackbars.current.value)
+            assertThat(removed.text).isEqualTo(SnackbarText.of(DataR.string.core_data_download_removed, album.name))
+
+            snackbars.onAction(removed)
+            assertThat((awaitItem() as AlbumUiState.Success).download).isEqualTo(DownloadStatus.Downloading(0.5f))
         }
     }
 }

@@ -42,24 +42,24 @@ import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
-import com.quantumff.segue.core.designsystem.component.DetailTopBar
+import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
+import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
+import com.quantumff.segue.core.designsystem.component.DownloadSheet
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
+import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.PlayButton
 import com.quantumff.segue.core.designsystem.component.RatingBar
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
-import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
-import com.quantumff.segue.core.designsystem.component.TrackRowSkeleton
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
-import com.quantumff.segue.core.designsystem.component.rememberDelayedVisibility
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -77,6 +77,8 @@ import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
@@ -92,6 +94,7 @@ fun AlbumDetailRoute(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AlbumViewModel = hiltViewModel(),
 ) {
@@ -110,18 +113,23 @@ fun AlbumDetailRoute(
         onShuffleAlbums = viewModel::shuffleAlbums,
         onToggleStar = viewModel::toggleAlbumStar,
         onRatingChange = viewModel::setRating,
-        onRetry = viewModel::refresh,
+        onRetry = viewModel::retry,
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
+        onOfflineModeSettingClick = onOfflineModeSettingClick,
         onDownload = viewModel::download,
-        onRemoveDownload = viewModel::removeDownload,
+        onPinAction = viewModel::onPinAction,
         onAlbumAction = { viewModel.onAlbumAction(it, menuHost) },
         onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
         onSongSwipe = viewModel::onSongSwipe,
     )
 }
 
-/** Album detail (DESIGN.md §4.3): tint hero, actions, rating and genres, disc-grouped tracks, "More by". */
+/**
+ * Album detail (DESIGN.md §4.3): tint hero, actions, rating and genres, disc-grouped tracks, "More by".
+ * The offline chip retries through [onRetry], or in Offline mode opens the setting through
+ * [onOfflineModeSettingClick].
+ */
 @Suppress("LongParameterList")
 @Composable
 fun AlbumScreen(
@@ -139,18 +147,19 @@ fun AlbumScreen(
     onMessageDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onDownload: () -> Unit = {},
-    onRemoveDownload: () -> Unit = {},
+    onPinAction: (PinAction) -> Unit = {},
     onAlbumAction: (MediaAction) -> Unit = {},
     onSongAction: (Song, MediaAction) -> Unit = { _, _ -> },
     onSongSwipe: (Song, QueuePlacement) -> Unit = { _, _ -> },
+    onOfflineModeSettingClick: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     Box(modifier.fillMaxSize()) {
         when (state) {
-            AlbumUiState.Loading -> LoadingAlbum(onBackClick)
+            AlbumUiState.Loading -> DetailLoadingSkeleton(onBackClick)
 
-            AlbumUiState.Error -> MessageWithBackBar(onBackClick) {
+            AlbumUiState.Error -> DetailStateLayout(onBackClick) {
                 ErrorState(
                     title = stringResource(R.string.feature_album_error_title),
                     message = stringResource(R.string.feature_album_error_message),
@@ -158,7 +167,7 @@ fun AlbumScreen(
                 )
             }
 
-            AlbumUiState.NotFound -> MessageWithBackBar(onBackClick) {
+            AlbumUiState.NotFound -> DetailStateLayout(onBackClick) {
                 EmptyState(
                     icon = SegueIcons.Disc3,
                     title = stringResource(R.string.feature_album_not_found_title),
@@ -178,8 +187,9 @@ fun AlbumScreen(
                 onToggleStar = onToggleStar,
                 onRatingChange = onRatingChange,
                 onRetry = onRetry,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onDownload = onDownload,
-                onRemoveDownload = onRemoveDownload,
+                onPinAction = onPinAction,
                 onAlbumAction = onAlbumAction,
                 onSongAction = onSongAction,
                 onSongSwipe = onSongSwipe,
@@ -220,8 +230,9 @@ private fun AlbumContent(
     onToggleStar: () -> Unit,
     onRatingChange: (Int) -> Unit,
     onRetry: () -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
     onDownload: () -> Unit,
-    onRemoveDownload: () -> Unit,
+    onPinAction: (PinAction) -> Unit,
     onAlbumAction: (MediaAction) -> Unit,
     onSongAction: (Song, MediaAction) -> Unit,
     onSongSwipe: (Song, QueuePlacement) -> Unit,
@@ -275,10 +286,11 @@ private fun AlbumContent(
             AlbumDetailsRow(
                 rating = album.userRating ?: 0,
                 genres = album.genre?.let { persistentListOf(it) } ?: persistentListOf(),
-                isOffline = state.isOffline,
+                offlineStatus = state.offlineStatus,
                 onRatingChange = onRatingChange,
                 onGenreClick = onGenreClick,
                 onRetry = onRetry,
+                onOpenOfflineModeSetting = onOfflineModeSettingClick,
             )
         }
         trackItems(state, onPlay = { onPlay(it, false) }, onMoreClick = { menuSongId = it.id }, onSongSwipe)
@@ -313,12 +325,14 @@ private fun AlbumContent(
         )
     }
     if (downloadMenuOpen) {
-        MediaContextMenu(
-            header = album.toMenuHeader(),
-            actions = persistentListOf(MediaAction.RemoveDownload),
-            onAction = { onRemoveDownload() },
-            onDismissRequest = { downloadMenuOpen = false },
-        )
+        state.download?.let { status ->
+            DownloadSheet(
+                header = album.toMenuHeader(),
+                status = status,
+                onAction = onPinAction,
+                onDismissRequest = { downloadMenuOpen = false },
+            )
+        }
     }
     if (shuffleSheetOpen) {
         ShuffleAlbumsSheet(
@@ -413,10 +427,11 @@ private fun ShuffleButton(onClick: () -> Unit, onLongClick: (() -> Unit)?, modif
 private fun AlbumDetailsRow(
     rating: Int,
     genres: ImmutableList<String>,
-    isOffline: Boolean,
+    offlineStatus: OfflineStatus,
     onRatingChange: (Int) -> Unit,
     onGenreClick: (String) -> Unit,
     onRetry: () -> Unit,
+    onOpenOfflineModeSetting: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -432,12 +447,11 @@ private fun AlbumDetailsRow(
                 genres.forEach { genre -> Pill(label = genre, onClick = { onGenreClick(genre) }) }
             }
         }
-        if (isOffline) {
-            StatusChip(
-                label = stringResource(com.quantumff.segue.core.designsystem.R.string.ds_offline_cached),
-                onClick = onRetry,
-            )
-        }
+        OfflineStatusChip(
+            status = offlineStatus,
+            onRetry = onRetry,
+            onOpenOfflineModeSetting = onOpenOfflineModeSetting,
+        )
     }
 }
 
@@ -519,29 +533,7 @@ private fun ShuffleAlbumsSheet(
     )
 }
 
-@Composable
-private fun LoadingAlbum(onBackClick: () -> Unit) {
-    val showSkeleton = rememberDelayedVisibility()
-    MessageWithBackBar(onBackClick) {
-        if (showSkeleton) {
-            Column(Modifier.fillMaxSize().padding(top = SKELETON_TOP)) {
-                repeat(SKELETON_ROWS) { TrackRowSkeleton() }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MessageWithBackBar(onBackClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        content()
-        DetailTopBar(title = "", collapsed = false, onBackClick = onBackClick)
-    }
-}
-
 private const val SECONDS_PER_MINUTE = 60L
-private const val SKELETON_ROWS = 8
-private val SKELETON_TOP = SegueSizes.topBar * 2
 private val DISC_HEADER_HEIGHT = SegueSizes.touchTarget - SegueSpacing.sm
 
 internal val PreviewAlbumState = run {

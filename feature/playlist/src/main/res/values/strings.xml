@@ -5,7 +5,7 @@
     <string name="feature_playlist_empty_title">No playlists yet</string>
     <string name="feature_playlist_empty_message">Create one here, or add songs from any track menu</string>
     <string name="feature_playlist_offline_empty_title">You\'re offline</string>
-    <string name="feature_playlist_offline_empty_message">Downloaded playlists show here. Pin a playlist to listen offline.</string>
+    <string name="feature_playlist_offline_empty_message">Only downloaded playlists show offline. Download a playlist while online to listen to it here.</string>
     <string name="feature_playlist_list_error_title">Couldn\'t load your playlists</string>
     <string name="feature_playlist_list_error_message">Check the server, then try again.</string>
     <string name="feature_playlist_overline">Playlist</string>
@@ -31,9 +31,11 @@
     <string name="feature_playlist_public">Public</string>
     <string name="feature_playlist_private">Private</string>
     <string name="feature_playlist_no_tracks">This playlist is empty</string>
-    <string name="feature_playlist_not_found">Playlist not available</string>
+    <string name="feature_playlist_no_tracks_message">Add songs from any ⋮ menu</string>
+    <string name="feature_playlist_not_found">Playlist not found</string>
+    <string name="feature_playlist_not_found_message">It may have been deleted from the server</string>
     <string name="feature_playlist_load_failed">Couldn’t load this playlist</string>
-    <string name="feature_playlist_offline">Offline · showing cached playlist</string>
+    <string name="feature_playlist_load_failed_message">Check the server, then try again.</string>
     <string name="feature_playlist_removed">Removed %1$s</string>
     <string name="feature_playlist_deleted">Deleted %1$s</string>
     <string name="feature_playlist_error_generic">Couldn’t reach the server. Try again.</string>

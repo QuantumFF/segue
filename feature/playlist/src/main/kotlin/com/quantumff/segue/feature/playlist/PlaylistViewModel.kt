@@ -3,11 +3,13 @@ package com.quantumff.segue.feature.playlist
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.carryOut
 import com.quantumff.segue.core.data.download.pinAndConfirm
-import com.quantumff.segue.core.data.download.unpinWithUndo
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.play.PlayIntents
@@ -28,6 +30,8 @@ import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.Playlist
@@ -57,12 +61,19 @@ data class PlaylistEntry(val song: Song, val copy: Int = 0) {
     val key: String get() = "$copy:${song.id}"
 }
 
+/** What the playlist screen shows: the playlist, or a full-screen state under a back bar. */
 enum class LoadState {
+    /** Nothing is cached and the first refresh is running: skeletons. */
     Loading,
+
+    /** The playlist shows, cached or fresh, even when its refresh failed. */
     Loaded,
 
-    /** The refresh failed: cached rows (if any) stay; with none, the screen shows an error. */
+    /** Nothing is cached and the refresh failed: an error with Retry. */
     Failed,
+
+    /** The server does not have the playlist (it was deleted), cached or not. */
+    NotFound,
 }
 
 data class PlaylistUiState(
@@ -70,8 +81,13 @@ data class PlaylistUiState(
     /** The saved order, or the working order while [isEditing]. */
     val entries: ImmutableList<PlaylistEntry> = persistentListOf(),
     val loadState: LoadState = LoadState.Loading,
-    /** The refresh could not reach the server: cached rows show with the offline chip. */
-    val isOffline: Boolean = false,
+    /** A refresh is running; the rows shown, if any, are cached. */
+    val isRefreshing: Boolean = false,
+    /**
+     * Why the page may show less than the server has, for the chip: Offline only downloaded songs
+     * are available; online, a refresh that could not reach the server leaves the cached rows.
+     */
+    val offlineStatus: OfflineStatus = OfflineStatus.Online,
     val isEditing: Boolean = false,
     /** The working order differs from the saved one. */
     val hasChanges: Boolean = false,
@@ -95,6 +111,18 @@ data class PlaylistUiState(
 
     val songs: List<Song> get() = entries.map { it.song }
 
+    /**
+     * The playlist has no songs: its empty state shows. Not while a refresh runs, since a playlist
+     * cached from the playlist list has no rows until its first refresh.
+     */
+    val isEmpty: Boolean get() = loadState == LoadState.Loaded && entries.isEmpty() && !isRefreshing
+
+    /**
+     * Play, Shuffle and Shuffle albums are enabled: outside edit mode, with a song that is
+     * Available (offline, only downloaded songs are).
+     */
+    val canPlay: Boolean get() = !isEditing && entries.any { availability.isAvailable(it.song) }
+
     /** Save is enabled only when there is a change to save. */
     val canSave: Boolean get() = hasChanges && !isSaving
 
@@ -112,7 +140,7 @@ class PlaylistViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val playlistRepository: PlaylistRepository,
     private val downloadRepository: DownloadRepository,
-    offlineView: OfflineLibraryView,
+    private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
@@ -130,9 +158,14 @@ class PlaylistViewModel @Inject constructor(
         playlistRepository.playlist(playlistId),
         removals.entries(playlistId),
         local,
-        combine(downloadRepository.pinStatus(PinKind.Playlist, playlistId), offlineView.songAvailability, ::Pair),
+        combine(
+            downloadRepository.pinStatus(PinKind.Playlist, playlistId),
+            offlineView.songAvailability,
+            offlineView.offlineStatus,
+            ::Triple,
+        ),
         player,
-    ) { playlist, saved, local, (download, availability), player ->
+    ) { playlist, saved, local, (download, availability, offlineStatus), player ->
         PlaylistUiState(
             download = download,
             availability = availability,
@@ -141,11 +174,14 @@ class PlaylistViewModel @Inject constructor(
             playlist = playlist,
             entries = local.working ?: saved,
             loadState = when {
-                local.refreshFailed -> LoadState.Failed
-                playlist == null && local.refreshing -> LoadState.Loading
-                else -> LoadState.Loaded
+                local.refresh is RemoteOutcome.NotFound -> LoadState.NotFound
+                playlist != null -> LoadState.Loaded
+                local.refresh == null -> LoadState.Loading
+                local.refresh.isFailure -> LoadState.Failed
+                else -> LoadState.NotFound
             },
-            isOffline = local.refreshOffline,
+            isRefreshing = local.refresh == null,
+            offlineStatus = offlineStatus.withServerUnreachable(local.refresh?.showsOfflineChip == true),
             isEditing = local.working != null,
             hasChanges = local.working != null && local.working.map { it.song.id } != saved.map { it.song.id },
             isDiscardPromptShown = local.discardPrompt,
@@ -159,17 +195,17 @@ class PlaylistViewModel @Inject constructor(
         refresh()
     }
 
+    /**
+     * Retry, and the offline chip's tap: refetches the playlist. Offline the server is not asked, and
+     * a snackbar says why.
+     */
+    fun retry() = offlineView.requestRefresh(snackbars, ::refresh)
+
     fun refresh() {
-        local.update { it.copy(refreshing = true, refreshFailed = false, refreshOffline = false) }
+        local.update { it.copy(refresh = null) }
         viewModelScope.launch {
             val outcome = remoteOutcome { playlistRepository.refreshPlaylist(playlistId) }
-            local.update {
-                it.copy(
-                    refreshing = false,
-                    refreshFailed = outcome.isFailure,
-                    refreshOffline = outcome.showsOfflineChip,
-                )
-            }
+            local.update { it.copy(refresh = outcome) }
         }
     }
 
@@ -264,11 +300,14 @@ class PlaylistViewModel @Inject constructor(
         write { downloadRepository.pinAndConfirm(PinTarget.of(playlist), snackbars) }
     }
 
-    /** Unpins the playlist with Undo; files no other pin needs are deleted once the snackbar has gone. */
-    fun removeDownload() {
+    /**
+     * An action from the playlist's download sheet: Retry, Resume and Pause act on its download;
+     * Cancel and Remove unpin it with Undo, and files no other pin needs go once the snackbar has gone.
+     */
+    fun onPinAction(action: PinAction) {
         val playlist = uiState.value.playlist ?: return
         viewModelScope.launch {
-            downloadRepository.unpinWithUndo(PinKind.Playlist, playlistId, playlist.name, snackbars)
+            downloadRepository.carryOut(action, PinKind.Playlist, playlistId, playlist.name, snackbars)
         }
     }
 
@@ -322,9 +361,8 @@ class PlaylistViewModel @Inject constructor(
     }
 
     private data class LocalState(
-        val refreshing: Boolean = false,
-        val refreshFailed: Boolean = false,
-        val refreshOffline: Boolean = false,
+        /** How the last refresh ended; null while one runs. */
+        val refresh: RemoteOutcome<*>? = null,
         /** The working order while editing; null outside edit mode. */
         val working: ImmutableList<PlaylistEntry>? = null,
         val discardPrompt: Boolean = false,

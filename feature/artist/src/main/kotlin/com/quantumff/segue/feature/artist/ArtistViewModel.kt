@@ -8,8 +8,9 @@ import com.quantumff.segue.core.data.RemoteOutcome
 import com.quantumff.segue.core.data.download.DownloadRepository
 import com.quantumff.segue.core.data.download.OfflineLibraryView
 import com.quantumff.segue.core.data.download.PinTarget
+import com.quantumff.segue.core.data.download.carryOut
 import com.quantumff.segue.core.data.download.pinAndConfirm
-import com.quantumff.segue.core.data.download.unpinWithUndo
+import com.quantumff.segue.core.data.download.requestRefresh
 import com.quantumff.segue.core.data.getOrNull
 import com.quantumff.segue.core.data.play.MediaActionHandler
 import com.quantumff.segue.core.data.play.MediaActionHost
@@ -38,6 +39,8 @@ import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
+import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
@@ -69,7 +72,7 @@ class ArtistViewModel @Inject constructor(
     private val artistRepository: ArtistRepository,
     private val starRatingRepository: StarRatingRepository,
     private val downloadRepository: DownloadRepository,
-    offlineView: OfflineLibraryView,
+    private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     playerState: PlayerStateSource,
     private val transport: PlayerTransport,
@@ -92,8 +95,13 @@ class ArtistViewModel @Inject constructor(
         artistRepository.artistAlbums(artistId),
         combine(remote, refresh, ::Pair),
         combine(message, busy, player, ::Triple),
-        combine(downloadRepository.pinStatus(PinKind.Artist, artistId), offlineView.songAvailability, ::Pair),
-    ) { artist, albums, (remote, refresh), (message, busy, player), (download, availability) ->
+        combine(
+            downloadRepository.pinStatus(PinKind.Artist, artistId),
+            offlineView.songAvailability,
+            offlineView.offlineStatus,
+            ::Triple,
+        ),
+    ) { artist, albums, (remote, refresh), (message, busy, player), (download, availability, offlineStatus) ->
         when {
             artist != null -> {
                 val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
@@ -105,7 +113,7 @@ class ArtistViewModel @Inject constructor(
                     similarArtists = remote.info?.similarArtists ?: persistentListOf(),
                     biography = remote.info?.biography,
                     trackCount = albums.sumOf { it.songCount },
-                    isOffline = refresh?.showsOfflineChip == true,
+                    offlineStatus = offlineStatus.withServerUnreachable(refresh?.showsOfflineChip == true),
                     isPreparingPlayback = busy,
                     message = message,
                     download = download,
@@ -126,6 +134,12 @@ class ArtistViewModel @Inject constructor(
     init {
         refresh()
     }
+
+    /**
+     * Retry, and the offline chip's tap: refetches the artist. Offline the server is not asked, and
+     * a snackbar says why.
+     */
+    fun retry() = offlineView.requestRefresh(snackbars, ::refresh)
 
     fun refresh() {
         refresh.value = null
@@ -219,10 +233,15 @@ class ArtistViewModel @Inject constructor(
         }
     }
 
-    /** Unpins the artist with Undo; files no other pin needs are deleted once the snackbar has gone. */
-    fun removeDownload() {
+    /**
+     * An action from the artist's download sheet: Retry, Resume and Pause act on its download; Cancel
+     * and Remove unpin it with Undo, and files no other pin needs go once the snackbar has gone.
+     */
+    fun onPinAction(action: PinAction) {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
-        viewModelScope.launch { downloadRepository.unpinWithUndo(PinKind.Artist, artistId, artist.name, snackbars) }
+        viewModelScope.launch {
+            downloadRepository.carryOut(action, PinKind.Artist, artistId, artist.name, snackbars)
+        }
     }
 
     fun onMessageDismiss() {
@@ -280,7 +299,11 @@ sealed interface ArtistUiState {
         val similarArtists: ImmutableList<Artist>,
         val biography: String?,
         val trackCount: Int,
-        val isOffline: Boolean = false,
+        /**
+         * Why the page may show less than the server has, for the chip: Offline only downloaded
+         * songs are available; online, a refresh that could not reach the server leaves the cached artist.
+         */
+        val offlineStatus: OfflineStatus = OfflineStatus.Online,
         /** Play, Shuffle or Instant mix is fetching songs. */
         val isPreparingPlayback: Boolean = false,
         /** A failed menu, Favorite or Download action, for the snackbar. */

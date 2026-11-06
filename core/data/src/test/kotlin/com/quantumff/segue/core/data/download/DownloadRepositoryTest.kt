@@ -48,6 +48,7 @@ class DownloadRepositoryTest {
         OfflineDownloadRepository(
             clients = FakeClientProvider(),
             dao = dao,
+            lyrics = db.lyricsDao(),
             files = files,
             progress = DownloadProgressTracker(),
             scheduler = { _: DownloadPreferences, restart: Boolean -> schedules += restart },

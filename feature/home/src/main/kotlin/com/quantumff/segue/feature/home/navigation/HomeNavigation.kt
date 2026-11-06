@@ -28,6 +28,7 @@ fun NavGraphBuilder.homeScreen(
     onGenreClick: (String) -> Unit,
     onSeeAllClick: (AlbumListType) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<HomeRoute> {
         HomeScreen(
@@ -38,6 +39,7 @@ fun NavGraphBuilder.homeScreen(
             onGenreClick = onGenreClick,
             onSeeAllClick = onSeeAllClick,
             onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
         )
     }
 }
@@ -47,6 +49,7 @@ fun NavGraphBuilder.albumListScreen(
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<AlbumListRoute> {
         AlbumListScreen(
@@ -54,6 +57,7 @@ fun NavGraphBuilder.albumListScreen(
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
             onAddToPlaylist = onAddToPlaylist,
+            onOfflineModeSettingClick = onOfflineModeSettingClick,
         )
     }
 }
