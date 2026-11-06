@@ -5,6 +5,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.feature.settings.LicensesScreen
 import com.quantumff.segue.feature.settings.SettingsScreen
 import com.quantumff.segue.feature.settings.SettingsSection
@@ -30,18 +31,22 @@ fun NavGraphBuilder.settingsScreen(
     onLicensesClick: () -> Unit,
 ) {
     composable<SettingsRoute> { entry ->
-        SettingsScreen(
-            onBackClick = onBackClick,
-            onDownloadsClick = onDownloadsClick,
-            onAddServerClick = onAddServerClick,
-            onLicensesClick = onLicensesClick,
-            section = entry.toRoute<SettingsRoute>().section?.let(SettingsSection::valueOf),
-        )
+        ScreenBackground {
+            SettingsScreen(
+                onBackClick = onBackClick,
+                onDownloadsClick = onDownloadsClick,
+                onAddServerClick = onAddServerClick,
+                onLicensesClick = onLicensesClick,
+                section = entry.toRoute<SettingsRoute>().section?.let(SettingsSection::valueOf),
+            )
+        }
     }
 }
 
 fun NavGraphBuilder.licensesScreen(onBackClick: () -> Unit) {
     composable<LicensesRoute> {
-        LicensesScreen(onBackClick = onBackClick)
+        ScreenBackground {
+            LicensesScreen(onBackClick = onBackClick)
+        }
     }
 }

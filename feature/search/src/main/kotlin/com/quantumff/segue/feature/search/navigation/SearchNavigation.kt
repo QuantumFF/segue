@@ -2,6 +2,7 @@ package com.quantumff.segue.feature.search.navigation
 
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.feature.search.SearchScreen
 import kotlinx.serialization.Serializable
 
@@ -15,11 +16,13 @@ fun NavGraphBuilder.searchScreen(
     onAddToPlaylist: (List<String>) -> Unit,
 ) {
     composable<SearchRoute> {
-        SearchScreen(
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onGenreClick = onGenreClick,
-            onAddToPlaylist = onAddToPlaylist,
-        )
+        ScreenBackground {
+            SearchScreen(
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onGenreClick = onGenreClick,
+                onAddToPlaylist = onAddToPlaylist,
+            )
+        }
     }
 }

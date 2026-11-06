@@ -1,8 +1,11 @@
 package com.quantumff.segue.navigation
 
+import androidx.activity.BackEventCompat
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -91,9 +94,8 @@ fun SegueNavHost(
         exitTransition = transitions.exit,
         popEnterTransition = transitions.popEnter,
         popExitTransition = transitions.popExit,
-        // The back gesture scrubs the same transitions; the library default scales the screen down instead.
-        predictivePopEnterTransition = { transitions.popEnter(this) },
-        predictivePopExitTransition = { transitions.popExit(this) },
+        predictivePopEnterTransition = transitions.predictivePopEnter,
+        predictivePopExitTransition = transitions.predictivePopExit,
     ) {
         navigation<HomeGraph>(startDestination = HomeRoute) {
             homeScreen(
@@ -192,11 +194,26 @@ fun SegueNavHost(
 private typealias Enter = AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition
 private typealias Exit = AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition
 
-private class SegueTransitions(val enter: Enter, val exit: Exit, val popEnter: Enter, val popExit: Exit)
+/** Back gesture transitions take the edge the swipe started from. */
+private typealias GestureEnter = AnimatedContentTransitionScope<NavBackStackEntry>.(swipeEdge: Int) -> EnterTransition
+private typealias GestureExit = AnimatedContentTransitionScope<NavBackStackEntry>.(swipeEdge: Int) -> ExitTransition
+
+private class SegueTransitions(
+    val enter: Enter,
+    val exit: Exit,
+    val popEnter: Enter,
+    val popExit: Exit,
+    val predictivePopEnter: GestureEnter,
+    val predictivePopExit: GestureExit,
+)
 
 /**
  * Shared-axis X (fade through plus 30dp slide, `long`) forward and back; tab switches crossfade (`medium`).
  * With reduced motion every transition is a `medium` crossfade (DESIGN.md §2.5).
+ *
+ * The back gesture doesn't fade through: the gesture can hold the transition at any point, and the
+ * middle of a fade through is a black screen. The screen behind is drawn from the start, and the
+ * leaving screen slides 30dp toward the finger while it fades, in step with the gesture's progress.
  */
 @Composable
 private fun rememberSegueTransitions(appState: SegueAppState): SegueTransitions {
@@ -211,6 +228,13 @@ private fun rememberSegueTransitions(appState: SegueAppState): SegueTransitions 
         val slideOut = { to: Int ->
             slideOutHorizontally(SegueMotion.longExit<IntOffset>()) { to } + fadeOut(SegueMotion.sharedAxisFadeOut())
         }
+        // Linear over `long`, so the gesture's progress maps straight onto the slide and the fade.
+        val gestureFadeOut = fadeOut(tween<Float>(SegueMotion.LONG_MS, easing = LinearEasing))
+        val gestureSlideOut = { swipeEdge: Int ->
+            val to = if (swipeEdge == BackEventCompat.EDGE_RIGHT) -offset else offset
+            slideOutHorizontally(tween<IntOffset>(SegueMotion.LONG_MS, easing = LinearEasing)) { to } +
+                gestureFadeOut
+        }
         // Read at transition time: the flag is set by the navigation that starts the transition.
         val crossfade = { reduceMotion || appState.isTabSwitch }
         SegueTransitions(
@@ -218,6 +242,8 @@ private fun rememberSegueTransitions(appState: SegueAppState): SegueTransitions 
             exit = { if (crossfade()) crossOut else slideOut(-offset) },
             popEnter = { if (reduceMotion) crossIn else slideIn(-offset) },
             popExit = { if (reduceMotion) crossOut else slideOut(offset) },
+            predictivePopEnter = { EnterTransition.None },
+            predictivePopExit = { swipeEdge -> if (reduceMotion) gestureFadeOut else gestureSlideOut(swipeEdge) },
         )
     }
 }

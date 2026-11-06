@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.feature.login.LoginScreen
 import kotlinx.serialization.Serializable
 
@@ -19,6 +20,8 @@ fun NavController.navigateToLogin(canGoBack: Boolean, navOptions: NavOptions? = 
 
 fun NavGraphBuilder.loginScreen(onBackClick: () -> Unit, onSignedIn: () -> Unit) {
     composable<LoginRoute> {
-        LoginScreen(onBackClick = onBackClick, onSignedIn = onSignedIn)
+        ScreenBackground {
+            LoginScreen(onBackClick = onBackClick, onSignedIn = onSignedIn)
+        }
     }
 }

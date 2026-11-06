@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.feature.home.AlbumListScreen
 import com.quantumff.segue.feature.home.HomeScreen
@@ -31,16 +32,18 @@ fun NavGraphBuilder.homeScreen(
     onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<HomeRoute> {
-        HomeScreen(
-            onAccountClick = onAccountClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onPlaylistClick = onPlaylistClick,
-            onGenreClick = onGenreClick,
-            onSeeAllClick = onSeeAllClick,
-            onAddToPlaylist = onAddToPlaylist,
-            onOfflineModeSettingClick = onOfflineModeSettingClick,
-        )
+        ScreenBackground {
+            HomeScreen(
+                onAccountClick = onAccountClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onPlaylistClick = onPlaylistClick,
+                onGenreClick = onGenreClick,
+                onSeeAllClick = onSeeAllClick,
+                onAddToPlaylist = onAddToPlaylist,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
+            )
+        }
     }
 }
 
@@ -52,12 +55,14 @@ fun NavGraphBuilder.albumListScreen(
     onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<AlbumListRoute> {
-        AlbumListScreen(
-            onBackClick = onBackClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onAddToPlaylist = onAddToPlaylist,
-            onOfflineModeSettingClick = onOfflineModeSettingClick,
-        )
+        ScreenBackground {
+            AlbumListScreen(
+                onBackClick = onBackClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onAddToPlaylist = onAddToPlaylist,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
+            )
+        }
     }
 }

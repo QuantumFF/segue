@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.feature.playlist.PlaylistScreen
 import com.quantumff.segue.feature.playlist.PlaylistsScreen
 import kotlinx.serialization.Serializable
@@ -25,11 +26,13 @@ fun NavGraphBuilder.playlistsScreen(
     onPlaylistClick: (String) -> Unit,
 ) {
     composable<PlaylistsRoute> {
-        PlaylistsScreen(
-            onAccountClick = onAccountClick,
-            onOfflineModeSettingClick = onOfflineModeSettingClick,
-            onPlaylistClick = onPlaylistClick,
-        )
+        ScreenBackground {
+            PlaylistsScreen(
+                onAccountClick = onAccountClick,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
+                onPlaylistClick = onPlaylistClick,
+            )
+        }
     }
 }
 
@@ -41,12 +44,14 @@ fun NavGraphBuilder.playlistScreen(
     onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<PlaylistRoute> {
-        PlaylistScreen(
-            onBackClick = onBackClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onAddToPlaylist = onAddToPlaylist,
-            onOfflineModeSettingClick = onOfflineModeSettingClick,
-        )
+        ScreenBackground {
+            PlaylistScreen(
+                onBackClick = onBackClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onAddToPlaylist = onAddToPlaylist,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
+            )
+        }
     }
 }
