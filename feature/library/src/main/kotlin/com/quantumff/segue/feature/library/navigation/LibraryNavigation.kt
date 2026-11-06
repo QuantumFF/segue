@@ -5,6 +5,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.feature.library.GenreScreen
 import com.quantumff.segue.feature.library.LibraryScreen
 import com.quantumff.segue.feature.library.PlaylistsTabSlot
@@ -32,16 +33,18 @@ fun NavGraphBuilder.libraryScreen(
     playlistsTab: PlaylistsTabSlot? = null,
 ) {
     composable<LibraryRoute> {
-        LibraryScreen(
-            onAccountClick = onAccountClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onGenreClick = onGenreClick,
-            onDownloadsClick = onDownloadsClick,
-            onAddToPlaylist = onAddToPlaylist,
-            downloadsTab = downloadsTab,
-            playlistsTab = playlistsTab,
-        )
+        ScreenBackground {
+            LibraryScreen(
+                onAccountClick = onAccountClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onGenreClick = onGenreClick,
+                onDownloadsClick = onDownloadsClick,
+                onAddToPlaylist = onAddToPlaylist,
+                downloadsTab = downloadsTab,
+                playlistsTab = playlistsTab,
+            )
+        }
     }
 }
 
@@ -54,12 +57,14 @@ fun NavGraphBuilder.genreScreen(
     onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<GenreRoute> {
-        GenreScreen(
-            onBackClick = onBackClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onAddToPlaylist = onAddToPlaylist,
-            onOfflineModeSettingClick = onOfflineModeSettingClick,
-        )
+        ScreenBackground {
+            GenreScreen(
+                onBackClick = onBackClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onAddToPlaylist = onAddToPlaylist,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
+            )
+        }
     }
 }

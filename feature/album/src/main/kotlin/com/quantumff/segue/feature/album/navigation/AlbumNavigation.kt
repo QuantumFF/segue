@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
+import com.quantumff.segue.core.designsystem.component.ScreenBackground
 import com.quantumff.segue.feature.album.AlbumDetailRoute
 import kotlinx.serialization.Serializable
 
@@ -23,13 +24,15 @@ fun NavGraphBuilder.albumScreen(
     onOfflineModeSettingClick: () -> Unit,
 ) {
     composable<AlbumRoute> {
-        AlbumDetailRoute(
-            onBackClick = onBackClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onGenreClick = onGenreClick,
-            onAddToPlaylist = onAddToPlaylist,
-            onOfflineModeSettingClick = onOfflineModeSettingClick,
-        )
+        ScreenBackground {
+            AlbumDetailRoute(
+                onBackClick = onBackClick,
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onGenreClick = onGenreClick,
+                onAddToPlaylist = onAddToPlaylist,
+                onOfflineModeSettingClick = onOfflineModeSettingClick,
+            )
+        }
     }
 }
