@@ -251,7 +251,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
-- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮. Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite, so they fit a 360 phone. ⋮ sits in the top bar: Play, Shuffle, Shuffle albums, Favorite, then Download. Download pins the artist; once pinned it reads Remove download and opens the download sheet for the pin's status, as the album's Download button does (§4.3). Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
 - **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: their own albums (newest first), then "Appears on". The list adds the buttons' inset to its bottom padding.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
@@ -446,6 +446,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Blurred art** (Feishin `albumBackground`): pre-blurred bitmap at 70% opacity under `background`-colored gradients (top 5% to bottom 100%).
 - Art: 220 on compact width, 250 on medium and wider, radius `md`, shadow per §2.4.
 - Compact width is centered: art, then 16, overline, title (max 3 lines, `headlineMedium`), metadata. Medium and wider follows the Feishin desktop grid: art on the left, text bottom-aligned on the right, title in `displaySmall`, min height 340.
+- The action row (gap 16) wraps onto another line, 8 below, when its buttons don't fit, in every layout, so none is squeezed at narrow widths or large font sizes.
 - **Short screens** (window height under 480, such as a phone in landscape): the wide grid needs both width 600 or more and height 480 or more. Under 480 of height the art is at most 40% of the window height. At width 600 or more the art stays on the left with the text beside it in `headlineMedium`, with no min height. Narrower windows keep the centered layout. Album details under the hero (rating, genre pills, offline chip) go on one line, so the first tracks show without scrolling. The hero still draws art under the status bar.
 
 ### 5.5 Player bar (expanded) and mini player

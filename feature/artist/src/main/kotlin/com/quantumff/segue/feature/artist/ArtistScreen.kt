@@ -33,7 +33,6 @@ import com.quantumff.segue.core.designsystem.component.AlbumCarouselSection
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
 import com.quantumff.segue.core.designsystem.component.DetailStateLayout
-import com.quantumff.segue.core.designsystem.component.DownloadButton
 import com.quantumff.segue.core.designsystem.component.DownloadSheet
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
@@ -279,10 +278,6 @@ private fun ArtistContent(
                 onClick = onToggleStar,
                 tint = if (artist.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            DownloadButton(
-                status = state.download,
-                onClick = { if (state.download == null) onDownload() else downloadMenuOpen = true },
-            )
         },
     ) {
         if (state.offlineStatus != OfflineStatus.Online || state.isPreparingPlayback) {
@@ -361,7 +356,15 @@ private fun ArtistContent(
         MediaContextMenu(
             header = artist.toMenuHeader(),
             actions = MediaActions.artist(isStarred = artist.isStarred, isDownloaded = state.download != null),
-            onAction = onArtistAction,
+            // Download sits here, not in the row (DESIGN.md §4.4), and does what the row's button did:
+            // it pins the artist, or once pinned opens the download sheet for the pin's status.
+            onAction = { action ->
+                when (action) {
+                    MediaAction.Download -> onDownload()
+                    MediaAction.RemoveDownload -> downloadMenuOpen = true
+                    else -> onArtistAction(action)
+                }
+            },
             onDismissRequest = { artistMenuOpen = false },
         )
     }
@@ -448,7 +451,7 @@ private fun About(biography: String, expanded: Boolean, onToggle: () -> Unit) {
 private const val TOP_SONGS_PREVIEW = 5
 private const val BIOGRAPHY_LINES = 3
 
-private val PreviewArtistState = run {
+internal val PreviewArtistState = run {
     val artist = Artist("ar-1", "Radiohead", albumCount = 9, coverArtId = null, starredAt = null, null, null)
     fun album(id: String, name: String, year: Int, artistId: String = "ar-1") = Album(
         id = id, name = name, artist = "Radiohead", artistId = artistId, artists = persistentListOf(),
