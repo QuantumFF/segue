@@ -31,10 +31,10 @@ class HeroLayoutTest {
     }
 
     @Test
-    fun `the short hero's art is at most 40 percent of the screen height`() {
-        assertThat(heroArtSize(HeroLayout.Short, circular = false, screenHeight = 360.dp)).isEqualTo(144.dp)
-        assertThat(heroArtSize(HeroLayout.Short, circular = true, screenHeight = 360.dp)).isEqualTo(144.dp)
-        assertThat(heroArtSize(HeroLayout.Short, circular = true, screenHeight = 470.dp)).isEqualTo(160.dp)
+    fun `the short hero's art is a thumbnail beside its text, so tracks show under it`() {
+        assertThat(heroArtSize(HeroLayout.Short, circular = false, screenHeight = 360.dp)).isEqualTo(88.dp)
+        assertThat(heroArtSize(HeroLayout.Short, circular = true, screenHeight = 360.dp)).isEqualTo(88.dp)
+        assertThat(heroArtSize(HeroLayout.Short, circular = true, screenHeight = 470.dp)).isEqualTo(88.dp)
     }
 
     @Test

@@ -15,7 +15,10 @@ internal enum class HeroLayout {
     /** Art on the left, text bottom-aligned on the right, min height 340. Width ≥ 600 and height ≥ 480. */
     Wide,
 
-    /** Art on the left like [Wide], but no min height. Width ≥ 600 and height < 480: phone landscape. */
+    /**
+     * One strip: a thumbnail of the art, the text, and the actions at the end, with no min height. Width
+     * ≥ 600 and height < 480: phone landscape, where tracks must show under the hero.
+     */
     Short,
 }
 
@@ -26,9 +29,13 @@ internal fun heroLayout(width: Dp, screenHeight: Dp): HeroLayout = when {
     else -> HeroLayout.Wide
 }
 
-/** The hero art's size for [layout]; [circular] is the artist's art. Under 480 of height it's at most 40% of it. */
+/**
+ * The hero art's size for [layout]; [circular] is the artist's art. The short hero's is a thumbnail;
+ * otherwise, under 480 of height, it's at most 40% of it.
+ */
 internal fun heroArtSize(layout: HeroLayout, circular: Boolean, screenHeight: Dp): Dp {
     val size = when {
+        layout == HeroLayout.Short -> SegueSizes.heroArtShort
         circular -> SegueSizes.heroArtArtist
         layout == HeroLayout.Wide -> SegueSizes.heroArtWide
         else -> SegueSizes.heroArtCompact

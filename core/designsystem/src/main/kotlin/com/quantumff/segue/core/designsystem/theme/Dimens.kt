@@ -103,6 +103,9 @@ object SegueSizes {
     val heroArtCompact = 220.dp
     val heroArtWide = 250.dp
     val heroArtArtist = 160.dp
+
+    /** The short hero's art, as tall as the text beside it (DESIGN.md §5.4). */
+    val heroArtShort = 88.dp
     val heroWideMinHeight = 340.dp
     val heroWideBreakpoint = SegueBreakpoints.medium
 
