@@ -110,6 +110,9 @@ object SegueAlpha {
     const val NOW_PLAYING_SHADE_TOP = 0.30f
     const val NOW_PLAYING_SHADE_BOTTOM = 0.85f
 
+    /** Now Playing top bar shade: black behind the top bar, fading out at its bottom edge. */
+    const val NOW_PLAYING_TOP_BAR_SHADE = 0.70f
+
     /** Anti-banding noise over art backdrops. */
     const val ART_NOISE = 0.04f
 

@@ -84,4 +84,13 @@ class ColorTokensTest {
         assertThat(back.green).isWithin(0.01f).of(color.green)
         assertThat(back.blue).isWithin(0.01f).of(color.blue)
     }
+
+    @Test
+    fun `the Now Playing overline holds 4_5 to 1 over white art under the top bar shade`() {
+        // Worst case: white art, ignoring the backdrop's own gradient. Only the top bar's shade darkens it.
+        val behindTopBar = Color.Black.copy(alpha = SegueAlpha.NOW_PLAYING_TOP_BAR_SHADE).compositeOver(Color.White)
+        val overline = Color.White.copy(alpha = SegueAlpha.ON_ART_MUTED).compositeOver(behindTopBar)
+
+        assertThat(contrastRatio(overline, behindTopBar)).isAtLeast(4.5f)
+    }
 }
