@@ -141,7 +141,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Mini player** (compact and medium): 64 tall, full width, `surfaceContainer`. A 2dp progress line sits at its top edge (`primary`, track `outlineVariant`).
   - Hidden when the queue is empty and while the IME is visible (the nav bar hides then too). Open Now Playing covers it; it stays drawn underneath.
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
-- Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
+- Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture gives Now Playing its two panes, whatever the window's width (§4.7).
 - Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
 - A top-level screen whose top bar scrolls away (Home) draws a `background` @ 92% scrim behind the status bar once content scrolls under it, so the clock and icons never sit on art. It fades in (`medium`), or appears at once with reduce motion on. At the top of the list there is no scrim. Screens with a pinned top bar (Library, Playlists, Search) need none: nothing scrolls under their status bar. Hero screens never get one.
 
@@ -334,11 +334,12 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   | Unsupported (the device can't parse or decode it) | "Couldn't play <title>. This device can't play its format." | Skip |
   | Not found (404 or 410 from the server, or a missing download) | "Couldn't play <title>. Its file is missing." | Skip |
   | Other | "Couldn't play <title>." | Skip |
-- **Layout by window.** Now Playing picks its layout from the window's size and the device's posture:
+- **Layout by window.** Now Playing picks its layout from the window's size and the device's posture, taking the first row that matches:
 
   | Window | Layout |
   |---|---|
   | Tabletop posture (half opened at a fold across the window), whatever its size | Tabletop |
+  | Book posture (half opened at a fold down the window), whatever its size | Two panes |
   | Portrait, narrower than 840 | Portrait: the layout above |
   | Landscape, under 480 tall (a phone held sideways), whatever its width | Phone landscape |
   | 840 wide or more, or landscape and 480 tall or more | Two panes |
@@ -346,7 +347,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Phone landscape:** three regions side by side: art | metadata, seekbar, transport and the bottom row, under the top bar | the open panel. The art is a square sized from the window's height minus padding, not from what is left after the controls. The panel's area appears only while a panel is open; it grows out from the controls (`long`) and is at least 280 wide, and when the window can't fit all three at full size the art gives up width to it. With reduce motion the area appears at its full width and the panel only crossfades. Tapping the active bottom button, or back, closes the panel.
   - **Two panes:** art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art. The tab shown is the open panel, or Queue when none is open, and choosing a tab opens that panel.
   - The open panel is one choice across the layouts: rotating, folding or unfolding keeps it. Two panes left on Queue without a choice leave no panel open in the other layouts.
-  - **Tabletop:** split at the hinge. Above it, the top bar and the art; below it, where the device rests, the metadata, seekbar, transport and bottom row. An open panel takes the art's place above the hinge, as in portrait, without the compact track header since the metadata stays below. Book posture (a fold down the window) uses the layout for the window's size.
+  - **Tabletop:** split at the hinge. Above it, the top bar and the art; below it, where the device rests, the metadata, seekbar, transport and bottom row. An open panel takes the art's place above the hinge, as in portrait, without the compact track header since the metadata stays below.
 
 ```
 ┌──────────────────────────────────┐

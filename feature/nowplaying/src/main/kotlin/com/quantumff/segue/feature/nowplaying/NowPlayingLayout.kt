@@ -55,9 +55,9 @@ internal fun postureOf(hinges: List<HingeInfo>, density: Density): Posture {
 internal data class WindowShape(val width: Dp, val height: Dp, val posture: Posture = Posture.Flat)
 
 /**
- * The layout for [window]. Tabletop posture, with the hinge inside the window, splits at the hinge.
- * Otherwise a landscape window under 480dp tall is a phone held sideways, whatever its width, and an
- * expanded width, or a landscape window, gets two panes.
+ * The layout for [window]. Tabletop posture, with the hinge inside the window, splits at the hinge, and
+ * book posture gets two panes. Otherwise a landscape window under 480dp tall is a phone held sideways,
+ * whatever its width, and an expanded width, or a landscape window, gets two panes.
  */
 internal fun nowPlayingLayout(window: WindowShape): NowPlayingLayout {
     val landscape = window.width > window.height
@@ -65,6 +65,9 @@ internal fun nowPlayingLayout(window: WindowShape): NowPlayingLayout {
     return when {
         posture is Posture.Tabletop && posture.hingeTop > 0.dp && posture.hingeBottom < window.height ->
             NowPlayingLayout.Tabletop
+
+        // Two panes, one each side of the fold (DESIGN.md §3).
+        posture is Posture.Book -> NowPlayingLayout.TwoPane
 
         landscape && window.height < PHONE_LANDSCAPE_MAX_HEIGHT -> NowPlayingLayout.PhoneLandscape
 
