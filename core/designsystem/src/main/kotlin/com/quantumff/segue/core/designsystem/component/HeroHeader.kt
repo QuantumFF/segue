@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -85,7 +86,7 @@ data class HeroHeaderState(
  * windows (height < 480dp) the art is at most 40% of the window height; in phone landscape it stays on
  * the left and the min height is dropped, so tracks show below the hero ([heroLayout]).
  *
- * @param actions the action row (Play, Shuffle, …), centered on compact width.
+ * @param actions the action row (Play, Shuffle, …), centered on compact width. It wraps when it can't fit on one line.
  */
 @Composable
 fun HeroHeader(
@@ -187,11 +188,10 @@ private fun CompactHero(
         Spacer(Modifier.height(SegueSpacing.lg))
         HeroText(state, MaterialTheme.typography.headlineMedium, TextAlign.Center, onSubtitleClick, onTitlePlace)
         Spacer(Modifier.height(SegueSpacing.lg))
-        Row(
+        HeroActions(
             horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
-            content = actions,
+            actions = actions,
         )
     }
 }
@@ -223,12 +223,28 @@ private fun SideArtHero(
             val titleStyle = if (short) typography.headlineMedium else typography.displaySmall
             HeroText(state, titleStyle, TextAlign.Start, onSubtitleClick, onTitlePlace)
             Spacer(Modifier.height(SegueSpacing.lg))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
-                verticalAlignment = Alignment.CenterVertically,
-                content = actions,
-            )
+            HeroActions(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg), actions = actions)
         }
+    }
+}
+
+/**
+ * The hero's action row. It wraps onto another line when the buttons don't fit, on a narrow phone
+ * or beside the short hero's art, so no button is squeezed (DESIGN.md §5.4).
+ */
+@Composable
+private fun HeroActions(
+    horizontalArrangement: Arrangement.Horizontal,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = horizontalArrangement,
+        verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        actions()
     }
 }
 
