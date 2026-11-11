@@ -218,14 +218,11 @@ internal fun NowPlayingScreen(
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val layout = nowPlayingLayout(WindowShape(width = maxWidth, height = maxHeight, posture = posture))
-        // Only the portrait and tabletop layouts' panel replaces the art, so only there does a drag down
-        // close it.
-        val panelCoversArt = layout == NowPlayingLayout.Portrait || layout == NowPlayingLayout.Tabletop
         val gestures = rememberDismissGestures(
             onDismiss = actions.onCollapse,
             onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.Queue },
             // A drag down over an open phone panel closes the panel, not the player.
-            panelDrag = if (openPanel != null && panelCoversArt) panelDrag else null,
+            panelDrag = if (openPanel != null && layout.panelCoversArt) panelDrag else null,
         )
         Box(
             Modifier
@@ -249,7 +246,7 @@ internal fun NowPlayingScreen(
         }
         gestures.predictiveBack()
         // Registered after the predictive collapse, so it wins while a panel is open.
-        BackHandler(enabled = openPanel != null && layout != NowPlayingLayout.TwoPane) { openPanel = null }
+        BackHandler(enabled = openPanel != null && !layout.panelAlwaysShown) { openPanel = null }
     }
 
     val current = state.track
@@ -379,7 +376,7 @@ private fun NowPlayingContent(
                 onMenuClick = onMenuClick,
             )
         }
-        if (track != null && layout != NowPlayingLayout.TwoPane) {
+        if (track != null && !layout.panelAlwaysShown) {
             LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
         }
     }

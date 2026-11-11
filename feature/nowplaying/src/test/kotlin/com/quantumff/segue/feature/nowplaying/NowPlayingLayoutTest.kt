@@ -78,6 +78,17 @@ class NowPlayingLayoutTest {
     }
 
     @Test
+    fun onlyThePortraitAndTabletopPanelsTakeTheArtsPlace() {
+        val covering = NowPlayingLayout.entries.filter { it.panelCoversArt }
+        assertEquals(listOf(NowPlayingLayout.Portrait, NowPlayingLayout.Tabletop), covering)
+    }
+
+    @Test
+    fun onlyTwoPanesAlwaysShowAPanel() {
+        assertEquals(listOf(NowPlayingLayout.TwoPane), NowPlayingLayout.entries.filter { it.panelAlwaysShown })
+    }
+
+    @Test
     fun aHalfOpenedHorizontalHingeIsTabletopPosture() {
         val hinge = HingeInfo(
             bounds = Rect(left = 0f, top = 800f, right = 1400f, bottom = 840f),

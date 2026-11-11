@@ -5,19 +5,24 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** How Now Playing arranges the art, controls and panels (DESIGN.md §4.7). */
-internal enum class NowPlayingLayout {
+/**
+ * How Now Playing arranges the art, controls and panels (DESIGN.md §4.7).
+ *
+ * @property panelCoversArt an open panel takes the art's place, so a drag down or back closes it.
+ * @property panelAlwaysShown a panel is always on screen, as a tab, and is never closed.
+ */
+internal enum class NowPlayingLayout(val panelCoversArt: Boolean, val panelAlwaysShown: Boolean) {
     /** Art, metadata and controls stacked; a panel replaces the art. */
-    Portrait,
+    Portrait(panelCoversArt = true, panelAlwaysShown = false),
 
     /** Art | metadata, seekbar and transport | the open panel, side by side, for a phone held sideways. */
-    PhoneLandscape,
+    PhoneLandscape(panelCoversArt = false, panelAlwaysShown = false),
 
     /** Art and controls on the left, the panels as tabs on the right. */
-    TwoPane,
+    TwoPane(panelCoversArt = false, panelAlwaysShown = true),
 
     /** On a foldable in tabletop posture: the art above the hinge, the controls and bottom row below it. */
-    Tabletop,
+    Tabletop(panelCoversArt = true, panelAlwaysShown = false),
 }
 
 /** How the device is held, from the window's folding feature. */
