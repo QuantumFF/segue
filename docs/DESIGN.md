@@ -143,6 +143,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
 - Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
 - Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
+- A top-level screen whose top bar scrolls away (Home) draws a `background` @ 92% scrim behind the status bar once content scrolls under it, so the clock and icons never sit on art. It fades in (`medium`), or appears at once with reduce motion on. At the top of the list there is no scrim. Screens with a pinned top bar (Library, Playlists, Search) need none: nothing scrolls under their status bar. Hero screens never get one.
 
 ## 4. Screens
 
