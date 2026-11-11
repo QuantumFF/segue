@@ -80,15 +80,24 @@ fun HeroHeaderSkeleton(modifier: Modifier = Modifier) {
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(top = SegueSizes.topBar, bottom = SegueSpacing.lg),
     ) {
-        if (maxWidth >= SegueSizes.heroWideBreakpoint) {
+        val screenHeight = heroScreenHeight()
+        val layout = heroLayout(maxWidth, screenHeight)
+        val artSize = heroArtSize(layout, circular = false, screenHeight = screenHeight)
+        if (layout != HeroLayout.Compact) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = SegueSizes.heroWideMinHeight - SegueSizes.topBar)
+                    .then(
+                        if (layout == HeroLayout.Wide) {
+                            Modifier.heightIn(min = SegueSizes.heroWideMinHeight - SegueSizes.topBar)
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(horizontal = SegueSpacing.screenMarginWide),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                SkeletonBlock(Modifier.size(SegueSizes.heroArtWide), shape = SegueShapes.md)
+                SkeletonBlock(Modifier.size(artSize), shape = SegueShapes.md)
                 Spacer(Modifier.width(SegueSpacing.xl))
                 Column(Modifier.weight(1f)) { HeroTextSkeleton(Alignment.Start) }
             }
@@ -99,7 +108,7 @@ fun HeroHeaderSkeleton(modifier: Modifier = Modifier) {
                     .padding(horizontal = SegueSpacing.screenMarginCompact),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                SkeletonBlock(Modifier.size(SegueSizes.heroArtCompact), shape = SegueShapes.md)
+                SkeletonBlock(Modifier.size(artSize), shape = SegueShapes.md)
                 Spacer(Modifier.height(SegueSpacing.lg))
                 HeroTextSkeleton(Alignment.CenterHorizontally)
             }
