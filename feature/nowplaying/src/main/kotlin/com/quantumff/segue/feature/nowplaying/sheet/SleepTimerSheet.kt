@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -53,6 +55,7 @@ import kotlinx.coroutines.delay
 /**
  * Sleep timer (DESIGN.md §4.7 ⋮ menu): the running timer with Cancel, then presets, end of track,
  * end of album, and a custom length. Picking one starts it (or replaces the running one) and closes.
+ * The title stays fixed and the rest scrolls when it doesn't fit, such as in landscape.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,29 +103,36 @@ internal fun SleepTimerContent(
                 .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm)
                 .semantics { heading() },
         )
-        if (active != null) ActiveTimer(active, onCancel)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        PRESET_MINUTES.forEach { minutes ->
+        // Only what's below the title scrolls, so the custom slider can be reached in a short window.
+        Column(
+            Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            if (active != null) ActiveTimer(active, onCancel)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            PRESET_MINUTES.forEach { minutes ->
+                SheetRow(
+                    icon = SegueIcons.Timer,
+                    label = presetLabel(minutes),
+                    onClick = { onStart(SleepTimerChoice.Minutes(minutes)) },
+                )
+            }
             SheetRow(
-                icon = SegueIcons.Timer,
-                label = presetLabel(minutes),
-                onClick = { onStart(SleepTimerChoice.Minutes(minutes)) },
+                icon = SegueIcons.Music,
+                label = stringResource(R.string.feature_nowplaying_sleep_end_of_track),
+                selected = active == SleepTimer.EndOfTrack,
+                onClick = { onStart(SleepTimerChoice.EndOfTrack) },
             )
+            SheetRow(
+                icon = SegueIcons.Disc3,
+                label = stringResource(R.string.feature_nowplaying_sleep_end_of_album),
+                selected = active == SleepTimer.EndOfAlbum,
+                onClick = { onStart(SleepTimerChoice.EndOfAlbum) },
+            )
+            CustomTimer(onStart = { onStart(SleepTimerChoice.Minutes(it)) })
+            Spacer(Modifier.height(SegueSpacing.sm))
         }
-        SheetRow(
-            icon = SegueIcons.Music,
-            label = stringResource(R.string.feature_nowplaying_sleep_end_of_track),
-            selected = active == SleepTimer.EndOfTrack,
-            onClick = { onStart(SleepTimerChoice.EndOfTrack) },
-        )
-        SheetRow(
-            icon = SegueIcons.Disc3,
-            label = stringResource(R.string.feature_nowplaying_sleep_end_of_album),
-            selected = active == SleepTimer.EndOfAlbum,
-            onClick = { onStart(SleepTimerChoice.EndOfAlbum) },
-        )
-        CustomTimer(onStart = { onStart(SleepTimerChoice.Minutes(it)) })
-        Spacer(Modifier.height(SegueSpacing.sm))
     }
 }
 

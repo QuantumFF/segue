@@ -103,8 +103,14 @@ object SegueSizes {
     val heroArtCompact = 220.dp
     val heroArtWide = 250.dp
     val heroArtArtist = 160.dp
+
+    /** The short hero's art, as tall as the text beside it (DESIGN.md §5.4). */
+    val heroArtShort = 88.dp
     val heroWideMinHeight = 340.dp
     val heroWideBreakpoint = SegueBreakpoints.medium
+
+    /** Under this window height the hero drops its min height and caps its art (DESIGN.md §5.4). */
+    val heroShortBreakpoint = 480.dp
     val heroTintOverhang = 64.dp
     val nowPlayingArtMax = 400.dp
     val loginMaxWidth = 400.dp

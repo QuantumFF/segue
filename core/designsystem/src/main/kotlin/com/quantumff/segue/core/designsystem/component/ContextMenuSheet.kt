@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -78,7 +80,10 @@ fun ContextMenuSheet(
     }
 }
 
-/** The sheet body without the sheet, so it can be previewed and reused in dropdowns. */
+/**
+ * The sheet body without the sheet, so it can be previewed and reused in dropdowns. The header
+ * stays fixed; the rows scroll when they don't fit, such as in landscape or at large font sizes.
+ */
 @Composable
 fun ContextMenuContent(
     header: ContextMenuHeader,
@@ -121,10 +126,17 @@ fun ContextMenuContent(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        items.forEach { item ->
-            ContextMenuRow(item = item, onClick = { onItemClick(item) })
+        // Only the rows scroll, so the header stays put when the sheet is taller than the window.
+        Column(
+            Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            items.forEach { item ->
+                ContextMenuRow(item = item, onClick = { onItemClick(item) })
+            }
+            Spacer(Modifier.height(SegueSpacing.sm))
         }
-        Spacer(Modifier.height(SegueSpacing.sm))
     }
 }
 

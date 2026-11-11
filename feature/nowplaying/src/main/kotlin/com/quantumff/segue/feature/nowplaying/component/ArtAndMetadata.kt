@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -41,6 +42,7 @@ import com.quantumff.segue.core.designsystem.art.BlurredArt
 import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.component.TrackSwipePager
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShadows
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
@@ -48,6 +50,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.feature.nowplaying.AdjacentArt
+import com.quantumff.segue.feature.nowplaying.NowPlayingMotion
 import com.quantumff.segue.feature.nowplaying.NowPlayingTrack
 import com.quantumff.segue.feature.nowplaying.R
 
@@ -120,15 +123,19 @@ internal fun ArtPager(
                             ambientColor = shadowColor,
                             spotColor = shadowColor,
                         )
-                        .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+                        .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                        .then(if (art == current) Modifier.testTag(NOW_PLAYING_ART_TAG) else Modifier),
                 )
             }
         }
     }
 }
 
+/** Tags the playing track's art, for tests that measure it. */
+internal const val NOW_PLAYING_ART_TAG = "nowPlayingArt"
+
 /**
- * Title (22sp, marquee while resumed), then the artists and album as links at 70%, with the
+ * Title (22sp, marquee while resumed, unless reduce motion is on), then the artists and album as links at 70%, with the
  * favorite heart on the right.
  */
 @Composable
@@ -141,6 +148,7 @@ internal fun TrackMetadata(
 ) {
     val onArt = SegueTheme.colors.onArt
     val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value.isAtLeast(Lifecycle.State.RESUMED)
+    val marquee = NowPlayingMotion.titleMarquees(resumed, LocalReduceMotion.current)
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -148,8 +156,8 @@ internal fun TrackMetadata(
                 style = MaterialTheme.typography.titleLarge.copy(fontSize = TITLE_SIZE, lineHeight = TITLE_LINE),
                 color = onArt,
                 maxLines = 1,
-                overflow = if (resumed) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (resumed) Modifier.basicMarquee() else Modifier,
+                overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                modifier = if (marquee) Modifier.basicMarquee() else Modifier,
             )
             Text(
                 text = rememberArtistAlbumLinks(track, onArtistClick, onAlbumClick),

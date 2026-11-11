@@ -141,17 +141,18 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Mini player** (compact and medium): 64 tall, full width, `surfaceContainer`. A 2dp progress line sits at its top edge (`primary`, track `outlineVariant`).
   - Hidden when the queue is empty and while the IME is visible (the nav bar hides then too). Open Now Playing covers it; it stays drawn underneath.
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
-- Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
+- Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture gives Now Playing its two panes, whatever the window's width (§4.7).
 - Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
+- A top-level screen whose top bar scrolls away (Home) draws a `background` @ 92% scrim behind the status bar once content scrolls under it, so the clock and icons never sit on art. It fades in (`medium`), or appears at once with reduce motion on. At the top of the list there is no scrim. Screens with a pinned top bar (Library, Playlists, Search) need none: nothing scrolls under their status bar. Hero screens never get one.
 
 ## 4. Screens
 
 ### 4.1 Home
 - Top bar (not pinned, scrolls away): "Home" in `headlineSmall`. On the right, a settings icon that opens Settings and shows the server name in a tooltip.
 - **Feature carousel** (Feishin): a `HorizontalPager` of 10 random albums. Each item:
-  - Card: 200 tall, radius `md`, page spacing 12, peek 16.
+  - Card: at least 200 tall, growing with the font size so no text is clipped; radius `md`, page spacing 12, peek 16.
   - Backdrop: pre-blurred art at 80% opacity, plus a bottom gradient to black 60%.
-  - Content: 120dp art on the left, then the overline "FEATURED", title `titleLarge` in white, artist, year · track count, and a 48dp play button.
+  - Content: 120dp art on the left, then the overline "FEATURED", title `titleLarge` in white, artist, year · track count, and a 48dp play button in the bottom-end corner. The text keeps clear of the play button: room for it is reserved under the text.
   - No auto-advance (battery). Pager dots below, 6dp.
 - Default section order: Recently played (`getAlbumList2 type=recent`), Recently added (`newest`), Most played (`frequent`), Explore (`random`, with a refresh icon in the header), Playlists, Genres (pills).
 - Section = section header + `LazyRow` with contentPadding 16, spacing 12, snap fling, 20 items, and a trailing "See all" tile.
@@ -250,7 +251,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
-- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite · ⋮. Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite, so they fit a 360 phone. ⋮ sits in the top bar: Play, Shuffle, Shuffle albums, Favorite, then Download. Download pins the artist; once pinned it reads Remove download and opens the download sheet for the pin's status, as the album's Download button does (§4.3). Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
 - **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: their own albums (newest first), then "Appears on". The list adds the buttons' inset to its bottom padding.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
@@ -279,8 +280,9 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Art tint**: a solid tint at the top fading into `background`.
   - **Plain**: `background` only. Black theme defaults to Plain.
 - Text and icons on this screen are always light (`#FFFFFF` at 100% for primary, 70% for secondary), except with Plain on the Light theme.
+- Containers inside the panels (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) are opaque and dark in every theme, so the light content stays readable and nothing under a floating chip or row shows through: Dark and Black use their own `surfaceContainer*`, and Light uses Dark's. Sheets and dialogs opened from Now Playing use the app's own colors, like every other sheet.
 - Layout, top to bottom:
-  - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below).
+  - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below). A shade of black @ 70% sits behind the status bar and top bar only, fading out over the bar's bottom quarter, so the 70% overline keeps 4.5:1 over white art.
   - Art: square, width = screen − 48, radius `lg`, shadow.
   - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
   - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill describing what is actually playing: the stream format the player decoded or requested, so a server transcode reads "OPUS · 128" and a downloaded song describes the downloaded file. Lossless streams show bit depth and sample rate ("FLAC · 16/44.1"), lossy ones the bit rate. Until the stream format is known it describes the library song's file.
@@ -310,6 +312,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Swiping horizontally inside a panel moves between panels.
   - Tapping the active bottom button, or the compact header, returns to the art.
   - Dragging down anywhere while a panel is open, or past the top of the panel's list, pulls the panel down (fading to 50% over its height) instead of collapsing Now Playing. Release past 25% of the panel height or 1000dp/s and the panel slides out the bottom (`long` exit) while the art comes in from above. Otherwise it settles back with the `player` spring.
+- **Reduce motion** (§2.5): opening or closing a panel is a `medium` crossfade instead of the slide, and choosing a panel from a tab, the art or a bottom button jumps the panel pager instead of gliding it. Lyric lines only change opacity, all at scale 1.0, and the list jumps to the active line instead of scrolling to it. The title doesn't marquee; it ends in an ellipsis.
 - **Gestures:**
   - Art swipe left/right: next/previous. Threshold 30% of the width or 1000dp/s. The art slides out and the next one slides in. Haptic tick at the threshold.
   - Tap on art: switch to the Lyrics panel.
@@ -331,7 +334,20 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   | Unsupported (the device can't parse or decode it) | "Couldn't play <title>. This device can't play its format." | Skip |
   | Not found (404 or 410 from the server, or a missing download) | "Couldn't play <title>. Its file is missing." | Skip |
   | Other | "Couldn't play <title>." | Skip |
-- Landscape and Expanded: art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art.
+- **Layout by window.** Now Playing picks its layout from the window's size and the device's posture, taking the first row that matches:
+
+  | Window | Layout |
+  |---|---|
+  | Tabletop posture (half opened at a fold across the window), whatever its size | Tabletop |
+  | Book posture (half opened at a fold down the window), whatever its size | Two panes |
+  | Portrait, narrower than 840 | Portrait: the layout above |
+  | Landscape, under 480 tall (a phone held sideways), whatever its width | Phone landscape |
+  | 840 wide or more, or landscape and 480 tall or more | Two panes |
+
+  - **Phone landscape:** three regions side by side: art | metadata, seekbar, transport and the bottom row, under the top bar | the open panel. The panel's area appears only while a panel is open; it grows out from the controls (`long`). Widths, in this order of priority: the art is a square sized from the window's height minus padding (24 each side, 24 above and below together), not from what is left after the controls. With no panel open it is narrower only so the controls keep 312, the narrowest their transport and bottom rows fit. An open panel is 280 wide, plus any width to spare; to make room, the art gives up width down to a floor of 160, then the panel narrows, down to 120. A window too narrow even for that shares the rest between art and panel in proportion to those floors, so nothing vanishes or overlaps. At 640 × 360 with a panel open: art 160, controls 312, panel 120. With reduce motion the area appears at its full width and the panel only crossfades. Tapping the active bottom button, or back, closes the panel.
+  - **Two panes:** art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art. The tab shown is the open panel, or Queue when none is open, and choosing a tab opens that panel.
+  - The open panel is one choice across the layouts: rotating, folding or unfolding keeps it. Two panes left on Queue without a choice leave no panel open in the other layouts.
+  - **Tabletop:** split at the hinge. Above it, the top bar and the art; below it, where the device rests, the metadata, seekbar, transport and bottom row. An open panel takes the art's place above the hinge, as in portrait, without the compact track header since the metadata stays below.
 
 ```
 ┌──────────────────────────────────┐
@@ -443,6 +459,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Blurred art** (Feishin `albumBackground`): pre-blurred bitmap at 70% opacity under `background`-colored gradients (top 5% to bottom 100%).
 - Art: 220 on compact width, 250 on medium and wider, radius `md`, shadow per §2.4.
 - Compact width is centered: art, then 16, overline, title (max 3 lines, `headlineMedium`), metadata. Medium and wider follows the Feishin desktop grid: art on the left, text bottom-aligned on the right, title in `displaySmall`, min height 340.
+- The action row (gap 16) wraps onto another line, 8 below, when its buttons don't fit, in every layout, so none is squeezed at narrow widths or large font sizes.
+- **Short screens** (window height under 480, such as a phone in landscape): the wide grid needs both width 600 or more and height 480 or more. At width 600 or more a short window gets one compact strip, with no min height and 8 of bottom padding: an 88 art thumbnail, then 16, the text (title in `titleLarge`, at most 2 lines), then 16 and the action row at the end. The actions take the width they need, leaving the text at least 160, and wrap past that. Narrower short windows keep the centered layout, with the art at most 40% of the window height. Album details under the hero (rating, genre pills, offline chip) go on one line. So in an 800 × 360 window, under a 24 status bar and above the 64 mini player, a single-disc album shows at least its first whole track without scrolling. The hero still draws art under the status bar.
 
 ### 5.5 Player bar (expanded) and mini player
 - **Mini player:** see §3.

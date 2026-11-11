@@ -28,6 +28,7 @@ import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.theme.SegueBaseColors
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.Song
@@ -128,28 +129,31 @@ private fun RelatedSongs(state: RelatedUiState.Loaded, actions: RelatedActions, 
         }
     }
     menuFor?.let { song ->
-        MediaContextMenu(
-            header = ContextMenuHeader(title = song.title, subtitle = song.artist, coverArtId = song.coverArtId),
-            actions = remember(song) {
-                persistentListOf<MediaAction>().builder().apply {
-                    add(MediaAction.PlayNext)
-                    add(MediaAction.AddToQueue)
-                    add(MediaAction.AddToPlaylist)
-                    if (song.albumId != null) add(MediaAction.GoToAlbum)
-                    if (song.artistId != null) add(MediaAction.GoToArtist)
-                }.build()
-            },
-            onAction = { action ->
-                when (action) {
-                    MediaAction.PlayNext -> actions.onPlayNext(song)
-                    MediaAction.AddToQueue -> actions.onAddToQueue(listOf(song))
-                    MediaAction.AddToPlaylist -> actions.onAddToPlaylist(song)
-                    MediaAction.GoToAlbum -> song.albumId?.let(actions.onAlbumClick)
-                    MediaAction.GoToArtist -> song.artistId?.let(actions.onArtistClick)
-                    else -> Unit
-                }
-            },
-            onDismissRequest = { menuFor = null },
-        )
+        // The panel is re-themed for the art; the sheet sits on an ordinary surface.
+        SegueBaseColors {
+            MediaContextMenu(
+                header = ContextMenuHeader(title = song.title, subtitle = song.artist, coverArtId = song.coverArtId),
+                actions = remember(song) {
+                    persistentListOf<MediaAction>().builder().apply {
+                        add(MediaAction.PlayNext)
+                        add(MediaAction.AddToQueue)
+                        add(MediaAction.AddToPlaylist)
+                        if (song.albumId != null) add(MediaAction.GoToAlbum)
+                        if (song.artistId != null) add(MediaAction.GoToArtist)
+                    }.build()
+                },
+                onAction = { action ->
+                    when (action) {
+                        MediaAction.PlayNext -> actions.onPlayNext(song)
+                        MediaAction.AddToQueue -> actions.onAddToQueue(listOf(song))
+                        MediaAction.AddToPlaylist -> actions.onAddToPlaylist(song)
+                        MediaAction.GoToAlbum -> song.albumId?.let(actions.onAlbumClick)
+                        MediaAction.GoToArtist -> song.artistId?.let(actions.onArtistClick)
+                        else -> Unit
+                    }
+                },
+                onDismissRequest = { menuFor = null },
+            )
+        }
     }
 }

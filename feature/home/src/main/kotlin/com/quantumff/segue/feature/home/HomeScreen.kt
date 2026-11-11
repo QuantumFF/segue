@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
@@ -149,6 +150,7 @@ fun HomeScreen(
         onSeeAllClick = onSeeAllClick,
     )
 
+    val listState = rememberLazyListState()
     Box(modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = uiState.showsRefreshIndicator,
@@ -156,6 +158,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(
+                state = listState,
                 contentPadding = PaddingValues(bottom = LocalShellContentPadding.current.calculateBottomPadding()),
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -193,7 +196,7 @@ fun HomeScreen(
                 }
             }
         }
-        StatusBarScrim(Modifier.align(Alignment.TopCenter))
+        StatusBarScrim(listState, Modifier.align(Alignment.TopCenter))
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 
