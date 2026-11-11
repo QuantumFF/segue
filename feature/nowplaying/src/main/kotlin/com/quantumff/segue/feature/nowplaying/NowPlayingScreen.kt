@@ -49,7 +49,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -104,7 +103,6 @@ import com.quantumff.segue.feature.nowplaying.sheet.TrackDetailsSheet
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.launch
 
 /**
  * Now Playing (DESIGN.md §4.7).
@@ -345,8 +343,9 @@ private fun NowPlayingContent(
 
             else -> PhoneLayout(parts, panelDrag)
         }
-        if (parts != null && !layout.panelAlwaysShown) {
-            LaunchedEffect(parts.openPanel) { parts.actions.onVisiblePanelsChange(setOfNotNull(parts.openPanel)) }
+        if (parts != null) {
+            val shown = layout.shownPanel(parts.openPanel)
+            LaunchedEffect(shown) { parts.actions.onVisiblePanelsChange(setOfNotNull(shown)) }
         }
     }
 }
@@ -660,17 +659,17 @@ private fun SidePanel(parts: NowPlayingParts, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Art and controls on the left, the panels as tabs on the right. The tab shown is the open panel, the
+ * same one the other layouts show, or Queue when none is open; choosing a tab opens that panel.
+ */
 @Composable
 private fun TwoPaneLayout(parts: NowPlayingParts) {
     val tabs = TWO_PANE_TABS
-    val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
-    val scope = rememberCoroutineScope()
-    val reduceMotion = LocalReduceMotion.current
-    LaunchedEffect(pagerState) {
-        snapshotFlow {
-            pagerState.settledPage
-        }.collect { page -> parts.actions.onVisiblePanelsChange(setOf(tabs[page])) }
-    }
+    val shown = NowPlayingLayout.TwoPane.shownPanel(parts.openPanel) ?: tabs.first()
+    val pagerState = rememberPagerState(initialPage = tabs.indexOf(shown)) { tabs.size }
+    // A swipe to another tab opens it; settling on Queue with no panel open leaves none open.
+    SyncPager(pagerState, tabs, parts.openPanel) { settled -> if (settled != shown) parts.onOpenPanelChange(settled) }
     Row(
         Modifier
             .fillMaxSize()
@@ -688,14 +687,9 @@ private fun TwoPaneLayout(parts: NowPlayingParts) {
                 val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE - CONTROLS_ALLOWANCE)
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
                     parts.Art(
-                        modifier = Modifier
+                        Modifier
                             .fillMaxWidth()
                             .height(artHeight),
-                        onClick = {
-                            scope.launch {
-                                pagerState.showPanelPage(tabs.indexOf(NowPlayingPanel.Lyrics), reduceMotion)
-                            }
-                        },
                     )
                     parts.Metadata()
                     parts.Controls()
@@ -726,7 +720,7 @@ private fun TwoPaneLayout(parts: NowPlayingParts) {
                 tabs.forEachIndexed { index, panel ->
                     Tab(
                         selected = pagerState.currentPage == index,
-                        onClick = { scope.launch { pagerState.showPanelPage(index, reduceMotion) } },
+                        onClick = { parts.onOpenPanelChange(panel) },
                         selectedContentColor = SegueTheme.colors.onArt,
                         unselectedContentColor = SegueTheme.colors.onArtMuted,
                         text = { Text(stringResource(panel.label), style = MaterialTheme.typography.labelLarge) },
@@ -740,18 +734,15 @@ private fun TwoPaneLayout(parts: NowPlayingParts) {
     }
 }
 
-/** The art pager: swipe to skip, tap to open Lyrics (or [onClick]), long-press for the menu. */
+/** The art pager: swipe to skip, tap to open Lyrics, long-press for the menu. */
 @Composable
-private fun NowPlayingParts.Art(
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
-) {
+private fun NowPlayingParts.Art(modifier: Modifier = Modifier) {
     ArtPager(
         track = track,
         previous = state.previous,
         next = state.next,
         onSkipTo = actions.onSkipTo,
-        onClick = onClick,
+        onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
         onLongClick = onMenuClick,
         modifier = modifier,
     )
@@ -854,7 +845,7 @@ private fun NothingPlaying(onCollapse: () -> Unit) {
     }
 }
 
-/** Keeps the phone panel pager and the open panel in step, both ways. */
+/** Keeps a panel pager and the open panel in step, both ways. */
 @Composable
 private fun SyncPager(
     pagerState: PagerState,

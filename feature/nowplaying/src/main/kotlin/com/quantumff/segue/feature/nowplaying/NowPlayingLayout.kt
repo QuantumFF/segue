@@ -23,6 +23,11 @@ internal enum class NowPlayingLayout(val panelCoversArt: Boolean, val panelAlway
 
     /** On a foldable in tabletop posture: the art above the hinge, the controls and bottom row below it. */
     Tabletop(panelCoversArt = true, panelAlwaysShown = false),
+    ;
+
+    /** The panel on screen while [openPanel] is open: a layout that always shows one shows Queue when none is. */
+    fun shownPanel(openPanel: NowPlayingPanel?): NowPlayingPanel? =
+        if (panelAlwaysShown) openPanel ?: NowPlayingPanel.Queue else openPanel
 }
 
 /** How the device is held, from the window's folding feature. */

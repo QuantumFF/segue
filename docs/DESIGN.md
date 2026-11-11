@@ -344,7 +344,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   | 840 wide or more, or landscape and 480 tall or more | Two panes |
 
   - **Phone landscape:** three regions side by side: art | metadata, seekbar, transport and the bottom row, under the top bar | the open panel. The art is a square sized from the window's height minus padding, not from what is left after the controls. The panel's area appears only while a panel is open; it grows out from the controls (`long`) and is at least 280 wide, and when the window can't fit all three at full size the art gives up width to it. With reduce motion the area appears at its full width and the panel only crossfades. Tapping the active bottom button, or back, closes the panel.
-  - **Two panes:** art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art.
+  - **Two panes:** art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art. The tab shown is the open panel, or Queue when none is open, and choosing a tab opens that panel.
+  - The open panel is one choice across the layouts: rotating, folding or unfolding keeps it. Two panes left on Queue without a choice leave no panel open in the other layouts.
   - **Tabletop:** split at the hinge. Above it, the top bar and the art; below it, where the device rests, the metadata, seekbar, transport and bottom row. An open panel takes the art's place above the hinge, as in portrait, without the compact track header since the metadata stays below. Book posture (a fold down the window) uses the layout for the window's size.
 
 ```
