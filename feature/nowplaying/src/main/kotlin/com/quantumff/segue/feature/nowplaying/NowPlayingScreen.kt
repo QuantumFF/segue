@@ -4,10 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -64,8 +60,8 @@ import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueBaseColors
-import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
@@ -437,16 +433,10 @@ private fun PhoneLayout(
             .navigationBarsPadding(),
     ) {
         TopBar(state.source, actions, onMenuClick)
+        val reduceMotion = LocalReduceMotion.current
         AnimatedContent(
             targetState = openPanel != null,
-            transitionSpec = {
-                // Dragged down: the panel slides out the bottom and the art follows it down, from above.
-                val draggedDown = panelDrag.isClosing
-                val from = if (draggedDown) -1 else 1
-                val enter = slideInVertically(SegueMotion.longEnter()) { from * it / PANEL_SLIDE_FRACTION } +
-                    fadeIn(SegueMotion.longEnter())
-                enter.togetherWith(fadeOut(if (draggedDown) SegueMotion.longExit() else SegueMotion.medium()))
-            },
+            transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
             label = "panel",
             modifier = Modifier
                 .weight(1f)
@@ -527,6 +517,7 @@ private fun TwoPaneLayout(
     val tabs = TWO_PANE_TABS
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
     val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page -> actions.onVisiblePanelsChange(setOf(tabs[page])) }
     }
@@ -552,7 +543,9 @@ private fun TwoPaneLayout(
                         next = state.next,
                         onSkipTo = actions.onSkipTo,
                         onClick = {
-                            scope.launch { pagerState.animateScrollToPage(tabs.indexOf(NowPlayingPanel.Lyrics)) }
+                            scope.launch {
+                                pagerState.showPanelPage(tabs.indexOf(NowPlayingPanel.Lyrics), reduceMotion)
+                            }
                         },
                         onLongClick = onMenuClick,
                         modifier = Modifier
@@ -594,7 +587,7 @@ private fun TwoPaneLayout(
                 tabs.forEachIndexed { index, panel ->
                     Tab(
                         selected = pagerState.currentPage == index,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                        onClick = { scope.launch { pagerState.showPanelPage(index, reduceMotion) } },
                         selectedContentColor = SegueTheme.colors.onArt,
                         unselectedContentColor = SegueTheme.colors.onArtMuted,
                         text = { Text(stringResource(panel.label), style = MaterialTheme.typography.labelLarge) },
@@ -673,9 +666,10 @@ private fun SyncPager(
     openPanel: NowPlayingPanel?,
     onSettle: (NowPlayingPanel) -> Unit,
 ) {
+    val reduceMotion = LocalReduceMotion.current
     LaunchedEffect(openPanel) {
         val page = openPanel?.let(order::indexOf) ?: return@LaunchedEffect
-        if (pagerState.currentPage != page) pagerState.animateScrollToPage(page)
+        if (pagerState.currentPage != page) pagerState.showPanelPage(page, reduceMotion)
     }
     val latestOnSettle by rememberUpdatedState(onSettle)
     LaunchedEffect(pagerState) {
@@ -694,7 +688,6 @@ private val METADATA_ALLOWANCE = 72.dp
 /** Room for the seekbar and transport row under the art in the two-pane layout. */
 private val CONTROLS_ALLOWANCE = 180.dp
 private const val ART_PANE_WEIGHT = 0.45f
-private const val PANEL_SLIDE_FRACTION = 4
 
 /** How much a panel fades when pulled down its whole height. */
 private const val PANEL_DRAG_FADE = 0.5f

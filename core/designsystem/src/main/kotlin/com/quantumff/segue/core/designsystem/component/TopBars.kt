@@ -1,8 +1,14 @@
 package com.quantumff.segue.core.designsystem.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -47,6 +54,7 @@ import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
@@ -84,18 +92,31 @@ fun TopLevelTopBar(title: String, modifier: Modifier = Modifier, actions: @Compo
 
 /**
  * Keeps the status bar readable over content that scrolls under it (a [TopLevelTopBar] that has
- * scrolled away): a `background` band the height of the status bar. Align it to the top.
+ * scrolled away): a `background` band the height of the status bar, DESIGN.md §4.1. Pass the
+ * state of the list that scrolls under the status bar and align it to the top. At the top of the
+ * list it isn't drawn; once the list scrolls it fades in (`medium`), or appears at once with
+ * reduce motion on. Hero screens don't use it: their art stays under the status bar.
  */
 @Composable
-fun StatusBarScrim(modifier: Modifier = Modifier) {
-    Spacer(
-        modifier
-            .fillMaxWidth()
-            .windowInsetsTopHeight(WindowInsets.statusBars)
-            .background(MaterialTheme.colorScheme.background.copy(alpha = STATUS_BAR_SCRIM_ALPHA)),
-    )
+fun StatusBarScrim(scrollState: ScrollableState, modifier: Modifier = Modifier) {
+    val reduceMotion = LocalReduceMotion.current
+    AnimatedVisibility(
+        visible = scrollState.canScrollBackward,
+        enter = if (reduceMotion) EnterTransition.None else fadeIn(SegueMotion.medium()),
+        exit = if (reduceMotion) ExitTransition.None else fadeOut(SegueMotion.medium()),
+        modifier = modifier,
+    ) {
+        Spacer(
+            Modifier
+                .testTag(STATUS_BAR_SCRIM_TAG)
+                .fillMaxWidth()
+                .windowInsetsTopHeight(WindowInsets.statusBars)
+                .background(MaterialTheme.colorScheme.background.copy(alpha = STATUS_BAR_SCRIM_ALPHA)),
+        )
+    }
 }
 
+internal const val STATUS_BAR_SCRIM_TAG = "statusBarScrim"
 private const val STATUS_BAR_SCRIM_ALPHA = 0.92f
 
 /**

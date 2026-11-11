@@ -143,6 +143,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Content scrolls under it: lists add bottom padding equal to the height of mini player + nav bar.
 - Foldables: tabletop posture puts Now Playing art in the top half and controls in the bottom half. Book posture uses the Expanded layout.
 - Edge-to-edge everywhere. Hero headers and Now Playing draw behind the status bar. Use light status-bar icons over art, regardless of theme. A Tint hero is not art: its icons follow the theme, because the light-theme tint is light (L 0.82 to 0.90).
+- A top-level screen whose top bar scrolls away (Home) draws a `background` @ 92% scrim behind the status bar once content scrolls under it, so the clock and icons never sit on art. It fades in (`medium`), or appears at once with reduce motion on. At the top of the list there is no scrim. Screens with a pinned top bar (Library, Playlists, Search) need none: nothing scrolls under their status bar. Hero screens never get one.
 
 ## 4. Screens
 
@@ -311,6 +312,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Swiping horizontally inside a panel moves between panels.
   - Tapping the active bottom button, or the compact header, returns to the art.
   - Dragging down anywhere while a panel is open, or past the top of the panel's list, pulls the panel down (fading to 50% over its height) instead of collapsing Now Playing. Release past 25% of the panel height or 1000dp/s and the panel slides out the bottom (`long` exit) while the art comes in from above. Otherwise it settles back with the `player` spring.
+- **Reduce motion** (§2.5): opening or closing a panel is a `medium` crossfade instead of the slide, and choosing a panel from a tab, the art or a bottom button jumps the panel pager instead of gliding it. Lyric lines only change opacity, all at scale 1.0, and the list jumps to the active line instead of scrolling to it. The title doesn't marquee; it ends in an ellipsis.
 - **Gestures:**
   - Art swipe left/right: next/previous. Threshold 30% of the width or 1000dp/s. The art slides out and the next one slides in. Haptic tick at the threshold.
   - Tap on art: switch to the Lyrics panel.
