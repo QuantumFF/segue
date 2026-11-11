@@ -280,7 +280,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Art tint**: a solid tint at the top fading into `background`.
   - **Plain**: `background` only. Black theme defaults to Plain.
 - Text and icons on this screen are always light (`#FFFFFF` at 100% for primary, 70% for secondary), except with Plain on the Light theme.
-- Containers inside the panels (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) are veils over the art that keep that light content readable: black @ 32–56% on the Light theme, white @ 4–12% on Dark and Black. Sheets and dialogs opened from Now Playing use the app's own colors, like every other sheet.
+- Containers inside the panels (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) are opaque and dark in every theme, so the light content stays readable and nothing under a floating chip or row shows through: Dark and Black use their own `surfaceContainer*`, and Light uses Dark's. Sheets and dialogs opened from Now Playing use the app's own colors, like every other sheet.
 - Layout, top to bottom:
   - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below). A shade of black @ 70% sits behind the status bar and top bar only, fading out over the bar's bottom quarter, so the 70% overline keeps 4.5:1 over white art.
   - Art: square, width = screen − 48, radius `lg`, shadow.

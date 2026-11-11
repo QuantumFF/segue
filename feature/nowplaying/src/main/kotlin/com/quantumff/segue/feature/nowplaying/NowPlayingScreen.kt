@@ -406,27 +406,24 @@ private class PanelContent(
 
 /**
  * Panels sit on the dark art backdrop: their `onSurface` text and icons turn light in every theme, and
- * their containers (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) become
- * veils over the art that keep that light content readable: black in Light, whose backdrop can be
- * pale, and white in Dark and Black, close to their own dark containers.
+ * their containers (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) are the
+ * theme's art containers, dark and opaque, so that light content stays readable and nothing under a
+ * floating chip or row shows through.
  */
 @Composable
 private fun OnArtContent(content: @Composable () -> Unit) {
     val colors = SegueTheme.colors
-    val veil = if (SegueTheme.isDark) Color.White else colors.artShade
-    val alphas = if (SegueTheme.isDark) DARK_CONTAINER_ALPHAS else LIGHT_CONTAINER_ALPHAS
+    val containers = colors.artContainers
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             onSurface = colors.onArt,
             onSurfaceVariant = colors.onArtMuted,
             onBackground = colors.onArt,
-            surfaceContainerLowest = veil.copy(alpha = alphas[0]),
-            surfaceContainerLow = veil.copy(alpha = alphas[1]),
-            surfaceContainer = veil.copy(alpha = alphas[2]),
-            surfaceContainerHigh = veil.copy(alpha = alphas[3]),
-            surfaceContainerHighest = veil.copy(alpha = alphas[4]),
-            inverseSurface = colors.artShade.copy(alpha = INVERSE_ON_ART_ALPHA),
-            inverseOnSurface = colors.onArt,
+            surfaceContainerLowest = containers.surfaceContainerLowest,
+            surfaceContainerLow = containers.surfaceContainerLow,
+            surfaceContainer = containers.surfaceContainer,
+            surfaceContainerHigh = containers.surfaceContainerHigh,
+            surfaceContainerHighest = containers.surfaceContainerHighest,
             // Tonal buttons (Play all, Retry): a light veil instead of the accent tint.
             secondaryContainer = colors.onArt.copy(alpha = TONAL_ON_ART_ALPHA),
             onSecondaryContainer = colors.onArt,
@@ -874,11 +871,6 @@ private const val ART_PANE_WEIGHT = 0.45f
 private const val PANEL_DRAG_FADE = 0.5f
 private const val TONAL_ON_ART_ALPHA = 0.16f
 private const val OUTLINE_ON_ART_ALPHA = 0.32f
-
-/** On-art `surfaceContainerLowest` up to `surfaceContainerHighest`, as veil alphas. */
-private val LIGHT_CONTAINER_ALPHAS = floatArrayOf(0.32f, 0.38f, 0.44f, 0.50f, 0.56f)
-private val DARK_CONTAINER_ALPHAS = floatArrayOf(0.04f, 0.06f, 0.08f, 0.10f, 0.12f)
-private const val INVERSE_ON_ART_ALPHA = 0.80f
 
 @PreviewSegueThemes
 @Composable

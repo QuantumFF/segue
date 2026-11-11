@@ -154,7 +154,35 @@ data class SegueExtendedColors(
     val artShade: Color,
     /** Base color of the three allowed shadows (DESIGN.md §2.4); apply the per-shadow alpha. */
     val shadow: Color,
+    /** Containers for chips, banners and rows drawn over art, under [onArt] content. */
+    val artContainers: ArtContainerColors,
 )
+
+/**
+ * Containers over art, such as the chips, banners and dragged rows in Now Playing's panels (DESIGN.md
+ * §4.7). They hold light [SegueExtendedColors.onArt] content, so they're dark in every theme, and
+ * opaque, since some float over other content: Dark and Black use their own containers, and Light
+ * uses Dark's.
+ */
+@Immutable
+data class ArtContainerColors(
+    val surfaceContainerLowest: Color,
+    val surfaceContainerLow: Color,
+    val surfaceContainer: Color,
+    val surfaceContainerHigh: Color,
+    val surfaceContainerHighest: Color,
+)
+
+private fun NeutralPalette.artContainers(): ArtContainerColors {
+    val dark = if (isDark) this else SeguePalettes.Dark
+    return ArtContainerColors(
+        surfaceContainerLowest = dark.surfaceContainerLowest,
+        surfaceContainerLow = dark.surfaceContainerLow,
+        surfaceContainer = dark.surfaceContainer,
+        surfaceContainerHigh = dark.surfaceContainerHigh,
+        surfaceContainerHighest = dark.surfaceContainerHighest,
+    )
+}
 
 internal val LocalSegueColors = staticCompositionLocalOf {
     SegueExtendedColors(
@@ -163,6 +191,7 @@ internal val LocalSegueColors = staticCompositionLocalOf {
         onArtMuted = Color.White.copy(alpha = SegueAlpha.ON_ART_MUTED),
         artShade = Color.Black,
         shadow = Color.Black,
+        artContainers = SeguePalettes.Dark.artContainers(),
     )
 }
 
@@ -172,6 +201,7 @@ internal fun NeutralPalette.extendedColors() = SegueExtendedColors(
     onArtMuted = Color.White.copy(alpha = SegueAlpha.ON_ART_MUTED),
     artShade = Color.Black,
     shadow = Color.Black,
+    artContainers = artContainers(),
 )
 
 /**
