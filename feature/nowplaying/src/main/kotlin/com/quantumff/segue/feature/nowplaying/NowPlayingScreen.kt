@@ -452,56 +452,51 @@ private fun PhoneLayout(parts: NowPlayingParts, panelDrag: PanelDrag) {
             .fillMaxSize()
             .navigationBarsPadding(),
     ) {
-        TopBar(parts.state.source, parts.actions, parts.onMenuClick)
-        val reduceMotion = LocalReduceMotion.current
-        AnimatedContent(
-            targetState = parts.openPanel != null,
-            transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
-            label = "panel",
+        parts.TopBar()
+        parts.ArtOrPanel(
+            panelDrag = panelDrag,
+            panelHeader = { CompactTrackHeader(track = parts.track, onClick = { parts.onOpenPanelChange(null) }) },
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .clipToBounds(),
-        ) { showingPanel ->
-            if (showingPanel) {
-                PanelInPlaceOfArt(parts, panelDrag) {
-                    CompactTrackHeader(track = parts.track, onClick = { parts.onOpenPanelChange(null) })
-                }
-            } else {
-                // Art and metadata stay together, centered in the space above the controls.
-                BoxWithConstraints(Modifier.fillMaxSize()) {
-                    val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE)
-                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-                        ArtPager(
-                            track = parts.track,
-                            previous = parts.state.previous,
-                            next = parts.state.next,
-                            onSkipTo = parts.actions.onSkipTo,
-                            onClick = { parts.onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                            onLongClick = parts.onMenuClick,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(artHeight),
-                        )
-                        TrackMetadata(
-                            track = parts.track,
-                            onArtistClick = parts.actions.onArtistClick,
-                            onAlbumClick = parts.actions.onAlbumClick,
-                            onFavoriteClick = parts.actions.onToggleFavorite,
-                            modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
-                        )
-                    }
+                .fillMaxWidth(),
+        ) {
+            // Art and metadata stay together, centered in the space above the controls.
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                    parts.Art(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(artHeight),
+                    )
+                    parts.Metadata()
                 }
             }
         }
-        Controls(parts.state, parts.positionMillis, parts.actions)
-        PanelBar(
-            openPanel = parts.openPanel,
-            sleepTimerActive = parts.state.sleepTimer != null,
-            onPanelClick = { panel -> parts.onOpenPanelChange(if (panel == parts.openPanel) null else panel) },
-            onMoreClick = parts.onMenuClick,
-            modifier = Modifier.padding(bottom = SegueSpacing.sm),
-        )
+        parts.Controls()
+        parts.BottomRow()
+    }
+}
+
+/**
+ * The art, drawn by [art], or the open panel in its place under an optional [panelHeader]: a panel
+ * opening or closing slides (or, with reduce motion, crossfades) over the art.
+ */
+@Composable
+private fun NowPlayingParts.ArtOrPanel(
+    panelDrag: PanelDrag,
+    modifier: Modifier = Modifier,
+    panelHeader: @Composable () -> Unit = {},
+    art: @Composable () -> Unit,
+) {
+    val reduceMotion = LocalReduceMotion.current
+    AnimatedContent(
+        targetState = openPanel != null,
+        transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
+        label = "panel",
+        modifier = modifier.clipToBounds(),
+    ) { showingPanel ->
+        if (showingPanel) PanelInPlaceOfArt(this@ArtOrPanel, panelDrag, panelHeader) else art()
     }
 }
 
@@ -548,58 +543,24 @@ private fun TabletopLayout(parts: NowPlayingParts, hinge: Posture.Tabletop, pane
                 .fillMaxWidth()
                 .height(hinge.hingeTop),
         ) {
-            TopBar(parts.state.source, parts.actions, parts.onMenuClick)
-            val reduceMotion = LocalReduceMotion.current
-            AnimatedContent(
-                targetState = parts.openPanel != null,
-                transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
-                label = "panel",
+            parts.TopBar()
+            parts.ArtOrPanel(
+                panelDrag = panelDrag,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .clipToBounds(),
-            ) { showingPanel ->
-                if (showingPanel) {
-                    PanelInPlaceOfArt(parts, panelDrag)
-                } else {
-                    ArtPager(
-                        track = parts.track,
-                        previous = parts.state.previous,
-                        next = parts.state.next,
-                        onSkipTo = parts.actions.onSkipTo,
-                        onClick = { parts.onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                        onLongClick = parts.onMenuClick,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                    .fillMaxWidth(),
+            ) {
+                parts.Art(Modifier.fillMaxSize())
             }
         }
         // Nothing is drawn across the hinge itself.
         Spacer(Modifier.height(hinge.hingeBottom - hinge.hingeTop))
-        Column(
+        parts.MetadataControlsAndBottomRow(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .navigationBarsPadding(),
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                TrackMetadata(
-                    track = parts.track,
-                    onArtistClick = parts.actions.onArtistClick,
-                    onAlbumClick = parts.actions.onAlbumClick,
-                    onFavoriteClick = parts.actions.onToggleFavorite,
-                    modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
-                )
-                Controls(parts.state, parts.positionMillis, parts.actions)
-            }
-            PanelBar(
-                openPanel = parts.openPanel,
-                sleepTimerActive = parts.state.sleepTimer != null,
-                onPanelClick = { panel -> parts.onOpenPanelChange(if (panel == parts.openPanel) null else panel) },
-                onMoreClick = parts.onMenuClick,
-                modifier = Modifier.padding(bottom = SegueSpacing.sm),
-            )
-        }
+        )
     }
 }
 
@@ -637,14 +598,8 @@ private fun PhoneLandscapeLayout(parts: NowPlayingParts) {
         val artSide = min(fromHeight, maxWidth - SegueSpacing.xl * 2 - LANDSCAPE_CONTROLS_WIDTH - animatedPanelWidth)
             .coerceAtLeast(0.dp)
         Row(Modifier.fillMaxSize()) {
-            ArtPager(
-                track = parts.track,
-                previous = parts.state.previous,
-                next = parts.state.next,
-                onSkipTo = parts.actions.onSkipTo,
-                onClick = { parts.onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                onLongClick = parts.onMenuClick,
-                modifier = Modifier
+            parts.Art(
+                Modifier
                     .padding(top = statusBar)
                     .width(artSide + SegueSpacing.xl * 2)
                     .fillMaxHeight(),
@@ -654,24 +609,8 @@ private fun PhoneLandscapeLayout(parts: NowPlayingParts) {
                     .weight(1f)
                     .fillMaxHeight(),
             ) {
-                TopBar(parts.state.source, parts.actions, parts.onMenuClick)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                    TrackMetadata(
-                        track = parts.track,
-                        onArtistClick = parts.actions.onArtistClick,
-                        onAlbumClick = parts.actions.onAlbumClick,
-                        onFavoriteClick = parts.actions.onToggleFavorite,
-                        modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
-                    )
-                    Controls(parts.state, parts.positionMillis, parts.actions)
-                }
-                PanelBar(
-                    openPanel = parts.openPanel,
-                    sleepTimerActive = parts.state.sleepTimer != null,
-                    onPanelClick = { panel -> parts.onOpenPanelChange(if (panel == parts.openPanel) null else panel) },
-                    onMoreClick = parts.onMenuClick,
-                    modifier = Modifier.padding(bottom = SegueSpacing.sm),
-                )
+                parts.TopBar()
+                parts.MetadataControlsAndBottomRow(Modifier.weight(1f))
             }
             // The panel keeps its full width while its area grows or shrinks, so its pager never
             // lays out at a sliver of a page.
@@ -738,7 +677,7 @@ private fun TwoPaneLayout(parts: NowPlayingParts) {
             .navigationBarsPadding(),
     ) {
         Column(Modifier.weight(ART_PANE_WEIGHT)) {
-            TopBar(parts.state.source, parts.actions, parts.onMenuClick)
+            parts.TopBar()
             // Art, metadata and controls stay together, centered, instead of the art floating in a
             // tall pane far from its title and controls.
             BoxWithConstraints(
@@ -748,29 +687,18 @@ private fun TwoPaneLayout(parts: NowPlayingParts) {
             ) {
                 val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE - CONTROLS_ALLOWANCE)
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-                    ArtPager(
-                        track = parts.track,
-                        previous = parts.state.previous,
-                        next = parts.state.next,
-                        onSkipTo = parts.actions.onSkipTo,
+                    parts.Art(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(artHeight),
                         onClick = {
                             scope.launch {
                                 pagerState.showPanelPage(tabs.indexOf(NowPlayingPanel.Lyrics), reduceMotion)
                             }
                         },
-                        onLongClick = parts.onMenuClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(artHeight),
                     )
-                    TrackMetadata(
-                        track = parts.track,
-                        onArtistClick = parts.actions.onArtistClick,
-                        onAlbumClick = parts.actions.onAlbumClick,
-                        onFavoriteClick = parts.actions.onToggleFavorite,
-                        modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
-                    )
-                    Controls(parts.state, parts.positionMillis, parts.actions)
+                    parts.Metadata()
+                    parts.Controls()
                 }
             }
             Spacer(Modifier.height(SegueSpacing.lg))
@@ -812,9 +740,53 @@ private fun TwoPaneLayout(parts: NowPlayingParts) {
     }
 }
 
+/** The art pager: swipe to skip, tap to open Lyrics (or [onClick]), long-press for the menu. */
+@Composable
+private fun NowPlayingParts.Art(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
+) {
+    ArtPager(
+        track = track,
+        previous = state.previous,
+        next = state.next,
+        onSkipTo = actions.onSkipTo,
+        onClick = onClick,
+        onLongClick = onMenuClick,
+        modifier = modifier,
+    )
+}
+
+/** The title, artists, album and heart. */
+@Composable
+private fun NowPlayingParts.Metadata() {
+    TrackMetadata(
+        track = track,
+        onArtistClick = actions.onArtistClick,
+        onAlbumClick = actions.onAlbumClick,
+        onFavoriteClick = actions.onToggleFavorite,
+        modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
+    )
+}
+
+/**
+ * The metadata, seekbar and transport, centered in the space above the bottom row, for the layouts
+ * that keep them apart from the art.
+ */
+@Composable
+private fun NowPlayingParts.MetadataControlsAndBottomRow(modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            Metadata()
+            Controls()
+        }
+        BottomRow()
+    }
+}
+
 /** Seekbar and transport, pinned under the art or panels. */
 @Composable
-private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actions: NowPlayingActions) {
+private fun NowPlayingParts.Controls() {
     Column(Modifier.fillMaxWidth()) {
         NowPlayingSeekbar(
             positionMillis = positionMillis,
@@ -838,8 +810,21 @@ private fun Controls(state: NowPlayingUiState, positionMillis: () -> Long, actio
     }
 }
 
+/** Lyrics · Queue · Related · ⋮: tapping the open panel's button closes it. */
 @Composable
-private fun TopBar(source: SourceLabel, actions: NowPlayingActions, onMenuClick: () -> Unit) {
+private fun NowPlayingParts.BottomRow() {
+    PanelBar(
+        openPanel = openPanel,
+        sleepTimerActive = state.sleepTimer != null,
+        onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
+        onMoreClick = onMenuClick,
+        modifier = Modifier.padding(bottom = SegueSpacing.sm),
+    )
+}
+
+@Composable
+private fun NowPlayingParts.TopBar() {
+    val source = state.source
     NowPlayingTopBar(
         sourceLabel = stringResource(source.overline),
         sourceName = source.name,
