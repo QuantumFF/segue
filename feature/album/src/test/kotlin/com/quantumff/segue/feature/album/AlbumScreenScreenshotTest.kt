@@ -19,10 +19,17 @@ import org.robolectric.annotation.GraphicsMode
 @Config(qualifiers = "w360dp-h900dp-xhdpi")
 class AlbumScreenScreenshotTest {
     @Test
-    fun albumDetail() {
+    fun albumDetail() = capture("album_detail")
+
+    /** Phone landscape: the short hero leaves room for tracks without scrolling (DESIGN.md §5.4). */
+    @Test
+    @Config(qualifiers = "w800dp-h360dp-xhdpi")
+    fun albumDetailLandscape() = capture("album_detail_landscape")
+
+    private fun capture(name: String) {
         listOf(true, false).forEach { dark ->
             val theme = if (dark) "dark" else "light"
-            captureRoboImage("src/test/screenshots/album_detail_$theme.png") {
+            captureRoboImage("src/test/screenshots/${name}_$theme.png") {
                 SegueTheme(systemDark = dark) {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         AlbumScreen(

@@ -95,6 +95,25 @@ class ComponentScreenshotTest {
         }
     }
 
+    /** Phone landscape: art capped at 40% of the height beside the text, no min height (DESIGN.md §5.4). */
+    @Test
+    @Config(qualifiers = "w800dp-h360dp-xhdpi")
+    fun heroHeaderShort() = capture("hero_header_short") {
+        HeroHeader(
+            state = HeroHeaderState(
+                overline = "Album",
+                title = "In Rainbows",
+                subtitle = "Radiohead",
+                metadata = "2007 · 10 tracks · 42 min",
+                coverArtId = null,
+            ),
+        ) {
+            PlayButton(onClick = {})
+            SegueIconButton(icon = SegueIcons.Shuffle, contentDescription = null, onClick = {})
+            SegueIconButton(icon = SegueIcons.Heart, contentDescription = null, onClick = {})
+        }
+    }
+
     /** The page is the playing queue source: the collapsed top bar's play and the hero's Play show Pause. */
     @Test
     fun heroPlayingSource() = capture("hero_playing_source") {

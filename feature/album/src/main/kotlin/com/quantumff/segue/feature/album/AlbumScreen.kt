@@ -60,6 +60,7 @@ import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
 import com.quantumff.segue.core.designsystem.component.TrackSwipeBox
+import com.quantumff.segue.core.designsystem.component.isShortWindow
 import com.quantumff.segue.core.designsystem.component.text
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.model.toCardState
@@ -433,14 +434,7 @@ private fun AlbumDetailsRow(
     onRetry: () -> Unit,
     onOpenOfflineModeSetting: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SegueSpacing.lg)
-            .padding(bottom = SegueSpacing.md),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
-    ) {
+    val details: @Composable () -> Unit = {
         RatingBar(rating = rating, onRatingChange = onRatingChange)
         if (genres.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm, Alignment.CenterHorizontally)) {
@@ -452,6 +446,25 @@ private fun AlbumDetailsRow(
             onRetry = onRetry,
             onOpenOfflineModeSetting = onOpenOfflineModeSetting,
         )
+    }
+    val modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = SegueSpacing.lg)
+        .padding(bottom = SegueSpacing.md)
+    if (isShortWindow()) {
+        // Phone landscape: one line, so the first tracks show under the short hero (DESIGN.md §5.4).
+        FlowRow(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) { details() }
+    } else {
+        Column(
+            modifier = modifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
+        ) { details() }
     }
 }
 

@@ -446,6 +446,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Blurred art** (Feishin `albumBackground`): pre-blurred bitmap at 70% opacity under `background`-colored gradients (top 5% to bottom 100%).
 - Art: 220 on compact width, 250 on medium and wider, radius `md`, shadow per §2.4.
 - Compact width is centered: art, then 16, overline, title (max 3 lines, `headlineMedium`), metadata. Medium and wider follows the Feishin desktop grid: art on the left, text bottom-aligned on the right, title in `displaySmall`, min height 340.
+- **Short screens** (window height under 480, such as a phone in landscape): the wide grid needs both width 600 or more and height 480 or more. Under 480 of height the art is at most 40% of the window height. At width 600 or more the art stays on the left with the text beside it in `headlineMedium`, with no min height. Narrower windows keep the centered layout. Album details under the hero (rating, genre pills, offline chip) go on one line, so the first tracks show without scrolling. The hero still draws art under the status bar.
 
 ### 5.5 Player bar (expanded) and mini player
 - **Mini player:** see §3.

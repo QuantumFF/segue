@@ -81,7 +81,9 @@ data class HeroHeaderState(
 /**
  * Album, artist and playlist hero (DESIGN.md §5.4). Draws behind the status bar; top padding is
  * the status bar plus 56 for the transparent top bar. Compact width is centered; medium and wider
- * (≥ 600dp available) puts the art on the left and bottom-aligns the text, Feishin style.
+ * (≥ 600dp available) puts the art on the left and bottom-aligns the text, Feishin style. On short
+ * windows (height < 480dp) the art is at most 40% of the window height; in phone landscape it stays on
+ * the left and the min height is dropped, so tracks show below the hero ([heroLayout]).
  *
  * @param actions the action row (Play, Shuffle, …), centered on compact width.
  */
@@ -148,10 +150,20 @@ fun HeroHeader(
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = SegueSizes.topBar, bottom = SegueSpacing.lg),
         ) {
-            if (maxWidth >= WIDE_BREAKPOINT) {
-                WideHero(state, onSubtitleClick, onTitlePlace, actions)
-            } else {
-                CompactHero(state, onSubtitleClick, onTitlePlace, actions)
+            val screenHeight = heroScreenHeight()
+            val layout = heroLayout(maxWidth, screenHeight)
+            val artSize = heroArtSize(layout, state.circularArt, screenHeight)
+            when (layout) {
+                HeroLayout.Compact -> CompactHero(state, artSize, onSubtitleClick, onTitlePlace, actions)
+
+                HeroLayout.Wide, HeroLayout.Short -> SideArtHero(
+                    state = state,
+                    artSize = artSize,
+                    short = layout == HeroLayout.Short,
+                    onSubtitleClick = onSubtitleClick,
+                    onTitlePlace = onTitlePlace,
+                    actions = actions,
+                )
             }
         }
     }
@@ -160,6 +172,7 @@ fun HeroHeader(
 @Composable
 private fun CompactHero(
     state: HeroHeaderState,
+    artSize: Dp,
     onSubtitleClick: (() -> Unit)?,
     onTitlePlace: (LayoutCoordinates) -> Unit,
     actions: @Composable RowScope.() -> Unit,
@@ -170,7 +183,7 @@ private fun CompactHero(
             .padding(horizontal = SegueSpacing.screenMarginCompact),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        HeroArt(state, if (state.circularArt) SegueSizes.heroArtArtist else SegueSizes.heroArtCompact)
+        HeroArt(state, artSize)
         Spacer(Modifier.height(SegueSpacing.lg))
         HeroText(state, MaterialTheme.typography.headlineMedium, TextAlign.Center, onSubtitleClick, onTitlePlace)
         Spacer(Modifier.height(SegueSpacing.lg))
@@ -183,9 +196,15 @@ private fun CompactHero(
     }
 }
 
+/**
+ * Art on the left, text bottom-aligned on the right. Wide gets a min height and `displaySmall`;
+ * [short] (phone landscape) drops the min height and uses `headlineMedium`, so tracks stay visible.
+ */
 @Composable
-private fun WideHero(
+private fun SideArtHero(
     state: HeroHeaderState,
+    artSize: Dp,
+    short: Boolean,
     onSubtitleClick: (() -> Unit)?,
     onTitlePlace: (LayoutCoordinates) -> Unit,
     actions: @Composable RowScope.() -> Unit,
@@ -193,14 +212,16 @@ private fun WideHero(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = SegueSizes.heroWideMinHeight - SegueSizes.topBar)
+            .then(if (short) Modifier else Modifier.heightIn(min = SegueSizes.heroWideMinHeight - SegueSizes.topBar))
             .padding(horizontal = SegueSpacing.screenMarginWide),
         verticalAlignment = Alignment.Bottom,
     ) {
-        HeroArt(state, if (state.circularArt) SegueSizes.heroArtArtist else SegueSizes.heroArtWide)
+        HeroArt(state, artSize)
         Spacer(Modifier.width(SegueSpacing.xl))
         Column(Modifier.weight(1f)) {
-            HeroText(state, MaterialTheme.typography.displaySmall, TextAlign.Start, onSubtitleClick, onTitlePlace)
+            val typography = MaterialTheme.typography
+            val titleStyle = if (short) typography.headlineMedium else typography.displaySmall
+            HeroText(state, titleStyle, TextAlign.Start, onSubtitleClick, onTitlePlace)
             Spacer(Modifier.height(SegueSpacing.lg))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(SegueSpacing.lg),
@@ -284,7 +305,6 @@ private fun ColumnScope.HeroText(
 }
 
 private const val TITLE_MAX_LINES = 3
-private val WIDE_BREAKPOINT = SegueSizes.heroWideBreakpoint
 
 private val PreviewHero = HeroHeaderState(
     overline = "Album",
