@@ -3,7 +3,13 @@ package com.quantumff.segue.feature.nowplaying
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -14,13 +20,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -42,6 +52,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -52,6 +63,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,6 +74,7 @@ import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueBaseColors
+import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
@@ -178,9 +191,10 @@ private enum class NowPlayingSheet {
 }
 
 /**
- * Stateless Now Playing. Phone: art, metadata and controls, with Lyrics / Queue / Related
- * panels replacing the art. Expanded width or landscape: art and controls on the left (45%), the
- * panels as tabs on the right. Drag down or back (predictive) collapses; swipe up opens Queue.
+ * Stateless Now Playing, laid out by [nowPlayingLayout]. Portrait phone: art, metadata and controls,
+ * with Lyrics / Queue / Related panels replacing the art. Phone landscape: art | controls | the open
+ * panel. Expanded width or a taller landscape window: art and controls on the left (45%), the panels
+ * as tabs on the right. Drag down or back (predictive) collapses; swipe up opens Queue.
  */
 @Composable
 internal fun NowPlayingScreen(
@@ -198,13 +212,14 @@ internal fun NowPlayingScreen(
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
 
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val landscape = maxWidth > maxHeight && maxWidth >= LANDSCAPE_TWO_PANE_MIN_WIDTH
-        val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH || landscape
+        val layout = nowPlayingLayout(WindowShape(width = maxWidth, height = maxHeight))
+        // Only the portrait layout's panel replaces the art, so only there does a drag down or back close it.
+        val panelCoversArt = layout == NowPlayingLayout.Portrait
         val gestures = rememberDismissGestures(
             onDismiss = actions.onCollapse,
             onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.Queue },
             // A drag down over an open phone panel closes the panel, not the player.
-            panelDrag = if (openPanel != null && !twoPane) panelDrag else null,
+            panelDrag = if (openPanel != null && panelCoversArt) panelDrag else null,
         )
         Box(
             Modifier
@@ -218,7 +233,7 @@ internal fun NowPlayingScreen(
                 panels = remember(actions, lyrics, activeLyricLine, related, queueContent) {
                     PanelContent(lyrics, activeLyricLine, related, actions, queueContent)
                 },
-                twoPane = twoPane,
+                layout = layout,
                 openPanel = openPanel,
                 onOpenPanelChange = { openPanel = it },
                 panelDrag = panelDrag,
@@ -227,7 +242,7 @@ internal fun NowPlayingScreen(
         }
         gestures.predictiveBack()
         // Registered after the predictive collapse, so it wins while a panel is open.
-        BackHandler(enabled = openPanel != null && !twoPane) { openPanel = null }
+        BackHandler(enabled = openPanel != null && layout != NowPlayingLayout.TwoPane) { openPanel = null }
     }
 
     val current = state.track
@@ -292,14 +307,14 @@ internal fun NowPlayingScreen(
     }
 }
 
-/** The backdrop and the layout for this width. The shell draws the snackbar host over it. */
+/** The backdrop and the layout for this window. The shell draws the snackbar host over it. */
 @Composable
 private fun NowPlayingContent(
     state: NowPlayingUiState,
     positionMillis: () -> Long,
     actions: NowPlayingActions,
     panels: PanelContent,
-    twoPane: Boolean,
+    layout: NowPlayingLayout,
     openPanel: NowPlayingPanel?,
     onOpenPanelChange: (NowPlayingPanel?) -> Unit,
     panelDrag: PanelDrag,
@@ -311,12 +326,23 @@ private fun NowPlayingContent(
         when {
             track == null -> NothingPlaying(onCollapse = actions.onCollapse)
 
-            twoPane -> TwoPaneLayout(
+            layout == NowPlayingLayout.TwoPane -> TwoPaneLayout(
                 state = state,
                 track = track,
                 positionMillis = positionMillis,
                 actions = actions,
                 panels = panels,
+                onMenuClick = onMenuClick,
+            )
+
+            layout == NowPlayingLayout.PhoneLandscape -> PhoneLandscapeLayout(
+                state = state,
+                track = track,
+                positionMillis = positionMillis,
+                actions = actions,
+                panels = panels,
+                openPanel = openPanel,
+                onOpenPanelChange = onOpenPanelChange,
                 onMenuClick = onMenuClick,
             )
 
@@ -332,7 +358,7 @@ private fun NowPlayingContent(
                 onMenuClick = onMenuClick,
             )
         }
-        if (track != null && !twoPane) {
+        if (track != null && layout != NowPlayingLayout.TwoPane) {
             LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
         }
     }
@@ -502,6 +528,132 @@ private fun PhoneLayout(
             onMoreClick = onMenuClick,
             modifier = Modifier.padding(bottom = SegueSpacing.sm),
         )
+    }
+}
+
+/**
+ * A phone held sideways: the art, sized from the height, then the metadata, seekbar, transport and
+ * bottom row, then the open panel. The panel's area appears only while a panel is open; when the
+ * window is too narrow for all three, the art gives up width to it.
+ */
+@Composable
+private fun PhoneLandscapeLayout(
+    state: NowPlayingUiState,
+    track: NowPlayingTrack,
+    positionMillis: () -> Long,
+    actions: NowPlayingActions,
+    panels: PanelContent,
+    openPanel: NowPlayingPanel?,
+    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    onMenuClick: () -> Unit,
+) {
+    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .navigationBarsPadding(),
+    ) {
+        // ArtPager keeps xl on each side of the art and xl in total above and below it.
+        val fromHeight = maxHeight - statusBar - SegueSpacing.xl
+        val panelWidth = if (openPanel == null) {
+            0.dp
+        } else {
+            max(LANDSCAPE_PANEL_MIN_WIDTH, maxWidth - fromHeight - SegueSpacing.xl * 2 - LANDSCAPE_CONTROLS_WIDTH)
+        }
+        val grows = NowPlayingMotion.sidePanelGrows(LocalReduceMotion.current)
+        val panelSpec: AnimationSpec<Dp> = if (grows) SegueMotion.longEnter() else snap()
+        val animatedPanelWidth by animateDpAsState(panelWidth, panelSpec, label = "panelWidth")
+        val artSide = min(fromHeight, maxWidth - SegueSpacing.xl * 2 - LANDSCAPE_CONTROLS_WIDTH - animatedPanelWidth)
+            .coerceAtLeast(0.dp)
+        Row(Modifier.fillMaxSize()) {
+            ArtPager(
+                track = track,
+                previous = state.previous,
+                next = state.next,
+                onSkipTo = actions.onSkipTo,
+                onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
+                onLongClick = onMenuClick,
+                modifier = Modifier
+                    .padding(top = statusBar)
+                    .width(artSide + SegueSpacing.xl * 2)
+                    .fillMaxHeight(),
+            )
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                TopBar(state.source, actions, onMenuClick)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                    TrackMetadata(
+                        track = track,
+                        onArtistClick = actions.onArtistClick,
+                        onAlbumClick = actions.onAlbumClick,
+                        onFavoriteClick = actions.onToggleFavorite,
+                        modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
+                    )
+                    Controls(state, positionMillis, actions)
+                }
+                PanelBar(
+                    openPanel = openPanel,
+                    sleepTimerActive = state.sleepTimer != null,
+                    onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
+                    onMoreClick = onMenuClick,
+                    modifier = Modifier.padding(bottom = SegueSpacing.sm),
+                )
+            }
+            // The panel keeps its full width while its area grows or shrinks, so its pager never
+            // lays out at a sliver of a page.
+            var laidOutWidth by remember { mutableStateOf(panelWidth) }
+            if (panelWidth > 0.dp) laidOutWidth = panelWidth
+            Box(
+                Modifier
+                    .width(animatedPanelWidth)
+                    .fillMaxHeight()
+                    .clipToBounds(),
+            ) {
+                SidePanel(
+                    openPanel = openPanel,
+                    panels = panels,
+                    onOpenPanelChange = onOpenPanelChange,
+                    modifier = Modifier
+                        .wrapContentWidth(Alignment.Start, unbounded = true)
+                        .width(laidOutWidth)
+                        .fillMaxHeight(),
+                )
+            }
+        }
+    }
+}
+
+/** The phone landscape panel area: the open panel, which crossfades in and out. */
+@Composable
+private fun SidePanel(
+    openPanel: NowPlayingPanel?,
+    panels: PanelContent,
+    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = openPanel != null,
+        enter = fadeIn(SegueMotion.medium()),
+        exit = fadeOut(SegueMotion.medium()),
+        modifier = modifier,
+    ) {
+        // Keeps the closing panel's page while it fades.
+        var shown by remember { mutableStateOf(openPanel ?: NowPlayingPanel.Lyrics) }
+        if (openPanel != null) shown = openPanel
+        val pagerState = rememberPagerState(initialPage = shown.ordinal) { NowPlayingPanel.entries.size }
+        SyncPager(pagerState, NowPlayingPanel.entries, openPanel) { onOpenPanelChange(it) }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars),
+            key = { it },
+        ) { page ->
+            panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
+        }
     }
 }
 
@@ -678,8 +830,12 @@ private fun SyncPager(
 }
 
 private val TWO_PANE_TABS = persistentListOf(NowPlayingPanel.Queue, NowPlayingPanel.Lyrics, NowPlayingPanel.Related)
-private val TWO_PANE_MIN_WIDTH = 840.dp
-private val LANDSCAPE_TWO_PANE_MIN_WIDTH = 600.dp
+
+/** The phone landscape layout's middle column: room for the bottom row's four buttons and transport. */
+private val LANDSCAPE_CONTROLS_WIDTH = 312.dp
+
+/** The narrowest the phone landscape panel gets before the art gives up width to it. */
+private val LANDSCAPE_PANEL_MIN_WIDTH = 280.dp
 private val INDICATOR_HEIGHT = 2.dp
 
 /** Room under the art for the title, artists and heart. */

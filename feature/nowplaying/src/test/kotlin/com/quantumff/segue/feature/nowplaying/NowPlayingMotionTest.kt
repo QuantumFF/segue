@@ -31,6 +31,12 @@ class NowPlayingMotionTest {
     }
 
     @Test
+    fun inPhoneLandscapeThePanelAreaGrowsOnlyWithoutReduceMotion() {
+        assertThat(NowPlayingMotion.sidePanelGrows(reduceMotion = false)).isTrue()
+        assertThat(NowPlayingMotion.sidePanelGrows(reduceMotion = true)).isFalse()
+    }
+
+    @Test
     fun withReduceMotionLyricLinesKeepTheirSizeAndJump() {
         val motion = NowPlayingMotion.lyricLines(reduceMotion = true)
         assertThat(motion.scale(active = true)).isEqualTo(1f)
