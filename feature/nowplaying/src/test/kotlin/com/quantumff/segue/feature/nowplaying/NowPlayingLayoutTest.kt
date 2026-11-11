@@ -70,11 +70,27 @@ class NowPlayingLayoutTest {
     }
 
     @Test
-    fun bookPostureUsesTheLayoutForTheWindowSize() {
+    fun bookPostureGetsTwoPanesWhateverTheWindowsWidth() {
+        // An unfolded foldable's inner screen, held like a book: under the expanded width and portrait.
+        assertEquals(
+            NowPlayingLayout.TwoPane,
+            nowPlayingLayout(WindowShape(width = 673.dp, height = 841.dp, posture = Posture.Book)),
+        )
         assertEquals(
             NowPlayingLayout.TwoPane,
             nowPlayingLayout(WindowShape(width = 840.dp, height = 700.dp, posture = Posture.Book)),
         )
+    }
+
+    @Test
+    fun onlyThePortraitAndTabletopPanelsTakeTheArtsPlace() {
+        val covering = NowPlayingLayout.entries.filter { it.panelCoversArt }
+        assertEquals(listOf(NowPlayingLayout.Portrait, NowPlayingLayout.Tabletop), covering)
+    }
+
+    @Test
+    fun onlyTwoPanesAlwaysShowAPanel() {
+        assertEquals(listOf(NowPlayingLayout.TwoPane), NowPlayingLayout.entries.filter { it.panelAlwaysShown })
     }
 
     @Test
