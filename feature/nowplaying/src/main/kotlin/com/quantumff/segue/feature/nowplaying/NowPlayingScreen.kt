@@ -64,7 +64,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -573,8 +572,8 @@ private fun currentPosture(): Posture {
 
 /**
  * A phone held sideways: the art, sized from the height, then the metadata, seekbar, transport and
- * bottom row, then the open panel. The panel's area appears only while a panel is open; when the
- * window is too narrow for all three, the art gives up width to it.
+ * bottom row, then the open panel. The panel's area appears only while a panel is open; the widths
+ * come from [phoneLandscapeWidths], which keeps the art large.
  */
 @Composable
 private fun PhoneLandscapeLayout(parts: NowPlayingParts) {
@@ -584,23 +583,19 @@ private fun PhoneLandscapeLayout(parts: NowPlayingParts) {
             .fillMaxSize()
             .navigationBarsPadding(),
     ) {
-        // ArtPager keeps xl on each side of the art and xl in total above and below it.
-        val fromHeight = maxHeight - statusBar - SegueSpacing.xl
-        val panelWidth = if (parts.openPanel == null) {
-            0.dp
-        } else {
-            max(LANDSCAPE_PANEL_MIN_WIDTH, maxWidth - fromHeight - SegueSpacing.xl * 2 - LANDSCAPE_CONTROLS_WIDTH)
-        }
+        val closed = phoneLandscapeWidths(maxWidth, maxHeight, statusBar, panelOpen = false)
+        val open = phoneLandscapeWidths(maxWidth, maxHeight, statusBar, panelOpen = true)
+        val panelWidth = if (parts.openPanel == null) 0.dp else open.panel
         val grows = NowPlayingMotion.sidePanelGrows(LocalReduceMotion.current)
         val panelSpec: AnimationSpec<Dp> = if (grows) SegueMotion.longEnter() else snap()
         val animatedPanelWidth by animateDpAsState(panelWidth, panelSpec, label = "panelWidth")
-        val artSide = min(fromHeight, maxWidth - SegueSpacing.xl * 2 - LANDSCAPE_CONTROLS_WIDTH - animatedPanelWidth)
-            .coerceAtLeast(0.dp)
+        // The art gives up to the growing panel only the width the open layout takes from it.
+        val artSide = min(closed.art, open.art + open.panel - animatedPanelWidth).coerceAtLeast(open.art)
         Row(Modifier.fillMaxSize()) {
             parts.Art(
                 Modifier
                     .padding(top = statusBar)
-                    .width(artSide + SegueSpacing.xl * 2)
+                    .width(artSide + LANDSCAPE_ART_PADDING * 2)
                     .fillMaxHeight(),
             )
             Column(
@@ -866,11 +861,6 @@ private fun SyncPager(
 
 private val TWO_PANE_TABS = persistentListOf(NowPlayingPanel.Queue, NowPlayingPanel.Lyrics, NowPlayingPanel.Related)
 
-/** The phone landscape layout's middle column: room for the bottom row's four buttons and transport. */
-private val LANDSCAPE_CONTROLS_WIDTH = 312.dp
-
-/** The narrowest the phone landscape panel gets before the art gives up width to it. */
-private val LANDSCAPE_PANEL_MIN_WIDTH = 280.dp
 private val INDICATOR_HEIGHT = 2.dp
 
 /** Room under the art for the title, artists and heart. */
