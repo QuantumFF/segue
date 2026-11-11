@@ -32,6 +32,13 @@ internal object NowPlayingMotion {
      */
     fun panelPagesGlide(reduceMotion: Boolean): Boolean = !reduceMotion
 
+    /**
+     * Whether, in phone landscape, the panel area grows out of the controls' edge as a panel opens
+     * (and the art gives up width with it). With reduce motion it appears at its full width instead,
+     * and only the panel crossfades.
+     */
+    fun sidePanelGrows(reduceMotion: Boolean): Boolean = !reduceMotion
+
     /** How synced lyric lines move as the active line changes. */
     fun lyricLines(reduceMotion: Boolean): LyricLineMotion =
         if (reduceMotion) LyricLineMotion.Calm else LyricLineMotion.Full

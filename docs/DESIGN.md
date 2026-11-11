@@ -334,7 +334,16 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   | Unsupported (the device can't parse or decode it) | "Couldn't play <title>. This device can't play its format." | Skip |
   | Not found (404 or 410 from the server, or a missing download) | "Couldn't play <title>. Its file is missing." | Skip |
   | Other | "Couldn't play <title>." | Skip |
-- Landscape and Expanded: art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art.
+- **Layout by window.** Now Playing picks its layout from the window's size:
+
+  | Window | Layout |
+  |---|---|
+  | Portrait, narrower than 840 | Portrait: the layout above |
+  | Landscape, under 480 tall (a phone held sideways), whatever its width | Phone landscape |
+  | 840 wide or more, or landscape and 480 tall or more | Two panes |
+
+  - **Phone landscape:** three regions side by side: art | metadata, seekbar, transport and the bottom row, under the top bar | the open panel. The art is a square sized from the window's height minus padding, not from what is left after the controls. The panel's area appears only while a panel is open; it grows out from the controls (`long`) and is at least 280 wide, and when the window can't fit all three at full size the art gives up width to it. With reduce motion the area appears at its full width and the panel only crossfades. Tapping the active bottom button, or back, closes the panel.
+  - **Two panes:** art on the left at 45% width, and the active panel on the right as tabs (Queue · Lyrics · Related). Both are visible at the same time, and controls run under the art.
 
 ```
 ┌──────────────────────────────────┐
