@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -224,24 +225,30 @@ internal fun NowPlayingScreen(
             // A drag down over an open phone panel closes the panel, not the player.
             panelDrag = if (openPanel != null && layout.panelCoversArt) panelDrag else null,
         )
+        val panels = remember(actions, lyrics, activeLyricLine, related, queueContent) {
+            PanelContent(lyrics, activeLyricLine, related, actions, queueContent)
+        }
+        val onOpenPanelChange: (NowPlayingPanel?) -> Unit = remember { { openPanel = it } }
+        val onMenuClick: () -> Unit = remember { { sheet = NowPlayingSheet.Menu } }
+        val track = state.track
+        // Rebuilt when the state or the open panel changes, not on position ticks: the position is a lambda.
+        val parts = remember(state, track, positionMillis, actions, panels, openPanel) {
+            track?.let {
+                NowPlayingParts(state, it, positionMillis, actions, panels, openPanel, onOpenPanelChange, onMenuClick)
+            }
+        }
         Box(
             Modifier
                 .fillMaxSize()
                 .then(gestures.modifier),
         ) {
             NowPlayingContent(
-                state = state,
-                positionMillis = positionMillis,
-                actions = actions,
-                panels = remember(actions, lyrics, activeLyricLine, related, queueContent) {
-                    PanelContent(lyrics, activeLyricLine, related, actions, queueContent)
-                },
+                parts = parts,
+                coverArtId = track?.coverArtId,
                 layout = layout,
                 posture = posture,
-                openPanel = openPanel,
-                onOpenPanelChange = { openPanel = it },
                 panelDrag = panelDrag,
-                onMenuClick = { sheet = NowPlayingSheet.Menu },
+                onCollapse = actions.onCollapse,
             )
         }
         gestures.predictiveBack()
@@ -311,76 +318,55 @@ internal fun NowPlayingScreen(
     }
 }
 
-/** The backdrop and the layout for this window. The shell draws the snackbar host over it. */
+/** The backdrop and the layout for this window, or [NothingPlaying] without [parts]. The shell draws the snackbar host over it. */
 @Composable
 private fun NowPlayingContent(
-    state: NowPlayingUiState,
-    positionMillis: () -> Long,
-    actions: NowPlayingActions,
-    panels: PanelContent,
+    parts: NowPlayingParts?,
+    coverArtId: String?,
     layout: NowPlayingLayout,
     posture: Posture,
-    openPanel: NowPlayingPanel?,
-    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
     panelDrag: PanelDrag,
-    onMenuClick: () -> Unit,
+    onCollapse: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
-        NowPlayingBackground(coverArtId = state.track?.coverArtId, modifier = Modifier.fillMaxSize())
-        val track = state.track
+        NowPlayingBackground(coverArtId = coverArtId, modifier = Modifier.fillMaxSize())
         when {
-            track == null -> NothingPlaying(onCollapse = actions.onCollapse)
+            parts == null -> NothingPlaying(onCollapse = onCollapse)
 
-            layout == NowPlayingLayout.TwoPane -> TwoPaneLayout(
-                state = state,
-                track = track,
-                positionMillis = positionMillis,
-                actions = actions,
-                panels = panels,
-                onMenuClick = onMenuClick,
-            )
+            layout == NowPlayingLayout.TwoPane -> TwoPaneLayout(parts)
 
-            layout == NowPlayingLayout.PhoneLandscape -> PhoneLandscapeLayout(
-                state = state,
-                track = track,
-                positionMillis = positionMillis,
-                actions = actions,
-                panels = panels,
-                openPanel = openPanel,
-                onOpenPanelChange = onOpenPanelChange,
-                onMenuClick = onMenuClick,
-            )
+            layout == NowPlayingLayout.PhoneLandscape -> PhoneLandscapeLayout(parts)
 
             layout == NowPlayingLayout.Tabletop && posture is Posture.Tabletop -> TabletopLayout(
-                state = state,
-                track = track,
-                hinge = posture,
-                positionMillis = positionMillis,
-                actions = actions,
-                panels = panels,
-                openPanel = openPanel,
-                onOpenPanelChange = onOpenPanelChange,
-                panelDrag = panelDrag,
-                onMenuClick = onMenuClick,
+                parts,
+                posture,
+                panelDrag,
             )
 
-            else -> PhoneLayout(
-                state = state,
-                track = track,
-                positionMillis = positionMillis,
-                actions = actions,
-                panels = panels,
-                openPanel = openPanel,
-                onOpenPanelChange = onOpenPanelChange,
-                panelDrag = panelDrag,
-                onMenuClick = onMenuClick,
-            )
+            else -> PhoneLayout(parts, panelDrag)
         }
-        if (track != null && !layout.panelAlwaysShown) {
-            LaunchedEffect(openPanel) { actions.onVisiblePanelsChange(setOfNotNull(openPanel)) }
+        if (parts != null && !layout.panelAlwaysShown) {
+            LaunchedEffect(parts.openPanel) { parts.actions.onVisiblePanelsChange(setOfNotNull(parts.openPanel)) }
         }
     }
 }
+
+/**
+ * What every Now Playing layout arranges: the playing [track] with its state and controls, the panels,
+ * and which panel is open. It's rebuilt when one of them changes; the position is read through
+ * [positionMillis], so a position tick doesn't rebuild it or recompose the layouts.
+ */
+@Immutable
+private class NowPlayingParts(
+    val state: NowPlayingUiState,
+    val track: NowPlayingTrack,
+    val positionMillis: () -> Long,
+    val actions: NowPlayingActions,
+    val panels: PanelContent,
+    val openPanel: NowPlayingPanel?,
+    val onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    val onMenuClick: () -> Unit,
+)
 
 /** The three panels' bodies, drawn with light content over the art backdrop. */
 private class PanelContent(
@@ -460,26 +446,16 @@ private fun OnArtContent(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PhoneLayout(
-    state: NowPlayingUiState,
-    track: NowPlayingTrack,
-    positionMillis: () -> Long,
-    actions: NowPlayingActions,
-    panels: PanelContent,
-    openPanel: NowPlayingPanel?,
-    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
-    panelDrag: PanelDrag,
-    onMenuClick: () -> Unit,
-) {
+private fun PhoneLayout(parts: NowPlayingParts, panelDrag: PanelDrag) {
     Column(
         Modifier
             .fillMaxSize()
             .navigationBarsPadding(),
     ) {
-        TopBar(state.source, actions, onMenuClick)
+        TopBar(parts.state.source, parts.actions, parts.onMenuClick)
         val reduceMotion = LocalReduceMotion.current
         AnimatedContent(
-            targetState = openPanel != null,
+            targetState = parts.openPanel != null,
             transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
             label = "panel",
             modifier = Modifier
@@ -488,8 +464,8 @@ private fun PhoneLayout(
                 .clipToBounds(),
         ) { showingPanel ->
             if (showingPanel) {
-                PanelInPlaceOfArt(panels, openPanel, onOpenPanelChange, panelDrag) {
-                    CompactTrackHeader(track = track, onClick = { onOpenPanelChange(null) })
+                PanelInPlaceOfArt(parts, panelDrag) {
+                    CompactTrackHeader(track = parts.track, onClick = { parts.onOpenPanelChange(null) })
                 }
             } else {
                 // Art and metadata stay together, centered in the space above the controls.
@@ -497,33 +473,33 @@ private fun PhoneLayout(
                     val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE)
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
                         ArtPager(
-                            track = track,
-                            previous = state.previous,
-                            next = state.next,
-                            onSkipTo = actions.onSkipTo,
-                            onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                            onLongClick = onMenuClick,
+                            track = parts.track,
+                            previous = parts.state.previous,
+                            next = parts.state.next,
+                            onSkipTo = parts.actions.onSkipTo,
+                            onClick = { parts.onOpenPanelChange(NowPlayingPanel.Lyrics) },
+                            onLongClick = parts.onMenuClick,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(artHeight),
                         )
                         TrackMetadata(
-                            track = track,
-                            onArtistClick = actions.onArtistClick,
-                            onAlbumClick = actions.onAlbumClick,
-                            onFavoriteClick = actions.onToggleFavorite,
+                            track = parts.track,
+                            onArtistClick = parts.actions.onArtistClick,
+                            onAlbumClick = parts.actions.onAlbumClick,
+                            onFavoriteClick = parts.actions.onToggleFavorite,
                             modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
                         )
                     }
                 }
             }
         }
-        Controls(state, positionMillis, actions)
+        Controls(parts.state, parts.positionMillis, parts.actions)
         PanelBar(
-            openPanel = openPanel,
-            sleepTimerActive = state.sleepTimer != null,
-            onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
-            onMoreClick = onMenuClick,
+            openPanel = parts.openPanel,
+            sleepTimerActive = parts.state.sleepTimer != null,
+            onPanelClick = { panel -> parts.onOpenPanelChange(if (panel == parts.openPanel) null else panel) },
+            onMoreClick = parts.onMenuClick,
             modifier = Modifier.padding(bottom = SegueSpacing.sm),
         )
     }
@@ -534,13 +510,7 @@ private fun PhoneLayout(
  * drag down, fading, until [panelDrag] closes it.
  */
 @Composable
-private fun PanelInPlaceOfArt(
-    panels: PanelContent,
-    openPanel: NowPlayingPanel?,
-    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
-    panelDrag: PanelDrag,
-    header: @Composable () -> Unit = {},
-) {
+private fun PanelInPlaceOfArt(parts: NowPlayingParts, panelDrag: PanelDrag, header: @Composable () -> Unit = {}) {
     Column(
         Modifier
             .fillMaxSize()
@@ -556,12 +526,12 @@ private fun PanelInPlaceOfArt(
     ) {
         DisposableEffect(panelDrag) { onDispose(panelDrag::onPanelGone) }
         header()
-        val pagerState = rememberPagerState(initialPage = (openPanel ?: NowPlayingPanel.Lyrics).ordinal) {
+        val pagerState = rememberPagerState(initialPage = (parts.openPanel ?: NowPlayingPanel.Lyrics).ordinal) {
             NowPlayingPanel.entries.size
         }
-        SyncPager(pagerState, NowPlayingPanel.entries, openPanel) { onOpenPanelChange(it) }
+        SyncPager(pagerState, NowPlayingPanel.entries, parts.openPanel) { parts.onOpenPanelChange(it) }
         HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), key = { it }) { page ->
-            panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
+            parts.panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
         }
     }
 }
@@ -571,28 +541,17 @@ private fun PanelInPlaceOfArt(
  * hinge; the metadata, seekbar, transport and bottom row below it, where the device rests.
  */
 @Composable
-private fun TabletopLayout(
-    state: NowPlayingUiState,
-    track: NowPlayingTrack,
-    hinge: Posture.Tabletop,
-    positionMillis: () -> Long,
-    actions: NowPlayingActions,
-    panels: PanelContent,
-    openPanel: NowPlayingPanel?,
-    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
-    panelDrag: PanelDrag,
-    onMenuClick: () -> Unit,
-) {
+private fun TabletopLayout(parts: NowPlayingParts, hinge: Posture.Tabletop, panelDrag: PanelDrag) {
     Column(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .height(hinge.hingeTop),
         ) {
-            TopBar(state.source, actions, onMenuClick)
+            TopBar(parts.state.source, parts.actions, parts.onMenuClick)
             val reduceMotion = LocalReduceMotion.current
             AnimatedContent(
-                targetState = openPanel != null,
+                targetState = parts.openPanel != null,
                 transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
                 label = "panel",
                 modifier = Modifier
@@ -601,15 +560,15 @@ private fun TabletopLayout(
                     .clipToBounds(),
             ) { showingPanel ->
                 if (showingPanel) {
-                    PanelInPlaceOfArt(panels, openPanel, onOpenPanelChange, panelDrag)
+                    PanelInPlaceOfArt(parts, panelDrag)
                 } else {
                     ArtPager(
-                        track = track,
-                        previous = state.previous,
-                        next = state.next,
-                        onSkipTo = actions.onSkipTo,
-                        onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                        onLongClick = onMenuClick,
+                        track = parts.track,
+                        previous = parts.state.previous,
+                        next = parts.state.next,
+                        onSkipTo = parts.actions.onSkipTo,
+                        onClick = { parts.onOpenPanelChange(NowPlayingPanel.Lyrics) },
+                        onLongClick = parts.onMenuClick,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -625,19 +584,19 @@ private fun TabletopLayout(
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                 TrackMetadata(
-                    track = track,
-                    onArtistClick = actions.onArtistClick,
-                    onAlbumClick = actions.onAlbumClick,
-                    onFavoriteClick = actions.onToggleFavorite,
+                    track = parts.track,
+                    onArtistClick = parts.actions.onArtistClick,
+                    onAlbumClick = parts.actions.onAlbumClick,
+                    onFavoriteClick = parts.actions.onToggleFavorite,
                     modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
                 )
-                Controls(state, positionMillis, actions)
+                Controls(parts.state, parts.positionMillis, parts.actions)
             }
             PanelBar(
-                openPanel = openPanel,
-                sleepTimerActive = state.sleepTimer != null,
-                onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
-                onMoreClick = onMenuClick,
+                openPanel = parts.openPanel,
+                sleepTimerActive = parts.state.sleepTimer != null,
+                onPanelClick = { panel -> parts.onOpenPanelChange(if (panel == parts.openPanel) null else panel) },
+                onMoreClick = parts.onMenuClick,
                 modifier = Modifier.padding(bottom = SegueSpacing.sm),
             )
         }
@@ -658,16 +617,7 @@ private fun currentPosture(): Posture {
  * window is too narrow for all three, the art gives up width to it.
  */
 @Composable
-private fun PhoneLandscapeLayout(
-    state: NowPlayingUiState,
-    track: NowPlayingTrack,
-    positionMillis: () -> Long,
-    actions: NowPlayingActions,
-    panels: PanelContent,
-    openPanel: NowPlayingPanel?,
-    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
-    onMenuClick: () -> Unit,
-) {
+private fun PhoneLandscapeLayout(parts: NowPlayingParts) {
     val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     BoxWithConstraints(
         Modifier
@@ -676,7 +626,7 @@ private fun PhoneLandscapeLayout(
     ) {
         // ArtPager keeps xl on each side of the art and xl in total above and below it.
         val fromHeight = maxHeight - statusBar - SegueSpacing.xl
-        val panelWidth = if (openPanel == null) {
+        val panelWidth = if (parts.openPanel == null) {
             0.dp
         } else {
             max(LANDSCAPE_PANEL_MIN_WIDTH, maxWidth - fromHeight - SegueSpacing.xl * 2 - LANDSCAPE_CONTROLS_WIDTH)
@@ -688,12 +638,12 @@ private fun PhoneLandscapeLayout(
             .coerceAtLeast(0.dp)
         Row(Modifier.fillMaxSize()) {
             ArtPager(
-                track = track,
-                previous = state.previous,
-                next = state.next,
-                onSkipTo = actions.onSkipTo,
-                onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
-                onLongClick = onMenuClick,
+                track = parts.track,
+                previous = parts.state.previous,
+                next = parts.state.next,
+                onSkipTo = parts.actions.onSkipTo,
+                onClick = { parts.onOpenPanelChange(NowPlayingPanel.Lyrics) },
+                onLongClick = parts.onMenuClick,
                 modifier = Modifier
                     .padding(top = statusBar)
                     .width(artSide + SegueSpacing.xl * 2)
@@ -704,22 +654,22 @@ private fun PhoneLandscapeLayout(
                     .weight(1f)
                     .fillMaxHeight(),
             ) {
-                TopBar(state.source, actions, onMenuClick)
+                TopBar(parts.state.source, parts.actions, parts.onMenuClick)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     TrackMetadata(
-                        track = track,
-                        onArtistClick = actions.onArtistClick,
-                        onAlbumClick = actions.onAlbumClick,
-                        onFavoriteClick = actions.onToggleFavorite,
+                        track = parts.track,
+                        onArtistClick = parts.actions.onArtistClick,
+                        onAlbumClick = parts.actions.onAlbumClick,
+                        onFavoriteClick = parts.actions.onToggleFavorite,
                         modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
                     )
-                    Controls(state, positionMillis, actions)
+                    Controls(parts.state, parts.positionMillis, parts.actions)
                 }
                 PanelBar(
-                    openPanel = openPanel,
-                    sleepTimerActive = state.sleepTimer != null,
-                    onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
-                    onMoreClick = onMenuClick,
+                    openPanel = parts.openPanel,
+                    sleepTimerActive = parts.state.sleepTimer != null,
+                    onPanelClick = { panel -> parts.onOpenPanelChange(if (panel == parts.openPanel) null else panel) },
+                    onMoreClick = parts.onMenuClick,
                     modifier = Modifier.padding(bottom = SegueSpacing.sm),
                 )
             }
@@ -734,9 +684,7 @@ private fun PhoneLandscapeLayout(
                     .clipToBounds(),
             ) {
                 SidePanel(
-                    openPanel = openPanel,
-                    panels = panels,
-                    onOpenPanelChange = onOpenPanelChange,
+                    parts = parts,
                     modifier = Modifier
                         .wrapContentWidth(Alignment.Start, unbounded = true)
                         .width(laidOutWidth)
@@ -749,23 +697,18 @@ private fun PhoneLandscapeLayout(
 
 /** The phone landscape panel area: the open panel, which crossfades in and out. */
 @Composable
-private fun SidePanel(
-    openPanel: NowPlayingPanel?,
-    panels: PanelContent,
-    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun SidePanel(parts: NowPlayingParts, modifier: Modifier = Modifier) {
     AnimatedVisibility(
-        visible = openPanel != null,
+        visible = parts.openPanel != null,
         enter = fadeIn(SegueMotion.medium()),
         exit = fadeOut(SegueMotion.medium()),
         modifier = modifier,
     ) {
         // Keeps the closing panel's page while it fades.
-        var shown by remember { mutableStateOf(openPanel ?: NowPlayingPanel.Lyrics) }
-        if (openPanel != null) shown = openPanel
+        var shown by remember { mutableStateOf(parts.openPanel ?: NowPlayingPanel.Lyrics) }
+        if (parts.openPanel != null) shown = parts.openPanel
         val pagerState = rememberPagerState(initialPage = shown.ordinal) { NowPlayingPanel.entries.size }
-        SyncPager(pagerState, NowPlayingPanel.entries, openPanel) { onOpenPanelChange(it) }
+        SyncPager(pagerState, NowPlayingPanel.entries, parts.openPanel) { parts.onOpenPanelChange(it) }
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -773,26 +716,21 @@ private fun SidePanel(
                 .windowInsetsPadding(WindowInsets.statusBars),
             key = { it },
         ) { page ->
-            panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
+            parts.panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
         }
     }
 }
 
 @Composable
-private fun TwoPaneLayout(
-    state: NowPlayingUiState,
-    track: NowPlayingTrack,
-    positionMillis: () -> Long,
-    actions: NowPlayingActions,
-    panels: PanelContent,
-    onMenuClick: () -> Unit,
-) {
+private fun TwoPaneLayout(parts: NowPlayingParts) {
     val tabs = TWO_PANE_TABS
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalReduceMotion.current
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page -> actions.onVisiblePanelsChange(setOf(tabs[page])) }
+        snapshotFlow {
+            pagerState.settledPage
+        }.collect { page -> parts.actions.onVisiblePanelsChange(setOf(tabs[page])) }
     }
     Row(
         Modifier
@@ -800,7 +738,7 @@ private fun TwoPaneLayout(
             .navigationBarsPadding(),
     ) {
         Column(Modifier.weight(ART_PANE_WEIGHT)) {
-            TopBar(state.source, actions, onMenuClick)
+            TopBar(parts.state.source, parts.actions, parts.onMenuClick)
             // Art, metadata and controls stay together, centered, instead of the art floating in a
             // tall pane far from its title and controls.
             BoxWithConstraints(
@@ -811,28 +749,28 @@ private fun TwoPaneLayout(
                 val artHeight = min(maxWidth - SegueSpacing.xl, maxHeight - METADATA_ALLOWANCE - CONTROLS_ALLOWANCE)
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
                     ArtPager(
-                        track = track,
-                        previous = state.previous,
-                        next = state.next,
-                        onSkipTo = actions.onSkipTo,
+                        track = parts.track,
+                        previous = parts.state.previous,
+                        next = parts.state.next,
+                        onSkipTo = parts.actions.onSkipTo,
                         onClick = {
                             scope.launch {
                                 pagerState.showPanelPage(tabs.indexOf(NowPlayingPanel.Lyrics), reduceMotion)
                             }
                         },
-                        onLongClick = onMenuClick,
+                        onLongClick = parts.onMenuClick,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(artHeight),
                     )
                     TrackMetadata(
-                        track = track,
-                        onArtistClick = actions.onArtistClick,
-                        onAlbumClick = actions.onAlbumClick,
-                        onFavoriteClick = actions.onToggleFavorite,
+                        track = parts.track,
+                        onArtistClick = parts.actions.onArtistClick,
+                        onAlbumClick = parts.actions.onAlbumClick,
+                        onFavoriteClick = parts.actions.onToggleFavorite,
                         modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
                     )
-                    Controls(state, positionMillis, actions)
+                    Controls(parts.state, parts.positionMillis, parts.actions)
                 }
             }
             Spacer(Modifier.height(SegueSpacing.lg))
@@ -868,7 +806,7 @@ private fun TwoPaneLayout(
                 }
             }
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), key = { it }) { page ->
-                panels.Panel(tabs[page], Modifier.fillMaxSize())
+                parts.panels.Panel(tabs[page], Modifier.fillMaxSize())
             }
         }
     }
