@@ -279,8 +279,9 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - **Art tint**: a solid tint at the top fading into `background`.
   - **Plain**: `background` only. Black theme defaults to Plain.
 - Text and icons on this screen are always light (`#FFFFFF` at 100% for primary, 70% for secondary), except with Plain on the Light theme.
+- Containers inside the panels (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) are veils over the art that keep that light content readable: black @ 32–56% on the Light theme, white @ 4–12% on Dark and Black. Sheets and dialogs opened from Now Playing use the app's own colors, like every other sheet.
 - Layout, top to bottom:
-  - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below).
+  - Top bar, 56 tall: chevron-down · an overline such as "PLAYING FROM ALBUM" (`labelSmall`) over the source name (`bodySmall`) · ⋮. Both name the queue source (see **Source copy** below). A shade of black @ 70% sits behind the status bar and top bar only, fading out over the bar's bottom quarter, so the 70% overline keeps 4.5:1 over white art.
   - Art: square, width = screen − 48, radius `lg`, shadow.
   - Metadata row: the title in `titleLarge` at 22sp (marquee), then artists in `bodyLarge` at 70%, each one a link. The album name is a link too. A favorite heart (48 target) sits on the right.
   - Seekbar: a 4 tall track (white @ 24%, active white), and a 12 thumb that grows to 20 while dragging. Below it, times in `labelMedium` tnum: elapsed on the left, total on the right (tap to switch to remaining). Centered between them: a quality pill describing what is actually playing: the stream format the player decoded or requested, so a server transcode reads "OPUS · 128" and a downloaded song describes the downloaded file. Lossless streams show bit depth and sample rate ("FLAC · 16/44.1"), lossy ones the bit rate. Until the stream format is known it describes the library song's file.

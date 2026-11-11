@@ -64,6 +64,7 @@ import com.quantumff.segue.core.designsystem.component.NowPlayingTopBar
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueBaseColors
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -234,61 +235,64 @@ internal fun NowPlayingScreen(
     }
 
     val current = state.track
-    when (sheet) {
-        NowPlayingSheet.Menu -> if (current != null) {
-            NowPlayingMenu(
-                track = current,
-                onAction = { action ->
-                    when (action) {
-                        NowPlayingMenuAction.SleepTimer -> sheet = NowPlayingSheet.SleepTimer
+    // Sheets and dialogs sit on ordinary surfaces, in the app's own colors like every other sheet.
+    SegueBaseColors {
+        when (sheet) {
+            NowPlayingSheet.Menu -> if (current != null) {
+                NowPlayingMenu(
+                    track = current,
+                    onAction = { action ->
+                        when (action) {
+                            NowPlayingMenuAction.SleepTimer -> sheet = NowPlayingSheet.SleepTimer
 
-                        NowPlayingMenuAction.InstantMix -> actions.onInstantMix()
+                            NowPlayingMenuAction.InstantMix -> actions.onInstantMix()
 
-                        NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
+                            NowPlayingMenuAction.AddToPlaylist -> actions.onAddToPlaylist(listOf(current.songId))
 
-                        NowPlayingMenuAction.SaveQueueAsPlaylist -> sheet = NowPlayingSheet.SaveQueue
+                            NowPlayingMenuAction.SaveQueueAsPlaylist -> sheet = NowPlayingSheet.SaveQueue
 
-                        NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
+                            NowPlayingMenuAction.GoToAlbum -> current.albumId?.let(actions.onAlbumClick)
 
-                        NowPlayingMenuAction.GoToArtist ->
-                            current.artists.firstOrNull()?.let { actions.onArtistClick(it.id) }
+                            NowPlayingMenuAction.GoToArtist ->
+                                current.artists.firstOrNull()?.let { actions.onArtistClick(it.id) }
 
-                        NowPlayingMenuAction.Details -> sheet = NowPlayingSheet.Details
+                            NowPlayingMenuAction.Details -> sheet = NowPlayingSheet.Details
 
-                        NowPlayingMenuAction.ClearQueue -> sheet = NowPlayingSheet.ClearQueue
-                    }
-                },
-                onDismissRequest = { if (sheet == NowPlayingSheet.Menu) sheet = null },
+                            NowPlayingMenuAction.ClearQueue -> sheet = NowPlayingSheet.ClearQueue
+                        }
+                    },
+                    onDismissRequest = { if (sheet == NowPlayingSheet.Menu) sheet = null },
+                )
+            }
+
+            NowPlayingSheet.SleepTimer -> SleepTimerSheet(
+                active = state.sleepTimer,
+                onStart = actions.onStartSleepTimer,
+                onCancel = actions.onCancelSleepTimer,
+                onDismissRequest = { sheet = null },
             )
+
+            NowPlayingSheet.Details -> TrackDetailsSheet(details = state.details, onDismissRequest = { sheet = null })
+
+            NowPlayingSheet.SaveQueue -> SaveQueueAsPlaylistDialog(
+                onConfirm = { name ->
+                    sheet = null
+                    actions.onSaveQueueAsPlaylist(name)
+                },
+                onDismiss = { sheet = null },
+            )
+
+            NowPlayingSheet.ClearQueue -> ClearQueueDialog(
+                trackCount = state.queueSize,
+                onConfirm = {
+                    sheet = null
+                    actions.onClearQueue()
+                },
+                onDismiss = { sheet = null },
+            )
+
+            null -> Unit
         }
-
-        NowPlayingSheet.SleepTimer -> SleepTimerSheet(
-            active = state.sleepTimer,
-            onStart = actions.onStartSleepTimer,
-            onCancel = actions.onCancelSleepTimer,
-            onDismissRequest = { sheet = null },
-        )
-
-        NowPlayingSheet.Details -> TrackDetailsSheet(details = state.details, onDismissRequest = { sheet = null })
-
-        NowPlayingSheet.SaveQueue -> SaveQueueAsPlaylistDialog(
-            onConfirm = { name ->
-                sheet = null
-                actions.onSaveQueueAsPlaylist(name)
-            },
-            onDismiss = { sheet = null },
-        )
-
-        NowPlayingSheet.ClearQueue -> ClearQueueDialog(
-            trackCount = state.queueSize,
-            onConfirm = {
-                sheet = null
-                actions.onClearQueue()
-            },
-            onDismiss = { sheet = null },
-        )
-
-        null -> Unit
     }
 }
 
@@ -376,15 +380,29 @@ private class PanelContent(
     }
 }
 
-/** Panels sit on the dark art backdrop: their `onSurface` text and icons turn light in every theme. */
+/**
+ * Panels sit on the dark art backdrop: their `onSurface` text and icons turn light in every theme, and
+ * their containers (the lyrics Sync chip, the Continue-from-device banner, a dragged queue row) become
+ * veils over the art that keep that light content readable: black in Light, whose backdrop can be
+ * pale, and white in Dark and Black, close to their own dark containers.
+ */
 @Composable
 private fun OnArtContent(content: @Composable () -> Unit) {
     val colors = SegueTheme.colors
+    val veil = if (SegueTheme.isDark) Color.White else colors.artShade
+    val alphas = if (SegueTheme.isDark) DARK_CONTAINER_ALPHAS else LIGHT_CONTAINER_ALPHAS
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             onSurface = colors.onArt,
             onSurfaceVariant = colors.onArtMuted,
             onBackground = colors.onArt,
+            surfaceContainerLowest = veil.copy(alpha = alphas[0]),
+            surfaceContainerLow = veil.copy(alpha = alphas[1]),
+            surfaceContainer = veil.copy(alpha = alphas[2]),
+            surfaceContainerHigh = veil.copy(alpha = alphas[3]),
+            surfaceContainerHighest = veil.copy(alpha = alphas[4]),
+            inverseSurface = colors.artShade.copy(alpha = INVERSE_ON_ART_ALPHA),
+            inverseOnSurface = colors.onArt,
             // Tonal buttons (Play all, Retry): a light veil instead of the accent tint.
             secondaryContainer = colors.onArt.copy(alpha = TONAL_ON_ART_ALPHA),
             onSecondaryContainer = colors.onArt,
@@ -682,6 +700,11 @@ private const val PANEL_SLIDE_FRACTION = 4
 private const val PANEL_DRAG_FADE = 0.5f
 private const val TONAL_ON_ART_ALPHA = 0.16f
 private const val OUTLINE_ON_ART_ALPHA = 0.32f
+
+/** On-art `surfaceContainerLowest` up to `surfaceContainerHighest`, as veil alphas. */
+private val LIGHT_CONTAINER_ALPHAS = floatArrayOf(0.32f, 0.38f, 0.44f, 0.50f, 0.56f)
+private val DARK_CONTAINER_ALPHAS = floatArrayOf(0.04f, 0.06f, 0.08f, 0.10f, 0.12f)
+private const val INVERSE_ON_ART_ALPHA = 0.80f
 
 @PreviewSegueThemes
 @Composable

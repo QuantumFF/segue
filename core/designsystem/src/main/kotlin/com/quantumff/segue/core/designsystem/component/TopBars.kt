@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -46,6 +47,7 @@ import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -364,9 +366,17 @@ fun NowPlayingTopBar(
     sourceClickLabel: String? = null,
 ) {
     val onArt = SegueTheme.colors.onArt
+    val shade = SegueTheme.colors.artShade
+    val topBarShade = remember(shade) {
+        val color = shade.copy(alpha = SegueAlpha.NOW_PLAYING_TOP_BAR_SHADE)
+        // Solid where the overline and name sit; only the bar's bottom edge fades into the art.
+        Brush.verticalGradient(0f to color, NOW_PLAYING_SHADE_HOLD to color, 1f to color.copy(alpha = 0f))
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // Behind the status bar and top bar only, so the overline reads over bright art.
+            .background(topBarShade)
             .windowInsetsPadding(WindowInsets.statusBars)
             .height(SegueSizes.topBar)
             .padding(horizontal = SegueSpacing.xs),
@@ -451,3 +461,6 @@ private fun NowPlayingTopBarPreview() {
         }
     }
 }
+
+/** How far down the Now Playing top bar its shade stays solid before fading out. */
+private const val NOW_PLAYING_SHADE_HOLD = 0.75f
