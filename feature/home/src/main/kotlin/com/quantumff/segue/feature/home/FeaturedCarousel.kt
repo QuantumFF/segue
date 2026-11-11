@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,8 +49,8 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /**
- * Feishin feature carousel (DESIGN.md §4.1): a pager of random albums on pre-blurred art, 200
- * tall, page spacing 12, the next card peeking 16. No auto-advance. Pager dots below.
+ * Feishin feature carousel (DESIGN.md §4.1): a pager of random albums on pre-blurred art, at least
+ * 200 tall, page spacing 12, the next card peeking 16. No auto-advance. Pager dots below.
  */
 @Composable
 internal fun FeaturedCarousel(
@@ -88,7 +89,7 @@ private fun FeaturedCard(album: Album, onClick: () -> Unit, onPlayClick: () -> U
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CARD_HEIGHT)
+            .heightIn(min = CARD_HEIGHT)
             .clip(SegueShapes.md)
             // Black under the art in every theme: the card's text is always light (onArt).
             .background(Color.Black)
@@ -129,7 +130,14 @@ private fun FeaturedCard(album: Album, onClick: () -> Unit, onPlayClick: () -> U
                     ),
             )
             Spacer(Modifier.width(SegueSpacing.lg))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SegueSpacing.xxs)) {
+            Column(
+                // Room under the text for the play button in the bottom-end corner, so the text keeps its
+                // full width yet never runs under the button.
+                Modifier
+                    .weight(1f)
+                    .padding(bottom = PLAY_BUTTON_CLEARANCE),
+                verticalArrangement = Arrangement.spacedBy(SegueSpacing.xxs),
+            ) {
                 Text(
                     text = stringResource(R.string.feature_home_featured).uppercase(),
                     style = MaterialTheme.typography.labelSmall,
@@ -158,7 +166,6 @@ private fun FeaturedCard(album: Album, onClick: () -> Unit, onPlayClick: () -> U
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall.tabularNumbers(),
                     color = onArtMuted,
-                    maxLines = 1,
                 )
             }
         }
@@ -193,8 +200,11 @@ private fun PagerDots(count: Int, current: () -> Int, modifier: Modifier = Modif
     }
 }
 
-/** The feature card's height, which Home's skeleton follows too. */
+/** The feature card's minimum height, which Home's skeleton follows too. It grows with the font size. */
 internal val CARD_HEIGHT = 200.dp
+
+/** The play button's inset, its size and a gap, less the text row's own padding. */
+private val PLAY_BUTTON_CLEARANCE = SegueSpacing.md + SegueSizes.touchTarget + SegueSpacing.xs - SegueSpacing.lg
 private val ART_SIZE = 120.dp
 private val DOT_SIZE = 6.dp
 private const val BACKDROP_ALPHA = 0.8f

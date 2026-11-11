@@ -3,16 +3,20 @@ package com.quantumff.segue.feature.home
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.Density
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.SyncPhase
 import com.quantumff.segue.core.model.SyncProgress
+import kotlinx.collections.immutable.persistentListOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,6 +58,21 @@ class HomeScreenshotTest {
     /** A library that really is empty. */
     @Test
     fun homeEmpty() = capture("home_empty") { Home(HomeUiState(isLoading = false)) }
+
+    /** The feature card at font scale 2.0: taller than 200 to fit its text, which stays clear of the play button. */
+    @Test
+    fun featuredCardLargeFont() = capture("featured_card_font_2") {
+        val density = LocalDensity.current
+        CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+            FeaturedCarousel(
+                albums = persistentListOf(
+                    PreviewAlbums.first().copy(name = "The Long and Winding Title of an Album That Never Ends"),
+                ),
+                onAlbumClick = {},
+                onPlayClick = {},
+            )
+        }
+    }
 
     @Composable
     private fun Home(state: HomeUiState) {

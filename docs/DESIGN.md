@@ -150,9 +150,9 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 4.1 Home
 - Top bar (not pinned, scrolls away): "Home" in `headlineSmall`. On the right, a settings icon that opens Settings and shows the server name in a tooltip.
 - **Feature carousel** (Feishin): a `HorizontalPager` of 10 random albums. Each item:
-  - Card: 200 tall, radius `md`, page spacing 12, peek 16.
+  - Card: at least 200 tall, growing with the font size so no text is clipped; radius `md`, page spacing 12, peek 16.
   - Backdrop: pre-blurred art at 80% opacity, plus a bottom gradient to black 60%.
-  - Content: 120dp art on the left, then the overline "FEATURED", title `titleLarge` in white, artist, year · track count, and a 48dp play button.
+  - Content: 120dp art on the left, then the overline "FEATURED", title `titleLarge` in white, artist, year · track count, and a 48dp play button in the bottom-end corner. The text keeps clear of the play button: room for it is reserved under the text.
   - No auto-advance (battery). Pager dots below, 6dp.
 - Default section order: Recently played (`getAlbumList2 type=recent`), Recently added (`newest`), Most played (`frequent`), Explore (`random`, with a refresh icon in the header), Playlists, Genres (pills).
 - Section = section header + `LazyRow` with contentPadding 16, spacing 12, snap fling, 20 items, and a trailing "See all" tile.
