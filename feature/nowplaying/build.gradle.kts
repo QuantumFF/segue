@@ -13,6 +13,7 @@ dependencies {
     // Now Playing drives the player directly: transport, seek, modes, sleep timer.
     implementation(projects.core.playback)
     implementation(projects.core.common)
+    implementation(libs.androidx.compose.material3.adaptive)
 
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)

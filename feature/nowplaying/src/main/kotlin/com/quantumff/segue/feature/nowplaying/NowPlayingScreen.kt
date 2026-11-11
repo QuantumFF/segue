@@ -40,6 +40,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -194,7 +195,10 @@ private enum class NowPlayingSheet {
  * Stateless Now Playing, laid out by [nowPlayingLayout]. Portrait phone: art, metadata and controls,
  * with Lyrics / Queue / Related panels replacing the art. Phone landscape: art | controls | the open
  * panel. Expanded width or a taller landscape window: art and controls on the left (45%), the panels
- * as tabs on the right. Drag down or back (predictive) collapses; swipe up opens Queue.
+ * as tabs on the right. Tabletop posture: art above the hinge, controls below it, with panels
+ * replacing the art. Drag down or back (predictive) collapses; swipe up opens Queue.
+ *
+ * @param posture how the device is held; read from the window, which Now Playing fills.
  */
 @Composable
 internal fun NowPlayingScreen(
@@ -206,15 +210,17 @@ internal fun NowPlayingScreen(
     actions: NowPlayingActions,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    posture: Posture = currentPosture(),
 ) {
     var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
 
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val layout = nowPlayingLayout(WindowShape(width = maxWidth, height = maxHeight))
-        // Only the portrait layout's panel replaces the art, so only there does a drag down or back close it.
-        val panelCoversArt = layout == NowPlayingLayout.Portrait
+        val layout = nowPlayingLayout(WindowShape(width = maxWidth, height = maxHeight, posture = posture))
+        // Only the portrait and tabletop layouts' panel replaces the art, so only there does a drag down
+        // close it.
+        val panelCoversArt = layout == NowPlayingLayout.Portrait || layout == NowPlayingLayout.Tabletop
         val gestures = rememberDismissGestures(
             onDismiss = actions.onCollapse,
             onSwipeUp = { if (openPanel == null) openPanel = NowPlayingPanel.Queue },
@@ -234,6 +240,7 @@ internal fun NowPlayingScreen(
                     PanelContent(lyrics, activeLyricLine, related, actions, queueContent)
                 },
                 layout = layout,
+                posture = posture,
                 openPanel = openPanel,
                 onOpenPanelChange = { openPanel = it },
                 panelDrag = panelDrag,
@@ -315,6 +322,7 @@ private fun NowPlayingContent(
     actions: NowPlayingActions,
     panels: PanelContent,
     layout: NowPlayingLayout,
+    posture: Posture,
     openPanel: NowPlayingPanel?,
     onOpenPanelChange: (NowPlayingPanel?) -> Unit,
     panelDrag: PanelDrag,
@@ -343,6 +351,19 @@ private fun NowPlayingContent(
                 panels = panels,
                 openPanel = openPanel,
                 onOpenPanelChange = onOpenPanelChange,
+                onMenuClick = onMenuClick,
+            )
+
+            layout == NowPlayingLayout.Tabletop && posture is Posture.Tabletop -> TabletopLayout(
+                state = state,
+                track = track,
+                hinge = posture,
+                positionMillis = positionMillis,
+                actions = actions,
+                panels = panels,
+                openPanel = openPanel,
+                onOpenPanelChange = onOpenPanelChange,
+                panelDrag = panelDrag,
                 onMenuClick = onMenuClick,
             )
 
@@ -470,28 +491,8 @@ private fun PhoneLayout(
                 .clipToBounds(),
         ) { showingPanel ->
             if (showingPanel) {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .onSizeChanged { panelDrag.height = it.height.toFloat() }
-                        .graphicsLayer {
-                            val pulled = panelDrag.value
-                            translationY = pulled
-                            if (panelDrag.height > 0f) {
-                                alpha = 1f - PANEL_DRAG_FADE * (pulled / panelDrag.height).coerceIn(0f, 1f)
-                            }
-                        }
-                        .nestedScroll(panelDrag.nestedScroll),
-                ) {
-                    DisposableEffect(panelDrag) { onDispose(panelDrag::onPanelGone) }
+                PanelInPlaceOfArt(panels, openPanel, onOpenPanelChange, panelDrag) {
                     CompactTrackHeader(track = track, onClick = { onOpenPanelChange(null) })
-                    val pagerState = rememberPagerState(initialPage = (openPanel ?: NowPlayingPanel.Lyrics).ordinal) {
-                        NowPlayingPanel.entries.size
-                    }
-                    SyncPager(pagerState, NowPlayingPanel.entries, openPanel) { onOpenPanelChange(it) }
-                    HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), key = { it }) { page ->
-                        panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
-                    }
                 }
             } else {
                 // Art and metadata stay together, centered in the space above the controls.
@@ -529,6 +530,129 @@ private fun PhoneLayout(
             modifier = Modifier.padding(bottom = SegueSpacing.sm),
         )
     }
+}
+
+/**
+ * The open panel where the art was, under an optional [header]: it pages between panels and follows a
+ * drag down, fading, until [panelDrag] closes it.
+ */
+@Composable
+private fun PanelInPlaceOfArt(
+    panels: PanelContent,
+    openPanel: NowPlayingPanel?,
+    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    panelDrag: PanelDrag,
+    header: @Composable () -> Unit = {},
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .onSizeChanged { panelDrag.height = it.height.toFloat() }
+            .graphicsLayer {
+                val pulled = panelDrag.value
+                translationY = pulled
+                if (panelDrag.height > 0f) {
+                    alpha = 1f - PANEL_DRAG_FADE * (pulled / panelDrag.height).coerceIn(0f, 1f)
+                }
+            }
+            .nestedScroll(panelDrag.nestedScroll),
+    ) {
+        DisposableEffect(panelDrag) { onDispose(panelDrag::onPanelGone) }
+        header()
+        val pagerState = rememberPagerState(initialPage = (openPanel ?: NowPlayingPanel.Lyrics).ordinal) {
+            NowPlayingPanel.entries.size
+        }
+        SyncPager(pagerState, NowPlayingPanel.entries, openPanel) { onOpenPanelChange(it) }
+        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), key = { it }) { page ->
+            panels.Panel(NowPlayingPanel.entries[page], Modifier.fillMaxSize())
+        }
+    }
+}
+
+/**
+ * A foldable in tabletop posture: the top bar and the art, or the open panel in its place, above the
+ * hinge; the metadata, seekbar, transport and bottom row below it, where the device rests.
+ */
+@Composable
+private fun TabletopLayout(
+    state: NowPlayingUiState,
+    track: NowPlayingTrack,
+    hinge: Posture.Tabletop,
+    positionMillis: () -> Long,
+    actions: NowPlayingActions,
+    panels: PanelContent,
+    openPanel: NowPlayingPanel?,
+    onOpenPanelChange: (NowPlayingPanel?) -> Unit,
+    panelDrag: PanelDrag,
+    onMenuClick: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .height(hinge.hingeTop),
+        ) {
+            TopBar(state.source, actions, onMenuClick)
+            val reduceMotion = LocalReduceMotion.current
+            AnimatedContent(
+                targetState = openPanel != null,
+                transitionSpec = { NowPlayingMotion.panelTransition(reduceMotion, draggedDown = panelDrag.isClosing) },
+                label = "panel",
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clipToBounds(),
+            ) { showingPanel ->
+                if (showingPanel) {
+                    PanelInPlaceOfArt(panels, openPanel, onOpenPanelChange, panelDrag)
+                } else {
+                    ArtPager(
+                        track = track,
+                        previous = state.previous,
+                        next = state.next,
+                        onSkipTo = actions.onSkipTo,
+                        onClick = { onOpenPanelChange(NowPlayingPanel.Lyrics) },
+                        onLongClick = onMenuClick,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        // Nothing is drawn across the hinge itself.
+        Spacer(Modifier.height(hinge.hingeBottom - hinge.hingeTop))
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .navigationBarsPadding(),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                TrackMetadata(
+                    track = track,
+                    onArtistClick = actions.onArtistClick,
+                    onAlbumClick = actions.onAlbumClick,
+                    onFavoriteClick = actions.onToggleFavorite,
+                    modifier = Modifier.padding(start = SegueSpacing.xl, end = SegueSpacing.sm),
+                )
+                Controls(state, positionMillis, actions)
+            }
+            PanelBar(
+                openPanel = openPanel,
+                sleepTimerActive = state.sleepTimer != null,
+                onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
+                onMoreClick = onMenuClick,
+                modifier = Modifier.padding(bottom = SegueSpacing.sm),
+            )
+        }
+    }
+}
+
+/** The posture of the window Now Playing fills, from its folding feature. */
+@Composable
+private fun currentPosture(): Posture {
+    val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList
+    val density = LocalDensity.current
+    return remember(hinges, density) { postureOf(hinges, density) }
 }
 
 /**
