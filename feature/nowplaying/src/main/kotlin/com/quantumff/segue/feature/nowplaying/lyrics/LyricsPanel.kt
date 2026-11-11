@@ -39,10 +39,12 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
+import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.feature.nowplaying.LyricsUiState
+import com.quantumff.segue.feature.nowplaying.NowPlayingMotion
 import com.quantumff.segue.feature.nowplaying.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -50,7 +52,8 @@ import kotlinx.coroutines.flow.collectLatest
 /**
  * Lyrics panel (DESIGN.md §4.7). Synced lyrics hold the active line at 35% of the panel height,
  * at full opacity and scale; other lines are dimmed and slightly smaller. Scrolling by hand pauses
- * the follow until the "Sync" chip is tapped or 5s pass. Tapping a line seeks to it.
+ * the follow until the "Sync" chip is tapped or 5s pass. Tapping a line seeks to it. With reduce
+ * motion on, lines only fade, all at full size, and the list jumps to the active line.
  *
  * @param activeLine read here only, so line changes recompose just this panel.
  */
@@ -102,6 +105,7 @@ private fun SyncedLyrics(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val motion = NowPlayingMotion.lyricLines(LocalReduceMotion.current)
     var following by remember(content) { mutableStateOf(true) }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
@@ -122,7 +126,8 @@ private fun SyncedLyrics(
     LaunchedEffect(activeLine, following) {
         if (!following) return@LaunchedEffect
         // The top content padding is 35% of the panel: aligning an item to the start holds it there.
-        listState.animateScrollToItem(activeLine.coerceAtLeast(0))
+        val line = activeLine.coerceAtLeast(0)
+        if (motion.smoothScroll) listState.animateScrollToItem(line) else listState.scrollToItem(line)
     }
 
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -140,7 +145,7 @@ private fun SyncedLyrics(
                     label = "lyricAlpha",
                 )
                 val scale by animateFloatAsState(
-                    targetValue = if (active) 1f else INACTIVE_SCALE,
+                    targetValue = motion.scale(active),
                     animationSpec = SegueMotion.lyric(),
                     label = "lyricScale",
                 )
@@ -216,7 +221,6 @@ private fun UnsyncedLyrics(content: LyricsContent.Unsynced, modifier: Modifier =
 
 private const val ACTIVE_LINE_POSITION = 0.35f
 private const val INACTIVE_ALPHA = 0.35f
-private const val INACTIVE_SCALE = 0.96f
 private const val RESUME_FOLLOW_MILLIS = 5_000L
 private val SYNCED_SIZE = 24.sp
 private val SYNCED_LINE_HEIGHT = 1.25.em
