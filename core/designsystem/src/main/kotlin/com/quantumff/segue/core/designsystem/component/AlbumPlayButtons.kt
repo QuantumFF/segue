@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -26,11 +28,13 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -181,18 +185,21 @@ private fun SplitPill(
     val haptics = LocalHapticFeedback.current
     val reduceMotion = LocalReduceMotion.current
     val menuLabel = stringResource(R.string.ds_queue_options, description)
+    val chevronInteractions = remember { MutableInteractionSource() }
     Box {
+        // Not clipped as a whole, so the chevron's touch target can reach past the pill's end; each
+        // half clips its own ripple instead.
         Row(
             modifier = Modifier
                 .height(SegueSizes.touchTarget)
-                .clip(SegueShapes.full)
-                .background(containerColor)
+                .background(containerColor, SegueShapes.full)
                 .then(if (border != null) Modifier.border(border, SegueShapes.full) else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxHeight()
+                    .clip(PlayHalfShape)
                     .combinedClickable(
                         role = Role.Button,
                         onClick = { onPlace(QueuePlacement.Replace) },
@@ -237,11 +244,22 @@ private fun SplitPill(
                     .height(SegueSizes.iconSmall)
                     .background(contentColor.copy(alpha = DIVIDER_ALPHA)),
             )
+            // A 40 visual touched over 48, reaching into the play half (it wins there, placed after it).
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .clickable(role = Role.Button, onClickLabel = menuLabel) { menuOpen = true }
-                    .semantics { contentDescription = menuLabel }
+                    .overflowingTouchTarget(
+                        Modifier
+                            .clickable(
+                                interactionSource = chevronInteractions,
+                                indication = null,
+                                role = Role.Button,
+                                onClickLabel = menuLabel,
+                            ) { menuOpen = true }
+                            .semantics { contentDescription = menuLabel },
+                    )
+                    .clip(ChevronShape)
+                    .indication(chevronInteractions, ripple())
                     .padding(start = SegueSpacing.sm, end = SegueSpacing.md),
                 contentAlignment = Alignment.Center,
             ) {
@@ -283,6 +301,9 @@ private fun PlacementItem(icon: ImageVector, label: String, onClick: () -> Unit)
 }
 
 private const val DIVIDER_ALPHA = 0.24f
+private const val HALF = 50
+private val PlayHalfShape = RoundedCornerShape(topStartPercent = HALF, bottomStartPercent = HALF)
+private val ChevronShape = RoundedCornerShape(topEndPercent = HALF, bottomEndPercent = HALF)
 
 @PreviewSegueThemes
 @Composable

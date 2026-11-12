@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performSemanticsAction
@@ -23,6 +24,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.RepeatMode
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,6 +49,14 @@ class PlayerBarTest {
             .performSemanticsAction(SemanticsActions.SetProgress) { it(0.5f) }
 
         assertThat(seeks).containsExactly(DURATION_MILLIS / 2)
+    }
+
+    @Test
+    fun `the seek line announces the elapsed time of the total`() {
+        show()
+
+        compose.onNodeWithContentDescription("Seek")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "1:00 of 4:00"))
     }
 
     @Test
@@ -78,6 +88,14 @@ class PlayerBarTest {
 
         assertThat(seeks).hasSize(1)
         assertThat(seeks.single()).isAtLeast(DURATION_MILLIS * 9 / 10)
+    }
+
+    @Test
+    fun `the track area's action is Open Now Playing`() {
+        show()
+
+        compose.onNode(hasText(PreviewData.miniPlayer.title).and(hasClickLabel("Open Now Playing")))
+            .assertExists()
     }
 
     @Test

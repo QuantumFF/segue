@@ -16,17 +16,20 @@
     <string name="ds_repeat_all">All</string>
     <string name="ds_repeat_one">One</string>
     <string name="ds_seek">Seek</string>
+    <!-- The seekbar's position for screen readers: elapsed of total, e.g. "1:52 of 4:15". -->
+    <string name="ds_seek_position">%1$s of %2$s</string>
     <string name="ds_lyrics">Lyrics</string>
     <string name="ds_queue">Queue</string>
     <string name="ds_volume">Volume</string>
     <!-- The volume slider's level for screen readers, e.g. "70%". -->
     <string name="ds_volume_level">%1$d%%</string>
-    <string name="ds_account">Account</string>
+    <string name="ds_settings">Settings</string>
     <string name="ds_refresh">Refresh</string>
     <string name="ds_clear">Clear</string>
     <string name="ds_clear_selection">Clear selection</string>
     <string name="ds_collapse">Collapse</string>
     <string name="ds_retry">Retry</string>
+    <string name="ds_open_settings">Open settings</string>
     <string name="ds_explicit">E</string>
     <string name="ds_explicit_description">Explicit</string>
     <string name="ds_download_queued">Download queued</string>
@@ -35,6 +38,8 @@
     <string name="ds_download_paused">Download paused</string>
     <string name="ds_download_failed">Download failed</string>
     <string name="ds_now_playing">Now playing</string>
+    <string name="ds_selected_now_playing">Selected, now playing</string>
+    <string name="ds_open_now_playing">Open Now Playing</string>
     <string name="ds_continue_from">Continue from %1$s</string>
     <string name="ds_continue">Continue</string>
     <string name="ds_dismiss">Dismiss</string>

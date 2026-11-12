@@ -1,9 +1,7 @@
 package com.quantumff.segue.core.designsystem.component
 
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -11,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,9 +29,7 @@ class SortChipTest {
         compose.onNodeWithText("Recently added")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.DropdownList))
             .assert(
-                SemanticsMatcher("click label is \"Change sort\"") {
-                    it.config.getOrNull(SemanticsActions.OnClick)?.label == "Change sort"
-                },
+                hasClickLabel("Change sort"),
             )
     }
 

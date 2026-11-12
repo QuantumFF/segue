@@ -27,11 +27,18 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -46,6 +53,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -121,18 +130,33 @@ internal const val STATUS_BAR_SCRIM_TAG = "statusBarScrim"
 private const val STATUS_BAR_SCRIM_ALPHA = 0.92f
 
 /**
- * The settings action on Home, Library and Playlists: opens Settings. [serverName] is announced
- * and labelled.
+ * The settings action on Home, Library and Playlists: opens Settings. It is announced as
+ * "Settings"; [serverName], when known, shows in a plain tooltip on long-press or hover.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountAction(serverName: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    SegueIconButton(
-        icon = SegueIcons.Settings,
-        contentDescription = serverName ?: stringResource(R.string.ds_account),
-        onClick = onClick,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier,
-    )
+    val button = @Composable { buttonModifier: Modifier ->
+        SegueIconButton(
+            icon = SegueIcons.Settings,
+            contentDescription = stringResource(R.string.ds_settings),
+            onClick = onClick,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = buttonModifier,
+        )
+    }
+    if (serverName == null) {
+        button(modifier)
+    } else {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+            tooltip = { PlainTooltip { Text(serverName) } },
+            state = rememberTooltipState(),
+            modifier = modifier,
+        ) {
+            button(Modifier)
+        }
+    }
 }
 
 /**
@@ -159,6 +183,8 @@ fun DetailTopBar(
         animationSpec = SegueMotion.medium(),
         label = "detailTopBar",
     )
+    // While the title is invisible the hero's title is on screen; only one of them is read.
+    val titleHidden by remember { derivedStateOf { fraction == 0f } }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -187,7 +213,8 @@ fun DetailTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = SegueSpacing.sm),
+                    .padding(horizontal = SegueSpacing.sm)
+                    .then(if (titleHidden) Modifier.clearAndSetSemantics {} else Modifier.semantics { heading() }),
             )
             if (onPlayClick != null && collapsed) {
                 PlayButton(onClick = onPlayClick, isPlaying = isPlaying, size = SegueSizes.detailTopBarPlay)
@@ -336,11 +363,16 @@ fun SearchTopBar(
             )
             Spacer(Modifier.width(SegueSpacing.sm))
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                val hint = stringResource(R.string.ds_search_hint)
                 if (query.isEmpty()) {
+                    // The field carries the hint as its label, so the placeholder is not read twice.
                     Text(
-                        text = stringResource(R.string.ds_search_hint),
+                        text = hint,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clearAndSetSemantics {},
                     )
                 }
                 BasicTextField(
@@ -353,7 +385,8 @@ fun SearchTopBar(
                     keyboardActions = KeyboardActions(onSearch = { onSearch() }),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
+                        .focusRequester(focusRequester)
+                        .semantics { contentDescription = hint },
                 )
             }
             if (query.isNotEmpty()) {

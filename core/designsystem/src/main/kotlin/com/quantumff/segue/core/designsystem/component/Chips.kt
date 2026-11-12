@@ -3,6 +3,8 @@ package com.quantumff.segue.core.designsystem.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +21,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -143,17 +147,20 @@ fun SegueSortChip(label: String, onClick: () -> Unit, modifier: Modifier = Modif
 
 /**
  * Feishin pill for genres and hero metadata (DESIGN.md §5.6): 28 tall, radius `full`,
- * `background` @ 50%, 1dp `outlineVariant` border, `labelMedium`, 12 horizontal padding.
+ * `background` @ 50%, 1dp `outlineVariant` border, `labelMedium`, 12 horizontal padding. With
+ * [onClick] it is a button with a 48dp touch target, so it takes a 48dp slot.
  */
 @Composable
 fun Pill(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    val interactions = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
+            .then(if (onClick != null) Modifier.touchTargetClickable(interactions, onClick = onClick) else Modifier)
             .height(SegueSizes.pill)
             .clip(SegueShapes.full)
             .background(MaterialTheme.colorScheme.background.copy(alpha = SegueAlpha.PILL_FILL))
             .border(SegueSizes.hairline, MaterialTheme.colorScheme.outlineVariant, SegueShapes.full)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.indication(interactions, ripple()) else Modifier)
             .padding(horizontal = SegueSpacing.md),
         contentAlignment = Alignment.Center,
     ) {
@@ -163,21 +170,25 @@ fun Pill(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = 
 
 /**
  * Small status chip under a top bar, e.g. "Offline · showing cached library" (DESIGN.md §5.8).
- * `surfaceContainerHighest`, a leading icon; tapping it retries.
+ * `surfaceContainerHighest`, a leading icon. With [onClick] it is a button with a 48dp touch target
+ * that TalkBack announces with [onClickLabel] ("Retry"); without one it only informs.
  */
 @Composable
 fun StatusChip(
     label: String,
     modifier: Modifier = Modifier,
     icon: ImageVector = SegueIcons.Offline,
+    onClickLabel: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
+    val interactions = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
+            .then(if (onClick != null) Modifier.touchTargetClickable(interactions, onClickLabel, onClick) else Modifier)
             .height(SegueSizes.chip)
             .clip(SegueShapes.full)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.indication(interactions, ripple()) else Modifier)
             .padding(horizontal = SegueSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -215,7 +226,13 @@ fun OfflineStatusChip(
         OfflineStatus.ShowingDownloadsInOfflineMode -> R.string.ds_offline_mode_downloads
     }
     val onClick = if (status.opensOfflineModeSetting) onOpenOfflineModeSetting else onRetry
-    StatusChip(label = stringResource(label), modifier = modifier, onClick = onClick)
+    val onClickLabel = if (status.opensOfflineModeSetting) R.string.ds_open_settings else R.string.ds_retry
+    StatusChip(
+        label = stringResource(label),
+        modifier = modifier,
+        onClickLabel = stringResource(onClickLabel),
+        onClick = onClick,
+    )
 }
 
 @PreviewSegueThemes

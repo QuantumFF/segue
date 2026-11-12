@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -107,7 +108,11 @@ fun PlayerBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = actions.onClick),
+                    .clickable(
+                        onClickLabel = stringResource(R.string.ds_open_now_playing),
+                        role = Role.Button,
+                        onClick = actions.onClick,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CoverArt(

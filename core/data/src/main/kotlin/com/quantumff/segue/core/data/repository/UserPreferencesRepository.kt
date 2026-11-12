@@ -25,6 +25,11 @@ interface UserPreferencesRepository {
     suspend fun addRecentSearch(query: String)
 
     suspend fun removeRecentSearch(query: String)
+
+    /** See [com.quantumff.segue.core.model.RecentSearches.restore]. */
+    suspend fun restoreRecentSearch(query: String, index: Int)
+
+    suspend fun clearRecentSearches()
 }
 
 internal class DataStoreUserPreferencesRepository @Inject constructor(private val source: UserPreferencesDataSource) :
@@ -38,4 +43,8 @@ internal class DataStoreUserPreferencesRepository @Inject constructor(private va
     override suspend fun addRecentSearch(query: String) = source.addRecentSearch(query)
 
     override suspend fun removeRecentSearch(query: String) = source.removeRecentSearch(query)
+
+    override suspend fun restoreRecentSearch(query: String, index: Int) = source.restoreRecentSearch(query, index)
+
+    override suspend fun clearRecentSearches() = source.clearRecentSearches()
 }

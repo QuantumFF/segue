@@ -37,6 +37,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -382,6 +386,7 @@ private fun PlaylistDetail(
                 EditableTrackRow(
                     entry = entry,
                     index = index,
+                    lastIndex = uiState.entries.lastIndex,
                     reorder = reorder,
                     onRemove = { onRemoveEntry(entry.key) },
                 )
@@ -515,6 +520,9 @@ private class DragReorderState(
         }
     }
 
+    /** One step without dragging, for TalkBack's Move up and Move down. */
+    fun move(from: Int, to: Int) = onMove.value(from, to)
+
     fun end() {
         draggingKey = null
         draggingIndex = -1
@@ -527,9 +535,15 @@ private class DragReorderState(
 private fun LazyItemScope.EditableTrackRow(
     entry: PlaylistEntry,
     index: Int,
+    lastIndex: Int,
     reorder: DragReorderState,
     onRemove: () -> Unit,
 ) {
+    val state = entry.song.toTrackRowState(rowKey = entry.key).copy(trackNumber = index + 1)
+    val description = listOf(state.title, state.artist).filter { it.isNotEmpty() }.joinToString(", ")
+    val moveUp = stringResource(R.string.feature_playlist_move_up)
+    val moveDown = stringResource(R.string.feature_playlist_move_down)
+    val remove = stringResource(R.string.feature_playlist_remove)
     val dragging = reorder.draggingKey == entry.key
     val dismissState = rememberSwipeToDismissBoxState()
     val background = MaterialTheme.colorScheme.background
@@ -573,12 +587,25 @@ private fun LazyItemScope.EditableTrackRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh else background)
-                .then(longPressDrag),
+                .then(longPressDrag)
+                // One TalkBack stop per row, not clickable: the drag and swipe gestures become actions.
+                .clearAndSetSemantics {
+                    contentDescription = description
+                    customActions = listOfNotNull(
+                        CustomAccessibilityAction(moveUp) {
+                            reorder.move(index, index - 1).let { true }
+                        }.takeIf { index > 0 },
+                        CustomAccessibilityAction(moveDown) { reorder.move(index, index + 1).let { true } }
+                            .takeIf { index < lastIndex },
+                        CustomAccessibilityAction(remove) { onRemove().let { true } },
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TrackRow(
-                state = entry.song.toTrackRowState(rowKey = entry.key).copy(trackNumber = index + 1),
-                onClick = {},
+                state = state,
+                // Not tappable while editing: rows only drag, swipe and take the actions above.
+                onClick = null,
                 leading = TrackRowLeading.Art,
                 modifier = Modifier.weight(1f),
             )
@@ -590,7 +617,8 @@ private fun LazyItemScope.EditableTrackRow(
             ) {
                 Icon(
                     imageVector = SegueIcons.DragHandle,
-                    contentDescription = stringResource(R.string.feature_playlist_drag_handle),
+                    // TalkBack reorders with the row's Move up and Move down actions.
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(SegueSizes.iconSmall),
                 )
@@ -612,7 +640,8 @@ private fun RemoveBackground() {
     ) {
         Icon(
             imageVector = SegueIcons.Remove,
-            contentDescription = stringResource(R.string.feature_playlist_remove_track),
+            // Decoration behind the row; TalkBack removes with the row's Remove action.
+            contentDescription = null,
             tint = MaterialTheme.colorScheme.error,
         )
     }

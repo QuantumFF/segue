@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,7 +24,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -38,10 +39,12 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.collectLatest
 
-/** How a [SeekLine] looks: its track, its thumb at rest and while dragging, and its touch height. */
+/**
+ * How a [SeekLine] looks: its track, its thumb at rest and while dragging, and its slot. It takes
+ * touches over 48 ([overflowingTouchTarget]), centered on the line, whatever its slot.
+ */
 @Immutable
 data class SeekLineStyle(
     val active: Color,
@@ -51,11 +54,12 @@ data class SeekLineStyle(
     val thumbDragging: Dp,
     /** The height the line takes in its layout. */
     val height: Dp,
-    /** The height that takes touches, centered on the line; may be taller than [height]. */
-    val touchHeight: Dp,
 ) {
     companion object {
-        /** Now Playing (DESIGN.md §4.7): a 4 tall track and a 12 thumb that grows to 20 while dragging. */
+        /**
+         * Now Playing (DESIGN.md §4.7): a 4 tall track and a 12 thumb that grows to 20 while dragging.
+         * It takes 32 in the layout but touches over 48, overlapping the times below.
+         */
         fun nowPlaying(active: Color, inactive: Color) = SeekLineStyle(
             active = active,
             inactive = inactive,
@@ -63,7 +67,6 @@ data class SeekLineStyle(
             thumb = 12.dp,
             thumbDragging = 20.dp,
             height = 32.dp,
-            touchHeight = 32.dp,
         )
 
         /**
@@ -78,14 +81,13 @@ data class SeekLineStyle(
             thumb = 0.dp,
             thumbDragging = 12.dp,
             height = 24.dp,
-            touchHeight = SegueSizes.touchTarget,
         )
     }
 }
 
 /**
  * A seek slider: tap or drag to seek; a drag seeks once, where it ends, so it never fights the
- * position ticker. Screen readers get "Seek", the elapsed time, and a `setProgress` action.
+ * position ticker. Screen readers get "Seek", "elapsed of total" (e.g. "1:52 of 4:15"), and a `setProgress` action.
  *
  * Position samples arrive twice a second; between them the line glides linearly to where the next
  * sample will be, so it moves smoothly while only this composable redraws.
@@ -134,45 +136,53 @@ fun SeekLine(
     val latestDuration by rememberUpdatedState(durationMillis)
     val latestOnSeek by rememberUpdatedState(onSeek)
     val seekDescription = stringResource(R.string.ds_seek)
+    val resources = LocalResources.current
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .touchHeight(style.height, style.touchHeight)
-            .semantics {
-                contentDescription = seekDescription
-                // From the position samples, not the per-frame glide, so semantics update per tick.
-                val position = latestPosition()
-                stateDescription = formatDuration(position / MILLIS_PER_SECOND)
-                progressBarRangeInfo = ProgressBarRangeInfo(
-                    if (latestDuration > 0) (position.toFloat() / latestDuration).coerceIn(0f, 1f) else 0f,
-                    0f..1f,
-                )
-                setProgress { fraction ->
-                    latestOnSeek((fraction * latestDuration).toLong())
-                    true
-                }
-            }
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val fraction = (offset.x / size.width).coerceIn(0f, 1f)
-                    latestOnSeek((fraction * latestDuration).toLong())
-                }
-            }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { offset -> drag((offset.x / size.width).coerceIn(0f, 1f)) },
-                    onHorizontalDrag = { change, _ ->
-                        change.consume()
-                        drag((change.position.x / size.width).coerceIn(0f, 1f))
+            .height(style.height)
+            .overflowingTouchTarget(
+                Modifier
+                    .semantics {
+                        contentDescription = seekDescription
+                        // From the position samples, not the per-frame glide, so semantics update per tick.
+                        val position = latestPosition()
+                        stateDescription = resources.getString(
+                            R.string.ds_seek_position,
+                            formatDuration(position / MILLIS_PER_SECOND),
+                            formatDuration(latestDuration / MILLIS_PER_SECOND),
+                        )
+                        progressBarRangeInfo = ProgressBarRangeInfo(
+                            if (latestDuration > 0) (position.toFloat() / latestDuration).coerceIn(0f, 1f) else 0f,
+                            0f..1f,
+                        )
+                        setProgress { fraction ->
+                            latestOnSeek((fraction * latestDuration).toLong())
+                            true
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                            latestOnSeek((fraction * latestDuration).toLong())
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset -> drag((offset.x / size.width).coerceIn(0f, 1f)) },
+                            onHorizontalDrag = { change, _ ->
+                                change.consume()
+                                drag((change.position.x / size.width).coerceIn(0f, 1f))
+                            },
+                            onDragEnd = {
+                                dragFraction?.let { latestOnSeek((it * latestDuration).toLong()) }
+                                drag(null)
+                            },
+                            onDragCancel = { drag(null) },
+                        )
                     },
-                    onDragEnd = {
-                        dragFraction?.let { latestOnSeek((it * latestDuration).toLong()) }
-                        drag(null)
-                    },
-                    onDragCancel = { drag(null) },
-                )
-            },
+            ),
     ) {
         val fraction = dragFraction ?: progress.value
         val trackHeight = style.trackHeight.toPx()
@@ -183,19 +193,6 @@ fun SeekLine(
         if (thumbRadius > 0.dp) {
             drawCircle(style.active, thumbRadius.toPx(), Offset(size.width * fraction, size.height / 2))
         }
-    }
-}
-
-/**
- * Measures the content [touchHeight] tall but takes only [height] in the layout, centered, so it
- * takes touches beyond its slot without pushing its neighbors apart (as Material's `Slider` does).
- */
-private fun Modifier.touchHeight(height: Dp, touchHeight: Dp): Modifier = layout { measurable, constraints ->
-    val touch = touchHeight.roundToPx()
-    val placeable = measurable.measure(constraints.copy(minHeight = touch, maxHeight = touch))
-    val slot = height.roundToPx()
-    layout(placeable.width, slot) {
-        placeable.place(0, ((slot - touch) / 2f).roundToInt())
     }
 }
 
