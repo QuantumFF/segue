@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_search_recent">Recent searches</string>
+    <string name="feature_search_removed">Removed</string>
+    <string name="feature_search_remove">Remove %1$s</string>
+    <string name="feature_search_clear_title">Clear recent searches?</string>
+    <string name="feature_search_clear_message">All your recent searches will be removed.</string>
+    <string name="feature_search_cancel">Cancel</string>
     <string name="feature_search_browse_genres">Browse genres</string>
     <string name="feature_search_filter_all">All</string>
     <string name="feature_search_songs">Songs</string>
