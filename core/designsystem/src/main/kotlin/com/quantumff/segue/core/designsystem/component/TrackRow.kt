@@ -70,11 +70,13 @@ enum class TrackRowLeading {
 /**
  * Phone track row: 56 tall (48 when [dense]), horizontal padding 16. Tap plays.
  * The tablet table layout (DESIGN.md §5.2, Expanded column) is built with the browse screens.
+ *
+ * @param onClick null for a row that can't be tapped or long-pressed, such as a playlist edit row.
  */
 @Composable
 fun TrackRow(
     state: TrackRowState,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     leading: TrackRowLeading = TrackRowLeading.Art,
     dense: Boolean = false,
@@ -92,7 +94,13 @@ fun TrackRow(
             .fillMaxWidth()
             .height(if (dense) SegueSizes.trackRowDense else SegueSizes.trackRow)
             .selectedRow(selected)
-            .rowClickable(state.isAvailable, onClick, onLongClick, onLongClickLabel)
+            .then(
+                if (onClick != null) {
+                    Modifier.rowClickable(state.isAvailable, onClick, onLongClick, onLongClickLabel)
+                } else {
+                    Modifier
+                },
+            )
             .then(if (state.isCurrent) Modifier.semantics { stateDescription = playingState } else Modifier)
             .then(if (state.isAvailable) Modifier else Modifier.alpha(SegueAlpha.DISABLED))
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),

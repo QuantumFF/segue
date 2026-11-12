@@ -604,7 +604,8 @@ private fun LazyItemScope.EditableTrackRow(
         ) {
             TrackRow(
                 state = state,
-                onClick = {},
+                // Not tappable while editing: rows only drag, swipe and take the actions above.
+                onClick = null,
                 leading = TrackRowLeading.Art,
                 modifier = Modifier.weight(1f),
             )
@@ -616,7 +617,8 @@ private fun LazyItemScope.EditableTrackRow(
             ) {
                 Icon(
                     imageVector = SegueIcons.DragHandle,
-                    contentDescription = stringResource(R.string.feature_playlist_drag_handle),
+                    // TalkBack reorders with the row's Move up and Move down actions.
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(SegueSizes.iconSmall),
                 )
