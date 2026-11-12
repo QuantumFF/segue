@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.quantumff.segue.core.designsystem.R
@@ -83,12 +85,14 @@ fun TrackRow(
 ) {
     val titleColor = if (state.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val nowPlaying = stringResource(R.string.ds_now_playing)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(if (dense) SegueSizes.trackRowDense else SegueSizes.trackRow)
             .selectedRow(selected)
             .rowClickable(state.isAvailable, onClick, onLongClick, onLongClickLabel)
+            .then(if (state.isCurrent) Modifier.semantics { stateDescription = nowPlaying } else Modifier)
             .then(if (state.isAvailable) Modifier else Modifier.alpha(SegueAlpha.DISABLED))
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,

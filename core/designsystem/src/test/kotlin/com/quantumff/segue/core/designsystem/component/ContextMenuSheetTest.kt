@@ -1,9 +1,11 @@
 package com.quantumff.segue.core.designsystem.component
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -45,6 +47,13 @@ class ContextMenuSheetTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText(LAST))
 
         compose.onNodeWithText(TITLE).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the header title is a heading`() {
+        show()
+
+        compose.onNodeWithText(TITLE).assert(isHeading())
     }
 
     private fun show() {

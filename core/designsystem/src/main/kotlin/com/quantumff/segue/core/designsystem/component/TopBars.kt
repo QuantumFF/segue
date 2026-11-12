@@ -27,11 +27,18 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -123,18 +130,33 @@ internal const val STATUS_BAR_SCRIM_TAG = "statusBarScrim"
 private const val STATUS_BAR_SCRIM_ALPHA = 0.92f
 
 /**
- * The settings action on Home, Library and Playlists: opens Settings. [serverName] is announced
- * and labelled.
+ * The settings action on Home, Library and Playlists: opens Settings. It is announced as
+ * "Settings"; [serverName], when known, shows in a plain tooltip on long-press or hover.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountAction(serverName: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    SegueIconButton(
-        icon = SegueIcons.Settings,
-        contentDescription = serverName ?: stringResource(R.string.ds_account),
-        onClick = onClick,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier,
-    )
+    val button = @Composable { buttonModifier: Modifier ->
+        SegueIconButton(
+            icon = SegueIcons.Settings,
+            contentDescription = stringResource(R.string.ds_settings),
+            onClick = onClick,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = buttonModifier,
+        )
+    }
+    if (serverName == null) {
+        button(modifier)
+    } else {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+            tooltip = { PlainTooltip { Text(serverName) } },
+            state = rememberTooltipState(),
+            modifier = modifier,
+        ) {
+            button(Modifier)
+        }
+    }
 }
 
 /**
@@ -161,6 +183,8 @@ fun DetailTopBar(
         animationSpec = SegueMotion.medium(),
         label = "detailTopBar",
     )
+    // While the title is invisible the hero's title is on screen; only one of them is read.
+    val titleHidden by remember { derivedStateOf { fraction == 0f } }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -189,7 +213,8 @@ fun DetailTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = SegueSpacing.sm),
+                    .padding(horizontal = SegueSpacing.sm)
+                    .then(if (titleHidden) Modifier.clearAndSetSemantics {} else Modifier.semantics { heading() }),
             )
             if (onPlayClick != null && collapsed) {
                 PlayButton(onClick = onPlayClick, isPlaying = isPlaying, size = SegueSizes.detailTopBarPlay)

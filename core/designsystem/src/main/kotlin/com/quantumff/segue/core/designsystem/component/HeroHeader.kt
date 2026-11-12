@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -335,6 +337,7 @@ private fun ColumnScope.HeroText(
         textAlign = textAlign,
         modifier = Modifier
             .fillMaxWidth()
+            .semantics { heading() }
             .onPlaced(onTitlePlace),
     )
     state.subtitle?.let { subtitle ->
