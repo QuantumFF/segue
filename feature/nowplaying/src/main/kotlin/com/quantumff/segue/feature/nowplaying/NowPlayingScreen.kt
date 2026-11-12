@@ -86,6 +86,7 @@ import com.quantumff.segue.feature.nowplaying.component.CompactTrackHeader
 import com.quantumff.segue.feature.nowplaying.component.NowPlayingBackground
 import com.quantumff.segue.feature.nowplaying.component.NowPlayingSeekbar
 import com.quantumff.segue.feature.nowplaying.component.PanelBar
+import com.quantumff.segue.feature.nowplaying.component.SleepTimerChip
 import com.quantumff.segue.feature.nowplaying.component.TrackMetadata
 import com.quantumff.segue.feature.nowplaying.component.TransportRow
 import com.quantumff.segue.feature.nowplaying.component.label
@@ -227,11 +228,22 @@ internal fun NowPlayingScreen(
         }
         val onOpenPanelChange: (NowPlayingPanel?) -> Unit = remember { { openPanel = it } }
         val onMenuClick: () -> Unit = remember { { sheet = NowPlayingSheet.Menu } }
+        val onSleepTimerClick: () -> Unit = remember { { sheet = NowPlayingSheet.SleepTimer } }
         val track = state.track
         // Rebuilt when the state or the open panel changes, not on position ticks: the position is a lambda.
         val parts = remember(state, track, positionMillis, actions, panels, openPanel) {
             track?.let {
-                NowPlayingParts(state, it, positionMillis, actions, panels, openPanel, onOpenPanelChange, onMenuClick)
+                NowPlayingParts(
+                    state,
+                    it,
+                    positionMillis,
+                    actions,
+                    panels,
+                    openPanel,
+                    onOpenPanelChange,
+                    onMenuClick,
+                    onSleepTimerClick,
+                )
             }
         }
         Box(
@@ -364,6 +376,7 @@ private class NowPlayingParts(
     val openPanel: NowPlayingPanel?,
     val onOpenPanelChange: (NowPlayingPanel?) -> Unit,
     val onMenuClick: () -> Unit,
+    val onSleepTimerClick: () -> Unit,
 )
 
 /** The three panels' bodies, drawn with light content over the art backdrop. */
@@ -815,6 +828,7 @@ private fun NowPlayingParts.TopBar() {
         onMoreClick = onMenuClick,
         onSourceClick = source.opens?.let { opens -> { actions.onSourceClick(opens) } },
         sourceClickLabel = source.name?.let { stringResource(R.string.feature_nowplaying_open_source, it) },
+        status = state.sleepTimer?.let { timer -> { SleepTimerChip(timer, onClick = onSleepTimerClick) } },
     )
 }
 

@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,9 +47,10 @@ import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.feature.nowplaying.R
 import com.quantumff.segue.feature.nowplaying.SleepTimerChoice
+import com.quantumff.segue.feature.nowplaying.component.minutesLeft
+import com.quantumff.segue.feature.nowplaying.component.rememberMinuteClock
 import java.util.Date
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 /**
  * Sleep timer (DESIGN.md §4.7 ⋮ menu): the running timer with Cancel, then presets, end of track,
@@ -142,18 +142,13 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
     val context = LocalContext.current
     val (title, subtitle) = when (active) {
         is SleepTimer.AtTime -> {
-            // Refreshes once a minute while the sheet is open; nothing runs once it closes.
-            val now by produceState(System.currentTimeMillis(), active) {
-                while (true) {
-                    delay(MILLIS_PER_MINUTE - value % MILLIS_PER_MINUTE)
-                    value = System.currentTimeMillis()
-                }
-            }
-            val minutesLeft = ((active.endsAtMillis - now).coerceAtLeast(0) + MILLIS_PER_MINUTE - 1) / MILLIS_PER_MINUTE
+            // Refreshes once a minute while the sheet is open, in step with the top bar's chip.
+            val now by rememberMinuteClock()
+            val minutesLeft = minutesLeft(active.endsAtMillis, now)
             stringResource(
                 R.string.feature_nowplaying_sleep_active_at,
                 DateFormat.getTimeFormat(context).format(Date(active.endsAtMillis)),
-            ) to stringResource(R.string.feature_nowplaying_sleep_active_remaining, durationLabel(minutesLeft.toInt()))
+            ) to stringResource(R.string.feature_nowplaying_sleep_active_remaining, durationLabel(minutesLeft))
         }
 
         SleepTimer.EndOfTrack -> stringResource(R.string.feature_nowplaying_sleep_active_end_of_track) to null
@@ -290,7 +285,6 @@ private const val CUSTOM_MIN = 5
 private const val CUSTOM_MAX = 180
 private const val CUSTOM_STEP = 5
 private const val MINUTES_PER_HOUR = 60
-private const val MILLIS_PER_MINUTE = 60_000L
 private val CUSTOM_LABEL_WIDTH = SegueSizes.touchTarget * 2
 
 @PreviewSegueThemes
