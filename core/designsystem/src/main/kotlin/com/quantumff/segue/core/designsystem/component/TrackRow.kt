@@ -85,14 +85,15 @@ fun TrackRow(
 ) {
     val titleColor = if (state.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val nowPlaying = stringResource(R.string.ds_now_playing)
+    // An explicit state replaces Compose's own "Selected", so a selected playing row says both.
+    val playingState = stringResource(if (selected) R.string.ds_selected_now_playing else R.string.ds_now_playing)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(if (dense) SegueSizes.trackRowDense else SegueSizes.trackRow)
             .selectedRow(selected)
             .rowClickable(state.isAvailable, onClick, onLongClick, onLongClickLabel)
-            .then(if (state.isCurrent) Modifier.semantics { stateDescription = nowPlaying } else Modifier)
+            .then(if (state.isCurrent) Modifier.semantics { stateDescription = playingState } else Modifier)
             .then(if (state.isAvailable) Modifier else Modifier.alpha(SegueAlpha.DISABLED))
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,

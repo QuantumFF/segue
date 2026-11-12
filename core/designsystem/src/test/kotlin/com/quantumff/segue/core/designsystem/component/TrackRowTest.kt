@@ -41,4 +41,17 @@ class TrackRowTest {
         compose.onNode(hasClickAction() and hasText(other.title))
             .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
     }
+
+    @Test
+    fun `a selected row playing now is announced as both selected and now playing`() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            SegueTheme {
+                TrackRow(state = current, onClick = {}, selected = true)
+            }
+        }
+
+        compose.onNode(hasClickAction() and hasText(current.title))
+            .assert(hasStateDescription("Selected, now playing"))
+    }
 }
