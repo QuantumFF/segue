@@ -67,6 +67,8 @@
     <!-- The Speed row while the speed isn't 1×, "Speed · 1.5×". -->
     <string name="feature_nowplaying_menu_speed_value">Speed · %1$s</string>
     <string name="feature_nowplaying_speed_title">Playback speed</string>
+    <!-- A playback speed as a multiplier: "1.5×". The number is already formatted for the locale. -->
+    <string name="feature_nowplaying_speed_value">%1$s×</string>
     <string name="feature_nowplaying_menu_details">Details</string>
 
     <string name="feature_nowplaying_sleep_title">Sleep timer</string>
