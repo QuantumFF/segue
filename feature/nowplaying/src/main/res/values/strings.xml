@@ -47,6 +47,7 @@
     <string name="feature_nowplaying_lyrics_offline_title">Lyrics aren\'t available offline</string>
     <string name="feature_nowplaying_lyrics_offline_message">Downloaded songs keep their lyrics on this device</string>
     <string name="feature_nowplaying_lyrics_sync">Sync</string>
+    <string name="feature_nowplaying_lyrics_seek_here">Seek here</string>
 
     <string name="feature_nowplaying_related_play_all">Play all</string>
     <string name="feature_nowplaying_related_add_to_queue">Add to queue</string>
