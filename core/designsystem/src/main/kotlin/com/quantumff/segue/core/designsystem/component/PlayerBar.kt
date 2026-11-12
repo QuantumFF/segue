@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -28,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -231,7 +233,10 @@ private fun TransportAndSeek(
     }
 }
 
-/** Named "Volume" for screen readers, which read its level as a percentage. */
+/**
+ * Named "Volume" for screen readers, which read its level as a percentage. It snaps to [steps]
+ * without drawing them: a tick per volume step crowds a 96 slider.
+ */
 @Composable
 private fun VolumeSlider(volume: Float, steps: Int, onVolumeChange: (Float) -> Unit) {
     val label = stringResource(R.string.ds_volume)
@@ -240,6 +245,7 @@ private fun VolumeSlider(volume: Float, steps: Int, onVolumeChange: (Float) -> U
         value = volume,
         onValueChange = onVolumeChange,
         steps = steps,
+        colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
         modifier = Modifier
             .width(SegueSizes.volumeSlider)
             .semantics {
