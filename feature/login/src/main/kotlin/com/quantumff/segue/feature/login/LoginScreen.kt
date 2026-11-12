@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -34,13 +35,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -165,6 +174,9 @@ fun LoginScreen(
     }
 }
 
+/** Android has no standard autofill hint for a server address, so the field declares a plain "url" hint. */
+private val ServerUrlContentType = ContentType("url")
+
 @Composable
 private fun LoginForm(
     uiState: LoginUiState,
@@ -176,13 +188,18 @@ private fun LoginForm(
     val checking = uiState.step == LoginStep.Checking
     val error = uiState.error
     val message = error?.let { errorMessage(it, uiState.errorDetail) }
+    val focus = remember { LoginField.entries.associateWith { FocusRequester() } }
+    // A failed attempt puts focus on the field to fix. Runs after the composition that re-enables the fields.
+    LaunchedEffect(error, checking) {
+        if (error != null && !checking) focus.getValue(error.field).requestFocus()
+    }
     Column(verticalArrangement = Arrangement.spacedBy(SegueSpacing.md)) {
         OutlinedTextField(
             state = serverUrl,
             label = { Text(stringResource(R.string.feature_login_server_url)) },
             placeholder = { Text(stringResource(R.string.feature_login_server_url_placeholder)) },
             isError = error?.field == LoginField.Url,
-            supportingText = message?.takeIf { error?.field == LoginField.Url }?.let { { Text(it) } },
+            supportingText = message?.takeIf { error?.field == LoginField.Url }?.let { { ErrorText(it) } },
             enabled = !checking,
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(
@@ -191,24 +208,31 @@ private fun LoginForm(
                 autoCorrectEnabled = false,
             ),
             shape = SegueShapes.sm,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus.getValue(LoginField.Url))
+                .semantics { contentType = ServerUrlContentType },
         )
         OutlinedTextField(
             state = username,
             label = { Text(stringResource(R.string.feature_login_username)) },
             isError = error?.field == LoginField.Username,
-            supportingText = message?.takeIf { error?.field == LoginField.Username }?.let { { Text(it) } },
+            supportingText = message?.takeIf { error?.field == LoginField.Username }?.let { { ErrorText(it) } },
             enabled = !checking,
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, autoCorrectEnabled = false),
             shape = SegueShapes.sm,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus.getValue(LoginField.Username))
+                .semantics { contentType = ContentType.Username },
         )
         PasswordField(
             state = password,
             enabled = !checking,
             errorMessage = message?.takeIf { error?.field == LoginField.Password },
             onDone = onConnectClick,
+            modifier = Modifier.focusRequester(focus.getValue(LoginField.Password)),
         )
         Spacer(Modifier.height(SegueSpacing.xs))
         Button(
@@ -217,7 +241,7 @@ private fun LoginForm(
             shape = SegueShapes.full,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(SegueSizes.touchTarget),
+                .heightIn(min = SegueSizes.touchTarget),
         ) {
             if (checking) {
                 CircularProgressIndicator(
@@ -235,13 +259,19 @@ private fun LoginForm(
 }
 
 @Composable
-private fun PasswordField(state: TextFieldState, enabled: Boolean, errorMessage: String?, onDone: () -> Unit) {
+private fun PasswordField(
+    state: TextFieldState,
+    enabled: Boolean,
+    errorMessage: String?,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var visible by rememberSaveable { mutableStateOf(false) }
     OutlinedSecureTextField(
         state = state,
         label = { Text(stringResource(R.string.feature_login_password)) },
         isError = errorMessage != null,
-        supportingText = errorMessage?.let { { Text(it) } },
+        supportingText = errorMessage?.let { { ErrorText(it) } },
         enabled = enabled,
         textObfuscationMode = if (visible) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -258,8 +288,16 @@ private fun PasswordField(state: TextFieldState, enabled: Boolean, errorMessage:
             }
         },
         shape = SegueShapes.sm,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentType = ContentType.Password },
     )
+}
+
+/** A field's error, announced by screen readers when it appears. */
+@Composable
+private fun ErrorText(message: String) {
+    Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
 }
 
 @Composable
@@ -300,7 +338,7 @@ private fun FirstSyncProgress(progress: SyncProgress, onContinueClick: () -> Uni
             shape = SegueShapes.full,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(SegueSizes.touchTarget),
+                .heightIn(min = SegueSizes.touchTarget),
         ) {
             Text(stringResource(R.string.feature_login_sync_continue))
         }
