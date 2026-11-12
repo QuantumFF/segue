@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.quantumff.segue.core.designsystem.component.SeekLine
 import com.quantumff.segue.core.designsystem.component.SeekLineStyle
 import com.quantumff.segue.core.designsystem.component.overflowingTouchTarget
@@ -38,7 +39,7 @@ import com.quantumff.segue.feature.nowplaying.R
  * Now Playing seekbar (DESIGN.md §4.7): a [SeekLine] with a 4 tall track (white 24%, active white)
  * and a 12 thumb that grows to 20 while dragging. Below it: elapsed time, the [quality] pill, and
  * the total (tap to switch to remaining). Tap or drag to seek; the line and the toggle are 48 tall
- * to touch while keeping their slots.
+ * to touch while keeping their slots, and the line wins where the two overlap.
  *
  * @param positionMillis read inside this composable only.
  */
@@ -63,6 +64,8 @@ internal fun NowPlayingSeekbar(
             onSeek = onSeek,
             style = SeekLineStyle.nowPlaying(active = active, inactive = active.copy(alpha = TRACK_ALPHA)),
             onDrag = { dragFraction = it },
+            // Above the times, so the line's touch strip wins where the toggle's target reaches into it.
+            modifier = Modifier.zIndex(1f),
         )
         SeekbarTimes(
             positionMillis = { dragFraction?.let { (it * durationMillis).toLong() } ?: latestPosition() },
@@ -98,7 +101,7 @@ private fun SeekbarTimes(positionMillis: () -> Long, durationMillis: Long, quali
             if (showRemaining) R.string.feature_nowplaying_show_total else R.string.feature_nowplaying_show_remaining,
         )
         // At least 48 wide, growing leftwards (the digits stay at the end), and 48 tall to touch
-        // without growing the row, overlapping the seek line above and the controls below.
+        // without growing the row, overlapping the seek line above (which wins) and the controls below.
         TimeText(
             millis = { if (showRemaining) positionMillis() - durationMillis else durationMillis },
             textAlign = TextAlign.End,

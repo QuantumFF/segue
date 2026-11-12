@@ -164,10 +164,7 @@ class SearchViewModel @Inject constructor(
     }
 
     /** A recent search's ✕ or swipe: removes it, with Undo. */
-    fun onRemoveRecentSearch(query: String) {
-        val index = uiState.value.recentSearches.indexOf(query).coerceAtLeast(0)
-        recentSearchRemovals.remove(query, index)
-    }
+    fun onRemoveRecentSearch(query: String) = recentSearchRemovals.remove(query)
 
     /** The recent searches header's Clear, once confirmed. */
     fun onClearRecentSearches() = recentSearchRemovals.clear()

@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -189,8 +190,10 @@ private fun LoginForm(
     val error = uiState.error
     val message = error?.let { errorMessage(it, uiState.errorDetail) }
     val focus = remember { LoginField.entries.associateWith { FocusRequester() } }
-    // A failed attempt puts focus on the field to fix. Runs after the composition that re-enables the fields.
-    LaunchedEffect(error, checking) {
+    // A failed attempt puts focus on the field to fix, again when it repeats the last error. Runs
+    // after the composition that re-enables the fields.
+    val attempt = uiState.failedAttempts
+    LaunchedEffect(error, checking, attempt) {
         if (error != null && !checking) focus.getValue(error.field).requestFocus()
     }
     Column(verticalArrangement = Arrangement.spacedBy(SegueSpacing.md)) {
@@ -199,7 +202,7 @@ private fun LoginForm(
             label = { Text(stringResource(R.string.feature_login_server_url)) },
             placeholder = { Text(stringResource(R.string.feature_login_server_url_placeholder)) },
             isError = error?.field == LoginField.Url,
-            supportingText = message?.takeIf { error?.field == LoginField.Url }?.let { { ErrorText(it) } },
+            supportingText = message?.takeIf { error?.field == LoginField.Url }?.let { { ErrorText(it, attempt) } },
             enabled = !checking,
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(
@@ -217,7 +220,9 @@ private fun LoginForm(
             state = username,
             label = { Text(stringResource(R.string.feature_login_username)) },
             isError = error?.field == LoginField.Username,
-            supportingText = message?.takeIf { error?.field == LoginField.Username }?.let { { ErrorText(it) } },
+            supportingText = message?.takeIf {
+                error?.field == LoginField.Username
+            }?.let { { ErrorText(it, attempt) } },
             enabled = !checking,
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, autoCorrectEnabled = false),
@@ -231,6 +236,7 @@ private fun LoginForm(
             state = password,
             enabled = !checking,
             errorMessage = message?.takeIf { error?.field == LoginField.Password },
+            attempt = attempt,
             onDone = onConnectClick,
             modifier = Modifier.focusRequester(focus.getValue(LoginField.Password)),
         )
@@ -263,6 +269,7 @@ private fun PasswordField(
     state: TextFieldState,
     enabled: Boolean,
     errorMessage: String?,
+    attempt: Int,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -271,7 +278,7 @@ private fun PasswordField(
         state = state,
         label = { Text(stringResource(R.string.feature_login_password)) },
         isError = errorMessage != null,
-        supportingText = errorMessage?.let { { ErrorText(it) } },
+        supportingText = errorMessage?.let { { ErrorText(it, attempt) } },
         enabled = enabled,
         textObfuscationMode = if (visible) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -294,10 +301,15 @@ private fun PasswordField(
     )
 }
 
-/** A field's error, announced by screen readers when it appears. */
+/**
+ * A field's error, announced by screen readers when it appears. Each failed [attempt] shows it
+ * afresh, so the same error repeated is announced again.
+ */
 @Composable
-private fun ErrorText(message: String) {
-    Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+private fun ErrorText(message: String, attempt: Int) {
+    key(attempt) {
+        Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    }
 }
 
 @Composable

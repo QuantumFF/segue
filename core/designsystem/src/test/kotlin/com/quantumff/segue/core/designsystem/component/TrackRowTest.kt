@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasText
@@ -40,5 +41,29 @@ class TrackRowTest {
             .assert(hasStateDescription("Now playing"))
         compose.onNode(hasClickAction() and hasText(other.title))
             .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+    }
+
+    @Test
+    fun `a selected row playing now is announced as both selected and now playing`() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            SegueTheme {
+                TrackRow(state = current, onClick = {}, selected = true)
+            }
+        }
+
+        compose.onNode(hasClickAction() and hasText(current.title))
+            .assert(hasStateDescription("Selected, now playing"))
+    }
+
+    @Test
+    fun `a row without a tap action is not clickable`() {
+        compose.setContent {
+            SegueTheme {
+                TrackRow(state = other, onClick = null)
+            }
+        }
+
+        compose.onNode(hasText(other.title)).assertHasNoClickAction()
     }
 }

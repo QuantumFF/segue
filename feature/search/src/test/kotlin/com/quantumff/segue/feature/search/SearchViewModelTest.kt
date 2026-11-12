@@ -240,6 +240,21 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun undoAfterTwoQuickRemovalsPutsTheLastOneBackInPlace() = runTest(mainDispatcherRule.testDispatcher) {
+        preferences.recentSearches.value = persistentListOf("abba", "blur", "cream", "dido")
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        // The second removal comes before the first one shows in the list.
+        viewModel.onRemoveRecentSearch("blur")
+        viewModel.onRemoveRecentSearch("cream")
+        snackbars.onAction(shown)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.recentSearches).containsExactly("abba", "cream", "dido").inOrder()
+    }
+
+    @Test
     fun aDismissedUndoLeavesTheRecentSearchRemoved() = runTest(mainDispatcherRule.testDispatcher) {
         preferences.recentSearches.value = persistentListOf("abba", "blur")
         val viewModel = viewModel()

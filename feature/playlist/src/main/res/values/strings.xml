@@ -26,7 +26,6 @@
     <string name="feature_playlist_discard_title">Discard changes?</string>
     <string name="feature_playlist_discard">Discard</string>
     <string name="feature_playlist_keep_editing">Keep editing</string>
-    <string name="feature_playlist_drag_handle">Drag to reorder</string>
     <string name="feature_playlist_move_up">Move up</string>
     <string name="feature_playlist_move_down">Move down</string>
     <string name="feature_playlist_remove">Remove</string>

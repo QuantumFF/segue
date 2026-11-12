@@ -18,11 +18,13 @@ import androidx.compose.ui.test.assertIsSelectable
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsToggleable
 import androidx.compose.ui.test.getBoundsInRoot
-import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyChild
+import androidx.compose.ui.test.hasParent
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.text.TextLayoutResult
@@ -122,9 +124,11 @@ class SettingsSemanticsTest {
         show(uiState = twoServers)
 
         compose.onNode(hasText("Home")).assertIsSelectable().assertIsSelected()
-            .assert(isRadioButton).assert(hasAnyAncestor(isSelectableGroup))
+            .assert(isRadioButton).assert(hasParent(serverGroup))
         compose.onNode(hasText("Work")).assertIsSelectable().assertIsNotSelected()
-            .assert(isRadioButton).assert(hasAnyAncestor(isSelectableGroup))
+            .assert(isRadioButton).assert(hasParent(serverGroup))
+        // Its own group holding just the servers: the list's own collection would hide it from TalkBack.
+        compose.onNode(serverGroup and hasAnyChild(hasText("Home"))).onChildren().assertCountEquals(2)
     }
 
     @Test
@@ -191,7 +195,8 @@ class SettingsSemanticsTest {
             activeServerId = "1",
         )
         val isRadioButton = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)
-        val isSelectableGroup = SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup)
+        val serverGroup = SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup) and
+            SemanticsMatcher.keyNotDefined(SemanticsProperties.CollectionInfo)
         val isSwitch = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch)
     }
 }

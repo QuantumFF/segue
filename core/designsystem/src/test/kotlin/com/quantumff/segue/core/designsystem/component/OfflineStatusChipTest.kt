@@ -4,9 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
@@ -18,6 +16,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.OfflineStatus
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -108,9 +107,7 @@ class OfflineStatusChipTest {
     private fun SemanticsNodeInteraction.assertIsButtonLabelled(clickLabel: String) {
         assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
         assert(
-            SemanticsMatcher("click label is \"$clickLabel\"") {
-                it.config.getOrNull(SemanticsActions.OnClick)?.label == clickLabel
-            },
+            hasClickLabel(clickLabel),
         )
         assertHeightIsAtLeast(SegueSizes.touchTarget)
     }
