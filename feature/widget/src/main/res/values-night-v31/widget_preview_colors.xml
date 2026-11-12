@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Material You accents for the dark static previews, the roles dynamicDarkColorScheme takes.
+    Needed beside values-v31: the night qualifier outranks the API level, so values-night would win.
+-->
+<resources>
+    <color name="widget_preview_primary">@android:color/system_accent1_200</color>
+    <color name="widget_preview_on_primary">@android:color/system_accent1_800</color>
+</resources>

@@ -86,6 +86,7 @@ import com.quantumff.segue.feature.nowplaying.component.CompactTrackHeader
 import com.quantumff.segue.feature.nowplaying.component.NowPlayingBackground
 import com.quantumff.segue.feature.nowplaying.component.NowPlayingSeekbar
 import com.quantumff.segue.feature.nowplaying.component.PanelBar
+import com.quantumff.segue.feature.nowplaying.component.SleepTimerChip
 import com.quantumff.segue.feature.nowplaying.component.TrackMetadata
 import com.quantumff.segue.feature.nowplaying.component.TransportRow
 import com.quantumff.segue.feature.nowplaying.component.label
@@ -107,6 +108,7 @@ import kotlinx.coroutines.CoroutineStart
  * Now Playing (DESIGN.md §4.7).
  *
  * @param queueContent the Queue panel; the app fills it with the queue feature's content.
+ * @param start the panel and menu shown when it opens.
  */
 @Composable
 fun NowPlayingScreen(
@@ -118,6 +120,7 @@ fun NowPlayingScreen(
     onAddToPlaylist: (List<String>) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    start: NowPlayingStart = NowPlayingStart.Default,
     viewModel: NowPlayingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -145,6 +148,7 @@ fun NowPlayingScreen(
             onToggleFavorite = viewModel::toggleFavorite,
             onStartSleepTimer = viewModel::setSleepTimer,
             onCancelSleepTimer = viewModel::cancelSleepTimer,
+            onExtendSleepTimer = viewModel::extendSleepTimer,
             onInstantMix = viewModel::startInstantMix,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
@@ -177,6 +181,7 @@ fun NowPlayingScreen(
         actions = actions,
         queueContent = queueContent,
         modifier = modifier,
+        start = start,
     )
 }
 
@@ -196,6 +201,7 @@ private enum class NowPlayingSheet {
  * as tabs on the right. Tabletop posture: art above the hinge, controls below it, with panels
  * replacing the art. Drag down or back (predictive) collapses; swipe up opens Queue.
  *
+ * @param start the panel and menu shown when it opens; later changes are ignored.
  * @param posture how the device is held; read from the window, which Now Playing fills.
  */
 @Composable
@@ -208,10 +214,11 @@ internal fun NowPlayingScreen(
     actions: NowPlayingActions,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    start: NowPlayingStart = NowPlayingStart.Default,
     posture: Posture = currentPosture(),
 ) {
-    var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
-    var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
+    var openPanel by rememberSaveable { mutableStateOf(start.panel) }
+    var sheet by rememberSaveable { mutableStateOf(if (start.openMenu) NowPlayingSheet.Menu else null) }
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
 
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -227,11 +234,22 @@ internal fun NowPlayingScreen(
         }
         val onOpenPanelChange: (NowPlayingPanel?) -> Unit = remember { { openPanel = it } }
         val onMenuClick: () -> Unit = remember { { sheet = NowPlayingSheet.Menu } }
+        val onSleepTimerClick: () -> Unit = remember { { sheet = NowPlayingSheet.SleepTimer } }
         val track = state.track
         // Rebuilt when the state or the open panel changes, not on position ticks: the position is a lambda.
         val parts = remember(state, track, positionMillis, actions, panels, openPanel) {
             track?.let {
-                NowPlayingParts(state, it, positionMillis, actions, panels, openPanel, onOpenPanelChange, onMenuClick)
+                NowPlayingParts(
+                    state,
+                    it,
+                    positionMillis,
+                    actions,
+                    panels,
+                    openPanel,
+                    onOpenPanelChange,
+                    onMenuClick,
+                    onSleepTimerClick,
+                )
             }
         }
         Box(
@@ -289,6 +307,7 @@ internal fun NowPlayingScreen(
                 onStart = actions.onStartSleepTimer,
                 onCancel = actions.onCancelSleepTimer,
                 onDismissRequest = { sheet = null },
+                onExtend = actions.onExtendSleepTimer,
             )
 
             NowPlayingSheet.Details -> TrackDetailsSheet(details = state.details, onDismissRequest = { sheet = null })
@@ -364,6 +383,7 @@ private class NowPlayingParts(
     val openPanel: NowPlayingPanel?,
     val onOpenPanelChange: (NowPlayingPanel?) -> Unit,
     val onMenuClick: () -> Unit,
+    val onSleepTimerClick: () -> Unit,
 )
 
 /** The three panels' bodies, drawn with light content over the art backdrop. */
@@ -815,6 +835,7 @@ private fun NowPlayingParts.TopBar() {
         onMoreClick = onMenuClick,
         onSourceClick = source.opens?.let { opens -> { actions.onSourceClick(opens) } },
         sourceClickLabel = source.name?.let { stringResource(R.string.feature_nowplaying_open_source, it) },
+        status = state.sleepTimer?.let { timer -> { SleepTimerChip(timer, onClick = onSleepTimerClick) } },
     )
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -345,6 +346,62 @@ class SegueAppShellTest {
 
         compose.onNodeWithText("Now playing").assertExists()
         compose.onAllNodes(hasText("Continue from Feishin")).assertCountEquals(0)
+    }
+
+    private fun setExpandedShellShowingStart() {
+        compose.setContent {
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = ShellLayout.Expanded)
+                TestShell(appState, snackbars = snackbars, nowPlaying = { StartShowingNowPlaying(appState) })
+            }
+        }
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's Lyrics opens Now Playing on the Lyrics panel`() {
+        setExpandedShellShowingStart()
+
+        compose.onNodeWithContentDescription("Lyrics").performClick()
+
+        compose.onNodeWithText("Now playing on Lyrics, menu closed").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's more options opens Now Playing with its menu open`() {
+        setExpandedShellShowingStart()
+
+        compose.onNodeWithContentDescription("More options").performClick()
+
+        compose.onNodeWithText("Now playing on no panel, menu open").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's track opens Now Playing as before, even after Lyrics did`() {
+        setExpandedShellShowingStart()
+        compose.onNodeWithContentDescription("Lyrics").performClick()
+        compose.onNodeWithText("Collapse").performClick()
+
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        compose.onNodeWithText("Now playing on no panel, menu closed").assertExists()
+    }
+}
+
+/** Wide enough for the whole player bar, ⋮ included. */
+private const val EXPANDED_WINDOW = "w1280dp-h800dp-land"
+
+/** A stand-in Now Playing that says which panel and menu it opened with. */
+@Composable
+private fun StartShowingNowPlaying(appState: SegueAppState) {
+    if (!appState.isNowPlayingOpen) return
+    val start = appState.nowPlayingStart
+    val menu = if (start.openMenu) "open" else "closed"
+    Column {
+        Text("Now playing on ${start.panel ?: "no panel"}, menu $menu")
+        TextButton(onClick = appState::closeNowPlaying) { Text("Collapse") }
     }
 }
 

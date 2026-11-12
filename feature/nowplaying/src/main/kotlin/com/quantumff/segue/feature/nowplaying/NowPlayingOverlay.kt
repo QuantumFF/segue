@@ -19,6 +19,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
  * @param onAlbumClick, [onArtistClick], [onPlaylistClick] and [onGenreClick] should collapse Now
  *   Playing before navigating.
  * @param queueContent the Queue panel.
+ * @param start the panel and menu shown each time it opens.
  */
 @Composable
 fun NowPlayingOverlay(
@@ -31,6 +32,7 @@ fun NowPlayingOverlay(
     onAddToPlaylist: (List<String>) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    start: NowPlayingStart = NowPlayingStart.Default,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -46,6 +48,7 @@ fun NowPlayingOverlay(
             onGenreClick = onGenreClick,
             onAddToPlaylist = onAddToPlaylist,
             queueContent = queueContent,
+            start = start,
         )
     }
 }
