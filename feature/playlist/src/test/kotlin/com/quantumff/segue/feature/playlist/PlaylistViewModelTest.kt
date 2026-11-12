@@ -135,6 +135,61 @@ class PlaylistViewModelTest {
     }
 
     @Test
+    fun moveDownAndUpSwapNeighbours() = runTest {
+        val viewModel = viewModel()
+        viewModel.startEditing()
+
+        viewModel.move(from = 0, to = 1)
+        assertThat(viewModel.songIds).containsExactly("b", "a", "c").inOrder()
+        assertThat(viewModel.uiState.value.hasChanges).isTrue()
+
+        viewModel.move(from = 1, to = 0)
+        assertThat(viewModel.songIds).containsExactly("a", "b", "c").inOrder()
+        assertThat(viewModel.uiState.value.hasChanges).isFalse()
+
+        viewModel.move(from = 2, to = 1)
+        assertThat(viewModel.songIds).containsExactly("a", "c", "b").inOrder()
+    }
+
+    @Test
+    fun moveOutOfRangeOrInPlaceIsIgnored() = runTest {
+        val viewModel = viewModel()
+        viewModel.startEditing()
+
+        viewModel.move(from = 0, to = -1)
+        viewModel.move(from = 2, to = 3)
+        viewModel.move(from = 3, to = 0)
+        viewModel.move(from = 1, to = 1)
+
+        assertThat(viewModel.songIds).containsExactly("a", "b", "c").inOrder()
+        assertThat(viewModel.uiState.value.hasChanges).isFalse()
+    }
+
+    @Test
+    fun moveAndRemoveOutsideEditModeAreIgnored() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.move(from = 0, to = 1)
+        viewModel.removeEntry(viewModel.uiState.value.entries[0].key)
+
+        assertThat(viewModel.songIds).containsExactly("a", "b", "c").inOrder()
+        assertThat(viewModel.uiState.value.isEditing).isFalse()
+    }
+
+    @Test
+    fun removeEntryRemovesOnlyThatCopyOfADuplicateSong() = runTest {
+        playlists.songsByPlaylist.value =
+            mapOf("p1" to listOf(TestData.song("a"), TestData.song("b"), TestData.song("a")))
+        val viewModel = viewModel()
+        viewModel.startEditing()
+
+        viewModel.removeEntry(viewModel.uiState.value.entries[2].key)
+
+        assertThat(viewModel.songIds).containsExactly("a", "b").inOrder()
+        assertThat(viewModel.uiState.value.hasChanges).isTrue()
+    }
+
+    @Test
     fun cancelRestoresSavedOrder() = runTest {
         val viewModel = viewModel()
 
