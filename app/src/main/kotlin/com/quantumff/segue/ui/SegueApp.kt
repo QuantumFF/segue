@@ -70,6 +70,8 @@ import com.quantumff.segue.feature.artist.navigation.navigateToArtist
 import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.NowPlayingOverlay
+import com.quantumff.segue.feature.nowplaying.NowPlayingPanel
+import com.quantumff.segue.feature.nowplaying.NowPlayingStart
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
 import com.quantumff.segue.feature.playlist.AddToPlaylistViewModel
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
@@ -160,6 +162,7 @@ fun SegueApp(
         nowPlaying = {
             NowPlayingOverlay(
                 visible = appState.isNowPlayingOpen,
+                start = appState.nowPlayingStart,
                 onCollapse = appState::closeNowPlaying,
                 // Collapse first, so back from the album or artist returns to where the user was.
                 onAlbumClick = { id ->
@@ -266,7 +269,7 @@ fun SegueApp(
         }
     }
 
-    val onOpenNowPlaying = remember(appState) { appState::openNowPlaying }
+    val onOpenNowPlaying: (NowPlayingStart) -> Unit = remember(appState) { { appState.openNowPlaying(it) } }
     val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
         ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
     }
@@ -355,7 +358,7 @@ private class ShellPlayer(
     val state: ShellPlayerState,
     val positionMillis: StateFlow<Long>,
     val actions: ShellPlayerActions,
-    val onOpenNowPlaying: () -> Unit,
+    val onOpenNowPlaying: (NowPlayingStart) -> Unit,
 )
 
 @Composable
@@ -479,7 +482,7 @@ private fun ShellMiniPlayer(player: ShellPlayer, modifier: Modifier = Modifier) 
         state = track,
         trackKey = state.currentTimelineIndex,
         progress = { progressOf(position.value, state.durationMillis) },
-        onClick = player.onOpenNowPlaying,
+        onClick = { player.onOpenNowPlaying(NowPlayingStart.Default) },
         onPlayPauseClick = actions.onPlayPause,
         onNextClick = actions.onNext,
         previous = state.previous?.track,
@@ -515,16 +518,17 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     val actions = player.actions
     val position = player.positionMillis.collectAsStateWithLifecycle()
     val barActions = remember(actions, player.onOpenNowPlaying) {
+        val open = player.onOpenNowPlaying
         PlayerBarActions(
-            onClick = player.onOpenNowPlaying,
+            onClick = { open(NowPlayingStart.Default) },
             onPlayPauseClick = actions.onPlayPause,
             onPreviousClick = actions.onPrevious,
             onNextClick = actions.onNext,
             onRepeatClick = actions.onCycleRepeat,
-            onLyricsClick = player.onOpenNowPlaying,
+            onLyricsClick = { open(NowPlayingStart(panel = NowPlayingPanel.Lyrics)) },
             // The queue is a Now Playing panel: the first tab in its two-pane layout.
-            onQueueClick = player.onOpenNowPlaying,
-            onMoreClick = player.onOpenNowPlaying,
+            onQueueClick = { open(NowPlayingStart(panel = NowPlayingPanel.Queue)) },
+            onMoreClick = { open(NowPlayingStart(openMenu = true)) },
             // System volume is the only volume; the bar's slider is not wired.
             onVolumeChange = {},
             onSeek = actions.onSeek,

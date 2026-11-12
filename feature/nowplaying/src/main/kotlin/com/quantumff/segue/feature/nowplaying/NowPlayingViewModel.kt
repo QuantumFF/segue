@@ -192,6 +192,20 @@ class NowPlayingViewModel @Inject constructor(
         sleepTimerConfirmations.confirm(choice) { playback.setSleepTimer(null) }
     }
 
+    /**
+     * "+15 min" on the running timer; confirms the new time left, with Cancel, like starting one.
+     * Does nothing when no timer runs.
+     */
+    fun extendSleepTimer() {
+        val running = uiState.value.sleepTimer ?: return
+        val now = System.currentTimeMillis()
+        val extended = running.extendedBy15Min(now)
+        playback.setSleepTimer(extended)
+        sleepTimerConfirmations.confirm(SleepTimerChoice.Minutes(extended.minutesLeft(now))) {
+            playback.setSleepTimer(null)
+        }
+    }
+
     fun cancelSleepTimer() {
         playback.setSleepTimer(null)
         sleepTimerConfirmations.takeDown()
