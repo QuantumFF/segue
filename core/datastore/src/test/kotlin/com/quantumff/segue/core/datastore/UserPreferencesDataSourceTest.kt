@@ -38,6 +38,14 @@ class UserPreferencesDataSourceTest {
     }
 
     @Test
+    fun `a stored playback speed that is no preset reads as normal speed`() = runTest {
+        val source = source()
+        source.update { it.copy(playbackSpeed = 3.3f) }
+
+        assertThat(source.preferences.first().playbackSpeed).isEqualTo(1f)
+    }
+
+    @Test
     fun `every field round-trips through update`() = runTest {
         val source = source()
         // Every field differs from its default, so a field update forgets to write fails here.
@@ -65,6 +73,7 @@ class UserPreferencesDataSourceTest {
             songSort = SongSortOrder.PlayCount,
             albumViewMode = LibraryViewMode.List,
             artistViewMode = LibraryViewMode.List,
+            playbackSpeed = 1.5f,
         )
         val defaults = UserPreferences()
         UserPreferences::class.java.declaredFields

@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.media.albumKey
 import com.quantumff.segue.core.playback.media.isStarred
 import com.quantumff.segue.core.playback.media.replayGain
@@ -59,6 +60,18 @@ class SeguePlayerTest {
         player.restore(queue.map { it.toMediaItem() }, state)
 
         assertThat(player.queueState()).isEqualTo(state)
+    }
+
+    @Test
+    fun `the playback speed preference plays at that speed with natural pitch`() {
+        player.applyPlaybackSpeed(UserPreferences(playbackSpeed = 1.5f))
+
+        assertThat(exo.playbackParameters.speed).isEqualTo(1.5f)
+        assertThat(exo.playbackParameters.pitch).isEqualTo(1f)
+
+        player.applyPlaybackSpeed(UserPreferences())
+
+        assertThat(exo.playbackParameters.speed).isEqualTo(1f)
     }
 
     @Test

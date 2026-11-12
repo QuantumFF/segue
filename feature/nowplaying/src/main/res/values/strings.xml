@@ -63,6 +63,10 @@
 
 
     <string name="feature_nowplaying_menu_sleep_timer">Sleep timer</string>
+    <string name="feature_nowplaying_menu_speed">Speed</string>
+    <!-- The Speed row while the speed isn't 1×, "Speed · 1.5×". -->
+    <string name="feature_nowplaying_menu_speed_value">Speed · %1$s</string>
+    <string name="feature_nowplaying_speed_title">Playback speed</string>
     <string name="feature_nowplaying_menu_details">Details</string>
 
     <string name="feature_nowplaying_sleep_title">Sleep timer</string>

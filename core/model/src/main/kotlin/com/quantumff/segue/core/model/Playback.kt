@@ -31,6 +31,8 @@ data class PlayerUiState(
     val streamFormat: StreamFormat? = null,
     /** Where the queue came from, for Now Playing's top bar. */
     val queueSource: QueueSource = QueueSource.Unknown,
+    /** The playback speed, 1 at normal speed. Pitch stays natural at any speed. */
+    val speed: Float = 1f,
 )
 
 /**

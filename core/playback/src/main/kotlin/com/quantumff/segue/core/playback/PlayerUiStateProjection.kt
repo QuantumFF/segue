@@ -51,6 +51,7 @@ internal class PlayerUiStateProjection {
             },
             playbackError = SegueSessionCommands.playbackError(sessionExtras),
             queueSource = SegueSessionCommands.queueSource(sessionExtras),
+            speed = player.playbackParameters.speed,
         )
     }
 

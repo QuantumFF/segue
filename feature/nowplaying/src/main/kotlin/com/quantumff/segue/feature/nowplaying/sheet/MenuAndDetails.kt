@@ -44,6 +44,7 @@ import kotlinx.collections.immutable.toImmutableList
 /** Rows of the Now Playing ⋮ menu. */
 internal enum class NowPlayingMenuAction {
     SleepTimer,
+    Speed,
     InstantMix,
     AddToPlaylist,
     SaveQueueAsPlaylist,
@@ -58,10 +59,19 @@ internal enum class NowPlayingMenuAction {
 @Composable
 internal fun NowPlayingMenu(
     track: NowPlayingTrack,
+    speed: Float,
     onAction: (NowPlayingMenuAction) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    val labels = NowPlayingMenuAction.entries.associateWith { stringResource(it.label) }
+    val speedValue = if (speed == 1f) null else speedLabel(speed)
+    val labels = NowPlayingMenuAction.entries.associateWith { action ->
+        // The Speed row says the speed while it isn't 1×: "Speed · 1.5×".
+        if (action == NowPlayingMenuAction.Speed && speedValue != null) {
+            stringResource(R.string.feature_nowplaying_menu_speed_value, speedValue)
+        } else {
+            stringResource(action.label)
+        }
+    }
     val items = remember(track.albumId, track.artists, labels) {
         NowPlayingMenuAction.entries
             .filter { action ->
@@ -99,6 +109,7 @@ internal fun NowPlayingMenu(
 private val NowPlayingMenuAction.label: Int
     get() = when (this) {
         NowPlayingMenuAction.SleepTimer -> R.string.feature_nowplaying_menu_sleep_timer
+        NowPlayingMenuAction.Speed -> R.string.feature_nowplaying_menu_speed
         NowPlayingMenuAction.InstantMix -> com.quantumff.segue.core.designsystem.R.string.ds_action_instant_mix
         NowPlayingMenuAction.AddToPlaylist -> com.quantumff.segue.core.designsystem.R.string.ds_action_add_to_playlist
         NowPlayingMenuAction.SaveQueueAsPlaylist -> R.string.feature_nowplaying_menu_save_queue
@@ -111,6 +122,7 @@ private val NowPlayingMenuAction.label: Int
 private val NowPlayingMenuAction.icon
     get() = when (this) {
         NowPlayingMenuAction.SleepTimer -> SegueIcons.Timer
+        NowPlayingMenuAction.Speed -> SegueIcons.Speed
         NowPlayingMenuAction.InstantMix -> SegueIcons.Related
         NowPlayingMenuAction.AddToPlaylist -> SegueIcons.AddToPlaylist
         NowPlayingMenuAction.SaveQueueAsPlaylist -> SegueIcons.UpNext

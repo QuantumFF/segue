@@ -72,6 +72,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             prefs.putIfChanged(Keys.SongSort, old.songSort, new.songSort) { it.name }
             prefs.putIfChanged(Keys.AlbumViewMode, old.albumViewMode, new.albumViewMode) { it.name }
             prefs.putIfChanged(Keys.ArtistViewMode, old.artistViewMode, new.artistViewMode) { it.name }
+            prefs.putIfChanged(Keys.PlaybackSpeed, old.playbackSpeed, new.playbackSpeed)
         }
     }
 
@@ -141,6 +142,8 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
             songSort = enum(Keys.SongSort, defaults.songSort),
             albumViewMode = enum(Keys.AlbumViewMode, defaults.albumViewMode),
             artistViewMode = enum(Keys.ArtistViewMode, defaults.artistViewMode),
+            playbackSpeed = this[Keys.PlaybackSpeed]?.takeIf { it in UserPreferences.PLAYBACK_SPEEDS }
+                ?: defaults.playbackSpeed,
         )
     }
 
@@ -202,6 +205,7 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
         val SongSort = stringPreferencesKey("library_song_sort")
         val AlbumViewMode = stringPreferencesKey("library_album_view_mode")
         val ArtistViewMode = stringPreferencesKey("library_artist_view_mode")
+        val PlaybackSpeed = floatPreferencesKey("playback_speed")
 
         /** The named card sizes the GridColumns keys replaced; see [GridSizeMigration]. */
         val LegacyAlbumGridSize = stringPreferencesKey("album_grid_size")

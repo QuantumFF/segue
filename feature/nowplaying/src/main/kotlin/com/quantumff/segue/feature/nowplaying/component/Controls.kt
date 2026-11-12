@@ -156,13 +156,13 @@ private fun ModeButton(
 
 /**
  * Bottom row of the phone layout: Lyrics · Queue · Related · ⋮, each 48 tall with a label.
- * The open panel's button is full white; tapping it again closes the panel. ⋮ shows a dot while
- * the sleep timer runs.
+ * The open panel's button is full white; tapping it again closes the panel. ⋮ shows a dot with
+ * [moreBadge]: while the sleep timer runs or the speed isn't 1×.
  */
 @Composable
 internal fun PanelBar(
     openPanel: NowPlayingPanel?,
-    sleepTimerActive: Boolean,
+    moreBadge: Boolean,
     onPanelClick: (NowPlayingPanel) -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -181,7 +181,7 @@ internal fun PanelBar(
             label = stringResource(R.string.feature_nowplaying_more),
             selected = false,
             onClick = onMoreClick,
-            badge = sleepTimerActive,
+            badge = moreBadge,
         )
     }
 }

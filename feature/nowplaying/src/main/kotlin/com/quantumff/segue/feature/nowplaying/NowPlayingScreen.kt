@@ -99,6 +99,7 @@ import com.quantumff.segue.feature.nowplaying.sheet.NowPlayingMenu
 import com.quantumff.segue.feature.nowplaying.sheet.NowPlayingMenuAction
 import com.quantumff.segue.feature.nowplaying.sheet.SaveQueueAsPlaylistDialog
 import com.quantumff.segue.feature.nowplaying.sheet.SleepTimerSheet
+import com.quantumff.segue.feature.nowplaying.sheet.SpeedSheet
 import com.quantumff.segue.feature.nowplaying.sheet.TrackDetailsSheet
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.collections.immutable.persistentListOf
@@ -148,6 +149,7 @@ fun NowPlayingScreen(
             onToggleFavorite = viewModel::toggleFavorite,
             onStartSleepTimer = viewModel::setSleepTimer,
             onCancelSleepTimer = viewModel::cancelSleepTimer,
+            onSetSpeed = viewModel::setPlaybackSpeed,
             onExtendSleepTimer = viewModel::extendSleepTimer,
             onInstantMix = viewModel::startInstantMix,
             onAlbumClick = onAlbumClick,
@@ -189,6 +191,7 @@ fun NowPlayingScreen(
 private enum class NowPlayingSheet {
     Menu,
     SleepTimer,
+    Speed,
     Details,
     SaveQueue,
     ClearQueue,
@@ -278,9 +281,12 @@ internal fun NowPlayingScreen(
             NowPlayingSheet.Menu -> if (current != null) {
                 NowPlayingMenu(
                     track = current,
+                    speed = state.speed,
                     onAction = { action ->
                         when (action) {
                             NowPlayingMenuAction.SleepTimer -> sheet = NowPlayingSheet.SleepTimer
+
+                            NowPlayingMenuAction.Speed -> sheet = NowPlayingSheet.Speed
 
                             NowPlayingMenuAction.InstantMix -> actions.onInstantMix()
 
@@ -308,6 +314,12 @@ internal fun NowPlayingScreen(
                 onCancel = actions.onCancelSleepTimer,
                 onDismissRequest = { sheet = null },
                 onExtend = actions.onExtendSleepTimer,
+            )
+
+            NowPlayingSheet.Speed -> SpeedSheet(
+                speed = state.speed,
+                onSelect = actions.onSetSpeed,
+                onDismissRequest = { sheet = null },
             )
 
             NowPlayingSheet.Details -> TrackDetailsSheet(details = state.details, onDismissRequest = { sheet = null })
@@ -818,7 +830,7 @@ private fun NowPlayingParts.Controls() {
 private fun NowPlayingParts.BottomRow() {
     PanelBar(
         openPanel = openPanel,
-        sleepTimerActive = state.sleepTimer != null,
+        moreBadge = state.moreBadge,
         onPanelClick = { panel -> onOpenPanelChange(if (panel == openPanel) null else panel) },
         onMoreClick = onMenuClick,
         modifier = Modifier.padding(bottom = SegueSpacing.sm),
@@ -835,6 +847,7 @@ private fun NowPlayingParts.TopBar() {
         onMoreClick = onMenuClick,
         onSourceClick = source.opens?.let { opens -> { actions.onSourceClick(opens) } },
         sourceClickLabel = source.name?.let { stringResource(R.string.feature_nowplaying_open_source, it) },
+        moreBadge = state.moreBadge,
         status = state.sleepTimer?.let { timer -> { SleepTimerChip(timer, onClick = onSleepTimerClick) } },
     )
 }
