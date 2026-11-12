@@ -56,7 +56,10 @@ data class SeekLineStyle(
     val touchHeight: Dp,
 ) {
     companion object {
-        /** Now Playing (DESIGN.md §4.7): a 4 tall track and a 12 thumb that grows to 20 while dragging. */
+        /**
+         * Now Playing (DESIGN.md §4.7): a 4 tall track and a 12 thumb that grows to 20 while dragging.
+         * It takes 32 in the layout but touches over 48, overlapping the times below.
+         */
         fun nowPlaying(active: Color, inactive: Color) = SeekLineStyle(
             active = active,
             inactive = inactive,
@@ -64,7 +67,7 @@ data class SeekLineStyle(
             thumb = 12.dp,
             thumbDragging = 20.dp,
             height = 32.dp,
-            touchHeight = 32.dp,
+            touchHeight = SegueSizes.touchTarget,
         )
 
         /**
