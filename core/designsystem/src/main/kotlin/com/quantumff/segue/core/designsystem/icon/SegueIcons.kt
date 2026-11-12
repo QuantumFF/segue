@@ -47,6 +47,7 @@ object SegueIcons {
     val UpNext by lazy { lucide("list-ordered", LucidePaths.ListOrdered) }
     val Related by lazy { lucide("sparkles", LucidePaths.Sparkles) }
     val Timer by lazy { lucide("timer", LucidePaths.Timer) }
+    val Speed by lazy { lucide("gauge", LucidePaths.Gauge) }
     val Volume by lazy { lucide("volume-2", LucidePaths.Volume2) }
 
     val Disc3 by lazy { lucide("disc-3", LucidePaths.Disc3) }

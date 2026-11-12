@@ -80,7 +80,12 @@ data class NowPlayingUiState(
     val queueSize: Int = 0,
     /** The top bar's overline and name: where the queue came from. */
     val source: SourceLabel = SourceLabel(R.string.feature_nowplaying_source_queue),
-)
+    /** The playback speed; 1 at normal speed. */
+    val speed: Float = 1f,
+) {
+    /** The dot badge on ⋮: something in its menu is set, a sleep timer or a speed other than 1×. */
+    val moreBadge: Boolean get() = sleepTimer != null || speed != 1f
+}
 
 /**
  * The top bar's source (DESIGN.md §4.7): an [overline] such as "Playing from playlist", over the
