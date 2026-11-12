@@ -107,6 +107,7 @@ import kotlinx.coroutines.CoroutineStart
  * Now Playing (DESIGN.md §4.7).
  *
  * @param queueContent the Queue panel; the app fills it with the queue feature's content.
+ * @param start the panel and menu shown when it opens.
  */
 @Composable
 fun NowPlayingScreen(
@@ -118,6 +119,7 @@ fun NowPlayingScreen(
     onAddToPlaylist: (List<String>) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    start: NowPlayingStart = NowPlayingStart.Default,
     viewModel: NowPlayingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -178,6 +180,7 @@ fun NowPlayingScreen(
         actions = actions,
         queueContent = queueContent,
         modifier = modifier,
+        start = start,
     )
 }
 
@@ -197,6 +200,7 @@ private enum class NowPlayingSheet {
  * as tabs on the right. Tabletop posture: art above the hinge, controls below it, with panels
  * replacing the art. Drag down or back (predictive) collapses; swipe up opens Queue.
  *
+ * @param start the panel and menu shown when it opens; later changes are ignored.
  * @param posture how the device is held; read from the window, which Now Playing fills.
  */
 @Composable
@@ -209,10 +213,11 @@ internal fun NowPlayingScreen(
     actions: NowPlayingActions,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    start: NowPlayingStart = NowPlayingStart.Default,
     posture: Posture = currentPosture(),
 ) {
-    var openPanel by rememberSaveable { mutableStateOf<NowPlayingPanel?>(null) }
-    var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
+    var openPanel by rememberSaveable { mutableStateOf(start.panel) }
+    var sheet by rememberSaveable { mutableStateOf(if (start.openMenu) NowPlayingSheet.Menu else null) }
     val panelDrag = rememberPanelDrag(onClose = { openPanel = null })
 
     BoxWithConstraints(modifier.fillMaxSize()) {
