@@ -64,6 +64,22 @@ class ScreenOffOffloadTest {
     }
 
     @Test
+    fun aSpeedOtherThanNormalOffloadsOnlyWhereTheOutputCanChangeSpeed() {
+        offload.start()
+        broadcast(Intent.ACTION_SCREEN_OFF)
+        // At normal speed any offload-capable output will do.
+        assertThat(preferences().isSpeedChangeSupportRequired).isFalse()
+
+        offload.playbackSpeed = 1.5f
+        // Elsewhere the sink would play at normal speed, so the player decodes on the CPU instead.
+        assertThat(preferences().audioOffloadMode).isEqualTo(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+        assertThat(preferences().isSpeedChangeSupportRequired).isTrue()
+
+        offload.playbackSpeed = 1f
+        assertThat(preferences().isSpeedChangeSupportRequired).isFalse()
+    }
+
+    @Test
     fun startsOffloadedWhenTheScreenIsAlreadyOff() {
         shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(false)
         offload.start()

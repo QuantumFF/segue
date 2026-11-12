@@ -135,6 +135,7 @@ class SeguePlaybackService : MediaLibraryService() {
                 preferences = prefs
                 components.cacheEvictor.maxBytes = megabytes(prefs.streamCacheSizeMb)
                 replayGain.update(ReplayGainSettings.from(prefs))
+                offload.playbackSpeed = prefs.playbackSpeed
                 player.applyPlaybackSpeed(prefs)
             }
         }
