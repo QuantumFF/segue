@@ -243,6 +243,17 @@ class PlaybackController @Inject constructor(
     fun connect() = command { }
 
     /**
+     * The saved queue on this device, paused at its last position, if nothing is queued: connects
+     * like [connect], and also restores it in a service that was already running.
+     */
+    fun resumeSavedQueue() = command { controller ->
+        controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.RESTORE_SAVED_QUEUE),
+            Bundle.EMPTY,
+        )
+    }
+
+    /**
      * A playback error's Skip ([PlayerUiState.playbackError]): plays the next item. After the last
      * item it clears the error and leaves the player stopped
      * ([com.quantumff.segue.core.playback.service.PlaybackErrorReporter.skip]).

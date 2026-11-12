@@ -58,12 +58,13 @@ internal class PreviousAction : ActionCallback {
 }
 
 /**
- * The empty widget's tap with a saved queue: starts the playback service, which restores the queue
- * paused at its last position; the widget then shows its song (the service publishes it).
+ * The empty widget's tap with a saved queue: the playback service restores the queue paused at its
+ * last position, whether it starts now or was running; the widget then shows its song (the service
+ * publishes it).
  */
 internal class ResumeSavedQueueAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
-        context.widgetEntryPoint().playbackController().connect()
+        context.widgetEntryPoint().playbackController().resumeSavedQueue()
 }
 
 /** The app, on Now Playing when something is queued. */

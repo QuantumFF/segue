@@ -3,14 +3,17 @@ package com.quantumff.segue.feature.widget
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.playback.sync.QueueRestore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /** What a tap on the widget's surface (outside its buttons) does. */
 internal enum class SurfaceTap {
     /** Opens the app on Now Playing. */
     OpenNowPlaying,
 
-    /** Starts the playback service, which restores the saved queue on this device, paused at its last position. */
+    /** The playback service restores the saved queue on this device, paused at its last position. */
     ResumeSavedQueue,
 
     /** Opens the app. */
@@ -32,9 +35,14 @@ internal class SavedQueueProbe(
     private val snapshots: QueueSnapshotRepository,
     private val library: LibraryRepository,
 ) {
-    suspend fun canResume(): Boolean {
-        val snapshot = snapshots.snapshot.first() ?: return false
-        val available = library.songsByIds(snapshot.songIds).mapTo(HashSet()) { it.id }
-        return QueueRestore.plan(snapshot, available) != null
-    }
+    suspend fun canResume(): Boolean = canResumeUpdates().first()
+
+    /** [canResume], again each time the saved queue changes (Clear queue empties it after the widget). */
+    fun canResumeUpdates(): Flow<Boolean> = snapshots.snapshot
+        .map { snapshot ->
+            snapshot ?: return@map false
+            val available = library.songsByIds(snapshot.songIds).mapTo(HashSet()) { it.id }
+            QueueRestore.plan(snapshot, available) != null
+        }
+        .distinctUntilChanged()
 }

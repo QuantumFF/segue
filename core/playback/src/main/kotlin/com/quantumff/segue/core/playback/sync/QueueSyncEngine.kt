@@ -102,10 +102,14 @@ class QueueSyncEngine @Inject constructor(
         uploader.submit(state)
     }
 
-    /** The user emptied a queue that had songs: clear the snapshot and the server's saved queue. */
+    /**
+     * The user emptied a queue that had songs: clear the snapshot at once, so nothing on this device
+     * (the empty widget's tap) still finds the old queue, and the server's saved queue after the
+     * quiet period.
+     */
     override fun onQueueCleared() {
         val cleared = QueueState(emptyList(), currentIndex = -1, positionMillis = 0)
-        snapshotWriter.submit(cleared)
+        snapshotWriter.flush(cleared)
         uploader.submit(cleared)
     }
 

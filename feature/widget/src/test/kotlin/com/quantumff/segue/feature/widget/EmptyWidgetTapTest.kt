@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.widget
 
+import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.model.QueueSnapshot
@@ -44,6 +45,19 @@ class EmptyWidgetTapTest {
 
         assertThat(probe.canResume()).isFalse()
         assertThat(surfaceTap(hasTrack = false, canResume = false)).isEqualTo(SurfaceTap.OpenApp)
+    }
+
+    @Test
+    fun `the empty widget's tap follows the saved queue, so it opens the app once the queue is cleared`() = runTest {
+        snapshots.snapshot.value = saved
+        library.songsState.value = listOf(TestData.song("so-1"), TestData.song("so-2"))
+
+        probe.canResumeUpdates().test {
+            assertThat(awaitItem()).isTrue()
+            // Clear queue: the widget empties first, then the saved queue goes.
+            snapshots.snapshot.value = null
+            assertThat(awaitItem()).isFalse()
+        }
     }
 
     @Test

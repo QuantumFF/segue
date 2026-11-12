@@ -313,6 +313,8 @@ class SeguePlaybackService : MediaLibraryService() {
                     }
                 }
 
+                SegueSessionCommands.RESTORE_SAVED_QUEUE -> scope.launch { savedQueues.restore() }
+
                 SegueSessionCommands.UNDO_ADOPTION -> scope.launch { savedQueues.undoAdoption() }
 
                 SegueSessionCommands.PLAY_ALBUMS -> {
