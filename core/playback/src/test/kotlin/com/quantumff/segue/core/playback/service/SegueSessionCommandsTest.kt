@@ -19,6 +19,14 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class SegueSessionCommandsTest {
     @Test
+    fun `a favorite toggle names its song, or none for the current song`() {
+        assertThat(SegueSessionCommands.favoriteSongId(SegueSessionCommands.favoriteArgs("s1"))).isEqualTo("s1")
+        assertThat(SegueSessionCommands.favoriteSongId(SegueSessionCommands.favoriteArgs(null))).isNull()
+        // The notification's heart sends no arguments.
+        assertThat(SegueSessionCommands.favoriteSongId(Bundle.EMPTY)).isNull()
+    }
+
+    @Test
     fun `album play requests survive the trip to the service`() {
         val requests = listOf(
             AlbumPlayRequest(

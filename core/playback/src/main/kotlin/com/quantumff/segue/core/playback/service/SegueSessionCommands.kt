@@ -21,6 +21,7 @@ import com.quantumff.segue.core.playback.cache.StreamRequest
 internal object SegueSessionCommands {
     private const val PREFIX = "com.quantumff.segue.playback."
 
+    /** Stars or unstars a queued song: the one [favoriteArgs] names, or the current song. */
     const val TOGGLE_FAVORITE = PREFIX + "TOGGLE_FAVORITE"
     const val SET_SLEEP_TIMER = PREFIX + "SET_SLEEP_TIMER"
 
@@ -56,6 +57,7 @@ internal object SegueSessionCommands {
     const val UNDO_INSTANT_MIX = PREFIX + "UNDO_INSTANT_MIX"
 
     const val ARG_SLEEP_KIND = "sleepKind"
+    private const val ARG_SONG_ID = "songId"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
     const val ARG_QUEUED = "queued"
@@ -119,6 +121,12 @@ internal object SegueSessionCommands {
      * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state
      * cannot carry. [sleepTimer] reads either back.
      */
+    /** [TOGGLE_FAVORITE] for the queued song [songId], or the current song when null. */
+    fun favoriteArgs(songId: String?) = Bundle().apply { songId?.let { putString(ARG_SONG_ID, it) } }
+
+    /** The song of [favoriteArgs]: null for the current song. */
+    fun favoriteSongId(bundle: Bundle): String? = bundle.getString(ARG_SONG_ID)
+
     fun sleepArgs(timer: SleepTimer?) = Bundle().apply {
         when (timer) {
             is SleepTimer.AtTime -> {

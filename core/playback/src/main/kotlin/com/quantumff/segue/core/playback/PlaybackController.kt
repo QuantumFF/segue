@@ -260,8 +260,12 @@ class PlaybackController @Inject constructor(
         )
     }
 
-    fun toggleFavorite() = command { controller ->
-        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.TOGGLE_FAVORITE), Bundle.EMPTY)
+    /** Stars or unstars the queued song [songId], or the current song when null. */
+    fun toggleFavorite(songId: String? = null) = command { controller ->
+        controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.TOGGLE_FAVORITE),
+            SegueSessionCommands.favoriteArgs(songId),
+        )
     }
 
     // --- Remote queue --------------------------------------------------------------------------------

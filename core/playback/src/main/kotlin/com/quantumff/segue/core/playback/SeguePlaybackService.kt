@@ -296,7 +296,7 @@ class SeguePlaybackService : MediaLibraryService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             when (customCommand.customAction) {
-                SegueSessionCommands.TOGGLE_FAVORITE -> favorite.toggle()
+                SegueSessionCommands.TOGGLE_FAVORITE -> favorite.toggle(SegueSessionCommands.favoriteSongId(args))
 
                 SegueSessionCommands.SET_SLEEP_TIMER -> sleepTimer.set(SegueSessionCommands.sleepTimer(args))
 
