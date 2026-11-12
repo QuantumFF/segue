@@ -81,6 +81,12 @@ class UserPreferencesDataSource @Inject constructor(private val dataStore: DataS
 
     suspend fun removeRecentSearch(query: String) = editRecentSearches { RecentSearches.remove(it, query) }
 
+    /** Puts a removed [query] back at [index]. See [RecentSearches.restore]. */
+    suspend fun restoreRecentSearch(query: String, index: Int) =
+        editRecentSearches { RecentSearches.restore(it, query, index) }
+
+    suspend fun clearRecentSearches() = editRecentSearches { emptyList() }
+
     /**
      * A random ID for this install, created on first call and then stable. Queue sync uses it to
      * tell this device's saves apart from other clients'.

@@ -185,6 +185,12 @@ class FakeUserPreferencesRepository : UserPreferencesRepository {
     override suspend fun removeRecentSearch(query: String) = recentSearches.update { current ->
         RecentSearches.remove(current, query).toImmutableList()
     }
+
+    override suspend fun restoreRecentSearch(query: String, index: Int) = recentSearches.update { current ->
+        RecentSearches.restore(current, query, index).toImmutableList()
+    }
+
+    override suspend fun clearRecentSearches() = recentSearches.update { emptyList<String>().toImmutableList() }
 }
 
 class FakeAppUpdateRepository(override val installedVersion: String = "0.1.1") : AppUpdateRepository {
