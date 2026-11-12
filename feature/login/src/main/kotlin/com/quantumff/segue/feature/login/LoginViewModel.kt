@@ -62,6 +62,8 @@ data class LoginUiState(
     val syncProgress: SyncProgress = SyncProgress.Pending,
     /** Opened from Settings to add another server, so there is somewhere to go back to. */
     val canGoBack: Boolean = false,
+    /** Counts failed attempts, so a failure repeating the last [error] is still a new one to show. */
+    val failedAttempts: Int = 0,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -100,7 +102,7 @@ class LoginViewModel @Inject constructor(
             else -> null
         }
         if (error != null) {
-            form.update { it.copy(error = error, errorDetail = null) }
+            form.update { it.copy(error = error, errorDetail = null, failedAttempts = it.failedAttempts + 1) }
             return
         }
         form.update { it.copy(step = LoginStep.Checking, error = null, errorDetail = null) }
@@ -127,7 +129,9 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun fail(error: LoginError, detail: String?) {
-        form.update { it.copy(step = LoginStep.Form, error = error, errorDetail = detail) }
+        form.update {
+            it.copy(step = LoginStep.Form, error = error, errorDetail = detail, failedAttempts = it.failedAttempts + 1)
+        }
     }
 
     companion object {

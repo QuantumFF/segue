@@ -38,6 +38,20 @@ class LoginViewModelTest {
     }
 
     @Test
+    fun connectingAgainWithTheAddressStillBlankIsANewFailure() = runTest {
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            skipItems(1)
+            viewModel.connect(" ", "demo", "demo")
+            val first = awaitItem()
+            viewModel.connect(" ", "demo", "demo")
+            val second = awaitItem()
+            assertThat(second.error).isEqualTo(LoginError.MissingUrl)
+            assertThat(second).isNotEqualTo(first)
+        }
+    }
+
+    @Test
     fun blankUsernameIsRejected() = runTest {
         val viewModel = viewModel()
         viewModel.uiState.test {

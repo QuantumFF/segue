@@ -75,6 +75,22 @@ class LoginSemanticsTest {
     }
 
     @Test
+    fun aRepeatedErrorMovesFocusBackAndIsAnnouncedAgain() {
+        val state = mutableStateOf(LoginUiState())
+        setLogin(state)
+        state.value = LoginUiState(error = LoginError.MissingUrl, failedAttempts = 1)
+        val firstError = errorNode("Enter your server address")
+        compose.onNode(field("Username")).performSemanticsAction(SemanticsActions.RequestFocus)
+
+        // Connect again with the address still blank: the same error.
+        state.value = LoginUiState(error = LoginError.MissingUrl, failedAttempts = 2)
+
+        compose.onNode(field("Server address")).assertIsFocused()
+        // A new live region node, so screen readers read it again as they did the first time.
+        assertThat(errorNode("Enter your server address")).isNotEqualTo(firstError)
+    }
+
+    @Test
     fun formLabelsDontClipAtLargeFont() {
         setLogin(mutableStateOf(LoginUiState()), fontScale = 2f)
 
@@ -98,6 +114,12 @@ class LoginSemanticsTest {
         val layout = results.single()
         return layout.didOverflowHeight || layout.isLineEllipsized(layout.lineCount - 1)
     }
+
+    /** The id of the live region showing [message]. */
+    private fun errorNode(message: String): Int = compose.onNode(
+        hasText(message) and SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite),
+        useUnmergedTree = true,
+    ).fetchSemanticsNode().id
 
     private fun field(label: String) = hasText(label) and hasSetTextAction()
 
