@@ -28,6 +28,8 @@
     <string name="feature_queue_reorder">Reorder</string>
     <string name="feature_queue_play_next">Play next</string>
     <string name="feature_queue_remove">Remove</string>
+    <string name="feature_queue_menu_remove">Remove from queue</string>
+    <string name="feature_queue_menu_info">Info</string>
     <string name="feature_queue_removed">Removed %s</string>
     <string name="feature_queue_empty_title">Nothing queued</string>
     <string name="feature_queue_empty_message">Play an album, a playlist or a song to fill the queue</string>

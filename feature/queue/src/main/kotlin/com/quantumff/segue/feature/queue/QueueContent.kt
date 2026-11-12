@@ -59,9 +59,23 @@ data class QueueActions(
     val onHistoryClick: () -> Unit = {},
     val onContinueFromDevice: () -> Unit = {},
     val onDismissDevice: () -> Unit = {},
+    /** A row of a track's ⋮ menu was tapped. */
+    val onMenuAction: (QueueListItem.Track, QueueMenuAction) -> Unit = { _, _ -> },
 )
 
-internal fun QueueViewModel.actions() = QueueActions(
+/**
+ * Where the queue's ⋮ menu leads outside the queue; the app fills these. Album and artist should
+ * collapse Now Playing before navigating. [onInfo] shows the song's file details.
+ */
+@Immutable
+data class QueueMenuHost(
+    val onAddToPlaylist: (songIds: List<String>) -> Unit = {},
+    val onAlbumClick: (albumId: String) -> Unit = {},
+    val onArtistClick: (artistId: String) -> Unit = {},
+    val onInfo: (songId: String) -> Unit = {},
+)
+
+internal fun QueueViewModel.actions(host: QueueMenuHost = QueueMenuHost()) = QueueActions(
     onTrackClick = ::skipTo,
     onMove = ::move,
     onPlayNext = ::playNext,
@@ -69,6 +83,18 @@ internal fun QueueViewModel.actions() = QueueActions(
     onHistoryClick = ::toggleHistory,
     onContinueFromDevice = ::continueFromOtherDevice,
     onDismissDevice = ::dismissOtherDevice,
+    onMenuAction = { track, action ->
+        // Play next and Remove are the swipes' own paths, so Remove shows the same Undo.
+        when (action) {
+            QueueMenuAction.PlayNext -> playNext(track)
+            QueueMenuAction.Remove -> remove(track)
+            QueueMenuAction.AddToPlaylist -> host.onAddToPlaylist(listOf(track.song.id))
+            QueueMenuAction.GoToAlbum -> track.song.albumId?.let(host.onAlbumClick)
+            QueueMenuAction.GoToArtist -> track.song.artistId?.let(host.onArtistClick)
+            QueueMenuAction.Favorite -> toggleFavorite(track)
+            QueueMenuAction.Info -> host.onInfo(track.song.id)
+        }
+    },
 )
 
 /**
@@ -192,6 +218,8 @@ private fun ReorderableQueueList(
 
     AutoScrollToCurrent(listState, state, hasBanner = state.remoteOffer != null, rows = rows, dragging = drag != null)
 
+    var menuFor by remember { mutableStateOf<QueueListItem.Track?>(null) }
+
     LazyColumn(state = listState, contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         state.remoteOffer?.let { offer ->
             item(key = BANNER_KEY, contentType = BANNER_KEY) {
@@ -221,6 +249,7 @@ private fun ReorderableQueueList(
                             state = row.row,
                             isDragging = isDragging,
                             onClick = { actions.onTrackClick(row) },
+                            onMoreClick = { menuFor = row },
                             modifier = dragModifier(row.key, longPress = true),
                             handleModifier = dragModifier(row.key),
                         )
@@ -228,6 +257,14 @@ private fun ReorderableQueueList(
                 }
             }
         }
+    }
+
+    menuFor?.let { track ->
+        QueueTrackMenu(
+            track = track,
+            onAction = { action -> actions.onMenuAction(track, action) },
+            onDismissRequest = { menuFor = null },
+        )
     }
 }
 
@@ -310,16 +347,21 @@ internal val PreviewQueue = QueueUiState(
             key = "s1#1",
             position = 3,
             row = TrackRowState("s1#1", "Nude", "Radiohead", "In Rainbows", 255, isCurrent = true, isPlaying = true),
+            song = QueueSong("s1", albumId = "al", artistId = "ar", isStarred = false),
+            canPlayNext = false,
         ),
         QueueListItem.Track(
             key = "s2#1",
             position = 4,
             row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", "In Rainbows", 318),
+            song = QueueSong("s2", albumId = "al", artistId = "ar", isStarred = true),
+            canPlayNext = false,
         ),
         QueueListItem.Track(
             key = "s3#1",
             position = 5,
             row = TrackRowState("s3#1", "Everything in Its Right Place", "Radiohead", "Kid A", 251),
+            song = QueueSong("s3", albumId = "al2", artistId = "ar", isStarred = false),
         ),
     ),
     currentKey = "s1#1",
