@@ -8,6 +8,8 @@
         <item quantity="one">%d played</item>
         <item quantity="other">%d played</item>
     </plurals>
+    <string name="feature_queue_history_expanded">Expanded</string>
+    <string name="feature_queue_history_collapsed">Collapsed</string>
     <string name="feature_queue_scroll_to_current">Jump to current track</string>
     <string name="feature_queue_upload">Upload queue</string>
     <string name="feature_queue_download">Download queue</string>

@@ -37,8 +37,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.component.SwipeAction
 import com.quantumff.segue.core.designsystem.component.SwipeActionBox
@@ -92,14 +94,21 @@ internal fun QueueTrackRow(
     }
 }
 
-/** "N played": the collapsed history at the top of the queue. Tap to expand or collapse. */
+/**
+ * "N played": the collapsed history at the top of the queue. Tap to expand or collapse; screen
+ * readers hear which it is.
+ */
 @Composable
 internal fun HistoryRow(history: QueueListItem.History, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val state = stringResource(
+        if (history.expanded) R.string.feature_queue_history_expanded else R.string.feature_queue_history_collapsed,
+    )
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(SegueSizes.touchTarget)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { stateDescription = state }
             .padding(horizontal = SegueSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
