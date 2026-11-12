@@ -52,7 +52,7 @@ import kotlinx.coroutines.flow.collectLatest
 /**
  * Lyrics panel (DESIGN.md §4.7). Synced lyrics hold the active line at 35% of the panel height,
  * at full opacity and scale; other lines are dimmed and slightly smaller. Scrolling by hand pauses
- * the follow until the "Sync" chip is tapped or 5s pass. Tapping a line seeks to it. With reduce
+ * the follow until the "Sync" chip is tapped or 5s pass. Tapping a line ("Seek here") seeks to it. With reduce
  * motion on, lines only fade, all at full size, and the list jumps to the active line.
  *
  * @param activeLine read here only, so line changes recompose just this panel.
@@ -130,6 +130,7 @@ private fun SyncedLyrics(
         if (motion.smoothScroll) listState.animateScrollToItem(line) else listState.scrollToItem(line)
     }
 
+    val seekHere = stringResource(R.string.feature_nowplaying_lyrics_seek_here)
     BoxWithConstraints(modifier.fillMaxSize()) {
         val anchor = maxHeight * ACTIVE_LINE_POSITION
         LazyColumn(
@@ -165,7 +166,7 @@ private fun SyncedLyrics(
                             scaleY = scale
                             transformOrigin = TransformOrigin(0f, 0.5f)
                         }
-                        .clickable {
+                        .clickable(onClickLabel = seekHere) {
                             following = true
                             onSeek((content.starts[index] - content.offsetMillis).coerceAtLeast(0))
                         }

@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -55,7 +56,10 @@ data class SeekLineStyle(
     val touchHeight: Dp,
 ) {
     companion object {
-        /** Now Playing (DESIGN.md §4.7): a 4 tall track and a 12 thumb that grows to 20 while dragging. */
+        /**
+         * Now Playing (DESIGN.md §4.7): a 4 tall track and a 12 thumb that grows to 20 while dragging.
+         * It takes 32 in the layout but touches over 48, overlapping the times below.
+         */
         fun nowPlaying(active: Color, inactive: Color) = SeekLineStyle(
             active = active,
             inactive = inactive,
@@ -63,7 +67,7 @@ data class SeekLineStyle(
             thumb = 12.dp,
             thumbDragging = 20.dp,
             height = 32.dp,
-            touchHeight = 32.dp,
+            touchHeight = SegueSizes.touchTarget,
         )
 
         /**
@@ -85,7 +89,7 @@ data class SeekLineStyle(
 
 /**
  * A seek slider: tap or drag to seek; a drag seeks once, where it ends, so it never fights the
- * position ticker. Screen readers get "Seek", the elapsed time, and a `setProgress` action.
+ * position ticker. Screen readers get "Seek", "elapsed of total" (e.g. "1:52 of 4:15"), and a `setProgress` action.
  *
  * Position samples arrive twice a second; between them the line glides linearly to where the next
  * sample will be, so it moves smoothly while only this composable redraws.
@@ -134,6 +138,7 @@ fun SeekLine(
     val latestDuration by rememberUpdatedState(durationMillis)
     val latestOnSeek by rememberUpdatedState(onSeek)
     val seekDescription = stringResource(R.string.ds_seek)
+    val resources = LocalResources.current
 
     Canvas(
         modifier = modifier
@@ -143,7 +148,11 @@ fun SeekLine(
                 contentDescription = seekDescription
                 // From the position samples, not the per-frame glide, so semantics update per tick.
                 val position = latestPosition()
-                stateDescription = formatDuration(position / MILLIS_PER_SECOND)
+                stateDescription = resources.getString(
+                    R.string.ds_seek_position,
+                    formatDuration(position / MILLIS_PER_SECOND),
+                    formatDuration(latestDuration / MILLIS_PER_SECOND),
+                )
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     if (latestDuration > 0) (position.toFloat() / latestDuration).coerceIn(0f, 1f) else 0f,
                     0f..1f,

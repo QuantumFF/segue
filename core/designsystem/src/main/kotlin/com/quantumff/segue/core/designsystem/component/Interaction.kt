@@ -48,7 +48,11 @@ internal fun Modifier.pressableCard(
         )
 }
 
-/** Tap plus long-press with a haptic and the default ripple. For rows. [onLongClickLabel] as on [pressableCard]. */
+/**
+ * Tap plus long-press with a haptic and the default ripple. For rows. [onLongClickLabel] as on
+ * [pressableCard]; [onClickLabel] names the tap for screen readers where "Double-tap to activate"
+ * would not say what it does.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun Modifier.rowClickable(
@@ -56,8 +60,10 @@ internal fun Modifier.rowClickable(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     onLongClickLabel: String? = null,
+    onClickLabel: String? = null,
 ): Modifier = combinedClickable(
     enabled = enabled,
+    onClickLabel = onClickLabel,
     onClick = onClick,
     onLongClick = onLongClick.withLongPressHaptic(),
     onLongClickLabel = onLongClickLabel,

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performSemanticsAction
@@ -50,6 +51,14 @@ class PlayerBarTest {
     }
 
     @Test
+    fun `the seek line announces the elapsed time of the total`() {
+        show()
+
+        compose.onNodeWithContentDescription("Seek")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "1:00 of 4:00"))
+    }
+
+    @Test
     fun `the seek line is thin but 48 tall to touch`() {
         show()
 
@@ -78,6 +87,14 @@ class PlayerBarTest {
 
         assertThat(seeks).hasSize(1)
         assertThat(seeks.single()).isAtLeast(DURATION_MILLIS * 9 / 10)
+    }
+
+    @Test
+    fun `the track area's action is Open Now Playing`() {
+        show()
+
+        compose.onNode(hasText(PreviewData.miniPlayer.title).and(clickLabel("Open Now Playing")))
+            .assertExists()
     }
 
     @Test
