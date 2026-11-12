@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The static previews' outlines, with the launcher's 24dp widget corners the widgets have from API 31. -->
+<resources>
+    <string name="widget_strip_preview_outline" translatable="false">M24,0 H316 A24,24 0 0 1 340,24 V64 A24,24 0 0 1 316,88 H24 A24,24 0 0 1 0,64 V24 A24,24 0 0 1 24,0 Z</string>
+    <string name="widget_card_preview_outline" translatable="false">M24,0 H316 A24,24 0 0 1 340,24 V136 A24,24 0 0 1 316,160 H24 A24,24 0 0 1 0,136 V24 A24,24 0 0 1 24,0 Z</string>
+</resources>

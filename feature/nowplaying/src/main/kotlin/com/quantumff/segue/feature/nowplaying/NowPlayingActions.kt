@@ -20,6 +20,8 @@ class NowPlayingActions(
     val onCancelSleepTimer: () -> Unit,
     /** Plays at a preset speed, from the ⋮ menu's Speed sheet. */
     val onSetSpeed: (Float) -> Unit,
+    /** "+15 min" on the running sleep timer. */
+    val onExtendSleepTimer: () -> Unit,
     val onInstantMix: () -> Unit,
     val onAlbumClick: (String) -> Unit,
     val onArtistClick: (String) -> Unit,
@@ -49,6 +51,7 @@ class NowPlayingActions(
             onStartSleepTimer = {},
             onCancelSleepTimer = {},
             onSetSpeed = {},
+            onExtendSleepTimer = {},
             onInstantMix = {},
             onAlbumClick = {},
             onArtistClick = {},

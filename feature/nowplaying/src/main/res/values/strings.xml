@@ -72,11 +72,13 @@
     <string name="feature_nowplaying_sleep_title">Sleep timer</string>
     <string name="feature_nowplaying_sleep_minutes">%1$d min</string>
     <string name="feature_nowplaying_sleep_hours">%1$d h</string>
+    <string name="feature_nowplaying_sleep_hours_minutes">%1$d h %2$d min</string>
     <string name="feature_nowplaying_sleep_end_of_track">End of track</string>
     <string name="feature_nowplaying_sleep_end_of_album">End of album</string>
     <string name="feature_nowplaying_sleep_custom">Custom</string>
     <string name="feature_nowplaying_sleep_start">Start</string>
     <string name="feature_nowplaying_sleep_cancel">Cancel timer</string>
+    <string name="feature_nowplaying_sleep_extend">+%1$d min</string>
     <string name="feature_nowplaying_sleep_active_at">Pauses at %1$s</string>
     <string name="feature_nowplaying_sleep_active_remaining">%1$s left</string>
     <string name="feature_nowplaying_sleep_active_end_of_track">Pauses when this track ends</string>
@@ -87,6 +89,8 @@
     <string name="feature_nowplaying_sleep_set_end_of_track">Pausing at end of track</string>
     <string name="feature_nowplaying_sleep_set_end_of_album">Pausing at end of album</string>
     <string name="feature_nowplaying_sleep_set_cancel">Cancel</string>
+    <string name="feature_nowplaying_sleep_chip_description">Sleep timer: %1$s</string>
+    <string name="feature_nowplaying_sleep_chip_open">Change sleep timer</string>
 
     <string name="feature_nowplaying_details_title">Details</string>
     <string name="feature_nowplaying_details_format">Format</string>

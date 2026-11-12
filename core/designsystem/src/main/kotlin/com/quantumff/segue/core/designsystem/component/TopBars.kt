@@ -377,6 +377,8 @@ fun SearchTopBar(
  *   what a tap does, for accessibility.
  * @param onMoreClick opens the ⋮ menu; null hides the ⋮ when there is nothing to act on.
  * @param moreBadge draws a dot on ⋮: something in its menu is set, such as a sleep timer.
+ * @param status drawn at the end of the source line, before the ⋮, such as the sleep timer chip; it
+ *   should be 48 tall at most.
  */
 @Composable
 fun NowPlayingTopBar(
@@ -388,6 +390,7 @@ fun NowPlayingTopBar(
     onSourceClick: (() -> Unit)? = null,
     sourceClickLabel: String? = null,
     moreBadge: Boolean = false,
+    status: (@Composable () -> Unit)? = null,
 ) {
     val onArt = SegueTheme.colors.onArt
     val shade = SegueTheme.colors.artShade
@@ -441,6 +444,7 @@ fun NowPlayingTopBar(
                 )
             }
         }
+        status?.invoke()
         if (onMoreClick != null) {
             Box(contentAlignment = Alignment.Center) {
                 SegueIconButton(

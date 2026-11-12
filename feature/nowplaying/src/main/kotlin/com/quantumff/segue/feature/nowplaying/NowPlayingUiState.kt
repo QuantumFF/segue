@@ -33,6 +33,17 @@ enum class NowPlayingPanel {
     Related,
 }
 
+/**
+ * How Now Playing looks when it opens: on [panel] (none shows the art, or Queue in two panes) and
+ * with its ⋮ menu open if [openMenu]. The player bar's Lyrics and ⋮ open it this way (DESIGN.md §5.5).
+ */
+@Immutable
+data class NowPlayingStart(val panel: NowPlayingPanel? = null, val openMenu: Boolean = false) {
+    companion object {
+        val Default = NowPlayingStart()
+    }
+}
+
 /** The current track as Now Playing shows it. */
 @Immutable
 data class NowPlayingTrack(
@@ -212,6 +223,19 @@ internal fun SleepTimerChoice.toSleepTimer(nowMillis: Long): SleepTimer = when (
     SleepTimerChoice.EndOfAlbum -> SleepTimer.EndOfAlbum
 }
 
+/**
+ * "+15 min" on the running timer: an at-time timer ends 15 minutes later (from now, if the sheet saw
+ * it a tick after it ended); an end-of-track or end-of-album timer becomes one ending 15 minutes from now.
+ */
+internal fun SleepTimer.extendedBy15Min(nowMillis: Long): SleepTimer.AtTime = when (this) {
+    is SleepTimer.AtTime -> SleepTimer.AtTime(maxOf(endsAtMillis, nowMillis) + SLEEP_TIMER_EXTENSION_MILLIS)
+    SleepTimer.EndOfTrack, SleepTimer.EndOfAlbum -> SleepTimer.AtTime(nowMillis + SLEEP_TIMER_EXTENSION_MILLIS)
+}
+
+/** Whole minutes until the timer pauses, rounded up, so 14:30 left reads as 15 min. */
+internal fun SleepTimer.AtTime.minutesLeft(nowMillis: Long): Int =
+    ((endsAtMillis - nowMillis).coerceAtLeast(0) + MILLIS_PER_MINUTE - 1).div(MILLIS_PER_MINUTE).toInt()
+
 /** [song] and [fileInfo] are the library's and the server's view of the current track, if known. */
 internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileInfo?): NowPlayingUiState {
     val item = currentItem ?: return NowPlayingUiState()
@@ -338,5 +362,9 @@ private fun PlayerUiState.neighbor(step: Int): AdjacentArt? {
 }
 
 private const val MILLIS_PER_MINUTE = 60_000L
+
+/** How much "+15 min" adds. */
+internal const val SLEEP_TIMER_EXTENSION_MINUTES = 15
+private const val SLEEP_TIMER_EXTENSION_MILLIS = SLEEP_TIMER_EXTENSION_MINUTES * MILLIS_PER_MINUTE
 private const val HERTZ_PER_TENTH_KHZ = 100
 private const val TENTHS = 10
