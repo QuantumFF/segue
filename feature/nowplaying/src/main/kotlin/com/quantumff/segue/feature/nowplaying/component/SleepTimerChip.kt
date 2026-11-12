@@ -31,6 +31,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.feature.nowplaying.R
+import com.quantumff.segue.feature.nowplaying.minutesLeft
 
 /**
  * The sleep timer chip in Now Playing's top bar (DESIGN.md §4.7): "23 min" left, ticking each minute,
@@ -84,7 +85,7 @@ internal fun SleepTimerChip(
  */
 internal fun SleepTimer.chipText(nowMillis: Long): SnackbarText = when (this) {
     is SleepTimer.AtTime -> {
-        val minutes = minutesLeft(endsAtMillis, nowMillis)
+        val minutes = minutesLeft(nowMillis)
         val hours = minutes / MINUTES_PER_HOUR
         val rest = minutes % MINUTES_PER_HOUR
         when {

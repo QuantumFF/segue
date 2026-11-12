@@ -49,8 +49,8 @@ import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.feature.nowplaying.R
 import com.quantumff.segue.feature.nowplaying.SLEEP_TIMER_EXTENSION_MINUTES
 import com.quantumff.segue.feature.nowplaying.SleepTimerChoice
-import com.quantumff.segue.feature.nowplaying.component.minutesLeft
 import com.quantumff.segue.feature.nowplaying.component.rememberMinuteClock
+import com.quantumff.segue.feature.nowplaying.minutesLeft
 import java.util.Date
 import kotlin.math.roundToInt
 
@@ -152,7 +152,7 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit, onExtend: () -
         is SleepTimer.AtTime -> {
             // Refreshes once a minute while the sheet is open, in step with the top bar's chip.
             val now by rememberMinuteClock()
-            val minutesLeft = minutesLeft(active.endsAtMillis, now)
+            val minutesLeft = active.minutesLeft(now)
             stringResource(
                 R.string.feature_nowplaying_sleep_active_at,
                 DateFormat.getTimeFormat(context).format(Date(active.endsAtMillis)),

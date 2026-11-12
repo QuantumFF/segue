@@ -20,8 +20,4 @@ internal fun rememberMinuteClock(ticking: Boolean = true, clock: () -> Long = Sy
         }
     }
 
-/** Whole minutes from [nowMillis] until [endsAtMillis], counting part of a minute as one; never below 0. */
-internal fun minutesLeft(endsAtMillis: Long, nowMillis: Long): Int =
-    ((endsAtMillis - nowMillis).coerceAtLeast(0) + MILLIS_PER_MINUTE - 1).div(MILLIS_PER_MINUTE).toInt()
-
 private const val MILLIS_PER_MINUTE = 60_000L
