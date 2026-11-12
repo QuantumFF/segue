@@ -175,6 +175,7 @@ fun SegueApp(
             NowPlayingOverlay(
                 visible = appState.isNowPlayingOpen,
                 start = appState.nowPlayingStart,
+                opening = appState.nowPlayingOpening,
                 onCollapse = appState::closeNowPlaying,
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
