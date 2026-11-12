@@ -33,6 +33,7 @@ class PlayerViewModel @Inject constructor(
     private val playback: PlaybackController,
     playIntents: PlayIntents,
     private val snackbars: Snackbars,
+    volumeController: VolumeController,
 ) : ViewModel() {
     val player: StateFlow<ShellPlayerState> = playback.state
         .map { it.toShellPlayerState() }
@@ -47,6 +48,16 @@ class PlayerViewModel @Inject constructor(
         .map { it.positionMillis }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0L)
+
+    /**
+     * The player bar's volume slider: the media volume, and setting it. Collect it only inside the
+     * player bar: collecting it is what listens for volume key presses.
+     */
+    val volume: ShellVolume = ShellVolume(
+        level = volumeController.volume
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), MediaVolume.Full),
+        onChange = volumeController::setVolume,
+    )
 
     init {
         playIntents.messages

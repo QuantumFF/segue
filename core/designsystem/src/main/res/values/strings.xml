@@ -19,6 +19,8 @@
     <string name="ds_lyrics">Lyrics</string>
     <string name="ds_queue">Queue</string>
     <string name="ds_volume">Volume</string>
+    <!-- The volume slider's level for screen readers, e.g. "70%". -->
+    <string name="ds_volume_level">%1$d%%</string>
     <string name="ds_account">Account</string>
     <string name="ds_refresh">Refresh</string>
     <string name="ds_clear">Clear</string>

@@ -82,6 +82,7 @@ import com.quantumff.segue.navigation.TopLevelDestination
 import com.quantumff.segue.playback.PlayerViewModel
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
+import com.quantumff.segue.playback.ShellVolume
 import com.quantumff.segue.playback.progressOf
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -159,6 +160,7 @@ fun SegueApp(
         snackbarHostState = snackbarHostState,
         sidebarPlaylists = sidebarPlaylists,
         onSidebarPlaylistClick = onSidebarPlaylistClick,
+        volume = playerViewModel.volume,
         nowPlaying = {
             NowPlayingOverlay(
                 visible = appState.isNowPlayingOpen,
@@ -225,6 +227,7 @@ fun SegueApp(
     sidebarPlaylists: ImmutableList<SidebarPlaylist> = persistentListOf(),
     onSidebarPlaylistClick: (String) -> Unit = {},
     nowPlaying: @Composable () -> Unit = {},
+    volume: ShellVolume = ShellVolume.Fixed,
     navHost: @Composable (Modifier) -> Unit,
 ) {
     val destination = appState.currentDestination
@@ -270,8 +273,8 @@ fun SegueApp(
     }
 
     val onOpenNowPlaying: (NowPlayingStart) -> Unit = remember(appState) { { appState.openNowPlaying(it) } }
-    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
-        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
+    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying, volume) {
+        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying, volume)
     }
 
     Box(
@@ -359,6 +362,8 @@ private class ShellPlayer(
     val positionMillis: StateFlow<Long>,
     val actions: ShellPlayerActions,
     val onOpenNowPlaying: (NowPlayingStart) -> Unit,
+    /** Collected only by the player bar: phones have no volume slider. */
+    val volume: ShellVolume,
 )
 
 @Composable
@@ -509,15 +514,17 @@ private fun ShellContinueBar(player: ShellPlayer, modifier: Modifier = Modifier)
 private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     val state = player.state
     val track = state.current ?: return
+    val volume by player.volume.level.collectAsStateWithLifecycle()
     val barState = PlayerBarState(
         track = track,
         durationMillis = state.durationMillis,
         repeatMode = state.repeatMode,
-        volume = 1f,
+        volume = volume.fraction,
+        volumeSteps = volume.steps,
     )
     val actions = player.actions
     val position = player.positionMillis.collectAsStateWithLifecycle()
-    val barActions = remember(actions, player.onOpenNowPlaying) {
+    val barActions = remember(actions, player.onOpenNowPlaying, player.volume) {
         val open = player.onOpenNowPlaying
         PlayerBarActions(
             onClick = { open(NowPlayingStart.Default) },
@@ -529,8 +536,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
             // The queue is a Now Playing panel: the first tab in its two-pane layout.
             onQueueClick = { open(NowPlayingStart(panel = NowPlayingPanel.Queue)) },
             onMoreClick = { open(NowPlayingStart(openMenu = true)) },
-            // System volume is the only volume; the bar's slider is not wired.
-            onVolumeChange = {},
+            onVolumeChange = player.volume.onChange,
             onSeek = actions.onSeek,
         )
     }
