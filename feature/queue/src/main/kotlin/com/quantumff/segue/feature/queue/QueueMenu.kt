@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
+import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.ContextMenuItem
 import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
@@ -13,7 +14,6 @@ import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueBaseColors
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import com.quantumff.segue.core.designsystem.R as DesignR
 
 /** Rows of a queue track's ⋮ menu, in menu order (DESIGN.md §4.8). */
 enum class QueueMenuAction {

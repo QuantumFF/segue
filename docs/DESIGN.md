@@ -390,6 +390,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Swipe right: play next (icon `list-start`, `primary`).
   - Swipe left: remove (icon `trash`, `error`), with a "Removed <title>" snackbar and Undo. It stays when Now Playing switches panels or collapses. Undo puts back only the last removal, so a newer removal takes down the snackbar of the one before.
   - Both swipes trigger at 40% of the width with haptic feedback.
+  - ⋮ (Lucide `ellipsis-vertical`) between the duration and the drag handle opens the song's context sheet (§5.7) in the app's own colors, with the queue's own order: Play next, Remove from queue, Add to playlist, Go to album, Go to artist, Favorite (Remove from favorites when starred), Info. Play next and Remove from queue are the swipes: Play next moves the track (left out for the current track and the one after it, where it would not move), and Remove from queue (`error`) shows the same "Removed <title>" snackbar with Undo. Favorite stars the song on every queue row and Now Playing's heart. Info is Now Playing's details sheet for that song. The ⋮ hides while its row is dragged; the row keeps its space.
 
 ### 4.9 Downloads (Library tab)
 - Storage bar at the top: an 8-tall `LinearProgressIndicator` labelled "3.2 GB used · limit 10 GB", plus an "Offline mode" switch row.

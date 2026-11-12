@@ -74,6 +74,7 @@ import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
 import com.quantumff.segue.feature.playlist.AddToPlaylistViewModel
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
 import com.quantumff.segue.feature.queue.QueueContent
+import com.quantumff.segue.feature.queue.QueueMenuHost
 import com.quantumff.segue.navigation.HomeGraph
 import com.quantumff.segue.navigation.SegueNavHost
 import com.quantumff.segue.navigation.TopLevelDestination
@@ -158,18 +159,20 @@ fun SegueApp(
         sidebarPlaylists = sidebarPlaylists,
         onSidebarPlaylistClick = onSidebarPlaylistClick,
         nowPlaying = {
+            // Collapse first, so back from the album or artist returns to where the user was.
+            val onAlbumClick: (String) -> Unit = { id ->
+                appState.closeNowPlaying()
+                appState.navigate { navigateToAlbum(id) }
+            }
+            val onArtistClick: (String) -> Unit = { id ->
+                appState.closeNowPlaying()
+                appState.navigate { navigateToArtist(id) }
+            }
             NowPlayingOverlay(
                 visible = appState.isNowPlayingOpen,
                 onCollapse = appState::closeNowPlaying,
-                // Collapse first, so back from the album or artist returns to where the user was.
-                onAlbumClick = { id ->
-                    appState.closeNowPlaying()
-                    appState.navigate { navigateToAlbum(id) }
-                },
-                onArtistClick = { id ->
-                    appState.closeNowPlaying()
-                    appState.navigate { navigateToArtist(id) }
-                },
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
                 onPlaylistClick = { id ->
                     appState.closeNowPlaying()
                     appState.navigate { navigateToPlaylist(id) }
@@ -179,7 +182,18 @@ fun SegueApp(
                     appState.navigate { navigateToGenre(genre) }
                 },
                 onAddToPlaylist = { addToPlaylist = it },
-                queueContent = { QueueContent() },
+                queueContent = { onInfo ->
+                    QueueContent(
+                        menuHost = remember(onInfo) {
+                            QueueMenuHost(
+                                onAddToPlaylist = { addToPlaylist = it },
+                                onAlbumClick = onAlbumClick,
+                                onArtistClick = onArtistClick,
+                                onInfo = onInfo,
+                            )
+                        },
+                    )
+                },
             )
         },
     ) { navModifier ->

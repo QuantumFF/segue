@@ -106,7 +106,8 @@ import kotlinx.coroutines.CoroutineStart
 /**
  * Now Playing (DESIGN.md §4.7).
  *
- * @param queueContent the Queue panel; the app fills it with the queue feature's content.
+ * @param queueContent the Queue panel; the app fills it with the queue feature's content. Its
+ *   argument shows the details sheet for a queued song (a queue row's Info).
  */
 @Composable
 fun NowPlayingScreen(
@@ -116,10 +117,12 @@ fun NowPlayingScreen(
     onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
-    queueContent: @Composable () -> Unit,
+    queueContent: @Composable (onInfo: (songId: String) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NowPlayingViewModel = hiltViewModel(),
 ) {
+    var queueInfoFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val queuePanel: @Composable () -> Unit = remember(queueContent) { { queueContent { queueInfoFor = it } } }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val position = viewModel.positionMillis.collectAsStateWithLifecycle()
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
@@ -175,9 +178,14 @@ fun NowPlayingScreen(
         activeLyricLine = { activeLyricLine.value },
         related = related,
         actions = actions,
-        queueContent = queueContent,
+        queueContent = queuePanel,
         modifier = modifier,
     )
+    queueInfoFor?.let { songId ->
+        val details by remember(viewModel, songId) { viewModel.songDetails(songId) }.collectAsStateWithLifecycle(null)
+        // Like Now Playing's own sheets, in the app's colors.
+        SegueBaseColors { TrackDetailsSheet(details = details, onDismissRequest = { queueInfoFor = null }) }
+    }
 }
 
 /** Which sheet or dialog is open. */

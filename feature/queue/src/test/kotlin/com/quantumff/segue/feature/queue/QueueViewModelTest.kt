@@ -50,9 +50,10 @@ class QueueViewModelTest {
     )
     private val actions by lazy { viewModel.actions(host) }
 
-    private fun row(id: String) = QueueList.build(player.state.value.queue, 0, isPlaying = false, historyExpanded = false)
-        .filterIsInstance<QueueListItem.Track>()
-        .single { it.song.id == id }
+    private fun row(id: String) =
+        QueueList.build(player.state.value.queue, 0, isPlaying = false, historyExpanded = false)
+            .filterIsInstance<QueueListItem.Track>()
+            .single { it.song.id == id }
 
     /** Removes [row] one way, then reports the player's commands and the snackbar, and taps its Undo. */
     private fun removalBy(remove: (QueueListItem.Track) -> Unit): Pair<List<String>, SnackbarText?> {

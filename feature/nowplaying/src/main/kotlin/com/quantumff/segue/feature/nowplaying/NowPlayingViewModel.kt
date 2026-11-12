@@ -79,6 +79,15 @@ class NowPlayingViewModel @Inject constructor(
         }
     }
 
+    /** The details sheet for any library song, such as a queue row's Info: the song and its file. */
+    fun songDetails(songId: String): Flow<TrackDetails?> = combine(
+        library.song(songId),
+        flow {
+            emit(null)
+            emit(loadOrNull("file info") { fileInfo.fileInfo(songId) })
+        },
+    ) { song, file -> song?.toDetails(file) }
+
     val uiState: StateFlow<NowPlayingUiState> =
         combine(player.state, currentSong, currentFileInfo) { state, song, file ->
             state.toNowPlayingUiState(song, file)

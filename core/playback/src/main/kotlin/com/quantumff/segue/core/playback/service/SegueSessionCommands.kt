@@ -117,16 +117,16 @@ internal object SegueSessionCommands {
 
     fun adoptPlays(args: Bundle): Boolean = args.getBoolean(ARG_PLAY)
 
-    /**
-     * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state
-     * cannot carry. [sleepTimer] reads either back.
-     */
     /** [TOGGLE_FAVORITE] for the queued song [songId], or the current song when null. */
     fun favoriteArgs(songId: String?) = Bundle().apply { songId?.let { putString(ARG_SONG_ID, it) } }
 
     /** The song of [favoriteArgs]: null for the current song. */
     fun favoriteSongId(bundle: Bundle): String? = bundle.getString(ARG_SONG_ID)
 
+    /**
+     * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state
+     * cannot carry. [sleepTimer] reads either back.
+     */
     fun sleepArgs(timer: SleepTimer?) = Bundle().apply {
         when (timer) {
             is SleepTimer.AtTime -> {

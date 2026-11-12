@@ -101,15 +101,18 @@ internal fun QueueViewModel.actions(host: QueueMenuHost = QueueMenuHost()) = Que
  * The queue (DESIGN.md §4.8), ready to embed in Now Playing's Queue panel: the header (jump to
  * current, upload, download), the "Continue from <device>" banner, and the reorderable list. Its
  * snackbars, such as Undo for a removal, show in the app's host, so they outlive the panel.
+ *
+ * @param menuHost where a row's ⋮ menu leads outside the queue.
  */
 @Composable
 fun QueueContent(
     modifier: Modifier = Modifier,
+    menuHost: QueueMenuHost = QueueMenuHost(),
     contentPadding: PaddingValues = PaddingValues(),
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val actions = remember(viewModel) { viewModel.actions() }
+    val actions = remember(viewModel, menuHost) { viewModel.actions(menuHost) }
     val headerActions = remember(viewModel) { viewModel.headerActions() }
     QueueContent(
         state = state,
