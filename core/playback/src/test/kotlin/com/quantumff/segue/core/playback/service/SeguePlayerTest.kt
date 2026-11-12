@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.model.ReplayGain
 import com.quantumff.segue.core.model.Song
+import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.media.albumKey
 import com.quantumff.segue.core.playback.media.isStarred
 import com.quantumff.segue.core.playback.media.replayGain
@@ -62,9 +63,22 @@ class SeguePlayerTest {
     }
 
     @Test
+    fun `the playback speed preference plays at that speed with natural pitch`() {
+        player.applyPlaybackSpeed(UserPreferences(playbackSpeed = 1.5f))
+
+        assertThat(exo.playbackParameters.speed).isEqualTo(1.5f)
+        assertThat(exo.playbackParameters.pitch).isEqualTo(1f)
+
+        player.applyPlaybackSpeed(UserPreferences())
+
+        assertThat(exo.playbackParameters.speed).isEqualTo(1f)
+    }
+
+    @Test
     fun `media items round-trip what the player needs`() {
         val gain = ReplayGain(trackGain = -6f, albumGain = -7f, trackPeak = 0.9f)
-        val song = song("s", "al").copy(coverArtId = "cv", durationSeconds = 200, replayGain = gain, starredAt = 1)
+        val song = song("s", "al")
+            .copy(artistId = "ar", coverArtId = "cv", durationSeconds = 200, replayGain = gain, starredAt = 1)
         val item = song.toMediaItem()
 
         assertThat(item.albumKey).isEqualTo("al")
@@ -77,6 +91,9 @@ class SeguePlayerTest {
         assertThat(queueItem.timelineIndex).isEqualTo(3)
         assertThat(queueItem.durationMillis).isEqualTo(200_000)
         assertThat(queueItem.coverArtId).isEqualTo("cv")
+        // A queue row's ⋮ menu opens the album and the artist.
+        assertThat(queueItem.albumId).isEqualTo("al")
+        assertThat(queueItem.artistId).isEqualTo("ar")
 
         val stripped = item.buildUpon().setUri(null as String?).build()
         assertThat(stripped.withPlayableUri().localConfiguration!!.uri.toString()).isEqualTo("segue://song/s")

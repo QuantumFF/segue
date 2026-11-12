@@ -73,11 +73,14 @@ abstract class NowPlayingWidget internal constructor(
     override val sizeMode: SizeMode = SizeMode.Exact
 
     @Composable
-    internal abstract fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors)
+    internal abstract fun Content(state: NowPlayingSnapshot, tap: SurfaceTap, art: WidgetArt, colors: WidgetColors)
 
     override suspend fun provideGlance(context: Context, id: GlanceId): Nothing {
-        val store = context.widgetEntryPoint().stateStore()
+        val entryPoint = context.widgetEntryPoint()
+        val store = entryPoint.stateStore()
+        val savedQueue = entryPoint.savedQueueProbe()
         val initial = store.read()
+        val initialCanResume = !initial.hasTrack && savedQueue.canResume()
         val initialArt = loadWidgetArt(context, initial.coverArtId, artPx)
         val colors = WidgetColors(context)
         provideContent {
@@ -88,8 +91,15 @@ abstract class NowPlayingWidget internal constructor(
                     art = loadWidgetArt(context, state.coverArtId, artPx)
                 }
             }
+            // Only the empty state asks, following the saved queue while the widget is empty: Clear
+            // queue empties the widget before the saved queue.
+            var canResume by remember { mutableStateOf(initialCanResume) }
+            LaunchedEffect(state.hasTrack) {
+                if (!state.hasTrack) savedQueue.canResumeUpdates().collect { canResume = it }
+            }
             val current = art.takeIf { it.coverArtId == state.coverArtId } ?: WidgetArt.None
-            GlanceTheme(colors = colors.glance) { Content(state, current, colors) }
+            val tap = surfaceTap(state.hasTrack, canResume)
+            GlanceTheme(colors = colors.glance) { Content(state, tap, current, colors) }
         }
     }
 
@@ -102,7 +112,7 @@ abstract class NowPlayingWidget internal constructor(
         )
         val colors = WidgetColors(context)
         provideContent {
-            GlanceTheme(colors = colors.glance) { Content(sample, WidgetArt.None, colors) }
+            GlanceTheme(colors = colors.glance) { Content(sample, SurfaceTap.OpenNowPlaying, WidgetArt.None, colors) }
         }
     }
 }
@@ -113,7 +123,8 @@ class NowPlayingStripWidget : NowPlayingWidget(artPx = 256) {
     override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 88.dp)))
 
     @Composable
-    override fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) = Strip(state, art, colors)
+    override fun Content(state: NowPlayingSnapshot, tap: SurfaceTap, art: WidgetArt, colors: WidgetColors) =
+        Strip(state, tap, art, colors)
 }
 
 /** 4x2, resizable: larger art and previous/play/next. */
@@ -122,7 +133,8 @@ class NowPlayingCardWidget : NowPlayingWidget(artPx = 512) {
     override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(DpSize(340.dp, 160.dp)))
 
     @Composable
-    override fun Content(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) = Card(state, art, colors)
+    override fun Content(state: NowPlayingSnapshot, tap: SurfaceTap, art: WidgetArt, colors: WidgetColors) =
+        Card(state, tap, art, colors)
 }
 
 class NowPlayingStripWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -137,12 +149,12 @@ class NowPlayingCardWidgetReceiver : GlanceAppWidgetReceiver() {
 
 /** The art fills the strip's height, flush with its left edge. */
 @Composable
-private fun Strip(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) {
+private fun Strip(state: NowPlayingSnapshot, tap: SurfaceTap, art: WidgetArt, colors: WidgetColors) {
     val size = LocalSize.current
     // Previous, play and next always show. On a narrow strip the art gives way so the title keeps some room.
     val titlesWidthWithArt = size.width - size.height - STRIP_GAP - STRIP_CONTROLS_WIDTH - STRIP_END_PADDING
     val showArt = titlesWidthWithArt >= MIN_TITLES_WIDTH
-    WidgetSurface(state, art, colors) { palette ->
+    WidgetSurface(tap, art, colors) { palette ->
         Row(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -175,7 +187,7 @@ private fun Strip(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColor
 
 /** The art fills the card's height, flush with its left edge, as far as the controls leave room. */
 @Composable
-private fun Card(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors) {
+private fun Card(state: NowPlayingSnapshot, tap: SurfaceTap, art: WidgetArt, colors: WidgetColors) {
     val size = LocalSize.current
     // The art gives way to the controls on a narrow card, and drops out when it would be a thumbnail.
     val roomForArt = size.width - CARD_GAP - CARD_PADDING - CARD_CONTROLS_WIDTH
@@ -183,7 +195,7 @@ private fun Card(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors
     // Nearly square art still fills the height, cropping its sides a little. It fills rather than
     // taking LocalSize's height, which can fall a few dp short of the launcher's cell.
     val fullHeight = artWidth != null && artWidth >= size.height * MIN_FULL_HEIGHT_ASPECT
-    WidgetSurface(state, art, colors) { palette ->
+    WidgetSurface(tap, art, colors) { palette ->
         Row(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             if (artWidth != null) {
                 val height = if (fullHeight) GlanceModifier.fillMaxHeight() else GlanceModifier.height(artWidth)
@@ -226,6 +238,12 @@ private fun Card(state: NowPlayingSnapshot, art: WidgetArt, colors: WidgetColors
     }
 }
 
+private fun SurfaceTap.action(context: Context): Action = when (this) {
+    SurfaceTap.OpenNowPlaying -> actionStartActivity(openAppIntent(context, nowPlaying = true))
+    SurfaceTap.ResumeSavedQueue -> actionRunCallback<ResumeSavedQueueAction>()
+    SurfaceTap.OpenApp -> actionStartActivity(openAppIntent(context, nowPlaying = false))
+}
+
 /** Takes an equal share of the row's free width. */
 @Composable
 private fun RowScope.FlexSpacer() = Spacer(GlanceModifier.defaultWeight())
@@ -233,11 +251,11 @@ private fun RowScope.FlexSpacer() = Spacer(GlanceModifier.defaultWeight())
 /**
  * The widget background: the blurred cover under a dark scrim and noise (DESIGN.md §2.4, §4.7
  * "Blurred art"), or the theme surface while there is none. A tap anywhere outside the buttons
- * opens the app.
+ * does [tap]: opens the app, or resumes the saved queue from the empty state.
  */
 @Composable
 private fun WidgetSurface(
-    state: NowPlayingSnapshot,
+    tap: SurfaceTap,
     art: WidgetArt,
     colors: WidgetColors,
     content: @Composable (WidgetPalette) -> Unit,
@@ -250,7 +268,7 @@ private fun WidgetSurface(
             .appWidgetBackground()
             .background(if (backdrop == null) colors.background else ColorProvider(Color.Black))
             .cornerRadius(WIDGET_RADIUS)
-            .clickable(actionStartActivity(openAppIntent(context, nowPlaying = state.hasTrack))),
+            .clickable(tap.action(context)),
     ) {
         if (backdrop != null) {
             Image(

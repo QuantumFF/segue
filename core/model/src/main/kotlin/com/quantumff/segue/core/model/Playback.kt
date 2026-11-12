@@ -31,6 +31,8 @@ data class PlayerUiState(
     val streamFormat: StreamFormat? = null,
     /** Where the queue came from, for Now Playing's top bar. */
     val queueSource: QueueSource = QueueSource.Unknown,
+    /** The playback speed, 1 at normal speed. Pitch stays natural at any speed. */
+    val speed: Float = 1f,
 )
 
 /**
@@ -63,6 +65,8 @@ data class QueueItem(
     val coverArtId: String?,
     val durationMillis: Long,
     val isStarred: Boolean,
+    /** The song's artist, for a queue row's "Go to artist". */
+    val artistId: String? = null,
 )
 
 /** Another device's saved queue, newer than this device's. */

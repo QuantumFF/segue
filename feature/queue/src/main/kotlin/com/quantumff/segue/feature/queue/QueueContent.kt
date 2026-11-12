@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -59,9 +60,23 @@ data class QueueActions(
     val onHistoryClick: () -> Unit = {},
     val onContinueFromDevice: () -> Unit = {},
     val onDismissDevice: () -> Unit = {},
+    /** A row of a track's ⋮ menu was tapped. */
+    val onMenuAction: (QueueListItem.Track, QueueMenuAction) -> Unit = { _, _ -> },
 )
 
-internal fun QueueViewModel.actions() = QueueActions(
+/**
+ * Where the queue's ⋮ menu leads outside the queue; the app fills these. Album and artist should
+ * collapse Now Playing before navigating. [onInfo] shows the song's file details.
+ */
+@Immutable
+data class QueueMenuHost(
+    val onAddToPlaylist: (songIds: List<String>) -> Unit = {},
+    val onAlbumClick: (albumId: String) -> Unit = {},
+    val onArtistClick: (artistId: String) -> Unit = {},
+    val onInfo: (songId: String) -> Unit = {},
+)
+
+internal fun QueueViewModel.actions(host: QueueMenuHost = QueueMenuHost()) = QueueActions(
     onTrackClick = ::skipTo,
     onMove = ::move,
     onPlayNext = ::playNext,
@@ -69,21 +84,36 @@ internal fun QueueViewModel.actions() = QueueActions(
     onHistoryClick = ::toggleHistory,
     onContinueFromDevice = ::continueFromOtherDevice,
     onDismissDevice = ::dismissOtherDevice,
+    onMenuAction = { track, action ->
+        // Play next and Remove are the swipes' own paths, so Remove shows the same Undo.
+        when (action) {
+            QueueMenuAction.PlayNext -> playNext(track)
+            QueueMenuAction.Remove -> remove(track)
+            QueueMenuAction.AddToPlaylist -> host.onAddToPlaylist(listOf(track.song.id))
+            QueueMenuAction.GoToAlbum -> track.song.albumId?.let(host.onAlbumClick)
+            QueueMenuAction.GoToArtist -> track.song.artistId?.let(host.onArtistClick)
+            QueueMenuAction.Favorite -> toggleFavorite(track)
+            QueueMenuAction.Info -> host.onInfo(track.song.id)
+        }
+    },
 )
 
 /**
  * The queue (DESIGN.md §4.8), ready to embed in Now Playing's Queue panel: the header (jump to
  * current, upload, download), the "Continue from <device>" banner, and the reorderable list. Its
  * snackbars, such as Undo for a removal, show in the app's host, so they outlive the panel.
+ *
+ * @param menuHost where a row's ⋮ menu leads outside the queue.
  */
 @Composable
 fun QueueContent(
     modifier: Modifier = Modifier,
+    menuHost: QueueMenuHost = QueueMenuHost(),
     contentPadding: PaddingValues = PaddingValues(),
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val actions = remember(viewModel) { viewModel.actions() }
+    val actions = remember(viewModel, menuHost) { viewModel.actions(menuHost) }
     val headerActions = remember(viewModel) { viewModel.headerActions() }
     QueueContent(
         state = state,
@@ -192,6 +222,11 @@ private fun ReorderableQueueList(
 
     AutoScrollToCurrent(listState, state, hasBanner = state.remoteOffer != null, rows = rows, dragging = drag != null)
 
+    // The ⋮ menu's row, by key: it acts on the row as the queue has it now, and closes once the row is gone.
+    var menuKey by remember { mutableStateOf<String?>(null) }
+    val menuTrack = menuKey?.let { key -> state.items.firstOrNull { it.key == key } as? QueueListItem.Track }
+    if (menuKey != null && menuTrack == null) SideEffect { menuKey = null }
+
     LazyColumn(state = listState, contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         state.remoteOffer?.let { offer ->
             item(key = BANNER_KEY, contentType = BANNER_KEY) {
@@ -221,6 +256,7 @@ private fun ReorderableQueueList(
                             state = row.row,
                             isDragging = isDragging,
                             onClick = { actions.onTrackClick(row) },
+                            onMoreClick = { menuKey = row.key },
                             modifier = dragModifier(row.key, longPress = true),
                             handleModifier = dragModifier(row.key),
                         )
@@ -228,6 +264,14 @@ private fun ReorderableQueueList(
                 }
             }
         }
+    }
+
+    menuTrack?.let { track ->
+        QueueTrackMenu(
+            track = track,
+            onAction = { action -> actions.onMenuAction(track, action) },
+            onDismissRequest = { menuKey = null },
+        )
     }
 }
 
@@ -310,16 +354,21 @@ internal val PreviewQueue = QueueUiState(
             key = "s1#1",
             position = 3,
             row = TrackRowState("s1#1", "Nude", "Radiohead", "In Rainbows", 255, isCurrent = true, isPlaying = true),
+            song = QueueSong("s1", albumId = "al", artistId = "ar", isStarred = false),
+            canPlayNext = false,
         ),
         QueueListItem.Track(
             key = "s2#1",
             position = 4,
             row = TrackRowState("s2#1", "Weird Fishes/Arpeggi", "Radiohead", "In Rainbows", 318),
+            song = QueueSong("s2", albumId = "al", artistId = "ar", isStarred = true),
+            canPlayNext = false,
         ),
         QueueListItem.Track(
             key = "s3#1",
             position = 5,
             row = TrackRowState("s3#1", "Everything in Its Right Place", "Radiohead", "Kid A", 251),
+            song = QueueSong("s3", albumId = "al2", artistId = "ar", isStarred = false),
         ),
     ),
     currentKey = "s1#1",

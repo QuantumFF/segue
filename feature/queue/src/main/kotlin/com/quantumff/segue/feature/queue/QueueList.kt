@@ -21,12 +21,20 @@ sealed interface QueueListItem {
         /** Position in the queue, which is also the play order: what move, remove and skip take. */
         val position: Int,
         val row: TrackRowState,
+        /** The song behind the row, for its ⋮ menu. */
+        val song: QueueSong,
+        /** False for the current track and the one right after it, where play next would not move it. */
+        val canPlayNext: Boolean = true,
     ) : QueueListItem
 
     companion object {
         const val HISTORY_KEY = "history"
     }
 }
+
+/** What a queue row's ⋮ menu needs about its song. */
+@Immutable
+data class QueueSong(val id: String, val albumId: String?, val artistId: String?, val isStarred: Boolean)
 
 /** A move in the queue: the track at [from] lands at [to]. */
 data class QueueMove(val from: Int, val to: Int)
@@ -63,6 +71,8 @@ object QueueList {
                     isCurrent = position == current,
                     isPlaying = position == current && isPlaying,
                 ),
+                song = QueueSong(item.songId, item.albumId, item.artistId, item.isStarred),
+                canPlayNext = playNextMove(queue.size, current, position) != null,
             )
         }
         return rows.toImmutableList()

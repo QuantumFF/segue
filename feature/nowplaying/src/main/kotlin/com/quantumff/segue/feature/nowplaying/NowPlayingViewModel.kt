@@ -15,6 +15,7 @@ import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
+import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.CurrentSong
@@ -31,17 +32,20 @@ import com.quantumff.segue.feature.nowplaying.lyrics.PlaybackSample
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +67,7 @@ class NowPlayingViewModel @Inject constructor(
     private val playlists: PlaylistRepository,
     private val snackbars: Snackbars,
     private val offlineView: OfflineLibraryView,
+    private val preferences: UserPreferencesRepository,
 ) : ViewModel() {
     private val currentSongId: Flow<String?> = player.state
         .map { it.currentItem?.songId }
@@ -79,9 +84,24 @@ class NowPlayingViewModel @Inject constructor(
         }
     }
 
+    /** The details sheet for any library song, such as a queue row's Info: the song and its file. */
+    fun songDetails(songId: String): Flow<TrackDetails?> = combine(
+        library.song(songId),
+        flow {
+            emit(null)
+            emit(loadOrNull("file info") { fileInfo.fileInfo(songId) })
+        },
+    ) { song, file -> song?.toDetails(file) }
+
+    // The speed is the player's. A speed just chosen ([setPlaybackSpeed]) shows at once, until the
+    // player next reports its speed, so the sheet and badge don't wait for the playback service.
+    private val chosenSpeed = MutableStateFlow<Float?>(null)
+    private var chosenSpeedJob: Job? = null
+
     val uiState: StateFlow<NowPlayingUiState> =
-        combine(player.state, currentSong, currentFileInfo) { state, song, file ->
-            state.toNowPlayingUiState(song, file)
+        combine(player.state, currentSong, currentFileInfo, chosenSpeed) { state, song, file, chosen ->
+            val ui = state.toNowPlayingUiState(song, file)
+            if (chosen == null) ui else ui.copy(speed = chosen)
         }
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), NowPlayingUiState())
@@ -192,6 +212,20 @@ class NowPlayingViewModel @Inject constructor(
         sleepTimerConfirmations.confirm(choice) { playback.setSleepTimer(null) }
     }
 
+    /**
+     * "+15 min" on the running timer; confirms the new time left, with Cancel, like starting one.
+     * Does nothing when no timer runs.
+     */
+    fun extendSleepTimer() {
+        val running = uiState.value.sleepTimer ?: return
+        val now = System.currentTimeMillis()
+        val extended = running.extendedBy15Min(now)
+        playback.setSleepTimer(extended)
+        sleepTimerConfirmations.confirm(SleepTimerChoice.Minutes(extended.minutesLeft(now))) {
+            playback.setSleepTimer(null)
+        }
+    }
+
     fun cancelSleepTimer() {
         playback.setSleepTimer(null)
         sleepTimerConfirmations.takeDown()
@@ -236,6 +270,19 @@ class NowPlayingViewModel @Inject constructor(
     }
 
     fun clearQueue() = playback.clearQueue()
+
+    /** Stores [speed], one of the presets; the playback service applies it to the player. */
+    fun setPlaybackSpeed(speed: Float) {
+        chosenSpeed.value = speed
+        chosenSpeedJob?.cancel()
+        chosenSpeedJob = viewModelScope.launch {
+            // Until the player plays at it, or answers with another speed.
+            player.state.map { it.speed }.distinctUntilChanged().withIndex()
+                .first { (index, playing) -> playing == speed || index > 0 }
+            chosenSpeed.value = null
+        }
+        viewModelScope.launch { preferences.update { it.copy(playbackSpeed = speed) } }
+    }
 
     private fun loadLyrics(songId: String, offline: Boolean): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)

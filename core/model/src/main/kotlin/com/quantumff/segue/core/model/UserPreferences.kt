@@ -53,12 +53,19 @@ data class UserPreferences(
     /** Grid or list, for the Albums and Artists tabs each. */
     val albumViewMode: LibraryViewMode = LibraryViewMode.Grid,
     val artistViewMode: LibraryViewMode = LibraryViewMode.Grid,
+    /**
+     * How fast songs play, one of [PLAYBACK_SPEEDS]; pitch stays natural. Holds across songs until
+     * changed, and applies to every controller (notification, car).
+     */
+    val playbackSpeed: Float = DEFAULT_PLAYBACK_SPEED,
 ) {
     companion object {
         const val DEFAULT_STREAM_CACHE_MB = 1024
         val STREAM_CACHE_SIZES_MB = listOf(256, 512, 1024, 2048, 4096)
         const val DEFAULT_STOP_WHEN_PAUSED_MINUTES = 10
         val STOP_WHEN_PAUSED_MINUTES = listOf(5, 10, 30, 60)
+        const val DEFAULT_PLAYBACK_SPEED = 1f
+        val PLAYBACK_SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
     }
 }
 

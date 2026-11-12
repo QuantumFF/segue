@@ -50,10 +50,12 @@ class ShellPlayerActions(
     val onSkipPastError: () -> Unit,
     /** The playback error snackbar's Retry, for a network error: prepares the song again and plays it. */
     val onRetryPlayback: () -> Unit,
+    /** Seeks the current song, in milliseconds: the player bar's seek line. */
+    val onSeek: (Long) -> Unit,
 ) {
     companion object {
         /** Ignores every command. For previews and tests. */
-        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {}, {}, {})
+        val None = ShellPlayerActions({}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 

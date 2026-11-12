@@ -21,6 +21,7 @@ import com.quantumff.segue.core.playback.cache.StreamRequest
 internal object SegueSessionCommands {
     private const val PREFIX = "com.quantumff.segue.playback."
 
+    /** Stars or unstars a queued song: the one [favoriteArgs] names, or the current song. */
     const val TOGGLE_FAVORITE = PREFIX + "TOGGLE_FAVORITE"
     const val SET_SLEEP_TIMER = PREFIX + "SET_SLEEP_TIMER"
 
@@ -30,6 +31,12 @@ internal object SegueSessionCommands {
      * [ARG_STARTED].
      */
     const val ADOPT_QUEUE = PREFIX + "ADOPT_QUEUE"
+
+    /**
+     * Restores this device's saved queue, paused, if nothing is queued (SavedQueueLoader.restore):
+     * the empty widget's tap, which may find the service already running.
+     */
+    const val RESTORE_SAVED_QUEUE = PREFIX + "RESTORE_SAVED_QUEUE"
 
     /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
@@ -56,6 +63,7 @@ internal object SegueSessionCommands {
     const val UNDO_INSTANT_MIX = PREFIX + "UNDO_INSTANT_MIX"
 
     const val ARG_SLEEP_KIND = "sleepKind"
+    private const val ARG_SONG_ID = "songId"
     const val ARG_SLEEP_ENDS_AT = "sleepEndsAt"
     const val ARG_STARTED = "started"
     const val ARG_QUEUED = "queued"
@@ -99,6 +107,7 @@ internal object SegueSessionCommands {
             TOGGLE_FAVORITE,
             SET_SLEEP_TIMER,
             ADOPT_QUEUE,
+            RESTORE_SAVED_QUEUE,
             UNDO_ADOPTION,
             PLAY_ALBUMS,
             QUEUE_SONGS,
@@ -114,6 +123,12 @@ internal object SegueSessionCommands {
     fun adoptArgs(play: Boolean) = Bundle().apply { putBoolean(ARG_PLAY, play) }
 
     fun adoptPlays(args: Bundle): Boolean = args.getBoolean(ARG_PLAY)
+
+    /** [TOGGLE_FAVORITE] for the queued song [songId], or the current song when null. */
+    fun favoriteArgs(songId: String?) = Bundle().apply { songId?.let { putString(ARG_SONG_ID, it) } }
+
+    /** The song of [favoriteArgs]: null for the current song. */
+    fun favoriteSongId(bundle: Bundle): String? = bundle.getString(ARG_SONG_ID)
 
     /**
      * [SET_SLEEP_TIMER]'s args, and the session extras: the sleep timer, which Media3's player state

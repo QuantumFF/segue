@@ -10,7 +10,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * The session's favorite (heart) button: stars or unstars the current song. The heart changes at
+ * The session's favorite (heart) button: stars or unstars the current song, or another queued song
+ * (a queue row's ⋮ menu). The heart changes at
  * once, on every queue item of that song, without interrupting playback. If the server call fails,
  * [StarRatingRepository] rolls Room back, and once the song's last toggle has an answer the hearts
  * show what the server last accepted.
@@ -34,17 +35,19 @@ class FavoriteToggle(
     private val waiting = HashMap<String, Toggles>()
     private var count = 0
 
-    fun toggle() {
-        val item = player.currentMediaItem ?: return
-        val songId = item.mediaId
+    /** Toggles the queued song [songId], or the current song when null. Does nothing if it is not queued. */
+    fun toggle(songId: String? = null) {
+        val item = if (songId == null) player.currentMediaItem else queuedItem(songId)
+        if (item == null) return
+        val id = item.mediaId
         val starred = !item.isStarred
         val toggle = ++count
-        waiting.getOrPut(songId) { Toggles(toggle, accepted = item.isStarred) }.latest = toggle
-        show(songId, starred)
+        waiting.getOrPut(id) { Toggles(toggle, accepted = item.isStarred) }.latest = toggle
+        show(id, starred)
         onChanged()
         callScope.launch {
             val succeeded = try {
-                starRatings.setStarred(MediaKind.Song, songId, starred)
+                starRatings.setStarred(MediaKind.Song, id, starred)
                 true
             } catch (e: CancellationException) {
                 throw e
@@ -52,9 +55,12 @@ class FavoriteToggle(
                 // Signed out or the server refused.
                 false
             }
-            playerScope.launch { answered(songId, toggle, starred, succeeded) }
+            playerScope.launch { answered(id, toggle, starred, succeeded) }
         }
     }
+
+    private fun queuedItem(songId: String) =
+        (0 until player.mediaItemCount).asSequence().map(player::getMediaItemAt).firstOrNull { it.mediaId == songId }
 
     /**
      * The server answered [toggle] of [songId]. Once the song's latest toggle is answered its hearts

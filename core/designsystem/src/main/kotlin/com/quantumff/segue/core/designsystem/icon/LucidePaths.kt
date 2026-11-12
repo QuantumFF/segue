@@ -94,6 +94,12 @@ internal object LucidePaths {
         "M11 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",
     )
 
+    /** lucide:gauge */
+    val Gauge: List<String> = listOf(
+        "m12 14 4-4",
+        "M3.34 19a10 10 0 1 1 17.32 0",
+    )
+
     /** lucide:grip-vertical */
     val GripVertical: List<String> = listOf(
         "M8 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0z",

@@ -115,6 +115,24 @@ class QueueSyncEngineTest {
         assertThat(remote.saves).containsExactly(state, cleared).inOrder()
     }
 
+    @Test
+    fun `a cleared queue leaves this device's saved queue at once, and the server's after the quiet period`() =
+        runTest {
+            val engine = engine()
+            engine.onQueueEvent(QueueEvent.QueueEdit, state)
+            advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+            engine.onQueueCleared()
+            runCurrent()
+
+            // The empty widget reads the saved queue to decide what its tap does.
+            val cleared = QueueState(emptyList(), -1, 0)
+            assertThat(snapshots.saves).containsExactly(state, cleared).inOrder()
+            assertThat(remote.saves).containsExactly(state)
+
+            advanceTimeBy(QueueSyncEngine.DEBOUNCE_MILLIS + 1)
+            assertThat(remote.saves).containsExactly(state, cleared).inOrder()
+        }
+
     // --- Download and conflicts -------------------------------------------------------------
 
     @Test

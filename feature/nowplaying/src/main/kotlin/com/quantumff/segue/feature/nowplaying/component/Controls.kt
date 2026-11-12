@@ -26,8 +26,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.quantumff.segue.core.designsystem.R as DesignR
+import com.quantumff.segue.core.designsystem.component.BadgeDot
 import com.quantumff.segue.core.designsystem.component.BufferingRing
+import com.quantumff.segue.core.designsystem.component.stateLabel
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -96,7 +101,8 @@ internal fun TransportRow(
             ModeButton(
                 icon = if (repeatMode == RepeatMode.One) SegueIcons.RepeatOne else SegueIcons.Repeat,
                 active = repeatMode != RepeatMode.Off,
-                contentDescription = stringResource(repeatMode.label),
+                contentDescription = stringResource(DesignR.string.ds_repeat),
+                stateDescription = stringResource(repeatMode.stateLabel),
                 onClick = onRepeatClick,
             )
         }
@@ -116,11 +122,22 @@ private fun TransportButton(icon: ImageVector, contentDescription: String, onCli
     }
 }
 
-/** Repeat: white 50% when off; white with a 4dp dot under the icon when on. */
+/** Repeat: white 50% when off; white with a 4dp dot under the icon when on. Announces its mode. */
 @Composable
-private fun ModeButton(icon: ImageVector, active: Boolean, contentDescription: String, onClick: () -> Unit) {
+private fun ModeButton(
+    icon: ImageVector,
+    active: Boolean,
+    contentDescription: String,
+    stateDescription: String,
+    onClick: () -> Unit,
+) {
     val onArt = SegueTheme.colors.onArt
-    IconButton(onClick = onClick, modifier = Modifier.size(SegueSizes.touchTarget)) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(SegueSizes.touchTarget)
+            .semantics { this.stateDescription = stateDescription },
+    ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
@@ -142,13 +159,13 @@ private fun ModeButton(icon: ImageVector, active: Boolean, contentDescription: S
 
 /**
  * Bottom row of the phone layout: Lyrics · Queue · Related · ⋮, each 48 tall with a label.
- * The open panel's button is full white; tapping it again closes the panel. ⋮ shows a dot while
- * the sleep timer runs.
+ * The open panel's button is full white; tapping it again closes the panel. ⋮ shows a dot with
+ * [moreBadge]: while the sleep timer runs or the speed isn't 1×.
  */
 @Composable
 internal fun PanelBar(
     openPanel: NowPlayingPanel?,
-    sleepTimerActive: Boolean,
+    moreBadge: Boolean,
     onPanelClick: (NowPlayingPanel) -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -167,7 +184,7 @@ internal fun PanelBar(
             label = stringResource(R.string.feature_nowplaying_more),
             selected = false,
             onClick = onMoreClick,
-            badge = sleepTimerActive,
+            badge = moreBadge,
         )
     }
 }
@@ -197,14 +214,7 @@ private fun PanelBarItem(
     ) {
         Box {
             Icon(imageVector = icon, contentDescription = null, tint = color)
-            if (badge) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .size(DOT + SegueSpacing.xxs)
-                        .background(MaterialTheme.colorScheme.primary, SegueShapes.full),
-                )
-            }
+            if (badge) BadgeDot(Modifier.align(Alignment.TopEnd))
         }
         Spacer(Modifier.height(SegueSpacing.xxs))
         Text(
@@ -229,13 +239,6 @@ internal val NowPlayingPanel.icon: ImageVector
         NowPlayingPanel.Lyrics -> SegueIcons.Lyrics
         NowPlayingPanel.Queue -> SegueIcons.UpNext
         NowPlayingPanel.Related -> SegueIcons.Related
-    }
-
-private val RepeatMode.label: Int
-    get() = when (this) {
-        RepeatMode.Off -> R.string.feature_nowplaying_repeat_off
-        RepeatMode.All -> R.string.feature_nowplaying_repeat_all
-        RepeatMode.One -> R.string.feature_nowplaying_repeat_one
     }
 
 private val PLAY_BUTTON = 72.dp

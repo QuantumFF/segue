@@ -55,11 +55,11 @@ class BufferingRingScreenshotTest {
                         PlayerBar(
                             state = PlayerBarState(
                                 track = buffering,
-                                durationSeconds = 255,
+                                durationMillis = 255_000,
                                 repeatMode = RepeatMode.All,
                                 volume = 0.7f,
                             ),
-                            positionSeconds = { 112 },
+                            positionMillis = { 112_000 },
                             actions = noActions,
                         )
                     }
@@ -88,6 +88,7 @@ class BufferingRingScreenshotTest {
         onQueueClick = {},
         onMoreClick = {},
         onVolumeChange = {},
+        onSeek = {},
     )
 
     private companion object {

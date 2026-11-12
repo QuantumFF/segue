@@ -12,9 +12,15 @@
     <string name="ds_previous">Previous</string>
     <string name="ds_shuffle">Shuffle</string>
     <string name="ds_repeat">Repeat</string>
+    <string name="ds_repeat_off">Off</string>
+    <string name="ds_repeat_all">All</string>
+    <string name="ds_repeat_one">One</string>
+    <string name="ds_seek">Seek</string>
     <string name="ds_lyrics">Lyrics</string>
     <string name="ds_queue">Queue</string>
     <string name="ds_volume">Volume</string>
+    <!-- The volume slider's level for screen readers, e.g. "70%". -->
+    <string name="ds_volume_level">%1$d%%</string>
     <string name="ds_account">Account</string>
     <string name="ds_refresh">Refresh</string>
     <string name="ds_clear">Clear</string>

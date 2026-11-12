@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -375,6 +376,9 @@ fun SearchTopBar(
  * @param onSourceClick opens the source; null when it opens nothing. [sourceClickLabel] says
  *   what a tap does, for accessibility.
  * @param onMoreClick opens the ⋮ menu; null hides the ⋮ when there is nothing to act on.
+ * @param moreBadge draws a dot on ⋮: something in its menu is set, such as a sleep timer.
+ * @param status drawn at the end of the source line, before the ⋮, such as the sleep timer chip; it
+ *   should be 48 tall at most.
  */
 @Composable
 fun NowPlayingTopBar(
@@ -385,6 +389,8 @@ fun NowPlayingTopBar(
     modifier: Modifier = Modifier,
     onSourceClick: (() -> Unit)? = null,
     sourceClickLabel: String? = null,
+    moreBadge: Boolean = false,
+    status: (@Composable () -> Unit)? = null,
 ) {
     val onArt = SegueTheme.colors.onArt
     val shade = SegueTheme.colors.artShade
@@ -438,13 +444,22 @@ fun NowPlayingTopBar(
                 )
             }
         }
+        status?.invoke()
         if (onMoreClick != null) {
-            SegueIconButton(
-                icon = SegueIcons.MoreVertical,
-                contentDescription = stringResource(R.string.ds_more_options),
-                onClick = onMoreClick,
-                tint = onArt,
-            )
+            Box(contentAlignment = Alignment.Center) {
+                SegueIconButton(
+                    icon = SegueIcons.MoreVertical,
+                    contentDescription = stringResource(R.string.ds_more_options),
+                    onClick = onMoreClick,
+                    tint = onArt,
+                )
+                if (moreBadge) {
+                    // At the icon's top end, as on Now Playing's bottom-row ⋮.
+                    Box(Modifier.size(SegueSizes.icon)) {
+                        BadgeDot(Modifier.align(Alignment.TopEnd))
+                    }
+                }
+            }
         } else {
             // Keeps the source label centred under the missing ⋮.
             Spacer(Modifier.size(SegueSizes.touchTarget))

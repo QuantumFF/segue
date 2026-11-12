@@ -11,6 +11,8 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.allowHardware
 import coil3.toBitmap
+import com.quantumff.segue.core.data.repository.LibraryRepository
+import com.quantumff.segue.core.data.repository.QueueSnapshotRepository
 import com.quantumff.segue.core.designsystem.art.BlurredCover
 import com.quantumff.segue.core.designsystem.art.CoverArtRequest
 import com.quantumff.segue.core.designsystem.art.loadBlurredCover
@@ -29,7 +31,13 @@ internal interface WidgetEntryPoint {
     fun imageLoader(): ImageLoader
 
     fun stateStore(): WidgetStateStore
+
+    fun queueSnapshots(): QueueSnapshotRepository
+
+    fun library(): LibraryRepository
 }
+
+internal fun WidgetEntryPoint.savedQueueProbe() = SavedQueueProbe(queueSnapshots(), library())
 
 internal fun Context.widgetEntryPoint(): WidgetEntryPoint =
     EntryPointAccessors.fromApplication(applicationContext, WidgetEntryPoint::class.java)
@@ -47,6 +55,16 @@ internal class NextAction : ActionCallback {
 internal class PreviousAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
         context.widgetEntryPoint().playbackController().skipToPrevious()
+}
+
+/**
+ * The empty widget's tap with a saved queue: the playback service restores the queue paused at its
+ * last position, whether it starts now or was running; the widget then shows its song (the service
+ * publishes it).
+ */
+internal class ResumeSavedQueueAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        context.widgetEntryPoint().playbackController().resumeSavedQueue()
 }
 
 /** The app, on Now Playing when something is queued. */

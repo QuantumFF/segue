@@ -129,4 +129,5 @@ fun MediaItem.toQueueItem(timelineIndex: Int): QueueItem = QueueItem(
     coverArtId = mediaMetadata.extras?.getString(Extras.COVER_ART_ID),
     durationMillis = mediaMetadata.durationMs ?: 0,
     isStarred = isStarred,
+    artistId = mediaMetadata.extras?.getString(Extras.ARTIST_ID),
 )

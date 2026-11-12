@@ -57,6 +57,26 @@ class QueueListTest {
         assertThat(rows.map { it.key }).containsExactly("x#1", "x#2", "y#1").inOrder()
     }
 
+    @Test
+    fun `rows carry what their menu acts on`() {
+        val starred = item("x", "al", 0).copy(artistId = "ar", isStarred = true)
+        val rows = QueueList.build(listOf(starred, item("y", null, 1)), 0, isPlaying = false, historyExpanded = false)
+            .filterIsInstance<QueueListItem.Track>()
+
+        assertThat(rows[0].song).isEqualTo(QueueSong("x", albumId = "al", artistId = "ar", isStarred = true))
+        assertThat(rows[1].song).isEqualTo(QueueSong("y", albumId = null, artistId = null, isStarred = false))
+    }
+
+    @Test
+    fun `play next is offered only where it would move the track`() {
+        val rows = QueueList.build(queue, 2, isPlaying = false, historyExpanded = true)
+            .filterIsInstance<QueueListItem.Track>()
+
+        // The current track (A1) and the one right after it (A2) are already where play next puts them.
+        assertThat(rows.associate { it.row.title to it.canPlayNext })
+            .containsExactly("B1", true, "B2", true, "A1", false, "A2", false, "C1", true)
+    }
+
     // --- Play next ---------------------------------------------------------------------------
 
     @Test

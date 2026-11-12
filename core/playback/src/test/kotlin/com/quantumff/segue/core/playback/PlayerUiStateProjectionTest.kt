@@ -62,6 +62,13 @@ class PlayerUiStateProjectionTest {
     }
 
     @Test
+    fun `the playback speed is the player's`() {
+        exo.setPlaybackSpeed(1.5f)
+
+        assertThat(project().speed).isEqualTo(1.5f)
+    }
+
+    @Test
     fun `before the player knows the duration, the item's own stands in`() {
         exo.setMediaItems(items("a"))
 
