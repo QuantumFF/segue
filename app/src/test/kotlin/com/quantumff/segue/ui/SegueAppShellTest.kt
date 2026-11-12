@@ -379,6 +379,16 @@ class SegueAppShellTest {
 
     @Test
     @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's queue opens Now Playing as before`() {
+        setExpandedShellShowingStart()
+
+        compose.onNodeWithContentDescription("Queue").performClick()
+
+        compose.onNodeWithText("Now playing on no panel, menu closed").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
     fun `the player bar's track opens Now Playing as before, even after Lyrics did`() {
         setExpandedShellShowingStart()
         compose.onNodeWithContentDescription("Lyrics").performClick()

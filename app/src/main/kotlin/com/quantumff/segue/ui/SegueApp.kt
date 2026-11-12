@@ -548,7 +548,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
             onRepeatClick = actions.onCycleRepeat,
             onLyricsClick = { open(NowPlayingStart(panel = NowPlayingPanel.Lyrics)) },
             // The queue is a Now Playing panel: the first tab in its two-pane layout.
-            onQueueClick = { open(NowPlayingStart(panel = NowPlayingPanel.Queue)) },
+            onQueueClick = { open(NowPlayingStart.Default) },
             onMoreClick = { open(NowPlayingStart(openMenu = true)) },
             onVolumeChange = player.volume.onChange,
             onSeek = actions.onSeek,
