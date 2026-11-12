@@ -86,6 +86,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 - Screen side margin: 16 on compact width, 24 on medium and expanded. Grid gutter: 12. Gap between home sections: 24.
 - Minimum touch target: 48. Icons: 24 by default, 20 inside rows, 28 for the Now Playing transport buttons.
+- Accessibility: every target is at least 48dp, and every gesture has an accessibility action or a button. `Modifier.minimumTouchTarget()` grows a smaller control to 48 without changing how it is drawn; `Modifier.overflowingTouchTarget()` does the same while the control keeps its slot, its target overlapping its neighbours.
 - Icons: **Lucide** (ISC, same set as Feishin), stroke 2. Vendor the ImageVectors that are used, or use `com.composables:icons-lucide`. Use filled variants for active play, pause and favorite.
 
 | Radius token | dp | Use |

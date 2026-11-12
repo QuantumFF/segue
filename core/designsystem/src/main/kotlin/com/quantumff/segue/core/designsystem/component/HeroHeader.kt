@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -46,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.art.ArtNoise
 import com.quantumff.segue.core.designsystem.art.BlurredArt
 import com.quantumff.segue.core.designsystem.art.CoverArt
@@ -310,6 +313,19 @@ private fun HeroArt(state: HeroHeaderState, size: Dp) {
     )
 }
 
+/**
+ * The subtitle as a link to the album's artist: a button TalkBack announces as "Go to artist", with
+ * a 48dp touch target that overlaps the title and metadata rather than pushing them apart.
+ */
+@Composable
+private fun Modifier.artistLink(onClick: () -> Unit): Modifier = overflowingTouchTarget(
+    Modifier.clickable(
+        role = Role.Button,
+        onClickLabel = stringResource(R.string.ds_action_go_to_artist),
+        onClick = onClick,
+    ),
+)
+
 @Composable
 private fun ColumnScope.HeroText(
     state: HeroHeaderState,
@@ -351,7 +367,7 @@ private fun ColumnScope.HeroText(
             textAlign = textAlign,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (onSubtitleClick != null) Modifier.clickable(onClick = onSubtitleClick) else Modifier),
+                .then(if (onSubtitleClick != null) Modifier.artistLink(onSubtitleClick) else Modifier),
         )
     }
     state.metadata?.let { metadata ->
