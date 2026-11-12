@@ -32,6 +32,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.feature.nowplaying.R
 import com.quantumff.segue.feature.nowplaying.minutesLeft
+import com.quantumff.segue.feature.nowplaying.sleepDuration
 
 /**
  * The sleep timer chip in Now Playing's top bar (DESIGN.md §4.7): "23 min" left, ticking each minute,
@@ -85,16 +86,7 @@ internal fun SleepTimerChip(
  * "1 h 30 min", part of a minute counting as a whole one), or "End of track" or "End of album".
  */
 internal fun SleepTimer.chipText(nowMillis: Long): SnackbarText = when (this) {
-    is SleepTimer.AtTime -> {
-        val minutes = minutesLeft(nowMillis)
-        val hours = minutes / MINUTES_PER_HOUR
-        val rest = minutes % MINUTES_PER_HOUR
-        when {
-            hours == 0 -> SnackbarText.of(R.string.feature_nowplaying_sleep_minutes, rest)
-            rest == 0 -> SnackbarText.of(R.string.feature_nowplaying_sleep_hours, hours)
-            else -> SnackbarText.of(R.string.feature_nowplaying_sleep_hours_minutes, hours, rest)
-        }
-    }
+    is SleepTimer.AtTime -> sleepDuration(minutesLeft(nowMillis))
 
     SleepTimer.EndOfTrack -> SnackbarText.of(R.string.feature_nowplaying_sleep_end_of_track)
 
@@ -102,4 +94,3 @@ internal fun SleepTimer.chipText(nowMillis: Long): SnackbarText = when (this) {
 }
 
 private val CHIP_ICON = 16.dp
-private const val MINUTES_PER_HOUR = 60
