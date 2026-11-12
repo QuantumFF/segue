@@ -63,6 +63,8 @@ data class QueueItem(
     val coverArtId: String?,
     val durationMillis: Long,
     val isStarred: Boolean,
+    /** The song's artist, for a queue row's "Go to artist". */
+    val artistId: String? = null,
 )
 
 /** Another device's saved queue, newer than this device's. */
