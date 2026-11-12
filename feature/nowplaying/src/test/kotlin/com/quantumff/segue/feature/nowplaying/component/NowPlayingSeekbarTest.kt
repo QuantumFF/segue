@@ -5,9 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -23,6 +21,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,7 +55,7 @@ class NowPlayingSeekbarTest {
     fun `the time toggle is a button with a 48 target inside the seekbar`() {
         show()
 
-        val toggle = compose.onNode(clickLabel("Show remaining time"))
+        val toggle = compose.onNode(hasClickLabel("Show remaining time"))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
             .assertHeightIsAtLeast(48.dp)
             .assertWidthIsAtLeast(48.dp)
@@ -67,9 +66,9 @@ class NowPlayingSeekbarTest {
     fun `the time toggle switches between total and remaining time`() {
         show()
 
-        compose.onNode(clickLabel("Show remaining time")).performClick()
+        compose.onNode(hasClickLabel("Show remaining time")).performClick()
 
-        compose.onNode(clickLabel("Show total time")).assertHeightIsAtLeast(48.dp)
+        compose.onNode(hasClickLabel("Show total time")).assertHeightIsAtLeast(48.dp)
     }
 
     @Test
@@ -87,7 +86,7 @@ class NowPlayingSeekbarTest {
         var seeked: Long? = null
         show(onSeek = { seeked = it })
 
-        val toggle = compose.onNode(clickLabel("Show remaining time")).getBoundsInRoot()
+        val toggle = compose.onNode(hasClickLabel("Show remaining time")).getBoundsInRoot()
         val seek = compose.onNodeWithContentDescription("Seek").getBoundsInRoot()
         // The toggle's 48 target reaches up into the line's touch strip; press where both cover.
         assertThat(toggle.top).isLessThan(seek.bottom)
@@ -95,7 +94,7 @@ class NowPlayingSeekbarTest {
         compose.onNodeWithTag(SEEKBAR).performTouchInput { click(Offset(300.dp.toPx(), y.toPx())) }
 
         assertThat(seeked).isNotNull()
-        compose.onNode(clickLabel("Show remaining time")).assertExists()
+        compose.onNode(hasClickLabel("Show remaining time")).assertExists()
     }
 
     private fun show(onSeek: (Long) -> Unit = {}) {
@@ -111,10 +110,6 @@ class NowPlayingSeekbarTest {
                 )
             }
         }
-    }
-
-    private fun clickLabel(label: String) = SemanticsMatcher("click label is \"$label\"") {
-        it.config.getOrNull(SemanticsActions.OnClick)?.label == label
     }
 
     private companion object {

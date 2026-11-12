@@ -1,14 +1,12 @@
 package com.quantumff.segue.core.designsystem.component
 
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,14 +33,9 @@ class MiniPlayerTest {
             }
         }
 
-        compose.onAllNodes(clickLabel("Open Now Playing")).assertCountEquals(1)
-        compose.onNode(clickLabel("Open Now Playing")).performClick()
+        compose.onAllNodes(hasClickLabel("Open Now Playing")).assertCountEquals(1)
+        compose.onNode(hasClickLabel("Open Now Playing")).performClick()
 
         assertThat(opens).isEqualTo(1)
     }
-}
-
-/** Matches a node whose click action has [label]. */
-internal fun clickLabel(label: String) = SemanticsMatcher("click label is \"$label\"") {
-    it.config.getOrNull(SemanticsActions.OnClick)?.label == label
 }

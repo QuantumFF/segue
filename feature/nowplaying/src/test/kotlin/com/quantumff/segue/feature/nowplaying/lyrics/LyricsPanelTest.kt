@@ -1,8 +1,5 @@
 package com.quantumff.segue.feature.nowplaying.lyrics
 
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -10,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import com.quantumff.segue.feature.nowplaying.LyricsUiState
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Rule
@@ -30,9 +28,7 @@ class LyricsPanelTest {
 
         compose.onNodeWithText("Second line")
             .assert(
-                SemanticsMatcher("click label is \"Seek here\"") {
-                    it.config.getOrNull(SemanticsActions.OnClick)?.label == "Seek here"
-                },
+                hasClickLabel("Seek here"),
             )
             .performClick()
 

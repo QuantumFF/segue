@@ -3,9 +3,7 @@ package com.quantumff.segue.core.designsystem.component
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -16,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.testing.compose.hasClickLabel
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,9 +37,7 @@ class HeroArtistLinkTest {
         compose.onNodeWithText("Radiohead")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
             .assert(
-                SemanticsMatcher("click label is \"Go to artist\"") {
-                    it.config.getOrNull(SemanticsActions.OnClick)?.label == "Go to artist"
-                },
+                hasClickLabel("Go to artist"),
             )
             .assertHeightIsAtLeast(SegueSizes.touchTarget)
             .performClick()
