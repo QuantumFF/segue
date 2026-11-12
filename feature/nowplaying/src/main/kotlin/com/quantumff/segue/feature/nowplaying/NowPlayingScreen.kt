@@ -145,6 +145,7 @@ fun NowPlayingScreen(
             onToggleFavorite = viewModel::toggleFavorite,
             onStartSleepTimer = viewModel::setSleepTimer,
             onCancelSleepTimer = viewModel::cancelSleepTimer,
+            onExtendSleepTimer = viewModel::extendSleepTimer,
             onInstantMix = viewModel::startInstantMix,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
@@ -289,6 +290,7 @@ internal fun NowPlayingScreen(
                 onStart = actions.onStartSleepTimer,
                 onCancel = actions.onCancelSleepTimer,
                 onDismissRequest = { sheet = null },
+                onExtend = actions.onExtendSleepTimer,
             )
 
             NowPlayingSheet.Details -> TrackDetailsSheet(details = state.details, onDismissRequest = { sheet = null })

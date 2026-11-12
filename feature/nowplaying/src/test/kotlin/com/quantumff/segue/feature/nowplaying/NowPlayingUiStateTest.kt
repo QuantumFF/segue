@@ -46,6 +46,40 @@ class NowPlayingUiStateTest {
     }
 
     @Test
+    fun plusFifteenMinutesExtendsAnAtTimeTimerFromItsEnd() {
+        val endsAt = 1_000_000L + 10 * 60_000L
+
+        assertThat(SleepTimer.AtTime(endsAt).extendedBy15Min(nowMillis = 1_000_000))
+            .isEqualTo(SleepTimer.AtTime(endsAt + 15 * 60_000L))
+    }
+
+    @Test
+    fun plusFifteenMinutesOnAnAtTimeTimerThatJustEndedEndsFifteenMinutesFromNow() {
+        assertThat(SleepTimer.AtTime(900_000).extendedBy15Min(nowMillis = 1_000_000))
+            .isEqualTo(SleepTimer.AtTime(1_000_000 + 15 * 60_000L))
+    }
+
+    @Test
+    fun plusFifteenMinutesTurnsAnEndOfTrackTimerIntoOneEndingFifteenMinutesFromNow() {
+        assertThat(SleepTimer.EndOfTrack.extendedBy15Min(nowMillis = 1_000_000))
+            .isEqualTo(SleepTimer.AtTime(1_000_000 + 15 * 60_000L))
+    }
+
+    @Test
+    fun plusFifteenMinutesTurnsAnEndOfAlbumTimerIntoOneEndingFifteenMinutesFromNow() {
+        assertThat(SleepTimer.EndOfAlbum.extendedBy15Min(nowMillis = 1_000_000))
+            .isEqualTo(SleepTimer.AtTime(1_000_000 + 15 * 60_000L))
+    }
+
+    @Test
+    fun minutesLeftRoundUpSoATimerNeverReadsAsEndingEarly() {
+        assertThat(SleepTimer.AtTime(15 * 60_000L).minutesLeft(nowMillis = 0)).isEqualTo(15)
+        assertThat(SleepTimer.AtTime(15 * 60_000L).minutesLeft(nowMillis = 30_000)).isEqualTo(15)
+        assertThat(SleepTimer.AtTime(15 * 60_000L).minutesLeft(nowMillis = 60_000)).isEqualTo(14)
+        assertThat(SleepTimer.AtTime(0).minutesLeft(nowMillis = 60_000)).isEqualTo(0)
+    }
+
+    @Test
     fun neighborsWrapOnlyWithRepeatAll() {
         val player = player(currentQueueIndex = 0, repeatMode = RepeatMode.Off)
         assertThat(player.toNowPlayingUiState(null, null).previous).isNull()

@@ -18,6 +18,8 @@ class NowPlayingActions(
     val onToggleFavorite: () -> Unit,
     val onStartSleepTimer: (SleepTimerChoice) -> Unit,
     val onCancelSleepTimer: () -> Unit,
+    /** "+15 min" on the running sleep timer. */
+    val onExtendSleepTimer: () -> Unit,
     val onInstantMix: () -> Unit,
     val onAlbumClick: (String) -> Unit,
     val onArtistClick: (String) -> Unit,
@@ -46,6 +48,7 @@ class NowPlayingActions(
             onToggleFavorite = {},
             onStartSleepTimer = {},
             onCancelSleepTimer = {},
+            onExtendSleepTimer = {},
             onInstantMix = {},
             onAlbumClick = {},
             onArtistClick = {},
