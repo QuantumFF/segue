@@ -51,6 +51,20 @@ class SleepTimerChipTest {
     }
 
     @Test
+    fun `the minutes left go down when a whole minute is left, not on the clock's minute`() {
+        // 1 min 30 s left: "2 min" until 1 min is left, half way into the clock's minute.
+        show(SleepTimer.AtTime(START + 90_000))
+        compose.onNodeWithText("2 min").assertIsDisplayed()
+
+        compose.mainClock.autoAdvance = false
+        now = START + 30_000
+        compose.mainClock.advanceTimeBy(30_000 + 100)
+        compose.waitForIdle()
+
+        compose.onNodeWithText("1 min").assertIsDisplayed()
+    }
+
+    @Test
     fun `an end of track timer says so`() {
         show(SleepTimer.EndOfTrack)
 

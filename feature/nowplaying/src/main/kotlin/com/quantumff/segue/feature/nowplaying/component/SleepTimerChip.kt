@@ -48,7 +48,8 @@ internal fun SleepTimerChip(
     clock: () -> Long = System::currentTimeMillis,
 ) {
     // Only a timer at a time counts down; the others need no clock.
-    val now by rememberMinuteClock(ticking = timer is SleepTimer.AtTime, clock = clock)
+    val endsAt = (timer as? SleepTimer.AtTime)?.endsAtMillis
+    val now by rememberMinuteClock(ticking = endsAt != null, alignedTo = endsAt ?: 0L, clock = clock)
     val label = timer.chipText(now).resolve(LocalResources.current)
     val description = stringResource(R.string.feature_nowplaying_sleep_chip_description, label)
     val onArt = SegueTheme.colors.onArt

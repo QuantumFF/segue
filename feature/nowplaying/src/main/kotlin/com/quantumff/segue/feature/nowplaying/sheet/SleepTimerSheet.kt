@@ -151,7 +151,7 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit, onExtend: () -
     val (title, subtitle) = when (active) {
         is SleepTimer.AtTime -> {
             // Refreshes once a minute while the sheet is open, in step with the top bar's chip.
-            val now by rememberMinuteClock()
+            val now by rememberMinuteClock(alignedTo = active.endsAtMillis)
             val minutesLeft = active.minutesLeft(now)
             stringResource(
                 R.string.feature_nowplaying_sleep_active_at,
