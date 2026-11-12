@@ -1,24 +1,15 @@
 package com.quantumff.segue.feature.nowplaying.component
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,22 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.setProgress
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
-import com.quantumff.segue.core.designsystem.theme.SegueMotion
+import com.quantumff.segue.core.designsystem.component.SeekLine
+import com.quantumff.segue.core.designsystem.component.SeekLineStyle
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -49,15 +30,11 @@ import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.feature.nowplaying.R
-import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Now Playing seekbar (DESIGN.md §4.7): a 4 tall track (white 24%, active white) and a 12 thumb
- * that grows to 20 while dragging. Below it: elapsed time, the [quality] pill, and the total (tap
- * to switch to remaining). Tap or drag to seek.
- *
- * Position samples arrive twice a second; between them the bar glides linearly to where the next
- * sample will be, so it moves smoothly while only this composable redraws.
+ * Now Playing seekbar (DESIGN.md §4.7): a [SeekLine] with a 4 tall track (white 24%, active white)
+ * and a 12 thumb that grows to 20 while dragging. Below it: elapsed time, the [quality] pill, and
+ * the total (tap to switch to remaining). Tap or drag to seek.
  *
  * @param positionMillis read inside this composable only.
  */
@@ -70,84 +47,19 @@ internal fun NowPlayingSeekbar(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The drag position as a fraction, or null when not dragging.
+    // The drag position as a fraction, or null when not dragging: the times follow the drag.
     var dragFraction by remember { mutableStateOf<Float?>(null) }
-    val progress = remember { Animatable(0f) }
     val latestPosition by rememberUpdatedState(positionMillis)
-    LaunchedEffect(durationMillis, isPlaying) {
-        snapshotFlow { latestPosition() }.collectLatest { position ->
-            if (durationMillis <= 0) {
-                progress.snapTo(0f)
-                return@collectLatest
-            }
-            val now = (position.toFloat() / durationMillis).coerceIn(0f, 1f)
-            val jumped = kotlin.math.abs(now - progress.value) * durationMillis > JUMP_MILLIS
-            if (!isPlaying || jumped) progress.snapTo(now) else progress.snapTo(maxOf(progress.value, now))
-            if (isPlaying) {
-                val ahead = ((position + TICK_MILLIS).toFloat() / durationMillis).coerceIn(0f, 1f)
-                progress.animateTo(ahead, tween(TICK_MILLIS.toInt(), easing = LinearEasing))
-            }
-        }
-    }
-    val thumbRadius by animateDpAsState(
-        targetValue = if (dragFraction != null) THUMB_DRAGGING / 2 else THUMB / 2,
-        animationSpec = SegueMotion.short(),
-        label = "thumb",
-    )
-    val latestDuration by rememberUpdatedState(durationMillis)
-    val latestOnSeek by rememberUpdatedState(onSeek)
     val active = SegueTheme.colors.onArt
-    val inactive = active.copy(alpha = TRACK_ALPHA)
-    val seekDescription = stringResource(R.string.feature_nowplaying_seek)
-
     Column(modifier.fillMaxWidth()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(TOUCH_HEIGHT)
-                .semantics {
-                    contentDescription = seekDescription
-                    // From the position samples, not the per-frame glide, so semantics update per tick.
-                    val position = latestPosition()
-                    stateDescription = formatDuration(position / MILLIS_PER_SECOND)
-                    progressBarRangeInfo = ProgressBarRangeInfo(
-                        if (latestDuration > 0) (position.toFloat() / latestDuration).coerceIn(0f, 1f) else 0f,
-                        0f..1f,
-                    )
-                    setProgress { fraction ->
-                        latestOnSeek((fraction * latestDuration).toLong())
-                        true
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        val fraction = (offset.x / size.width).coerceIn(0f, 1f)
-                        latestOnSeek((fraction * latestDuration).toLong())
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset -> dragFraction = (offset.x / size.width).coerceIn(0f, 1f) },
-                        onHorizontalDrag = { change, _ ->
-                            change.consume()
-                            dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                        },
-                        onDragEnd = {
-                            dragFraction?.let { latestOnSeek((it * latestDuration).toLong()) }
-                            dragFraction = null
-                        },
-                        onDragCancel = { dragFraction = null },
-                    )
-                },
-        ) {
-            val fraction = dragFraction ?: progress.value
-            val trackHeight = TRACK_HEIGHT.toPx()
-            val top = (size.height - trackHeight) / 2
-            val corner = CornerRadius(trackHeight / 2)
-            drawRoundRect(inactive, Offset(0f, top), Size(size.width, trackHeight), corner)
-            drawRoundRect(active, Offset(0f, top), Size(size.width * fraction, trackHeight), corner)
-            drawCircle(active, thumbRadius.toPx(), Offset(size.width * fraction, size.height / 2))
-        }
+        SeekLine(
+            positionMillis = positionMillis,
+            durationMillis = durationMillis,
+            isPlaying = isPlaying,
+            onSeek = onSeek,
+            style = SeekLineStyle.nowPlaying(active = active, inactive = active.copy(alpha = TRACK_ALPHA)),
+            onDrag = { dragFraction = it },
+        )
         SeekbarTimes(
             positionMillis = { dragFraction?.let { (it * durationMillis).toLong() } ?: latestPosition() },
             durationMillis = durationMillis,
@@ -207,17 +119,7 @@ private fun TimeText(millis: () -> Long, modifier: Modifier = Modifier) {
     )
 }
 
-private val TRACK_HEIGHT = 4.dp
-private val THUMB = 12.dp
-private val THUMB_DRAGGING = 20.dp
-private val TOUCH_HEIGHT = 32.dp
 private val PILL_MAX_WIDTH = 160.dp
 private const val TRACK_ALPHA = 0.24f
 private const val PILL_BORDER_ALPHA = 0.4f
 private const val MILLIS_PER_SECOND = 1_000L
-
-/** The position ticker's interval in core:playback. */
-private const val TICK_MILLIS = 500L
-
-/** A sample further than this from the drawn position is a seek: snap instead of gliding. */
-private const val JUMP_MILLIS = 1_500L

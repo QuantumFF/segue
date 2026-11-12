@@ -96,6 +96,7 @@ class PlayerViewModel @Inject constructor(
         onDismissRemote = playback::dismissRemoteQueue,
         onSkipPastError = playback::skipPastError,
         onRetryPlayback = playback::retry,
+        onSeek = playback::seekTo,
     )
 
     fun cycleRepeatMode() = playback.setRepeatMode(player.value.repeatMode.next())
