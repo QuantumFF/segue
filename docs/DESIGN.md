@@ -478,7 +478,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Repeat is announced as "Repeat" with its mode as the state: Off, All or One.
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
   - Volume slider: sets the device's media volume, snapping to its volume steps, and follows the volume keys. Named "Volume" for screen readers, with its level as a percentage. Phones have none: the volume keys are enough.
-  - Clicking the art or title opens Now Playing as the mini player does. Lyrics opens it on the Lyrics panel, queue on the Queue panel, and ⋮ with its ⋮ menu (§4.7) already open. Now Playing stays an overlay (ADR 0007); collapsing it forgets the panel, so the next open from anywhere else starts as before.
+  - Clicking the art or title opens Now Playing as the mini player does. Lyrics opens it on the Lyrics panel, and ⋮ with its ⋮ menu (§4.7) already open; queue opens it as the mini player does. Now Playing stays an overlay (ADR 0007); collapsing it forgets the panel, so the next open from anywhere else starts as before.
 - **Buffering ring:** while the stream buffers, an indeterminate `CircularProgressIndicator` (stroke 2) circles play/pause. It shows only once buffering has lasted 300ms, so quick rebuffers don't flash it, and goes the moment buffering ends. The button keeps its icon: Pause while playback was asked for, so a tap pauses. The ring never moves the layout.
   - Mini player: 40, `onSurface`, around the 24 icon inside its 48 target.
   - Player bar: 48, `onSurface`, 2 clear of the 40 play circle.

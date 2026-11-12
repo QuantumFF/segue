@@ -135,6 +135,7 @@ class SeguePlaybackService : MediaLibraryService() {
                 preferences = prefs
                 components.cacheEvictor.maxBytes = megabytes(prefs.streamCacheSizeMb)
                 replayGain.update(ReplayGainSettings.from(prefs))
+                offload.playbackSpeed = prefs.playbackSpeed
                 player.applyPlaybackSpeed(prefs)
             }
         }
@@ -311,6 +312,8 @@ class SeguePlaybackService : MediaLibraryService() {
                         SessionResult(SessionResult.RESULT_SUCCESS, SegueSessionCommands.startedResult(adopted))
                     }
                 }
+
+                SegueSessionCommands.RESTORE_SAVED_QUEUE -> scope.launch { savedQueues.restore() }
 
                 SegueSessionCommands.UNDO_ADOPTION -> scope.launch { savedQueues.undoAdoption() }
 

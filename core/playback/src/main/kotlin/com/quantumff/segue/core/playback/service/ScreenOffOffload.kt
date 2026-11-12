@@ -20,12 +20,23 @@ import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
  * ReplayGain needs its processor, so [processingRequired] keeps offload off for as long as it is
  * set, whatever the screen does. It flips once per setting change, never per track, so gapless
  * transitions do not cross between offload and PCM.
+ *
+ * Offload skips the speed processor too: the sink sets speed on the output instead, and outputs
+ * that cannot change speed play at 1×. So while [playbackSpeed] is not 1× only outputs that can
+ * change speed are offloaded, and the rest decode on the CPU; at 1× any output will do.
  */
 class ScreenOffOffload(private val context: Context, private val player: Player) {
     private var screenOff = false
 
     /** True while an audio processor must run (ReplayGain boost): no offload then. */
     var processingRequired = false
+        set(value) {
+            field = value
+            update()
+        }
+
+    /** The speed the user plays at; anything but 1× needs an output that can change speed. */
+    var playbackSpeed = NORMAL_SPEED
         set(value) {
             field = value
             update()
@@ -58,22 +69,25 @@ class ScreenOffOffload(private val context: Context, private val player: Player)
 
     private fun update() {
         val enabled = screenOff && !processingRequired
-        val preferences = if (enabled) OFFLOAD else AudioOffloadPreferences.DEFAULT
+        val preferences = if (enabled) offloadPreferences() else AudioOffloadPreferences.DEFAULT
         val parameters = player.trackSelectionParameters
         if (parameters.audioOffloadPreferences == preferences) return
         Log.d(
             TAG,
-            "Audio offload ${if (enabled) "on" else "off"} (screenOff=$screenOff, processing=$processingRequired)",
+            "Audio offload ${if (enabled) "on" else "off"} " +
+                "(screenOff=$screenOff, processing=$processingRequired, speed=$playbackSpeed)",
         )
         player.trackSelectionParameters = parameters.buildUpon().setAudioOffloadPreferences(preferences).build()
     }
 
+    private fun offloadPreferences(): AudioOffloadPreferences = AudioOffloadPreferences.Builder()
+        .setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+        .setIsGaplessSupportRequired(true)
+        .setIsSpeedChangeSupportRequired(playbackSpeed != NORMAL_SPEED)
+        .build()
+
     private companion object {
         const val TAG = "SegueOffload"
-
-        val OFFLOAD: AudioOffloadPreferences = AudioOffloadPreferences.Builder()
-            .setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
-            .setIsGaplessSupportRequired(true)
-            .build()
+        const val NORMAL_SPEED = 1f
     }
 }

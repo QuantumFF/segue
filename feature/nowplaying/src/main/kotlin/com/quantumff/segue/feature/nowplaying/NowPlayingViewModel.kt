@@ -32,17 +32,20 @@ import com.quantumff.segue.feature.nowplaying.lyrics.PlaybackSample
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 
 /**
@@ -90,13 +93,15 @@ class NowPlayingViewModel @Inject constructor(
         },
     ) { song, file -> song?.toDetails(file) }
 
-    // The speed is the stored preference, which the playback service applies: the sheet and badge
-    // show the choice at once, even before the service has picked it up.
-    private val playbackSpeed: Flow<Float> = preferences.preferences.map { it.playbackSpeed }.distinctUntilChanged()
+    // The speed is the player's. A speed just chosen ([setPlaybackSpeed]) shows at once, until the
+    // player next reports its speed, so the sheet and badge don't wait for the playback service.
+    private val chosenSpeed = MutableStateFlow<Float?>(null)
+    private var chosenSpeedJob: Job? = null
 
     val uiState: StateFlow<NowPlayingUiState> =
-        combine(player.state, currentSong, currentFileInfo, playbackSpeed) { state, song, file, speed ->
-            state.toNowPlayingUiState(song, file).copy(speed = speed)
+        combine(player.state, currentSong, currentFileInfo, chosenSpeed) { state, song, file, chosen ->
+            val ui = state.toNowPlayingUiState(song, file)
+            if (chosen == null) ui else ui.copy(speed = chosen)
         }
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), NowPlayingUiState())
@@ -268,6 +273,14 @@ class NowPlayingViewModel @Inject constructor(
 
     /** Stores [speed], one of the presets; the playback service applies it to the player. */
     fun setPlaybackSpeed(speed: Float) {
+        chosenSpeed.value = speed
+        chosenSpeedJob?.cancel()
+        chosenSpeedJob = viewModelScope.launch {
+            // Until the player plays at it, or answers with another speed.
+            player.state.map { it.speed }.distinctUntilChanged().withIndex()
+                .first { (index, playing) -> playing == speed || index > 0 }
+            chosenSpeed.value = null
+        }
         viewModelScope.launch { preferences.update { it.copy(playbackSpeed = speed) } }
     }
 

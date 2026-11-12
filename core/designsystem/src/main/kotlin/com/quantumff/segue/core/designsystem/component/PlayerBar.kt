@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.designsystem.component
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -309,7 +310,9 @@ private fun PlayerBarPreview() {
     }
 }
 
-private val RepeatMode.stateLabel: Int
+/** The repeat button's state for screen readers, "Off", "All" or "One"; its name is [R.string.ds_repeat]. */
+@get:StringRes
+val RepeatMode.stateLabel: Int
     get() = when (this) {
         RepeatMode.Off -> R.string.ds_repeat_off
         RepeatMode.All -> R.string.ds_repeat_all

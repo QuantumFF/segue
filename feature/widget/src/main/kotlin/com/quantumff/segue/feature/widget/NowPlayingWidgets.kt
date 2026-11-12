@@ -91,10 +91,11 @@ abstract class NowPlayingWidget internal constructor(
                     art = loadWidgetArt(context, state.coverArtId, artPx)
                 }
             }
-            // Only the empty state asks: checked once each time the widget empties, not followed.
+            // Only the empty state asks, following the saved queue while the widget is empty: Clear
+            // queue empties the widget before the saved queue.
             var canResume by remember { mutableStateOf(initialCanResume) }
             LaunchedEffect(state.hasTrack) {
-                if (!state.hasTrack) canResume = savedQueue.canResume()
+                if (!state.hasTrack) savedQueue.canResumeUpdates().collect { canResume = it }
             }
             val current = art.takeIf { it.coverArtId == state.coverArtId } ?: WidgetArt.None
             val tap = surfaceTap(state.hasTrack, canResume)

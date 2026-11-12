@@ -1,6 +1,9 @@
 package com.quantumff.segue.feature.queue
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -10,6 +13,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.component.TrackRowState
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import kotlinx.collections.immutable.toImmutableList
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -87,6 +91,52 @@ class QueueMenuTest {
 
         assertThat(chosen).containsExactly("s3" to QueueMenuAction.Remove)
     }
+
+    @Test
+    fun `the menu acts on its row where the queue has it now`() {
+        var state by mutableStateOf(PreviewQueue)
+        val chosen = mutableListOf<QueueListItem.Track>()
+        compose.setContent {
+            SegueTheme {
+                QueueContent(state = state, actions = QueueActions(onMenuAction = { track, _ -> chosen += track }))
+            }
+        }
+        compose.onAllNodesWithContentDescription("More options")[2].performClick()
+
+        // s2 leaves the queue while the menu is open: s3 moves up one place.
+        state = PreviewQueue.withoutTrack("s2#1")
+        compose.onNodeWithText("Remove from queue").performClick()
+
+        assertThat(chosen.map { it.song.id to it.position }).containsExactly("s3" to 4)
+    }
+
+    @Test
+    fun `the menu closes when its row leaves the queue`() {
+        var state by mutableStateOf(PreviewQueue)
+        compose.setContent {
+            SegueTheme { QueueContent(state = state, actions = QueueActions()) }
+        }
+        compose.onAllNodesWithContentDescription("More options")[2].performClick()
+        compose.onNodeWithText("Remove from queue").assertExists()
+
+        state = PreviewQueue.withoutTrack("s3#1")
+
+        compose.onNodeWithText("Remove from queue").assertDoesNotExist()
+    }
+
+    /** [this] with the track [key] removed, and the tracks after it one place earlier. */
+    private fun QueueUiState.withoutTrack(key: String): QueueUiState {
+        val removed = items.filterIsInstance<QueueListItem.Track>().single { it.key == key }
+        return copy(
+            items = items.filterNot { it.key == key }
+                .map { row -> row.movedUpAfter(removed.position) }
+                .toImmutableList(),
+            trackCount = trackCount - 1,
+        )
+    }
+
+    private fun QueueListItem.movedUpAfter(position: Int): QueueListItem =
+        if (this is QueueListItem.Track && this.position > position) copy(position = this.position - 1) else this
 
     @Test
     fun `a dragged row hides its more button`() {

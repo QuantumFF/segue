@@ -20,10 +20,6 @@
     <string name="feature_nowplaying_pause">Pause</string>
     <string name="feature_nowplaying_show_remaining">Show remaining time</string>
     <string name="feature_nowplaying_show_total">Show total time</string>
-    <string name="feature_nowplaying_repeat">Repeat</string>
-    <string name="feature_nowplaying_repeat_off">Off</string>
-    <string name="feature_nowplaying_repeat_all">All</string>
-    <string name="feature_nowplaying_repeat_one">One</string>
     <string name="feature_nowplaying_more">More</string>
 
     <string name="feature_nowplaying_panel_lyrics">Lyrics</string>
@@ -67,6 +63,8 @@
     <!-- The Speed row while the speed isn't 1×, "Speed · 1.5×". -->
     <string name="feature_nowplaying_menu_speed_value">Speed · %1$s</string>
     <string name="feature_nowplaying_speed_title">Playback speed</string>
+    <!-- A playback speed as a multiplier: "1.5×". The number is already formatted for the locale. -->
+    <string name="feature_nowplaying_speed_value">%1$s×</string>
     <string name="feature_nowplaying_menu_details">Details</string>
 
     <string name="feature_nowplaying_sleep_title">Sleep timer</string>

@@ -30,6 +30,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -92,6 +93,44 @@ class NowPlayingViewModelTest {
         assertThat(preferences.preferences.value.playbackSpeed).isEqualTo(1.5f)
         assertThat(viewModel.uiState.value.speed).isEqualTo(1.5f)
         assertThat(viewModel.uiState.value.moreBadge).isTrue()
+    }
+
+    @Test
+    fun `the speed shown is the one the player plays at`() = runTest {
+        preferences.preferences.update { it.copy(playbackSpeed = 1.5f) }
+        backgroundScope.launchCollecting(viewModel.uiState)
+
+        // The service has not applied the stored speed (yet): Now Playing says what plays.
+        assertThat(viewModel.uiState.value.speed).isEqualTo(1f)
+        assertThat(viewModel.uiState.value.moreBadge).isFalse()
+
+        player.state.update { it.copy(speed = 1.5f) }
+        assertThat(viewModel.uiState.value.speed).isEqualTo(1.5f)
+    }
+
+    @Test
+    fun `a chosen speed shows at once, then follows the player`() = runTest {
+        backgroundScope.launchCollecting(viewModel.uiState)
+
+        viewModel.setPlaybackSpeed(1.5f)
+        assertThat(viewModel.uiState.value.speed).isEqualTo(1.5f)
+
+        player.state.update { it.copy(speed = 1.5f) }
+        assertThat(viewModel.uiState.value.speed).isEqualTo(1.5f)
+
+        // Changed from elsewhere, such as a car's controls.
+        player.state.update { it.copy(speed = 1.25f) }
+        assertThat(viewModel.uiState.value.speed).isEqualTo(1.25f)
+    }
+
+    @Test
+    fun `a chosen speed the player answers with another speed shows the player's`() = runTest {
+        backgroundScope.launchCollecting(viewModel.uiState)
+
+        viewModel.setPlaybackSpeed(2f)
+        player.state.update { it.copy(speed = 1.75f) }
+
+        assertThat(viewModel.uiState.value.speed).isEqualTo(1.75f)
     }
 
     @Test

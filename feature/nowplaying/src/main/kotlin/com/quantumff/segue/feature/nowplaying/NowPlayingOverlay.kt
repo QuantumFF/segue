@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntOffset
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
@@ -20,6 +21,8 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
  *   Playing before navigating.
  * @param queueContent the Queue panel. Its argument shows the details sheet for a queued song.
  * @param start the panel and menu shown each time it opens.
+ * @param opening counts the openings: a new one starts Now Playing over as [start] asks, even while
+ *   it is still sliding down from the last.
  */
 @Composable
 fun NowPlayingOverlay(
@@ -33,13 +36,9 @@ fun NowPlayingOverlay(
     queueContent: @Composable (onInfo: (songId: String) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     start: NowPlayingStart = NowPlayingStart.Default,
+    opening: Int = 0,
 ) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = slideInVertically(spring(PLAYER_DAMPING, PLAYER_STIFFNESS, IntOffset.VisibilityThreshold)) { it },
-        exit = slideOutVertically(SegueMotion.longExit()) { it } + fadeOut(SegueMotion.longExit()),
-        modifier = modifier,
-    ) {
+    NowPlayingOverlay(visible = visible, opening = opening, modifier = modifier) {
         NowPlayingScreen(
             onCollapse = onCollapse,
             onAlbumClick = onAlbumClick,
@@ -50,6 +49,24 @@ fun NowPlayingOverlay(
             queueContent = queueContent,
             start = start,
         )
+    }
+}
+
+/** [content] sliding in and out, composed afresh for each [opening]. */
+@Composable
+internal fun NowPlayingOverlay(
+    visible: Boolean,
+    opening: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(spring(PLAYER_DAMPING, PLAYER_STIFFNESS, IntOffset.VisibilityThreshold)) { it },
+        exit = slideOutVertically(SegueMotion.longExit()) { it } + fadeOut(SegueMotion.longExit()),
+        modifier = modifier,
+    ) {
+        key(opening) { content() }
     }
 }
 

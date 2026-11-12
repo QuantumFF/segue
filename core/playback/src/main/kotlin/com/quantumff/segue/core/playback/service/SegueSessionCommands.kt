@@ -32,6 +32,12 @@ internal object SegueSessionCommands {
      */
     const val ADOPT_QUEUE = PREFIX + "ADOPT_QUEUE"
 
+    /**
+     * Restores this device's saved queue, paused, if nothing is queued (SavedQueueLoader.restore):
+     * the empty widget's tap, which may find the service already running.
+     */
+    const val RESTORE_SAVED_QUEUE = PREFIX + "RESTORE_SAVED_QUEUE"
+
     /** Restores the local queue an automatic remote adoption replaced (see SavedQueueLoader.undoAdoption). */
     const val UNDO_ADOPTION = PREFIX + "UNDO_ADOPTION"
 
@@ -101,6 +107,7 @@ internal object SegueSessionCommands {
             TOGGLE_FAVORITE,
             SET_SLEEP_TIMER,
             ADOPT_QUEUE,
+            RESTORE_SAVED_QUEUE,
             UNDO_ADOPTION,
             PLAY_ALBUMS,
             QUEUE_SONGS,

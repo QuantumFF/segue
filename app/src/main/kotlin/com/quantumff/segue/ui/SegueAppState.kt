@@ -1,12 +1,13 @@
 package com.quantumff.segue.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavDestination
@@ -15,7 +16,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.quantumff.segue.feature.login.navigation.LoginRoute
-import com.quantumff.segue.feature.nowplaying.NowPlayingPanel
 import com.quantumff.segue.feature.nowplaying.NowPlayingStart
 import com.quantumff.segue.navigation.TopLevelDestination
 
@@ -38,30 +38,17 @@ fun rememberSegueAppState(
 ): SegueAppState {
     val currentTab = rememberSaveable { mutableStateOf(TopLevelDestination.Home) }
     val nowPlayingOpen = rememberSaveable { mutableStateOf(false) }
-    val nowPlayingStart = rememberSaveable(stateSaver = NowPlayingStartSaver) {
-        mutableStateOf(NowPlayingStart.Default)
-    }
-    return remember(navController, shellLayout, currentTab, nowPlayingOpen, nowPlayingStart) {
+    val nowPlayingOpening = rememberSaveable { mutableIntStateOf(0) }
+    return remember(navController, shellLayout, currentTab, nowPlayingOpen, nowPlayingOpening) {
         SegueAppState(
             navController = navController,
             shellLayout = shellLayout,
             currentTabState = currentTab,
             nowPlayingOpenState = nowPlayingOpen,
-            nowPlayingStartState = nowPlayingStart,
+            nowPlayingOpeningState = nowPlayingOpening,
         )
     }
 }
-
-/** Saves the panel by name, so a restored Now Playing opens the way it was asked to. */
-private val NowPlayingStartSaver = Saver<NowPlayingStart, List<Any>>(
-    save = { listOf(it.panel?.name.orEmpty(), it.openMenu) },
-    restore = { saved ->
-        NowPlayingStart(
-            panel = (saved[0] as String).takeIf { it.isNotEmpty() }?.let(NowPlayingPanel::valueOf),
-            openMenu = saved[1] as Boolean,
-        )
-    },
-)
 
 /**
  * Shell navigation state.
@@ -80,28 +67,39 @@ class SegueAppState(
     val shellLayout: ShellLayout,
     private val currentTabState: MutableState<TopLevelDestination>,
     private val nowPlayingOpenState: MutableState<Boolean>,
-    private val nowPlayingStartState: MutableState<NowPlayingStart>,
+    private val nowPlayingOpeningState: MutableIntState,
 ) {
     val currentTab: TopLevelDestination by currentTabState
 
     /** Now Playing is open over the shell. */
     val isNowPlayingOpen: Boolean by nowPlayingOpenState
 
-    /** The panel and menu Now Playing shows as it opens; read when it opens, not while it is open. */
-    val nowPlayingStart: NowPlayingStart by nowPlayingStartState
+    /**
+     * The panel and menu Now Playing shows as it opens; read when it opens, not while it is open. Not
+     * saved: a restored Now Playing keeps its own panel and menu.
+     */
+    var nowPlayingStart: NowPlayingStart by mutableStateOf(NowPlayingStart.Default)
+        private set
+
+    /**
+     * Counts Now Playing's openings, so each starts as [nowPlayingStart] asks, even one that comes
+     * while it is still sliding down.
+     */
+    val nowPlayingOpening: Int by nowPlayingOpeningState
 
     /**
      * Opens Now Playing as [start] asks: the player bar's Lyrics and ⋮ open it on the Lyrics panel or
-     * with its menu open; every other way opens it as before.
+     * with its menu open; every other way opens it as before. Already open, it stays as it is.
      */
     fun openNowPlaying(start: NowPlayingStart = NowPlayingStart.Default) {
-        nowPlayingStartState.value = start
+        if (isNowPlayingOpen) return
+        nowPlayingStart = start
+        nowPlayingOpeningState.intValue++
         nowPlayingOpenState.value = true
     }
 
     fun closeNowPlaying() {
         nowPlayingOpenState.value = false
-        nowPlayingStartState.value = NowPlayingStart.Default
     }
 
     /** True while the last navigation was a tab switch: tab switches crossfade (DESIGN.md §2.5). */

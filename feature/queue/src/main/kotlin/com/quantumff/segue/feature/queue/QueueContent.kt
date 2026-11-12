@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -221,7 +222,10 @@ private fun ReorderableQueueList(
 
     AutoScrollToCurrent(listState, state, hasBanner = state.remoteOffer != null, rows = rows, dragging = drag != null)
 
-    var menuFor by remember { mutableStateOf<QueueListItem.Track?>(null) }
+    // The ⋮ menu's row, by key: it acts on the row as the queue has it now, and closes once the row is gone.
+    var menuKey by remember { mutableStateOf<String?>(null) }
+    val menuTrack = menuKey?.let { key -> state.items.firstOrNull { it.key == key } as? QueueListItem.Track }
+    if (menuKey != null && menuTrack == null) SideEffect { menuKey = null }
 
     LazyColumn(state = listState, contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         state.remoteOffer?.let { offer ->
@@ -252,7 +256,7 @@ private fun ReorderableQueueList(
                             state = row.row,
                             isDragging = isDragging,
                             onClick = { actions.onTrackClick(row) },
-                            onMoreClick = { menuFor = row },
+                            onMoreClick = { menuKey = row.key },
                             modifier = dragModifier(row.key, longPress = true),
                             handleModifier = dragModifier(row.key),
                         )
@@ -262,11 +266,11 @@ private fun ReorderableQueueList(
         }
     }
 
-    menuFor?.let { track ->
+    menuTrack?.let { track ->
         QueueTrackMenu(
             track = track,
             onAction = { action -> actions.onMenuAction(track, action) },
-            onDismissRequest = { menuFor = null },
+            onDismissRequest = { menuKey = null },
         )
     }
 }

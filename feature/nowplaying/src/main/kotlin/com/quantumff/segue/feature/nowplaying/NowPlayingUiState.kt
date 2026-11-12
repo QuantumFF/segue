@@ -260,6 +260,7 @@ internal fun PlayerUiState.toNowPlayingUiState(song: Song?, fileInfo: SongFileIn
         durationMillis = durationMillis,
         repeatMode = repeatMode,
         sleepTimer = sleepTimer,
+        speed = speed,
         quality = qualityLabel(streamFormat, librarySong, file),
         details = librarySong?.let { it.toDetails(file) },
         queueSize = queue.size,

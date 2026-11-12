@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -51,6 +52,7 @@ import com.quantumff.segue.feature.nowplaying.SLEEP_TIMER_EXTENSION_MINUTES
 import com.quantumff.segue.feature.nowplaying.SleepTimerChoice
 import com.quantumff.segue.feature.nowplaying.component.rememberMinuteClock
 import com.quantumff.segue.feature.nowplaying.minutesLeft
+import com.quantumff.segue.feature.nowplaying.sleepDuration
 import java.util.Date
 import kotlin.math.roundToInt
 
@@ -122,7 +124,7 @@ internal fun SleepTimerContent(
             PRESET_MINUTES.forEach { minutes ->
                 SheetRow(
                     icon = SegueIcons.Timer,
-                    label = presetLabel(minutes),
+                    label = durationLabel(minutes),
                     onClick = { onStart(SleepTimerChoice.Minutes(minutes)) },
                 )
             }
@@ -151,7 +153,7 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit, onExtend: () -
     val (title, subtitle) = when (active) {
         is SleepTimer.AtTime -> {
             // Refreshes once a minute while the sheet is open, in step with the top bar's chip.
-            val now by rememberMinuteClock()
+            val now by rememberMinuteClock(alignedTo = active.endsAtMillis)
             val minutesLeft = active.minutesLeft(now)
             stringResource(
                 R.string.feature_nowplaying_sleep_active_at,
@@ -280,30 +282,15 @@ internal fun SheetRow(icon: ImageVector, label: String, onClick: () -> Unit, sel
     }
 }
 
+/** "45 min", "1 h", "1 h 30 min", as the chip says it ([sleepDuration]). */
 @Composable
-private fun presetLabel(minutes: Int): String = durationLabel(minutes)
-
-/** "45 min", "1 h", "1 h 30 min". */
-@Composable
-private fun durationLabel(minutes: Int): String {
-    val hours = minutes / MINUTES_PER_HOUR
-    val rest = minutes % MINUTES_PER_HOUR
-    return when {
-        hours == 0 -> stringResource(R.string.feature_nowplaying_sleep_minutes, rest)
-
-        rest == 0 -> stringResource(R.string.feature_nowplaying_sleep_hours, hours)
-
-        else -> stringResource(R.string.feature_nowplaying_sleep_hours, hours) + " " +
-            stringResource(R.string.feature_nowplaying_sleep_minutes, rest)
-    }
-}
+private fun durationLabel(minutes: Int): String = sleepDuration(minutes).resolve(LocalResources.current)
 
 private val PRESET_MINUTES = listOf(15, 30, 45, 60, 90)
 private const val DEFAULT_CUSTOM_MINUTES = 20
 private const val CUSTOM_MIN = 5
 private const val CUSTOM_MAX = 180
 private const val CUSTOM_STEP = 5
-private const val MINUTES_PER_HOUR = 60
 private val CUSTOM_LABEL_WIDTH = SegueSizes.touchTarget * 2
 
 @PreviewSegueThemes
