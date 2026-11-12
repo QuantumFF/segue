@@ -29,7 +29,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.component.BufferingRing
+import com.quantumff.segue.core.designsystem.component.stateLabel
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -98,7 +100,7 @@ internal fun TransportRow(
             ModeButton(
                 icon = if (repeatMode == RepeatMode.One) SegueIcons.RepeatOne else SegueIcons.Repeat,
                 active = repeatMode != RepeatMode.Off,
-                contentDescription = stringResource(R.string.feature_nowplaying_repeat),
+                contentDescription = stringResource(DesignR.string.ds_repeat),
                 stateDescription = stringResource(repeatMode.stateLabel),
                 onClick = onRepeatClick,
             )
@@ -243,13 +245,6 @@ internal val NowPlayingPanel.icon: ImageVector
         NowPlayingPanel.Lyrics -> SegueIcons.Lyrics
         NowPlayingPanel.Queue -> SegueIcons.UpNext
         NowPlayingPanel.Related -> SegueIcons.Related
-    }
-
-private val RepeatMode.stateLabel: Int
-    get() = when (this) {
-        RepeatMode.Off -> R.string.feature_nowplaying_repeat_off
-        RepeatMode.All -> R.string.feature_nowplaying_repeat_all
-        RepeatMode.One -> R.string.feature_nowplaying_repeat_one
     }
 
 private val PLAY_BUTTON = 72.dp

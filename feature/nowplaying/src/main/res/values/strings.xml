@@ -20,10 +20,6 @@
     <string name="feature_nowplaying_pause">Pause</string>
     <string name="feature_nowplaying_show_remaining">Show remaining time</string>
     <string name="feature_nowplaying_show_total">Show total time</string>
-    <string name="feature_nowplaying_repeat">Repeat</string>
-    <string name="feature_nowplaying_repeat_off">Off</string>
-    <string name="feature_nowplaying_repeat_all">All</string>
-    <string name="feature_nowplaying_repeat_one">One</string>
     <string name="feature_nowplaying_more">More</string>
 
     <string name="feature_nowplaying_panel_lyrics">Lyrics</string>
