@@ -472,6 +472,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - Left: 56 art, title, artists.
   - Center: transport (prev, 40 play circle, next, repeat; no shuffle, see §4.7) above a seekbar with times.
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
+  - Volume slider: sets the device's media volume, snapping to its volume steps, and follows the volume keys. Named "Volume" for screen readers, with its level as a percentage. Phones have none: the volume keys are enough.
 - **Buffering ring:** while the stream buffers, an indeterminate `CircularProgressIndicator` (stroke 2) circles play/pause. It shows only once buffering has lasted 300ms, so quick rebuffers don't flash it, and goes the moment buffering ends. The button keeps its icon: Pause while playback was asked for, so a tap pauses. The ring never moves the layout.
   - Mini player: 40, `onSurface`, around the 24 icon inside its 48 target.
   - Player bar: 48, `onSurface`, 2 clear of the 40 play circle.

@@ -29,6 +29,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -41,6 +44,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.designsystem.util.formatDuration
 import com.quantumff.segue.core.model.RepeatMode
+import kotlin.math.roundToInt
 
 /** Player bar state (expanded width). Position comes separately, as a lambda. */
 @Immutable
@@ -48,7 +52,10 @@ data class PlayerBarState(
     val track: MiniPlayerState,
     val durationSeconds: Long,
     val repeatMode: RepeatMode,
+    /** Media volume, 0 to 1. */
     val volume: Float,
+    /** Stops between the volume slider's ends, so the thumb lands on the device's volume steps. */
+    val volumeSteps: Int = 0,
 )
 
 /** Callbacks for [PlayerBar], grouped so the bar takes one stable parameter. */
@@ -135,10 +142,10 @@ fun PlayerBar(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(SegueSizes.iconSmall),
                 )
-                Slider(
-                    value = state.volume,
-                    onValueChange = actions.onVolumeChange,
-                    modifier = Modifier.width(SegueSizes.volumeSlider),
+                VolumeSlider(
+                    volume = state.volume,
+                    steps = state.volumeSteps,
+                    onVolumeChange = actions.onVolumeChange,
                 )
                 SegueIconButton(
                     icon = SegueIcons.MoreVertical,
@@ -224,6 +231,24 @@ private fun TransportAndSeek(
     }
 }
 
+/** Named "Volume" for screen readers, which read its level as a percentage. */
+@Composable
+private fun VolumeSlider(volume: Float, steps: Int, onVolumeChange: (Float) -> Unit) {
+    val label = stringResource(R.string.ds_volume)
+    val level = stringResource(R.string.ds_volume_level, (volume * PERCENT).roundToInt())
+    Slider(
+        value = volume,
+        onValueChange = onVolumeChange,
+        steps = steps,
+        modifier = Modifier
+            .width(SegueSizes.volumeSlider)
+            .semantics {
+                contentDescription = label
+                stateDescription = level
+            },
+    )
+}
+
 /** Its own scope, so the position tick recomposes only this text, once per shown second. */
 @Composable
 private fun ElapsedText(positionSeconds: () -> Long) {
@@ -264,6 +289,7 @@ private fun PlayerBarPreview() {
     }
 }
 
+private const val PERCENT = 100
 private const val PREVIEW_DURATION = 255L
 private const val PREVIEW_POSITION = 112L
 private const val PREVIEW_VOLUME = 0.7f

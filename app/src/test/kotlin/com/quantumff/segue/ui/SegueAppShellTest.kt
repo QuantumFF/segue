@@ -10,17 +10,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.R
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
@@ -31,6 +36,7 @@ import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.feature.queue.QueueRemovals
+import com.quantumff.segue.playback.MediaVolume
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
 import kotlinx.collections.immutable.persistentListOf
@@ -50,11 +56,17 @@ class SegueAppShellTest {
 
     private val snackbars = Snackbars()
 
-    private fun setShell(layout: ShellLayout, player: ShellPlayerState = testPlayer) {
+    private val volumeChanges = mutableListOf<Float>()
+
+    private fun setShell(
+        layout: ShellLayout,
+        player: ShellPlayerState = testPlayer,
+        volume: MediaVolume = MediaVolume.Full,
+    ) {
         compose.setContent {
             SegueTheme {
                 val appState = rememberSegueAppState(shellLayout = layout)
-                TestShell(appState, player, snackbars)
+                TestShell(appState, player, snackbars, volume = volume, onVolumeChange = { volumeChanges += it })
             }
         }
     }
@@ -129,6 +141,31 @@ class SegueAppShellTest {
         compose.onNodeWithText(TEST_TRACK).assertExists()
         tab("Library").performClick()
         compose.onNodeWithText("Open a sample artist").assertExists()
+    }
+
+    @Test
+    fun `the player bar's volume slider is labelled and sets the volume`() {
+        setShell(ShellLayout.Expanded)
+
+        compose.onNode(hasContentDescription("Volume"))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+            .performSemanticsAction(SemanticsActions.SetProgress) { it(0.4f) }
+
+        assertThat(volumeChanges.last()).isWithin(0.01f).of(0.4f)
+    }
+
+    @Test
+    fun `the player bar's volume slider announces its level`() {
+        setShell(ShellLayout.Expanded, volume = MediaVolume(fraction = 0.5f, steps = 14))
+
+        compose.onNode(hasContentDescription("Volume")).assert(hasStateDescription("50%"))
+    }
+
+    @Test
+    fun `phones have no volume slider`() {
+        setShell(ShellLayout.Compact)
+
+        compose.onNode(hasContentDescription("Volume")).assertDoesNotExist()
     }
 
     @Test
