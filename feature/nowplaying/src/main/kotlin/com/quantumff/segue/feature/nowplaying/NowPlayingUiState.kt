@@ -33,6 +33,17 @@ enum class NowPlayingPanel {
     Related,
 }
 
+/**
+ * How Now Playing looks when it opens: on [panel] (none shows the art, or Queue in two panes) and
+ * with its ⋮ menu open if [openMenu]. The player bar's Lyrics and ⋮ open it this way (DESIGN.md §5.5).
+ */
+@Immutable
+data class NowPlayingStart(val panel: NowPlayingPanel? = null, val openMenu: Boolean = false) {
+    companion object {
+        val Default = NowPlayingStart()
+    }
+}
+
 /** The current track as Now Playing shows it. */
 @Immutable
 data class NowPlayingTrack(
