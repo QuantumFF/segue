@@ -29,6 +29,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.zIndex
 import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -46,7 +49,7 @@ import com.quantumff.segue.core.model.RepeatMode
 @Immutable
 data class PlayerBarState(
     val track: MiniPlayerState,
-    val durationSeconds: Long,
+    val durationMillis: Long,
     val repeatMode: RepeatMode,
     val volume: Float,
 )
@@ -63,18 +66,20 @@ data class PlayerBarActions(
     val onQueueClick: () -> Unit,
     val onMoreClick: () -> Unit,
     val onVolumeChange: (Float) -> Unit,
+    /** Seeks the current song, in milliseconds: the seek line. */
+    val onSeek: (Long) -> Unit,
 )
 
 /**
  * Expanded-width player bar (DESIGN.md §5.5), visual only: 80 tall, `surfaceContainer`, an
  * `outlineVariant` top border, and a 1fr : 2fr : 1fr grid (Feishin).
  *
- * @param positionSeconds read by the elapsed-time text and the progress line only.
+ * @param positionMillis read by the elapsed-time text and the seek line only.
  */
 @Composable
 fun PlayerBar(
     state: PlayerBarState,
-    positionSeconds: () -> Long,
+    positionMillis: () -> Long,
     actions: PlayerBarActions,
     modifier: Modifier = Modifier,
 ) {
@@ -108,7 +113,7 @@ fun PlayerBar(
             }
             TransportAndSeek(
                 state = state,
-                positionSeconds = positionSeconds,
+                positionMillis = positionMillis,
                 actions = actions,
                 modifier = Modifier.weight(2f),
             )
@@ -154,14 +159,18 @@ fun PlayerBar(
 @Composable
 private fun TransportAndSeek(
     state: PlayerBarState,
-    positionSeconds: () -> Long,
+    positionMillis: () -> Long,
     actions: PlayerBarActions,
     modifier: Modifier = Modifier,
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val repeatState = stringResource(state.repeatMode.stateLabel)
     Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.Center) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            // Above the seek row, so these buttons keep the touches where the seek line's 48 overlaps them.
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(1f),
             horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -203,20 +212,26 @@ private fun TransportAndSeek(
                 contentDescription = stringResource(R.string.ds_repeat),
                 onClick = actions.onRepeatClick,
                 tint = if (state.repeatMode == RepeatMode.Off) muted else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.semantics { stateDescription = repeatState },
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ElapsedText(positionSeconds)
+            ElapsedText(positionMillis)
             Spacer(Modifier.width(SegueSpacing.sm))
-            ProgressLine(
-                progress = {
-                    if (state.durationSeconds > 0) positionSeconds().toFloat() / state.durationSeconds else 0f
-                },
+            SeekLine(
+                positionMillis = positionMillis,
+                durationMillis = state.durationMillis,
+                isPlaying = state.track.isPlaying,
+                onSeek = actions.onSeek,
+                style = SeekLineStyle.thin(
+                    active = MaterialTheme.colorScheme.primary,
+                    inactive = MaterialTheme.colorScheme.outlineVariant,
+                ),
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(SegueSpacing.sm))
             Text(
-                text = formatDuration(state.durationSeconds),
+                text = formatDuration(state.durationMillis / MILLIS_PER_SECOND),
                 style = MaterialTheme.typography.labelMedium.tabularNumbers(),
                 color = muted,
             )
@@ -226,9 +241,9 @@ private fun TransportAndSeek(
 
 /** Its own scope, so the position tick recomposes only this text, once per shown second. */
 @Composable
-private fun ElapsedText(positionSeconds: () -> Long) {
-    val latestPosition by rememberUpdatedState(positionSeconds)
-    val seconds by remember { derivedStateOf { latestPosition() } }
+private fun ElapsedText(positionMillis: () -> Long) {
+    val latestPosition by rememberUpdatedState(positionMillis)
+    val seconds by remember { derivedStateOf { latestPosition() / MILLIS_PER_SECOND } }
     Text(
         text = formatDuration(seconds),
         style = MaterialTheme.typography.labelMedium.tabularNumbers(),
@@ -243,11 +258,11 @@ private fun PlayerBarPreview() {
         PlayerBar(
             state = PlayerBarState(
                 track = PreviewData.miniPlayer,
-                durationSeconds = PREVIEW_DURATION,
+                durationMillis = PREVIEW_DURATION,
                 repeatMode = RepeatMode.All,
                 volume = PREVIEW_VOLUME,
             ),
-            positionSeconds = { PREVIEW_POSITION },
+            positionMillis = { PREVIEW_POSITION },
             actions = PlayerBarActions(
                 onClick = {},
                 onPlayPauseClick = {},
@@ -258,13 +273,22 @@ private fun PlayerBarPreview() {
                 onQueueClick = {},
                 onMoreClick = {},
                 onVolumeChange = {},
+                onSeek = {},
             ),
             modifier = Modifier.width(PREVIEW_WIDTH),
         )
     }
 }
 
-private const val PREVIEW_DURATION = 255L
-private const val PREVIEW_POSITION = 112L
+private val RepeatMode.stateLabel: Int
+    get() = when (this) {
+        RepeatMode.Off -> R.string.ds_repeat_off
+        RepeatMode.All -> R.string.ds_repeat_all
+        RepeatMode.One -> R.string.ds_repeat_one
+    }
+
+private const val MILLIS_PER_SECOND = 1_000L
+private const val PREVIEW_DURATION = 255_000L
+private const val PREVIEW_POSITION = 112_000L
 private const val PREVIEW_VOLUME = 0.7f
 private val PREVIEW_WIDTH = SegueSizes.sidebar * 4
