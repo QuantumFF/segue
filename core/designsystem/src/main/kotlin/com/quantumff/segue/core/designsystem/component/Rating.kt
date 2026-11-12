@@ -1,6 +1,5 @@
 package com.quantumff.segue.core.designsystem.component
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -15,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -56,27 +54,21 @@ fun RatingBar(rating: Int, onRatingChange: (Int) -> Unit, modifier: Modifier = M
             Star(
                 filled = star <= rating,
                 onClick = { onRatingChange(if (star == rating) 0 else star) },
-                modifier = Modifier.testTag("star-$star"),
             )
         }
     }
 }
 
-/**
- * One star: drawn in a 40dp circle (its ripple too), touched in a 48dp slot. The `clickable` comes
- * before the `clip` on purpose, so its bounds are the 48dp slot, not the 40dp circle.
- */
-@Suppress("ktlint:compose:modifier-clickable-order")
+/** One star: drawn in a 40dp circle (its ripple too), touched in a 48dp slot. */
 @Composable
 private fun Star(filled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val interactionSource = remember { MutableInteractionSource() }
+    val interactions = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .minimumTouchTarget()
+            .touchTargetClickable(interactions, onClick = onClick)
             .size(SegueSizes.overflowButton)
             .clip(CircleShape)
-            .indication(interactionSource, ripple()),
+            .indication(interactions, ripple()),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

@@ -12,11 +12,11 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertRangeInfoEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
@@ -65,7 +65,7 @@ class RatingBarTest {
         show()
 
         for (star in 1..5) {
-            compose.onNodeWithTag("star-$star", useUnmergedTree = true)
+            star(star)
                 .assertWidthIsAtLeast(48.dp)
                 .assertHeightIsAtLeast(48.dp)
         }
@@ -75,11 +75,14 @@ class RatingBarTest {
     fun `tapping a star sets that rating, and tapping the current one clears it`() {
         show()
 
-        compose.onNodeWithTag("star-4", useUnmergedTree = true).performClick()
-        compose.onNodeWithTag("star-3", useUnmergedTree = true).performClick()
+        star(4).performClick()
+        star(3).performClick()
 
         assertThat(changes).containsExactly(4, 0).inOrder()
     }
+
+    /** The [n]th star, for touch only: TalkBack never sees it, so it's only in the unmerged tree. */
+    private fun star(n: Int) = compose.onAllNodes(hasClickAction(), useUnmergedTree = true)[n - 1]
 
     private fun show() {
         compose.setContent {

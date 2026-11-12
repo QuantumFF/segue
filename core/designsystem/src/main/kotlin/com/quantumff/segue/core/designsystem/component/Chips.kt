@@ -155,7 +155,7 @@ fun Pill(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = 
     val interactions = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
-            .then(if (onClick != null) Modifier.touchTargetClickable(interactions, null, onClick) else Modifier)
+            .then(if (onClick != null) Modifier.touchTargetClickable(interactions, onClick = onClick) else Modifier)
             .height(SegueSizes.pill)
             .clip(SegueShapes.full)
             .background(MaterialTheme.colorScheme.background.copy(alpha = SegueAlpha.PILL_FILL))
@@ -234,22 +234,6 @@ fun OfflineStatusChip(
         onClick = onClick,
     )
 }
-
-/**
- * A button tap on a small pill or chip, with a 48dp touch target around it ([minimumTouchTarget]).
- * It draws no ripple itself: the chip draws one from [interactions] inside its clipped shape.
- */
-private fun Modifier.touchTargetClickable(
-    interactions: MutableInteractionSource,
-    onClickLabel: String?,
-    onClick: () -> Unit,
-): Modifier = clickable(
-    interactionSource = interactions,
-    indication = null,
-    role = Role.Button,
-    onClickLabel = onClickLabel,
-    onClick = onClick,
-).minimumTouchTarget()
 
 @PreviewSegueThemes
 @Composable

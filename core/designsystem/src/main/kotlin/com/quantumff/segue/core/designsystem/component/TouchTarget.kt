@@ -1,5 +1,7 @@
 package com.quantumff.segue.core.designsystem.component
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
@@ -11,6 +13,7 @@ import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
@@ -26,14 +29,32 @@ import kotlin.math.roundToInt
  * before its visual size, e.g. `Modifier.clickable(...).minimumTouchTarget().height(SegueSizes.pill)`.
  * A `clickable` takes the bounds of the next layout modifier inward, so only then are the tap area
  * and the node TalkBack focuses 48dp too; placed before the `clickable`, the node keeps the visual
- * size. A ripple drawn by that `clickable` fills the 48dp slot; to keep it on the drawn shape, give
- * the `clickable` `indication = null` and draw it with `Modifier.indication` after the `clip`.
+ * size. A ripple drawn by that `clickable` fills the 48dp slot; to keep it on the drawn shape, use
+ * [touchTargetClickable] instead.
  *
  * It grows the layout slot, so a 28dp pill takes a 48dp row. Where that would push a layout apart,
  * use [overflowingTouchTarget]. Leave it off controls that only inform.
  */
 @Stable
 fun Modifier.minimumTouchTarget(): Modifier = minimumInteractiveComponentSize()
+
+/**
+ * A button tap with a [minimumTouchTarget], whose ripple stays on the control's drawn shape: it
+ * draws none itself, so the control draws it from [interactions] inside its `clip`, e.g.
+ * `Modifier.touchTargetClickable(interactions, onClick = onClick).height(SegueSizes.pill)
+ * .clip(SegueShapes.full).indication(interactions, ripple())`.
+ */
+internal fun Modifier.touchTargetClickable(
+    interactions: MutableInteractionSource,
+    onClickLabel: String? = null,
+    onClick: () -> Unit,
+): Modifier = clickable(
+    interactionSource = interactions,
+    indication = null,
+    role = Role.Button,
+    onClickLabel = onClickLabel,
+    onClick = onClick,
+).minimumTouchTarget()
 
 /**
  * Like [minimumTouchTarget], but the control keeps its designed slot in the layout: its tap area
