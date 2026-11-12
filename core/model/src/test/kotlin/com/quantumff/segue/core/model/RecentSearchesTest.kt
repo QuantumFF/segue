@@ -39,4 +39,39 @@ class RecentSearchesTest {
     fun `remove drops the exact entry`() {
         assertThat(RecentSearches.remove(listOf("abba", "Abba"), "abba")).containsExactly("Abba")
     }
+
+    @Test
+    fun `restore puts the query back at its index`() {
+        assertThat(RecentSearches.restore(listOf("abba", "cream"), "blur", 1))
+            .containsExactly("abba", "blur", "cream")
+            .inOrder()
+    }
+
+    @Test
+    fun `restore past the end appends`() {
+        assertThat(RecentSearches.restore(listOf("abba"), "blur", 5)).containsExactly("abba", "blur").inOrder()
+    }
+
+    @Test
+    fun `restore replaces an entry differing only in case`() {
+        assertThat(RecentSearches.restore(listOf("BLUR", "abba", "cream"), "blur", 1))
+            .containsExactly("abba", "blur", "cream")
+            .inOrder()
+    }
+
+    @Test
+    fun `restore keeps at most ten, dropping the oldest`() {
+        val full = (1..10).map { "q$it" }
+
+        val restored = RecentSearches.restore(full, "back", 3)
+
+        assertThat(restored).hasSize(RecentSearches.MAX)
+        assertThat(restored[3]).isEqualTo("back")
+        assertThat(restored).doesNotContain("q10")
+    }
+
+    @Test
+    fun `restoring a blank query changes nothing`() {
+        assertThat(RecentSearches.restore(listOf("abba"), " ", 0)).containsExactly("abba")
+    }
 }

@@ -112,6 +112,21 @@ class UserPreferencesDataSourceTest {
     }
 
     @Test
+    fun `a removed recent search is restored in place, and clear empties them`() = runTest {
+        val source = source()
+        listOf("cream", "blur", "abba").forEach { source.addRecentSearch(it) }
+
+        source.removeRecentSearch("blur")
+        source.restoreRecentSearch("blur", 1)
+
+        assertThat(source.recentSearches.first()).containsExactly("abba", "blur", "cream").inOrder()
+
+        source.clearRecentSearches()
+
+        assertThat(source.recentSearches.first()).isEmpty()
+    }
+
+    @Test
     fun `an unknown stored enum value falls back to the default`() = runTest {
         val dataStore = PreferenceDataStoreFactory.create(scope = backgroundScope) {
             File(tmp.root, "x.preferences_pb")

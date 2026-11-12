@@ -21,18 +21,22 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.data.play.MediaActionHost
+import com.quantumff.segue.core.designsystem.R as DesignR
 import com.quantumff.segue.core.designsystem.component.AlbumCard
 import com.quantumff.segue.core.designsystem.component.ArtistCard
 import com.quantumff.segue.core.designsystem.component.EmptyState
@@ -54,6 +59,7 @@ import com.quantumff.segue.core.designsystem.component.Pill
 import com.quantumff.segue.core.designsystem.component.SearchTopBar
 import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
+import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
 import com.quantumff.segue.core.designsystem.component.StatusChip
 import com.quantumff.segue.core.designsystem.component.TrackRow
@@ -103,6 +109,7 @@ fun SearchScreen(
             onFilterChange = viewModel::onFilterChange,
             onRecentSearchClick = viewModel::onRecentSearchClick,
             onRemoveRecentSearch = viewModel::onRemoveRecentSearch,
+            onClearRecentSearches = viewModel::onClearRecentSearches,
             onGenreClick = onGenreClick,
             onAlbumClick = { id ->
                 viewModel.onResultOpened()
@@ -132,7 +139,10 @@ class SearchCallbacks(
     val onSubmit: () -> Unit,
     val onFilterChange: (SearchFilter) -> Unit,
     val onRecentSearchClick: (String) -> Unit,
+    /** A recent search's ✕ or swipe. */
     val onRemoveRecentSearch: (String) -> Unit,
+    /** The recent searches header's Clear, once confirmed. */
+    val onClearRecentSearches: () -> Unit,
     val onGenreClick: (String) -> Unit,
     val onAlbumClick: (String) -> Unit,
     val onArtistClick: (String) -> Unit,
@@ -144,7 +154,7 @@ class SearchCallbacks(
     val onMessageDismiss: () -> Unit,
 ) {
     companion object {
-        val None = SearchCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
+        val None = SearchCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
     }
 }
 
@@ -212,16 +222,17 @@ fun SearchContent(
 @Composable
 private fun BrowseContent(uiState: SearchUiState, callbacks: SearchCallbacks) {
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
+    var confirmingClear by rememberSaveable { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
         if (uiState.recentSearches.isNotEmpty()) {
             item(key = "recentHeader", contentType = "header") {
-                SectionHeader(title = stringResource(R.string.feature_search_recent))
+                RecentSearchesHeader(onClearClick = { confirmingClear = true })
             }
             items(uiState.recentSearches, key = { "recent:$it" }, contentType = { "recent" }) { recent ->
                 RecentSearchRow(
                     query = recent,
                     onClick = { callbacks.onRecentSearchClick(recent) },
-                    onDismiss = { callbacks.onRemoveRecentSearch(recent) },
+                    onRemove = { callbacks.onRemoveRecentSearch(recent) },
                 )
             }
         }
@@ -242,14 +253,60 @@ private fun BrowseContent(uiState: SearchUiState, callbacks: SearchCallbacks) {
             }
         }
     }
+
+    if (confirmingClear) {
+        ClearRecentSearchesDialog(
+            onConfirm = {
+                confirmingClear = false
+                callbacks.onClearRecentSearches()
+            },
+            onDismissRequest = { confirmingClear = false },
+        )
+    }
+}
+
+/** "Recent searches" with a trailing Clear, which asks first. */
+@Composable
+private fun RecentSearchesHeader(onClearClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        SectionHeader(title = stringResource(R.string.feature_search_recent), modifier = Modifier.weight(1f))
+        TextButton(
+            onClick = onClearClick,
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+            modifier = Modifier.padding(end = SegueSpacing.xs),
+        ) {
+            Text(stringResource(DesignR.string.ds_clear), style = MaterialTheme.typography.labelLarge)
+        }
+    }
 }
 
 @Composable
-private fun RecentSearchRow(query: String, onClick: () -> Unit, onDismiss: () -> Unit) {
+private fun ClearRecentSearchesDialog(onConfirm: () -> Unit, onDismissRequest: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(stringResource(R.string.feature_search_clear_title)) },
+        text = { Text(stringResource(R.string.feature_search_clear_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(DesignR.string.ds_clear), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.feature_search_cancel)) }
+        },
+        shape = SegueShapes.xl,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = SegueSizes.noElevation,
+    )
+}
+
+/** A recent search: tap to search it again; its ✕, or a swipe, removes it. */
+@Composable
+private fun RecentSearchRow(query: String, onClick: () -> Unit, onRemove: () -> Unit) {
     val state = rememberSwipeToDismissBoxState()
     SwipeToDismissBox(
         state = state,
-        onDismiss = { onDismiss() },
+        onDismiss = { onRemove() },
         backgroundContent = {
             Box(
                 Modifier
@@ -272,7 +329,7 @@ private fun RecentSearchRow(query: String, onClick: () -> Unit, onDismiss: () ->
                 .height(SegueSizes.sheetRow)
                 .background(MaterialTheme.colorScheme.background)
                 .clickable(onClick = onClick)
-                .padding(horizontal = SegueSpacing.lg),
+                .padding(start = SegueSpacing.lg, end = SegueSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -288,6 +345,13 @@ private fun RecentSearchRow(query: String, onClick: () -> Unit, onDismiss: () ->
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            SegueIconButton(
+                icon = SegueIcons.Close,
+                contentDescription = stringResource(R.string.feature_search_remove, query),
+                onClick = onRemove,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

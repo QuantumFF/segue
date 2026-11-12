@@ -98,6 +98,7 @@ class SearchViewModel @Inject constructor(
     private val playIntents: PlayIntents,
     private val mediaActions: MediaActionHandler,
     player: PlayerStateSource,
+    private val recentSearchRemovals: RecentSearchRemovals,
 ) : ViewModel() {
     private val queryState = MutableStateFlow("")
 
@@ -162,9 +163,14 @@ class SearchViewModel @Inject constructor(
         queryState.value = query
     }
 
+    /** A recent search's ✕ or swipe: removes it, with Undo. */
     fun onRemoveRecentSearch(query: String) {
-        viewModelScope.launch { preferences.removeRecentSearch(query) }
+        val index = uiState.value.recentSearches.indexOf(query).coerceAtLeast(0)
+        recentSearchRemovals.remove(query, index)
     }
+
+    /** The recent searches header's Clear, once confirmed. */
+    fun onClearRecentSearches() = recentSearchRemovals.clear()
 
     /** A song result's tap: plays the results' songs from that one. */
     fun onSongClick(index: Int) {

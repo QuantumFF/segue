@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -362,11 +363,16 @@ fun SearchTopBar(
             )
             Spacer(Modifier.width(SegueSpacing.sm))
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                val hint = stringResource(R.string.ds_search_hint)
                 if (query.isEmpty()) {
+                    // The field carries the hint as its label, so the placeholder is not read twice.
                     Text(
-                        text = stringResource(R.string.ds_search_hint),
+                        text = hint,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clearAndSetSemantics {},
                     )
                 }
                 BasicTextField(
@@ -379,7 +385,8 @@ fun SearchTopBar(
                     keyboardActions = KeyboardActions(onSearch = { onSearch() }),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
+                        .focusRequester(focusRequester)
+                        .semantics { contentDescription = hint },
                 )
             }
             if (query.isNotEmpty()) {

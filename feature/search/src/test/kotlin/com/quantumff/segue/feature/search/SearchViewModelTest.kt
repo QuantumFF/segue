@@ -4,6 +4,9 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.repository.SearchRepository
+import com.quantumff.segue.core.data.snackbar.SnackbarMessage
+import com.quantumff.segue.core.data.snackbar.SnackbarText
+import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaAction
@@ -54,6 +57,7 @@ class SearchViewModelTest {
     private val offline = FakeOfflineModeRepository()
     private val play = RecordingPlayIntents()
     private val player = FakePlayerStateSource()
+    private val snackbars = Snackbars()
 
     private val song = TestData.song("s1")
     private val local = SearchResult(
@@ -76,6 +80,7 @@ class SearchViewModelTest {
             play,
             mediaActionHandler(play, downloads, starRating),
             player,
+            RecentSearchRemovals(preferences, snackbars, this),
         )
         backgroundScope.launch { viewModel.uiState.collect {} }
         return viewModel
@@ -210,6 +215,73 @@ class SearchViewModelTest {
         assertThat(viewModel.query.value).isEqualTo("bjork")
         assertThat(search.queries).containsExactly("bjork")
         assertThat(viewModel.uiState.value.recentSearches).containsExactly("bjork")
+    }
+
+    /** The snackbar showing now. */
+    private val shown: SnackbarMessage get() = checkNotNull(snackbars.current.value)
+
+    @Test
+    fun removingARecentSearchOffersUndoThatPutsItBackInPlace() = runTest(mainDispatcherRule.testDispatcher) {
+        preferences.recentSearches.value = persistentListOf("abba", "blur", "cream")
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.onRemoveRecentSearch("blur")
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.recentSearches).containsExactly("abba", "cream").inOrder()
+        assertThat(shown.text).isEqualTo(SnackbarText.of(R.string.feature_search_removed))
+
+        snackbars.onAction(shown)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.recentSearches).containsExactly("abba", "blur", "cream").inOrder()
+        assertThat(snackbars.current.value).isNull()
+    }
+
+    @Test
+    fun aDismissedUndoLeavesTheRecentSearchRemoved() = runTest(mainDispatcherRule.testDispatcher) {
+        preferences.recentSearches.value = persistentListOf("abba", "blur")
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.onRemoveRecentSearch("abba")
+        advanceUntilIdle()
+        snackbars.onDismiss(shown)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.recentSearches).containsExactly("blur")
+    }
+
+    @Test
+    fun aNewerRemovalTakesDownTheOlderUndo() = runTest(mainDispatcherRule.testDispatcher) {
+        preferences.recentSearches.value = persistentListOf("abba", "blur", "cream")
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.onRemoveRecentSearch("abba")
+        advanceUntilIdle()
+        val first = shown
+        viewModel.onRemoveRecentSearch("cream")
+        advanceUntilIdle()
+
+        assertThat(shown).isNotSameInstanceAs(first)
+        snackbars.onAction(shown)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.recentSearches).containsExactly("blur", "cream").inOrder()
+    }
+
+    @Test
+    fun clearRemovesEveryRecentSearch() = runTest(mainDispatcherRule.testDispatcher) {
+        preferences.recentSearches.value = persistentListOf("abba", "blur")
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.onClearRecentSearches()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.recentSearches).isEmpty()
     }
 
     @Test
