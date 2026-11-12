@@ -508,7 +508,7 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     val track = state.current ?: return
     val barState = PlayerBarState(
         track = track,
-        durationSeconds = state.durationMillis / MILLIS_PER_SECOND,
+        durationMillis = state.durationMillis,
         repeatMode = state.repeatMode,
         volume = 1f,
     )
@@ -527,11 +527,12 @@ private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
             onMoreClick = player.onOpenNowPlaying,
             // System volume is the only volume; the bar's slider is not wired.
             onVolumeChange = {},
+            onSeek = actions.onSeek,
         )
     }
     PlayerBar(
         state = barState,
-        positionSeconds = { position.value / MILLIS_PER_SECOND },
+        positionMillis = { position.value },
         actions = barActions,
         modifier = modifier,
     )
@@ -560,8 +561,6 @@ private fun bottomChromeHeight(systemBottom: Dp, miniPlayer: Boolean, navBar: Bo
         (if (continueBar) SegueSizes.miniPlayer else SegueSpacing.none) +
         (if (navBar) SegueSizes.navigationBar else SegueSpacing.none) +
         systemBottom
-
-private const val MILLIS_PER_SECOND = 1_000L
 
 /** Light status-bar icons over dark themes and over art (Now Playing), DESIGN.md §3. */
 @Composable

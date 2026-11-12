@@ -307,7 +307,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
   The source is saved with the saved queue, so after a restart (or the system's "resume playback") Now Playing names it as before. An adopted queue, whether taken from *Continue from <device>* or adopted automatically, reads "CONTINUED FROM" over the device's name, such as "Feishin". Undo brings back the replaced queue's source. A queue saved by an older version has no source: PLAYING FROM QUEUE.
 - **No shuffle button.** Music is shuffled only when it is queued: every "Shuffle" action writes its songs into the queue in shuffled order. A running queue is never reshuffled. The notification, Android Auto and the widgets offer no shuffle control either (ADR-0002).
-- **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on.
+- **Repeat control:** Lucide `repeat` (or `repeat-1`), white @ 50% when off, white with a 4dp dot under it when on. Screen readers hear "Repeat" with its mode as the state: Off, All or One. The player bar's repeat does the same (§5.5).
 - **Panels:** Lyrics, Queue (§4.8) and Related replace the art and metadata area with a `long` slide-up. A compact header stays visible: 48 art, title and artist. Seekbar and transport stay pinned at the bottom.
   - Swiping horizontally inside a panel moves between panels.
   - Tapping the active bottom button, or the compact header, returns to the art.
@@ -471,6 +471,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - **Player bar:** 80 tall, `surfaceContainer`, top border `outlineVariant`. Grid 1fr : 2fr : 1fr (Feishin).
   - Left: 56 art, title, artists.
   - Center: transport (prev, 40 play circle, next, repeat; no shuffle, see §4.7) above a seekbar with times.
+  - Seek line: the thin variant of Now Playing's seekbar (§4.7), between the elapsed time and the total. It looks like the mini player's progress line (2 tall, `primary` over `outlineVariant`, no thumb), and grows a 12 thumb only while dragged. It takes 24 in the layout but takes touches over 48, centered on the line; where that overlaps the transport buttons, the buttons win. Tap or drag to seek; a drag seeks once, where it ends. Screen readers get the seekbar's semantics: "Seek", the elapsed time, and a set-progress action.
+  - Repeat is announced as "Repeat" with its mode as the state: Off, All or One.
   - Right: lyrics, queue, volume slider (96 wide), ⋮.
 - **Buffering ring:** while the stream buffers, an indeterminate `CircularProgressIndicator` (stroke 2) circles play/pause. It shows only once buffering has lasted 300ms, so quick rebuffers don't flash it, and goes the moment buffering ends. The button keeps its icon: Pause while playback was asked for, so a tap pauses. The ring never moves the layout.
   - Mini player: 40, `onSurface`, around the 24 icon inside its 48 target.
