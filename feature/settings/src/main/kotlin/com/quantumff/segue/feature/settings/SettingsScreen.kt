@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -298,13 +299,20 @@ fun SettingsContent(
             item(key = "servers", contentType = "header") {
                 SettingsSectionHeader(stringResource(R.string.feature_settings_servers))
             }
-            items(uiState.servers, key = { "server:${it.id}" }, contentType = { "server" }) { server ->
-                ServerRow(
-                    server = server,
-                    active = server.id == uiState.activeServerId,
-                    onClick = { actions.onSwitchServer(server.id) },
-                    onRemoveClick = { removing = server },
-                )
+            // The server rows are one choice: their own group, as the list's collection would hide one on it.
+            item(key = "serverList", contentType = "servers") {
+                Column(Modifier.selectableGroup()) {
+                    uiState.servers.forEach { server ->
+                        key(server.id) {
+                            ServerRow(
+                                server = server,
+                                active = server.id == uiState.activeServerId,
+                                onClick = { actions.onSwitchServer(server.id) },
+                                onRemoveClick = { removing = server },
+                            )
+                        }
+                    }
+                }
             }
             item(key = "addServer", contentType = "row") {
                 SettingsRow(
@@ -531,10 +539,7 @@ fun SettingsContent(
         val initialIndex = remember { section?.let { indexOfKey(items, it.headerKey) } ?: 0 }
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
         LazyColumn(
-            // The server rows are one choice.
-            Modifier
-                .fillMaxSize()
-                .selectableGroup(),
+            Modifier.fillMaxSize(),
             state = listState,
             contentPadding = PaddingValues(bottom = bottom + SegueSpacing.lg),
             content = items,
