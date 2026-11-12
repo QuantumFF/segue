@@ -456,12 +456,7 @@ fun NowPlayingTopBar(
                 if (moreBadge) {
                     // At the icon's top end, as on Now Playing's bottom-row ⋮.
                     Box(Modifier.size(SegueSizes.icon)) {
-                        Box(
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .size(MORE_BADGE_DOT)
-                                .background(MaterialTheme.colorScheme.primary, SegueShapes.full),
-                        )
+                        BadgeDot(Modifier.align(Alignment.TopEnd))
                     }
                 }
             }
@@ -505,4 +500,3 @@ private fun NowPlayingTopBarPreview() {
 
 /** How far down the Now Playing top bar its shade stays solid before fading out. */
 private const val NOW_PLAYING_SHADE_HOLD = 0.75f
-private val MORE_BADGE_DOT = 6.dp

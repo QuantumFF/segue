@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.R
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
@@ -35,6 +36,17 @@ import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+
+/**
+ * The dot badge at a ⋮'s top end while something in its menu is set, such as the sleep timer or
+ * a speed other than 1×. Place it with [modifier], such as `align(Alignment.TopEnd)` over the icon.
+ */
+@Composable
+fun BadgeDot(modifier: Modifier = Modifier) {
+    Box(modifier.size(BADGE_DOT).background(MaterialTheme.colorScheme.primary, SegueShapes.full))
+}
+
+private val BADGE_DOT = 6.dp
 
 /** Download state shown on art and rows (DESIGN.md §4.9). Null means "not downloaded". */
 @Immutable

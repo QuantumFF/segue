@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.R as DesignR
+import com.quantumff.segue.core.designsystem.component.BadgeDot
 import com.quantumff.segue.core.designsystem.component.BufferingRing
 import com.quantumff.segue.core.designsystem.component.stateLabel
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -213,14 +214,7 @@ private fun PanelBarItem(
     ) {
         Box {
             Icon(imageVector = icon, contentDescription = null, tint = color)
-            if (badge) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .size(DOT + SegueSpacing.xxs)
-                        .background(MaterialTheme.colorScheme.primary, SegueShapes.full),
-                )
-            }
+            if (badge) BadgeDot(Modifier.align(Alignment.TopEnd))
         }
         Spacer(Modifier.height(SegueSpacing.xxs))
         Text(
