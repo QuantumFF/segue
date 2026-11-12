@@ -6,6 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavDestination
@@ -14,6 +15,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.quantumff.segue.feature.login.navigation.LoginRoute
+import com.quantumff.segue.feature.nowplaying.NowPlayingPanel
+import com.quantumff.segue.feature.nowplaying.NowPlayingStart
 import com.quantumff.segue.navigation.TopLevelDestination
 
 /** How the shell lays out navigation and the player (DESIGN.md §3). */
@@ -35,15 +38,30 @@ fun rememberSegueAppState(
 ): SegueAppState {
     val currentTab = rememberSaveable { mutableStateOf(TopLevelDestination.Home) }
     val nowPlayingOpen = rememberSaveable { mutableStateOf(false) }
-    return remember(navController, shellLayout, currentTab, nowPlayingOpen) {
+    val nowPlayingStart = rememberSaveable(stateSaver = NowPlayingStartSaver) {
+        mutableStateOf(NowPlayingStart.Default)
+    }
+    return remember(navController, shellLayout, currentTab, nowPlayingOpen, nowPlayingStart) {
         SegueAppState(
             navController = navController,
             shellLayout = shellLayout,
             currentTabState = currentTab,
             nowPlayingOpenState = nowPlayingOpen,
+            nowPlayingStartState = nowPlayingStart,
         )
     }
 }
+
+/** Saves the panel by name, so a restored Now Playing opens the way it was asked to. */
+private val NowPlayingStartSaver = Saver<NowPlayingStart, List<Any>>(
+    save = { listOf(it.panel?.name.orEmpty(), it.openMenu) },
+    restore = { saved ->
+        NowPlayingStart(
+            panel = (saved[0] as String).takeIf { it.isNotEmpty() }?.let(NowPlayingPanel::valueOf),
+            openMenu = saved[1] as Boolean,
+        )
+    },
+)
 
 /**
  * Shell navigation state.
@@ -62,18 +80,28 @@ class SegueAppState(
     val shellLayout: ShellLayout,
     private val currentTabState: MutableState<TopLevelDestination>,
     private val nowPlayingOpenState: MutableState<Boolean>,
+    private val nowPlayingStartState: MutableState<NowPlayingStart>,
 ) {
     val currentTab: TopLevelDestination by currentTabState
 
     /** Now Playing is open over the shell. */
     val isNowPlayingOpen: Boolean by nowPlayingOpenState
 
-    fun openNowPlaying() {
+    /** The panel and menu Now Playing shows as it opens; read when it opens, not while it is open. */
+    val nowPlayingStart: NowPlayingStart by nowPlayingStartState
+
+    /**
+     * Opens Now Playing as [start] asks: the player bar's Lyrics and ⋮ open it on the Lyrics panel or
+     * with its menu open; every other way opens it as before.
+     */
+    fun openNowPlaying(start: NowPlayingStart = NowPlayingStart.Default) {
+        nowPlayingStartState.value = start
         nowPlayingOpenState.value = true
     }
 
     fun closeNowPlaying() {
         nowPlayingOpenState.value = false
+        nowPlayingStartState.value = NowPlayingStart.Default
     }
 
     /** True while the last navigation was a tab switch: tab switches crossfade (DESIGN.md §2.5). */

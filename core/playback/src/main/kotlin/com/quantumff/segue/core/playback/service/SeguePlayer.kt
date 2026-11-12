@@ -2,9 +2,11 @@ package com.quantumff.segue.core.playback.service
 
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.quantumff.segue.core.model.QueueSource
+import com.quantumff.segue.core.model.UserPreferences
 import com.quantumff.segue.core.playback.sync.QueueState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +42,15 @@ class SeguePlayer(private val exo: ExoPlayer) : ForwardingPlayer(exo) {
     override fun getShuffleModeEnabled(): Boolean = false
 
     /**
+     * Plays at [preferences]' playback speed, with natural pitch: Media3 time-stretches. The speed
+     * holds across items, so it only needs applying when the preference changes.
+     */
+    fun applyPlaybackSpeed(preferences: UserPreferences) {
+        val parameters = PlaybackParameters(preferences.playbackSpeed, NATURAL_PITCH)
+        if (exo.playbackParameters != parameters) exo.playbackParameters = parameters
+    }
+
+    /**
      * Restores a saved queue exactly: [items] (matching [state]'s songs), the current item and
      * position, and its source.
      */
@@ -60,5 +71,9 @@ class SeguePlayer(private val exo: ExoPlayer) : ForwardingPlayer(exo) {
     fun upNext(limit: Int): List<String> {
         val from = exo.currentMediaItemIndex + 1
         return (from until minOf(exo.mediaItemCount, from + limit)).map { exo.getMediaItemAt(it).mediaId }
+    }
+
+    private companion object {
+        const val NATURAL_PITCH = 1f
     }
 }

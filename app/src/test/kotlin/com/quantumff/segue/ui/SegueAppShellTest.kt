@@ -10,17 +10,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.R
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
@@ -31,6 +37,7 @@ import com.quantumff.segue.core.model.PlaybackError
 import com.quantumff.segue.core.model.PlaybackErrorKind
 import com.quantumff.segue.core.model.RemoteQueueOffer
 import com.quantumff.segue.feature.queue.QueueRemovals
+import com.quantumff.segue.playback.MediaVolume
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
 import kotlinx.collections.immutable.persistentListOf
@@ -50,11 +57,17 @@ class SegueAppShellTest {
 
     private val snackbars = Snackbars()
 
-    private fun setShell(layout: ShellLayout, player: ShellPlayerState = testPlayer) {
+    private val volumeChanges = mutableListOf<Float>()
+
+    private fun setShell(
+        layout: ShellLayout,
+        player: ShellPlayerState = testPlayer,
+        volume: MediaVolume = MediaVolume.Full,
+    ) {
         compose.setContent {
             SegueTheme {
                 val appState = rememberSegueAppState(shellLayout = layout)
-                TestShell(appState, player, snackbars)
+                TestShell(appState, player, snackbars, volume = volume, onVolumeChange = { volumeChanges += it })
             }
         }
     }
@@ -129,6 +142,31 @@ class SegueAppShellTest {
         compose.onNodeWithText(TEST_TRACK).assertExists()
         tab("Library").performClick()
         compose.onNodeWithText("Open a sample artist").assertExists()
+    }
+
+    @Test
+    fun `the player bar's volume slider is labelled and sets the volume`() {
+        setShell(ShellLayout.Expanded)
+
+        compose.onNode(hasContentDescription("Volume"))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+            .performSemanticsAction(SemanticsActions.SetProgress) { it(0.4f) }
+
+        assertThat(volumeChanges.last()).isWithin(0.01f).of(0.4f)
+    }
+
+    @Test
+    fun `the player bar's volume slider announces its level`() {
+        setShell(ShellLayout.Expanded, volume = MediaVolume(fraction = 0.5f, steps = 14))
+
+        compose.onNode(hasContentDescription("Volume")).assert(hasStateDescription("50%"))
+    }
+
+    @Test
+    fun `phones have no volume slider`() {
+        setShell(ShellLayout.Compact)
+
+        compose.onNode(hasContentDescription("Volume")).assertDoesNotExist()
     }
 
     @Test
@@ -308,6 +346,62 @@ class SegueAppShellTest {
 
         compose.onNodeWithText("Now playing").assertExists()
         compose.onAllNodes(hasText("Continue from Feishin")).assertCountEquals(0)
+    }
+
+    private fun setExpandedShellShowingStart() {
+        compose.setContent {
+            SegueTheme {
+                val appState = rememberSegueAppState(shellLayout = ShellLayout.Expanded)
+                TestShell(appState, snackbars = snackbars, nowPlaying = { StartShowingNowPlaying(appState) })
+            }
+        }
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's Lyrics opens Now Playing on the Lyrics panel`() {
+        setExpandedShellShowingStart()
+
+        compose.onNodeWithContentDescription("Lyrics").performClick()
+
+        compose.onNodeWithText("Now playing on Lyrics, menu closed").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's more options opens Now Playing with its menu open`() {
+        setExpandedShellShowingStart()
+
+        compose.onNodeWithContentDescription("More options").performClick()
+
+        compose.onNodeWithText("Now playing on no panel, menu open").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = EXPANDED_WINDOW)
+    fun `the player bar's track opens Now Playing as before, even after Lyrics did`() {
+        setExpandedShellShowingStart()
+        compose.onNodeWithContentDescription("Lyrics").performClick()
+        compose.onNodeWithText("Collapse").performClick()
+
+        compose.onNodeWithText(TEST_TRACK).performClick()
+
+        compose.onNodeWithText("Now playing on no panel, menu closed").assertExists()
+    }
+}
+
+/** Wide enough for the whole player bar, ⋮ included. */
+private const val EXPANDED_WINDOW = "w1280dp-h800dp-land"
+
+/** A stand-in Now Playing that says which panel and menu it opened with. */
+@Composable
+private fun StartShowingNowPlaying(appState: SegueAppState) {
+    if (!appState.isNowPlayingOpen) return
+    val start = appState.nowPlayingStart
+    val menu = if (start.openMenu) "open" else "closed"
+    Column {
+        Text("Now playing on ${start.panel ?: "no panel"}, menu $menu")
+        TextButton(onClick = appState::closeNowPlaying) { Text("Collapse") }
     }
 }
 

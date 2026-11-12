@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -47,13 +47,15 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.feature.nowplaying.R
+import com.quantumff.segue.feature.nowplaying.SLEEP_TIMER_EXTENSION_MINUTES
 import com.quantumff.segue.feature.nowplaying.SleepTimerChoice
+import com.quantumff.segue.feature.nowplaying.component.rememberMinuteClock
+import com.quantumff.segue.feature.nowplaying.minutesLeft
 import java.util.Date
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 /**
- * Sleep timer (DESIGN.md §4.7 ⋮ menu): the running timer with Cancel, then presets, end of track,
+ * Sleep timer (DESIGN.md §4.7 ⋮ menu): the running timer with +15 min and Cancel, then presets, end of track,
  * end of album, and a custom length. Picking one starts it (or replaces the running one) and closes.
  * The title stays fixed and the rest scrolls when it doesn't fit, such as in landscape.
  */
@@ -64,6 +66,7 @@ internal fun SleepTimerSheet(
     onStart: (SleepTimerChoice) -> Unit,
     onCancel: () -> Unit,
     onDismissRequest: () -> Unit,
+    onExtend: () -> Unit = {},
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -82,6 +85,10 @@ internal fun SleepTimerSheet(
                 onCancel()
                 onDismissRequest()
             },
+            onExtend = {
+                onExtend()
+                onDismissRequest()
+            },
             modifier = Modifier.navigationBarsPadding(),
         )
     }
@@ -93,6 +100,7 @@ internal fun SleepTimerContent(
     onStart: (SleepTimerChoice) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    onExtend: () -> Unit = {},
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(
@@ -109,7 +117,7 @@ internal fun SleepTimerContent(
                 .weight(1f, fill = false)
                 .verticalScroll(rememberScrollState()),
         ) {
-            if (active != null) ActiveTimer(active, onCancel)
+            if (active != null) ActiveTimer(active, onCancel, onExtend)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             PRESET_MINUTES.forEach { minutes ->
                 SheetRow(
@@ -136,61 +144,63 @@ internal fun SleepTimerContent(
     }
 }
 
-/** The running timer: when it pauses and how long is left, with Cancel. */
+/** The running timer: when it pauses and how long is left, with +15 min and Cancel. */
 @Composable
-private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
+private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit, onExtend: () -> Unit) {
     val context = LocalContext.current
     val (title, subtitle) = when (active) {
         is SleepTimer.AtTime -> {
-            // Refreshes once a minute while the sheet is open; nothing runs once it closes.
-            val now by produceState(System.currentTimeMillis(), active) {
-                while (true) {
-                    delay(MILLIS_PER_MINUTE - value % MILLIS_PER_MINUTE)
-                    value = System.currentTimeMillis()
-                }
-            }
-            val minutesLeft = ((active.endsAtMillis - now).coerceAtLeast(0) + MILLIS_PER_MINUTE - 1) / MILLIS_PER_MINUTE
+            // Refreshes once a minute while the sheet is open, in step with the top bar's chip.
+            val now by rememberMinuteClock()
+            val minutesLeft = active.minutesLeft(now)
             stringResource(
                 R.string.feature_nowplaying_sleep_active_at,
                 DateFormat.getTimeFormat(context).format(Date(active.endsAtMillis)),
-            ) to stringResource(R.string.feature_nowplaying_sleep_active_remaining, durationLabel(minutesLeft.toInt()))
+            ) to stringResource(R.string.feature_nowplaying_sleep_active_remaining, durationLabel(minutesLeft))
         }
 
         SleepTimer.EndOfTrack -> stringResource(R.string.feature_nowplaying_sleep_active_end_of_track) to null
 
         SleepTimer.EndOfAlbum -> stringResource(R.string.feature_nowplaying_sleep_active_end_of_album) to null
     }
-    Row(
+    // The text takes the full width and the actions sit below it, so both fit a phone held upright.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest, SegueShapes.lg)
-            .padding(start = SegueSpacing.lg, end = SegueSpacing.xs, top = SegueSpacing.sm, bottom = SegueSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = SegueSpacing.lg, end = SegueSpacing.xs, top = SegueSpacing.sm, bottom = SegueSpacing.xs),
     ) {
-        Icon(
-            imageVector = SegueIcons.Timer,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(SegueSizes.iconSmall),
-        )
-        Spacer(Modifier.width(SegueSpacing.md))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall.tabularNumbers(),
-                color = MaterialTheme.colorScheme.onSurface,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = SegueIcons.Timer,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(SegueSizes.iconSmall),
             )
-            subtitle?.let {
+            Spacer(Modifier.width(SegueSpacing.md))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall.tabularNumbers(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.tabularNumbers(),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
+                subtitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall.tabularNumbers(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-        TextButton(onClick = onCancel) {
-            Text(stringResource(R.string.feature_nowplaying_sleep_cancel), color = MaterialTheme.colorScheme.error)
+        Row(Modifier.align(Alignment.End)) {
+            TextButton(onClick = onExtend) {
+                Text(stringResource(R.string.feature_nowplaying_sleep_extend, SLEEP_TIMER_EXTENSION_MINUTES))
+            }
+            TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.feature_nowplaying_sleep_cancel), color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }
@@ -200,6 +210,8 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
 private fun CustomTimer(onStart: (Int) -> Unit) {
     var minutes by rememberSaveable { mutableFloatStateOf(DEFAULT_CUSTOM_MINUTES.toFloat()) }
     var expanded by rememberSaveable { mutableStateOf(false) }
+    // A screen reader reads the minutes, not the slider's percentage.
+    val minutesDescription = stringResource(R.string.feature_nowplaying_sleep_minutes, minutes.roundToInt())
     Column {
         SheetRow(
             icon = SegueIcons.Edit,
@@ -218,7 +230,9 @@ private fun CustomTimer(onStart: (Int) -> Unit) {
                     onValueChange = { minutes = it },
                     valueRange = CUSTOM_MIN.toFloat()..CUSTOM_MAX.toFloat(),
                     steps = (CUSTOM_MAX - CUSTOM_MIN) / CUSTOM_STEP - 1,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { stateDescription = minutesDescription },
                 )
                 Spacer(Modifier.width(SegueSpacing.md))
                 Text(
@@ -290,7 +304,6 @@ private const val CUSTOM_MIN = 5
 private const val CUSTOM_MAX = 180
 private const val CUSTOM_STEP = 5
 private const val MINUTES_PER_HOUR = 60
-private const val MILLIS_PER_MINUTE = 60_000L
 private val CUSTOM_LABEL_WIDTH = SegueSizes.touchTarget * 2
 
 @PreviewSegueThemes

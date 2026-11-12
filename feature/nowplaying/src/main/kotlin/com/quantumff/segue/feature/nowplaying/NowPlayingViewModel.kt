@@ -15,6 +15,7 @@ import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.LyricsRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.repository.SongFileInfoRepository
+import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.CurrentSong
@@ -63,6 +64,7 @@ class NowPlayingViewModel @Inject constructor(
     private val playlists: PlaylistRepository,
     private val snackbars: Snackbars,
     private val offlineView: OfflineLibraryView,
+    private val preferences: UserPreferencesRepository,
 ) : ViewModel() {
     private val currentSongId: Flow<String?> = player.state
         .map { it.currentItem?.songId }
@@ -88,9 +90,13 @@ class NowPlayingViewModel @Inject constructor(
         },
     ) { song, file -> song?.toDetails(file) }
 
+    // The speed is the stored preference, which the playback service applies: the sheet and badge
+    // show the choice at once, even before the service has picked it up.
+    private val playbackSpeed: Flow<Float> = preferences.preferences.map { it.playbackSpeed }.distinctUntilChanged()
+
     val uiState: StateFlow<NowPlayingUiState> =
-        combine(player.state, currentSong, currentFileInfo) { state, song, file ->
-            state.toNowPlayingUiState(song, file)
+        combine(player.state, currentSong, currentFileInfo, playbackSpeed) { state, song, file, speed ->
+            state.toNowPlayingUiState(song, file).copy(speed = speed)
         }
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), NowPlayingUiState())
@@ -201,6 +207,20 @@ class NowPlayingViewModel @Inject constructor(
         sleepTimerConfirmations.confirm(choice) { playback.setSleepTimer(null) }
     }
 
+    /**
+     * "+15 min" on the running timer; confirms the new time left, with Cancel, like starting one.
+     * Does nothing when no timer runs.
+     */
+    fun extendSleepTimer() {
+        val running = uiState.value.sleepTimer ?: return
+        val now = System.currentTimeMillis()
+        val extended = running.extendedBy15Min(now)
+        playback.setSleepTimer(extended)
+        sleepTimerConfirmations.confirm(SleepTimerChoice.Minutes(extended.minutesLeft(now))) {
+            playback.setSleepTimer(null)
+        }
+    }
+
     fun cancelSleepTimer() {
         playback.setSleepTimer(null)
         sleepTimerConfirmations.takeDown()
@@ -245,6 +265,11 @@ class NowPlayingViewModel @Inject constructor(
     }
 
     fun clearQueue() = playback.clearQueue()
+
+    /** Stores [speed], one of the presets; the playback service applies it to the player. */
+    fun setPlaybackSpeed(speed: Float) {
+        viewModelScope.launch { preferences.update { it.copy(playbackSpeed = speed) } }
+    }
 
     private fun loadLyrics(songId: String, offline: Boolean): Flow<LyricsUiState> = flow {
         emit(LyricsUiState.Loading)

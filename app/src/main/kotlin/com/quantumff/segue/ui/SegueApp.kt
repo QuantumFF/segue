@@ -70,6 +70,8 @@ import com.quantumff.segue.feature.artist.navigation.navigateToArtist
 import com.quantumff.segue.feature.library.navigation.navigateToGenre
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.NowPlayingOverlay
+import com.quantumff.segue.feature.nowplaying.NowPlayingPanel
+import com.quantumff.segue.feature.nowplaying.NowPlayingStart
 import com.quantumff.segue.feature.playlist.AddToPlaylistSheet
 import com.quantumff.segue.feature.playlist.AddToPlaylistViewModel
 import com.quantumff.segue.feature.playlist.navigation.navigateToPlaylist
@@ -81,6 +83,7 @@ import com.quantumff.segue.navigation.TopLevelDestination
 import com.quantumff.segue.playback.PlayerViewModel
 import com.quantumff.segue.playback.ShellPlayerActions
 import com.quantumff.segue.playback.ShellPlayerState
+import com.quantumff.segue.playback.ShellVolume
 import com.quantumff.segue.playback.progressOf
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -158,6 +161,7 @@ fun SegueApp(
         snackbarHostState = snackbarHostState,
         sidebarPlaylists = sidebarPlaylists,
         onSidebarPlaylistClick = onSidebarPlaylistClick,
+        volume = playerViewModel.volume,
         nowPlaying = {
             // Collapse first, so back from the album or artist returns to where the user was.
             val onAlbumClick: (String) -> Unit = { id ->
@@ -170,6 +174,7 @@ fun SegueApp(
             }
             NowPlayingOverlay(
                 visible = appState.isNowPlayingOpen,
+                start = appState.nowPlayingStart,
                 onCollapse = appState::closeNowPlaying,
                 onAlbumClick = onAlbumClick,
                 onArtistClick = onArtistClick,
@@ -236,6 +241,7 @@ fun SegueApp(
     sidebarPlaylists: ImmutableList<SidebarPlaylist> = persistentListOf(),
     onSidebarPlaylistClick: (String) -> Unit = {},
     nowPlaying: @Composable () -> Unit = {},
+    volume: ShellVolume = ShellVolume.Fixed,
     navHost: @Composable (Modifier) -> Unit,
 ) {
     val destination = appState.currentDestination
@@ -280,9 +286,9 @@ fun SegueApp(
         }
     }
 
-    val onOpenNowPlaying = remember(appState) { appState::openNowPlaying }
-    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying) {
-        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying)
+    val onOpenNowPlaying: (NowPlayingStart) -> Unit = remember(appState) { { appState.openNowPlaying(it) } }
+    val shellPlayer = remember(player, positionMillis, playerActions, onOpenNowPlaying, volume) {
+        ShellPlayer(player, positionMillis, playerActions, onOpenNowPlaying, volume)
     }
 
     Box(
@@ -369,7 +375,9 @@ private class ShellPlayer(
     val state: ShellPlayerState,
     val positionMillis: StateFlow<Long>,
     val actions: ShellPlayerActions,
-    val onOpenNowPlaying: () -> Unit,
+    val onOpenNowPlaying: (NowPlayingStart) -> Unit,
+    /** Collected only by the player bar: phones have no volume slider. */
+    val volume: ShellVolume,
 )
 
 @Composable
@@ -493,7 +501,7 @@ private fun ShellMiniPlayer(player: ShellPlayer, modifier: Modifier = Modifier) 
         state = track,
         trackKey = state.currentTimelineIndex,
         progress = { progressOf(position.value, state.durationMillis) },
-        onClick = player.onOpenNowPlaying,
+        onClick = { player.onOpenNowPlaying(NowPlayingStart.Default) },
         onPlayPauseClick = actions.onPlayPause,
         onNextClick = actions.onNext,
         previous = state.previous?.track,
@@ -520,32 +528,35 @@ private fun ShellContinueBar(player: ShellPlayer, modifier: Modifier = Modifier)
 private fun ShellPlayerBar(player: ShellPlayer, modifier: Modifier = Modifier) {
     val state = player.state
     val track = state.current ?: return
+    val volume by player.volume.level.collectAsStateWithLifecycle()
     val barState = PlayerBarState(
         track = track,
-        durationSeconds = state.durationMillis / MILLIS_PER_SECOND,
+        durationMillis = state.durationMillis,
         repeatMode = state.repeatMode,
-        volume = 1f,
+        volume = volume.fraction,
+        volumeSteps = volume.steps,
     )
     val actions = player.actions
     val position = player.positionMillis.collectAsStateWithLifecycle()
-    val barActions = remember(actions, player.onOpenNowPlaying) {
+    val barActions = remember(actions, player.onOpenNowPlaying, player.volume) {
+        val open = player.onOpenNowPlaying
         PlayerBarActions(
-            onClick = player.onOpenNowPlaying,
+            onClick = { open(NowPlayingStart.Default) },
             onPlayPauseClick = actions.onPlayPause,
             onPreviousClick = actions.onPrevious,
             onNextClick = actions.onNext,
             onRepeatClick = actions.onCycleRepeat,
-            onLyricsClick = player.onOpenNowPlaying,
+            onLyricsClick = { open(NowPlayingStart(panel = NowPlayingPanel.Lyrics)) },
             // The queue is a Now Playing panel: the first tab in its two-pane layout.
-            onQueueClick = player.onOpenNowPlaying,
-            onMoreClick = player.onOpenNowPlaying,
-            // System volume is the only volume; the bar's slider is not wired.
-            onVolumeChange = {},
+            onQueueClick = { open(NowPlayingStart(panel = NowPlayingPanel.Queue)) },
+            onMoreClick = { open(NowPlayingStart(openMenu = true)) },
+            onVolumeChange = player.volume.onChange,
+            onSeek = actions.onSeek,
         )
     }
     PlayerBar(
         state = barState,
-        positionSeconds = { position.value / MILLIS_PER_SECOND },
+        positionMillis = { position.value },
         actions = barActions,
         modifier = modifier,
     )
@@ -574,8 +585,6 @@ private fun bottomChromeHeight(systemBottom: Dp, miniPlayer: Boolean, navBar: Bo
         (if (continueBar) SegueSizes.miniPlayer else SegueSpacing.none) +
         (if (navBar) SegueSizes.navigationBar else SegueSpacing.none) +
         systemBottom
-
-private const val MILLIS_PER_SECOND = 1_000L
 
 /** Light status-bar icons over dark themes and over art (Now Playing), DESIGN.md §3. */
 @Composable

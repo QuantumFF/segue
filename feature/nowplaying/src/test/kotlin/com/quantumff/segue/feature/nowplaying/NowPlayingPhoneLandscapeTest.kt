@@ -104,7 +104,7 @@ class NowPlayingPhoneLandscapeTest {
         assertTrue("the cover is square", (art.width - art.height).value in -0.5f..0.5f)
         val controlsStart = compose.onNodeWithContentDescription("Collapse").getUnclippedBoundsInRoot().left
         assertTrue("the cover ends at ${art.right}, past the controls at $controlsStart", art.right <= controlsStart)
-        val controlsEnd = compose.onNodeWithContentDescription("Repeat all").getUnclippedBoundsInRoot().right
+        val controlsEnd = compose.onNodeWithContentDescription("Repeat").getUnclippedBoundsInRoot().right
         if (panelOpen) {
             val panel = compose.onNodeWithText(QUEUE_BODY).getUnclippedBoundsInRoot()
             assertTrue("the controls end at $controlsEnd, past the panel at ${panel.left}", controlsEnd <= panel.left)
