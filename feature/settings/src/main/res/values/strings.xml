@@ -6,7 +6,6 @@
     <string name="feature_settings_add_server">Add server</string>
     <string name="feature_settings_server_summary">%1$s · %2$s</string>
     <string name="feature_settings_server_active">Active · %1$s · %2$s</string>
-    <string name="feature_settings_active">Active</string>
     <string name="feature_settings_switched_to">Switched to %1$s</string>
     <string name="feature_settings_remove_server">Remove server</string>
     <string name="feature_settings_remove_server_title">Remove %1$s?</string>

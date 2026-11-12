@@ -25,6 +25,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.quantumff.segue.core.designsystem.art.CoverArt
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
@@ -113,6 +115,7 @@ fun ContextMenuContent(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading() },
                 )
                 header.subtitle?.let {
                     Text(

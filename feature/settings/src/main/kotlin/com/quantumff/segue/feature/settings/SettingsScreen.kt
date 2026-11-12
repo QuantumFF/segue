@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +46,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -528,7 +531,10 @@ fun SettingsContent(
         val initialIndex = remember { section?.let { indexOfKey(items, it.headerKey) } ?: 0 }
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
         LazyColumn(
-            Modifier.fillMaxSize(),
+            // The server rows are one choice.
+            Modifier
+                .fillMaxSize()
+                .selectableGroup(),
             state = listState,
             contentPadding = PaddingValues(bottom = bottom + SegueSpacing.lg),
             content = items,
@@ -702,13 +708,22 @@ private fun ServerRow(server: Server, active: Boolean, onClick: () -> Unit, onRe
             stringResource(R.string.feature_settings_server_summary, server.username, server.baseUrl)
         },
         icon = SegueIcons.Server,
-        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onRemoveClick),
+        // One choice among the servers, with long-press still removing; selectable() can't carry a long-press.
+        modifier = Modifier
+            .combinedClickable(
+                role = Role.RadioButton,
+                onLongClickLabel = stringResource(R.string.feature_settings_remove_server),
+                onLongClick = onRemoveClick,
+                onClick = onClick,
+            )
+            .semantics { selected = active },
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (active) {
                     Icon(
                         imageVector = SegueIcons.Check,
-                        contentDescription = stringResource(R.string.feature_settings_active),
+                        // The summary already says "Active".
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(SegueSizes.iconSmall),
                     )
@@ -730,7 +745,9 @@ private fun AccentSwatches(selected: AccentPreset, onSelect: (AccentPreset) -> U
     SettingsRow(title = stringResource(R.string.feature_settings_accent_color))
     Row(
         horizontalArrangement = Arrangement.spacedBy(SegueSpacing.xs),
-        modifier = Modifier.padding(start = SegueSpacing.sm, end = SegueSpacing.lg, bottom = SegueSpacing.sm),
+        modifier = Modifier
+            .padding(start = SegueSpacing.sm, end = SegueSpacing.lg, bottom = SegueSpacing.sm)
+            .selectableGroup(),
     ) {
         AccentPreset.entries.forEach { preset ->
             val colors = AccentPresetColors.valueOf(preset.name)
@@ -783,7 +800,12 @@ private fun SwitchRow(
         title = title,
         summary = summary,
         enabled = enabled,
-        modifier = Modifier.clickable(enabled = enabled, role = Role.Switch) { onCheckedChange(!checked) },
+        modifier = Modifier.toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+        ),
         trailing = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
     )
 }
