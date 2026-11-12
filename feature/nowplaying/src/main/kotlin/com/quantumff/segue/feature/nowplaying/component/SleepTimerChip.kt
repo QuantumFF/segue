@@ -87,9 +87,7 @@ internal fun SleepTimerChip(
  */
 internal fun SleepTimer.chipText(nowMillis: Long): SnackbarText = when (this) {
     is SleepTimer.AtTime -> sleepDuration(minutesLeft(nowMillis))
-
     SleepTimer.EndOfTrack -> SnackbarText.of(R.string.feature_nowplaying_sleep_end_of_track)
-
     SleepTimer.EndOfAlbum -> SnackbarText.of(R.string.feature_nowplaying_sleep_end_of_album)
 }
 

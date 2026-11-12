@@ -129,11 +129,14 @@ class QueueMenuTest {
         val removed = items.filterIsInstance<QueueListItem.Track>().single { it.key == key }
         return copy(
             items = items.filterNot { it.key == key }
-                .map { if (it is QueueListItem.Track && it.position > removed.position) it.copy(position = it.position - 1) else it }
+                .map { row -> row.movedUpAfter(removed.position) }
                 .toImmutableList(),
             trackCount = trackCount - 1,
         )
     }
+
+    private fun QueueListItem.movedUpAfter(position: Int): QueueListItem =
+        if (this is QueueListItem.Track && this.position > position) copy(position = this.position - 1) else this
 
     @Test
     fun `a dragged row hides its more button`() {
