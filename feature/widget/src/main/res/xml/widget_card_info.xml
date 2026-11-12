@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 4x2 now-playing card, resizable. Never updated on a timer: the playback service pushes changes. -->
+<!-- 4x2 now-playing card, resizable. Never updated on a timer: the playback service pushes changes.
+     Below Android 15 only: xml-v35 holds the same info without the static previewImage. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_card_description"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:minWidth="250dp"
     android:minHeight="110dp"
     android:minResizeWidth="180dp"
+    android:previewImage="@drawable/widget_card_preview"
     android:minResizeHeight="80dp"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="4"
