@@ -242,6 +242,7 @@ private fun SplitPill(
                     .fillMaxHeight()
                     .clickable(role = Role.Button, onClickLabel = menuLabel) { menuOpen = true }
                     .semantics { contentDescription = menuLabel }
+                    .minimumTouchTarget()
                     .padding(start = SegueSpacing.sm, end = SegueSpacing.md),
                 contentAlignment = Alignment.Center,
             ) {

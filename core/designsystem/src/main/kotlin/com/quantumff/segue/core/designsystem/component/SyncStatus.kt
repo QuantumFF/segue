@@ -66,6 +66,7 @@ fun SyncStatusBar(progress: SyncProgress, onRetryClick: () -> Unit, modifier: Mo
         is SyncProgress.Failed -> StatusChip(
             label = stringResource(R.string.ds_sync_failed),
             icon = SegueIcons.Error,
+            onClickLabel = stringResource(R.string.ds_retry),
             onClick = onRetryClick,
             modifier = modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs),
         )
