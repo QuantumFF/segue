@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The widget picker's static previews (below Android 15) in WidgetColors' light roles: Segue's
+    neutrals and the default accent. The launcher resolves them with the system theme.
+-->
+<resources>
+    <color name="widget_preview_surface">#FFE9E9E9</color>
+    <color name="widget_preview_placeholder">#FFE1E1E1</color>
+    <color name="widget_preview_on_surface">#FF191919</color>
+    <color name="widget_preview_on_surface_variant">#FF505050</color>
+    <color name="widget_preview_primary">#FF0066E0</color>
+    <color name="widget_preview_on_primary">#FFFFFFFF</color>
+</resources>

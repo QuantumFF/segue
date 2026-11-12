@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The static previews in WidgetColors' dark roles: Segue's neutrals and the default accent. -->
+<resources>
+    <color name="widget_preview_surface">#FF141414</color>
+    <color name="widget_preview_placeholder">#FF1C1C1C</color>
+    <color name="widget_preview_on_surface">#FFE1E1E1</color>
+    <color name="widget_preview_on_surface_variant">#FF969696</color>
+    <color name="widget_preview_primary">#FF3574FC</color>
+    <color name="widget_preview_on_primary">#FFFFFFFF</color>
+</resources>
