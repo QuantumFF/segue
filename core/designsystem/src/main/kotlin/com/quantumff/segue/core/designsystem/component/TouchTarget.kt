@@ -38,8 +38,9 @@ fun Modifier.minimumTouchTarget(): Modifier = minimumInteractiveComponentSize()
 /**
  * Like [minimumTouchTarget], but the control keeps its designed slot in the layout: its tap area
  * and the node TalkBack focuses grow to at least 48x48 around the content and overlap the
- * neighbours (which win where they overlap and take touches themselves). For a short line of text
- * in a dense column, such as a hero's artist link.
+ * neighbours. Where they overlap, the one on top takes the touch: a neighbour placed after this
+ * control, or raised with `Modifier.zIndex`; otherwise this control. Raise a neighbour that must win,
+ * such as a seek line. For a short line of text in a dense column, such as a hero's artist link.
  *
  * Pass the control's `clickable` (or other pointer and semantics modifiers) as [input], e.g.
  * `Modifier.fillMaxWidth().overflowingTouchTarget(Modifier.clickable(onClick = onClick))`.
