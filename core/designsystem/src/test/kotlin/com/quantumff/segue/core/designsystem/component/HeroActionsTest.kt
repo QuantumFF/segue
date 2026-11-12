@@ -2,10 +2,13 @@ package com.quantumff.segue.core.designsystem.component
 
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
@@ -42,6 +45,13 @@ class HeroActionsTest {
         repeat(ACTIONS) { index ->
             compose.onNodeWithContentDescription("Action $index").assertWidthIsEqualTo(SegueSizes.touchTarget)
         }
+    }
+
+    @Test
+    fun `the hero title is a heading`() {
+        show(width = 360)
+
+        compose.onNodeWithText("Radiohead").assert(isHeading())
     }
 
     private fun show(width: Int) {
