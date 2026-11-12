@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material You accents for the light static previews, the roles dynamicLightColorScheme takes. -->
+<resources>
+    <color name="widget_preview_primary">@android:color/system_accent1_600</color>
+    <color name="widget_preview_on_primary">@android:color/system_accent1_0</color>
+</resources>

@@ -236,6 +236,12 @@ class PlaybackController @Inject constructor(
     fun skipToPrevious() = command { it.seekToPrevious() }
 
     /**
+     * Connects to the playback service without playing, starting it if it is not running. A
+     * service that starts restores the saved queue on this device, paused at its last position.
+     */
+    fun connect() = command { }
+
+    /**
      * A playback error's Skip ([PlayerUiState.playbackError]): plays the next item. After the last
      * item it clears the error and leaves the player stopped
      * ([com.quantumff.segue.core.playback.service.PlaybackErrorReporter.skip]).

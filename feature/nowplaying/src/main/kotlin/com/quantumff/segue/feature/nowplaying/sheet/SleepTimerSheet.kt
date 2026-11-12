@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
@@ -46,6 +47,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import com.quantumff.segue.core.designsystem.theme.tabularNumbers
 import com.quantumff.segue.core.model.SleepTimer
 import com.quantumff.segue.feature.nowplaying.R
+import com.quantumff.segue.feature.nowplaying.SLEEP_TIMER_EXTENSION_MINUTES
 import com.quantumff.segue.feature.nowplaying.SleepTimerChoice
 import com.quantumff.segue.feature.nowplaying.component.minutesLeft
 import com.quantumff.segue.feature.nowplaying.component.rememberMinuteClock
@@ -53,7 +55,7 @@ import java.util.Date
 import kotlin.math.roundToInt
 
 /**
- * Sleep timer (DESIGN.md §4.7 ⋮ menu): the running timer with Cancel, then presets, end of track,
+ * Sleep timer (DESIGN.md §4.7 ⋮ menu): the running timer with +15 min and Cancel, then presets, end of track,
  * end of album, and a custom length. Picking one starts it (or replaces the running one) and closes.
  * The title stays fixed and the rest scrolls when it doesn't fit, such as in landscape.
  */
@@ -64,6 +66,7 @@ internal fun SleepTimerSheet(
     onStart: (SleepTimerChoice) -> Unit,
     onCancel: () -> Unit,
     onDismissRequest: () -> Unit,
+    onExtend: () -> Unit = {},
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -82,6 +85,10 @@ internal fun SleepTimerSheet(
                 onCancel()
                 onDismissRequest()
             },
+            onExtend = {
+                onExtend()
+                onDismissRequest()
+            },
             modifier = Modifier.navigationBarsPadding(),
         )
     }
@@ -93,6 +100,7 @@ internal fun SleepTimerContent(
     onStart: (SleepTimerChoice) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    onExtend: () -> Unit = {},
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(
@@ -109,7 +117,7 @@ internal fun SleepTimerContent(
                 .weight(1f, fill = false)
                 .verticalScroll(rememberScrollState()),
         ) {
-            if (active != null) ActiveTimer(active, onCancel)
+            if (active != null) ActiveTimer(active, onCancel, onExtend)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             PRESET_MINUTES.forEach { minutes ->
                 SheetRow(
@@ -136,9 +144,9 @@ internal fun SleepTimerContent(
     }
 }
 
-/** The running timer: when it pauses and how long is left, with Cancel. */
+/** The running timer: when it pauses and how long is left, with +15 min and Cancel. */
 @Composable
-private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
+private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit, onExtend: () -> Unit) {
     val context = LocalContext.current
     val (title, subtitle) = when (active) {
         is SleepTimer.AtTime -> {
@@ -155,37 +163,44 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
 
         SleepTimer.EndOfAlbum -> stringResource(R.string.feature_nowplaying_sleep_active_end_of_album) to null
     }
-    Row(
+    // The text takes the full width and the actions sit below it, so both fit a phone held upright.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest, SegueShapes.lg)
-            .padding(start = SegueSpacing.lg, end = SegueSpacing.xs, top = SegueSpacing.sm, bottom = SegueSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = SegueSpacing.lg, end = SegueSpacing.xs, top = SegueSpacing.sm, bottom = SegueSpacing.xs),
     ) {
-        Icon(
-            imageVector = SegueIcons.Timer,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(SegueSizes.iconSmall),
-        )
-        Spacer(Modifier.width(SegueSpacing.md))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall.tabularNumbers(),
-                color = MaterialTheme.colorScheme.onSurface,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = SegueIcons.Timer,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(SegueSizes.iconSmall),
             )
-            subtitle?.let {
+            Spacer(Modifier.width(SegueSpacing.md))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall.tabularNumbers(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.tabularNumbers(),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
+                subtitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall.tabularNumbers(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-        TextButton(onClick = onCancel) {
-            Text(stringResource(R.string.feature_nowplaying_sleep_cancel), color = MaterialTheme.colorScheme.error)
+        Row(Modifier.align(Alignment.End)) {
+            TextButton(onClick = onExtend) {
+                Text(stringResource(R.string.feature_nowplaying_sleep_extend, SLEEP_TIMER_EXTENSION_MINUTES))
+            }
+            TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.feature_nowplaying_sleep_cancel), color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }
@@ -195,6 +210,8 @@ private fun ActiveTimer(active: SleepTimer, onCancel: () -> Unit) {
 private fun CustomTimer(onStart: (Int) -> Unit) {
     var minutes by rememberSaveable { mutableFloatStateOf(DEFAULT_CUSTOM_MINUTES.toFloat()) }
     var expanded by rememberSaveable { mutableStateOf(false) }
+    // A screen reader reads the minutes, not the slider's percentage.
+    val minutesDescription = stringResource(R.string.feature_nowplaying_sleep_minutes, minutes.roundToInt())
     Column {
         SheetRow(
             icon = SegueIcons.Edit,
@@ -213,7 +230,9 @@ private fun CustomTimer(onStart: (Int) -> Unit) {
                     onValueChange = { minutes = it },
                     valueRange = CUSTOM_MIN.toFloat()..CUSTOM_MAX.toFloat(),
                     steps = (CUSTOM_MAX - CUSTOM_MIN) / CUSTOM_STEP - 1,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { stateDescription = minutesDescription },
                 )
                 Spacer(Modifier.width(SegueSpacing.md))
                 Text(
