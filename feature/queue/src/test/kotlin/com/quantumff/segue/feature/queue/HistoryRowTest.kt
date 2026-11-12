@@ -40,10 +40,10 @@ class HistoryRowTest {
     private fun show() {
         compose.setContent {
             SegueTheme {
-                HistoryRow(history = QueueListItem.History(count = 3, expanded = expanded), onClick = {
-                    expanded =
-                        !expanded
-                })
+                HistoryRow(
+                    history = QueueListItem.History(count = 3, expanded = expanded),
+                    onClick = { expanded = !expanded },
+                )
             }
         }
     }
