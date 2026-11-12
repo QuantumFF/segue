@@ -118,6 +118,29 @@ class FavoriteToggleTest {
     }
 
     @Test
+    fun `a queued song that is not playing can be toggled by its ID`() = runTest {
+        queue()
+
+        toggle().toggle(songId = "b")
+
+        assertThat(hearts()).containsExactly(false, true, false).inOrder()
+        runCurrent()
+        assertThat(starRatings.starred[MediaKind.Song to "b"]).isTrue()
+        assertThat(exo.currentMediaItemIndex).isEqualTo(0)
+    }
+
+    @Test
+    fun `a song that is not queued is not toggled`() = runTest {
+        queue()
+
+        toggle().toggle(songId = "z")
+        runCurrent()
+
+        assertThat(starRatings.starred).isEmpty()
+        assertThat(changes).isEqualTo(0)
+    }
+
+    @Test
     fun `nothing queued, nothing to toggle`() = runTest {
         toggle().toggle()
         runCurrent()

@@ -54,15 +54,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * A queue track: the shared track row on a `primaryContainer` background when current, with a
- * `grip-vertical` drag handle on the right. [handleModifier] attaches the reorder gesture to the handle.
- * Other rows are transparent, so the queue also sits on Now Playing's art backdrop.
+ * A queue track: the shared track row on a `primaryContainer` background when current, with its ⋮
+ * ([onMoreClick]) and a `grip-vertical` drag handle on the right. [handleModifier] attaches the
+ * reorder gesture to the handle. The ⋮ is hidden while the row is dragged; its space stays, so the
+ * title and duration do not shift. Other rows are transparent, so the queue also sits on Now
+ * Playing's art backdrop.
  */
 @Composable
 internal fun QueueTrackRow(
     state: TrackRowState,
     isDragging: Boolean,
     onClick: () -> Unit,
+    onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
     handleModifier: Modifier = Modifier,
 ) {
@@ -77,7 +80,14 @@ internal fun QueueTrackRow(
             .background(background),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TrackRow(state = state, onClick = onClick, modifier = Modifier.weight(1f))
+        TrackRow(
+            state = state,
+            onClick = onClick,
+            onMoreClick = onMoreClick.takeUnless { isDragging },
+            modifier = Modifier.weight(1f),
+        )
+        // Without the ⋮ the row's end padding grows from xs to lg; this makes up the rest.
+        if (isDragging) Spacer(Modifier.width(SegueSizes.overflowButton + SegueSpacing.xs - SegueSpacing.lg))
         DragHandle(stringResource(R.string.feature_queue_reorder), handleModifier)
     }
 }

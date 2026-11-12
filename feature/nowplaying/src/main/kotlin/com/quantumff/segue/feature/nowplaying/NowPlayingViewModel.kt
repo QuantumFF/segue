@@ -81,6 +81,15 @@ class NowPlayingViewModel @Inject constructor(
         }
     }
 
+    /** The details sheet for any library song, such as a queue row's Info: the song and its file. */
+    fun songDetails(songId: String): Flow<TrackDetails?> = combine(
+        library.song(songId),
+        flow {
+            emit(null)
+            emit(loadOrNull("file info") { fileInfo.fileInfo(songId) })
+        },
+    ) { song, file -> song?.toDetails(file) }
+
     // The speed is the stored preference, which the playback service applies: the sheet and badge
     // show the choice at once, even before the service has picked it up.
     private val playbackSpeed: Flow<Float> = preferences.preferences.map { it.playbackSpeed }.distinctUntilChanged()

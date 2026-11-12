@@ -18,7 +18,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueMotion
  *
  * @param onAlbumClick, [onArtistClick], [onPlaylistClick] and [onGenreClick] should collapse Now
  *   Playing before navigating.
- * @param queueContent the Queue panel.
+ * @param queueContent the Queue panel. Its argument shows the details sheet for a queued song.
  * @param start the panel and menu shown each time it opens.
  */
 @Composable
@@ -30,7 +30,7 @@ fun NowPlayingOverlay(
     onPlaylistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
-    queueContent: @Composable () -> Unit,
+    queueContent: @Composable (onInfo: (songId: String) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     start: NowPlayingStart = NowPlayingStart.Default,
 ) {

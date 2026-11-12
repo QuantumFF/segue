@@ -10,7 +10,7 @@ import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.RemotePlayQueue
 import com.quantumff.segue.core.model.RemoteQueueOffer
-import com.quantumff.segue.core.playback.PlaybackController
+import com.quantumff.segue.core.playback.QueueControls
 import com.quantumff.segue.core.playback.sync.QueueSyncEngine.Companion.deviceName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -49,17 +49,18 @@ data class QueueUiState(
 }
 
 /**
- * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, upload or download the
+ * The play queue (DESIGN.md §4.8): reorder, play next, remove with undo, favorite a queued song,
+ * upload or download the
  * server's saved queue by hand, and the "Continue from <device>" banner. Clear and Save as
  * playlist are Now Playing's.
  * Queues are shuffled only when music is added, never in place, so the queue order is the play
- * order. It reads the queue from [PlayerStateSource] and edits it through [PlaybackController].
+ * order. It reads the queue from [PlayerStateSource] and edits it through [QueueControls].
  * Its messages go to the app's [Snackbars].
  */
 @HiltViewModel
 class QueueViewModel @Inject constructor(
     private val player: PlayerStateSource,
-    private val playback: PlaybackController,
+    private val playback: QueueControls,
     private val snackbars: Snackbars,
 ) : ViewModel() {
     private val local = MutableStateFlow(LocalState())
@@ -82,6 +83,9 @@ class QueueViewModel @Inject constructor(
         playback.remove(track.position)
         removals.offerUndo(track.row.title, onUndo = playback::undoRemove)
     }
+
+    /** Stars or unstars [track]'s song, wherever it is in the queue. */
+    fun toggleFavorite(track: QueueListItem.Track) = playback.toggleFavorite(track.song.id)
 
     fun toggleHistory() = local.update { it.copy(historyExpanded = !it.historyExpanded) }
 

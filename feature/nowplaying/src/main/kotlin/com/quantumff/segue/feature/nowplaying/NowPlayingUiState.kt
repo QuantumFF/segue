@@ -301,7 +301,7 @@ private fun Song.creditedArtists(): ImmutableList<ArtistRef> {
     return persistentListOf(ArtistRef(id, name))
 }
 
-private fun Song.toDetails(file: SongFileInfo?) = TrackDetails(
+internal fun Song.toDetails(file: SongFileInfo?) = TrackDetails(
     format = suffix?.uppercase(Locale.ROOT) ?: contentType,
     bitRateKbps = bitRate?.takeIf { it > 0 },
     samplingRateHz = file?.samplingRate,

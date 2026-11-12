@@ -82,7 +82,8 @@ class PlaybackController @Inject constructor(
     private val artists: ArtistRepository,
     @Dispatcher(SegueDispatchers.Main) private val mainDispatcher: CoroutineDispatcher,
 ) : PlayerStateSource,
-    PlayerTransport {
+    PlayerTransport,
+    QueueControls {
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
     private val sessionExtras = MutableStateFlow(Bundle.EMPTY)
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -176,10 +177,10 @@ class PlaybackController @Inject constructor(
     }
 
     /** Moves the item at queue position [from] to position [to]. */
-    fun move(from: Int, to: Int) = command { controller -> controller.moveMediaItem(from, to) }
+    override fun move(from: Int, to: Int) = command { controller -> controller.moveMediaItem(from, to) }
 
     /** Removes the item at [timelineIndex]. [undoRemove] puts the last removed item back. */
-    fun remove(timelineIndex: Int) = command { controller ->
+    override fun remove(timelineIndex: Int) = command { controller ->
         if (timelineIndex !in 0 until controller.mediaItemCount) return@command
         lastRemoval = SegueSessionCommands.Removed(controller.getMediaItemAt(timelineIndex), timelineIndex)
         controller.removeMediaItem(timelineIndex)
@@ -190,7 +191,7 @@ class PlaybackController @Inject constructor(
      * intent (an add, which the service narrows offline) it comes back even if not downloaded. If the
      * service does not put it back, Undo stays possible, unless something else was removed meanwhile.
      */
-    fun undoRemove() = command { controller ->
+    override fun undoRemove() = command { controller ->
         val removal = lastRemoval ?: return@command
         // Taken now, so a second tap before the answer does not put it back twice.
         lastRemoval = null
@@ -206,7 +207,7 @@ class PlaybackController @Inject constructor(
         if (!putBack && lastRemoval == null) lastRemoval = removal
     }
 
-    fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
+    override fun skipTo(timelineIndex: Int) = command { it.seekTo(timelineIndex, 0) }
 
     fun clearQueue() = command { it.clearMediaItems() }
 
@@ -266,8 +267,11 @@ class PlaybackController @Inject constructor(
         )
     }
 
-    fun toggleFavorite() = command { controller ->
-        controller.sendCustomCommand(SegueSessionCommands.command(SegueSessionCommands.TOGGLE_FAVORITE), Bundle.EMPTY)
+    override fun toggleFavorite(songId: String?) = command { controller ->
+        controller.sendCustomCommand(
+            SegueSessionCommands.command(SegueSessionCommands.TOGGLE_FAVORITE),
+            SegueSessionCommands.favoriteArgs(songId),
+        )
     }
 
     // --- Remote queue --------------------------------------------------------------------------------
@@ -277,12 +281,12 @@ class PlaybackController @Inject constructor(
      * position ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]). If it cannot,
      * [continueFailures] says so.
      */
-    fun adoptRemoteQueue() {
+    override fun adoptRemoteQueue() {
         val adoption = queueSync.acceptOffer() ?: return
         scope.launch { if (!adopt(adoption)) continueFailureEvents.send(Unit) }
     }
 
-    fun dismissRemoteQueue() = queueSync.dismissOffer()
+    override fun dismissRemoteQueue() = queueSync.dismissOffer()
 
     /**
      * The "Continue from <device>" notification's Continue: the service takes over the offered
@@ -318,7 +322,7 @@ class PlaybackController @Inject constructor(
      * "Upload queue": saves the queue to the server now. False if the queue is empty or the player
      * could not be reached. Throws RemoteException.
      */
-    suspend fun uploadQueue(): Boolean = withContext(mainDispatcher) {
+    override suspend fun uploadQueue(): Boolean = withContext(mainDispatcher) {
         val queueState = try {
             val controller = controller()
             QueueState(
@@ -341,13 +345,13 @@ class PlaybackController @Inject constructor(
      * "Download queue": the queue saved on the server, for [adoptDownloadedQueue]; null if none.
      * Throws RemoteException.
      */
-    suspend fun fetchRemoteQueue(): RemotePlayQueue? = queueSync.fetchNow()
+    override suspend fun fetchRemoteQueue(): RemotePlayQueue? = queueSync.fetchNow()
 
     /**
      * Has the service replace the local queue with [queue] from [fetchRemoteQueue], paused
      * ([com.quantumff.segue.core.playback.sync.SavedQueueLoader.adopt]). False if it did not.
      */
-    suspend fun adoptDownloadedQueue(queue: RemotePlayQueue): Boolean =
+    override suspend fun adoptDownloadedQueue(queue: RemotePlayQueue): Boolean =
         adopt(queueSync.stageDownload(queue)).also { adopted -> if (adopted) queueSync.markDownloaded(queue) }
 
     // --- Generated queues ----------------------------------------------------------------------------
@@ -500,4 +504,7 @@ internal interface PlayerStateModule {
 
     @Binds
     fun playerTransport(impl: PlaybackController): PlayerTransport
+
+    @Binds
+    fun queueControls(impl: PlaybackController): QueueControls
 }
