@@ -71,7 +71,12 @@ fun MiniPlayer(
             .fillMaxWidth()
             .height(SegueSizes.miniPlayer)
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .rowClickable(enabled = true, onClick = onClick, onLongClick = onLongClick),
+            .rowClickable(
+                enabled = true,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onClickLabel = stringResource(R.string.ds_open_now_playing),
+            ),
     ) {
         ProgressLine(progress = progress, modifier = Modifier.align(Alignment.TopCenter))
         Row(
