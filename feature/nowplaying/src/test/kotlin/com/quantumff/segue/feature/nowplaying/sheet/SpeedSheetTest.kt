@@ -61,6 +61,7 @@ class SpeedSheetTest {
         val actions = NowPlayingActions(
             onCollapse = {}, onPlayPause = {}, onPrevious = {}, onNext = {}, onSkipTo = {}, onSeek = {},
             onCycleRepeat = {}, onToggleFavorite = {}, onStartSleepTimer = {}, onCancelSleepTimer = {},
+            onExtendSleepTimer = {},
             onSetSpeed = { chosen += it },
             onInstantMix = {}, onAlbumClick = {}, onArtistClick = {}, onSourceClick = {}, onAddToPlaylist = {},
             onVisiblePanelsChange = {}, onRetryLyrics = {}, onRetryRelated = {}, onPlayRelated = {},
