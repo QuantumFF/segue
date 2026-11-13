@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Fails when a @HiltViewModel has no Hilt registration in the last build of a variant.
+#
+# KSP can succeed while generating nothing for a module (google/ksp#3286). The app still builds,
+# but Hilt never learns about that module's ViewModels, and the app crashes when it asks for one
+# ("Cannot create an instance of class …"). v0.2.0 shipped like that. Run this after building.
+#
+# Usage: scripts/check-hilt-viewmodels [variant]   (default: release)
+set -euo pipefail
+
+variant="${1:-release}"
+cd "$(dirname "$0")/.."
+
+checked=0
+missing=0
+while IFS=: read -r file class; do
+    module="${file%%/src/main/*}"
+    package="$(sed -nE 's/^package[[:space:]]+([A-Za-z0-9_.]+).*/\1/p' "$file" | head -n 1)"
+    marker="$module/build/generated/ksp/$variant/java/hilt_aggregated_deps/_${package//./_}_${class}_HiltModules_KeyModule.java"
+    checked=$((checked + 1))
+    if [[ ! -f "$marker" ]]; then
+        echo "::error file=$file::Hilt did not register $package.$class in the $variant build: $marker is missing."
+        missing=$((missing + 1))
+    fi
+    # grep and perl rather than rg: the CI runner image has no ripgrep.
+done < <(grep -rl --include='*.kt' '@HiltViewModel' --exclude-dir=build --exclude-dir=.git . |
+    grep '/src/main/' |
+    xargs -r perl -0777 -ne 'print "$ARGV:$1\n" while /\@HiltViewModel(?:\([^)]*\))?\s+(?:(?:public|internal)\s+)?class\s+(\w+)/g')
+
+if ((checked == 0)); then
+    echo "::error::Found no @HiltViewModel classes, so the check itself is broken."
+    exit 1
+fi
+if ((missing > 0)); then
+    echo "$missing of $checked Hilt ViewModels are missing from the $variant build. Rebuild before publishing."
+    exit 1
+fi
+echo "All $checked Hilt ViewModels are registered in the $variant build."
