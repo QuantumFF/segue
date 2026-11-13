@@ -1,6 +1,6 @@
 [versions]
 # Build
-agp = "9.5.0"
+agp = "9.5.1"
 kotlin = "2.4.21"
 # Not 2.3.13: concurrent KSP runs can silently skip Hilt code (google/ksp#3286), which shipped a
 # release that crashed on launch. Move up once a release carries the fix.
@@ -9,7 +9,7 @@ hilt = "2.60.1"
 androidxHilt = "1.4.0"
 room = "2.8.5"
 baselineprofile = "1.5.0"
-spotless = "8.10.4"
+spotless = "8.11.0"
 ktlint = "1.8.0"
 composeRules = "0.6.7"
 
