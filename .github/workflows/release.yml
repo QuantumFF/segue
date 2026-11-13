@@ -100,6 +100,11 @@ jobs:
                   SEGUE_KEY_PASSWORD: ${{ secrets.SEGUE_KEY_PASSWORD }}
               run: ./gradlew :app:assembleRelease :app:bundleRelease "-PsegueVersion=${TAG#v}"
 
+            # KSP can succeed without generating a module's Hilt code (google/ksp#3286); v0.2.0 shipped
+            # that way and crashed on launch.
+            - name: Check every Hilt ViewModel is registered
+              run: scripts/check-hilt-viewmodels release
+
             - name: Collect release files
               run: |
                   mkdir -p dist
