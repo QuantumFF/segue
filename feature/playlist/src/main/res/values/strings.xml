@@ -43,6 +43,10 @@
     <string name="feature_playlist_error_save">Couldn’t save the playlist. Your edits are kept.</string>
     <string name="feature_playlist_add_to_title">Add to playlist</string>
     <string name="feature_playlist_view">View</string>
+    <plurals name="feature_playlist_song_count">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
     <plurals name="feature_playlist_added_to">
         <item quantity="one">Added %1$d song to %2$s</item>
         <item quantity="other">Added %1$d songs to %2$s</item>

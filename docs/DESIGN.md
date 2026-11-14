@@ -493,6 +493,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 5.7 Context menus and sheets
 - Phone: `ModalBottomSheet`, `surfaceContainerHigh`, top radius `xl`, with a drag handle.
 - Header: 48 art + title (`titleSmall`) + subtitle (muted), then a divider.
+- **Add to playlist** uses the same header for what it adds: the first song's art, then "3 songs", or the song's title when it adds one, over a muted "Add to playlist"; a spinner sits at the end while it saves. Below come New playlist and the user's own playlists. While it saves, those rows are dimmed (38%) and ignore taps, so a second tap adds nothing. The New playlist name dialog (also Create and Rename on the Playlists tab) focuses its field on open, and the keyboard's Done creates it once the name isn't blank.
 - Rows: 48 tall, 20 icon, `bodyLarge` label.
 - Order for a song: Play next · Add to queue · Instant mix · Add to playlist · Favorite · Go to album · Go to artist · Download · Info.
 - Albums, artists and playlists add Play, Shuffle and **Shuffle albums** at the top. Destructive items use `error`.

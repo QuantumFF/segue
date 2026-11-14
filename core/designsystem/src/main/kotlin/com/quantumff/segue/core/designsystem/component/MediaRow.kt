@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -26,13 +27,14 @@ import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewData
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 
 /**
  * A 64-tall list row with 48 art: albums in list view, artists (circular art), playlists
- * (DESIGN.md §4.2). The row is the touch target.
+ * (DESIGN.md §4.2). The row is the touch target; a row that isn't [enabled] is dimmed and ignores taps.
  */
 @Composable
 fun MediaRow(
@@ -48,13 +50,15 @@ fun MediaRow(
     download: DownloadBadgeState? = null,
     selected: Boolean = false,
     onLongClickLabel: String? = null,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier
+            .alpha(if (enabled) 1f else SegueAlpha.DISABLED)
             .fillMaxWidth()
             .height(SegueSizes.mediaRow)
             .selectedRow(selected)
-            .rowClickable(enabled = true, onClick, onLongClick, onLongClickLabel)
+            .rowClickable(enabled = enabled, onClick, onLongClick, onLongClickLabel)
             .padding(start = SegueSpacing.lg, end = if (onMoreClick == null) SegueSpacing.lg else SegueSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
