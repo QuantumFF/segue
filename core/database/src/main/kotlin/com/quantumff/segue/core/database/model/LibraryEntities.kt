@@ -1,5 +1,6 @@
 package com.quantumff.segue.core.database.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Fts4
@@ -66,6 +67,8 @@ data class AlbumEntity(
     val discTitles: DiscTitleList = DiscTitleList(),
     val musicBrainzId: String? = null,
     val explicitStatus: String = "",
+    /** OpenSubsonic `releaseTypes`, primary first. */
+    @ColumnInfo(defaultValue = "'[]'") val releaseTypes: StringList = StringList(),
 )
 
 @Entity(tableName = "albums_fts")
@@ -206,3 +209,5 @@ data class AlbumListEntryEntity(val serverId: String, val listType: String, val 
 data class ArtistRefList(val items: List<ArtistRef> = emptyList())
 
 data class DiscTitleList(val items: List<DiscTitle> = emptyList())
+
+data class StringList(val items: List<String> = emptyList())

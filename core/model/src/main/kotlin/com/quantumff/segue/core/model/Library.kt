@@ -56,6 +56,11 @@ data class Album(
     val discTitles: ImmutableList<DiscTitle>,
     val musicBrainzId: String?,
     val explicitStatus: ExplicitStatus,
+    /**
+     * OpenSubsonic `releaseTypes` as the server sends them (Navidrome: lowercase, such as
+     * `album`, `ep`, `single`, `compilation`), primary first. Empty without the extension.
+     */
+    val releaseTypes: ImmutableList<String> = persistentListOf(),
 ) {
     val isStarred: Boolean get() = starredAt != null
 }

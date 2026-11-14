@@ -20,6 +20,7 @@ internal object JsonColumns {
     private val artistRefs = ListSerializer(StoredArtistRef.serializer())
     private val discTitles = ListSerializer(StoredDiscTitle.serializer())
     private val lyrics = ListSerializer(StoredLyrics.serializer())
+    private val strings = ListSerializer(String.serializer())
     private val extensions = MapSerializer(String.serializer(), ListSerializer(Int.serializer()))
 
     fun encodeArtistRefs(value: List<ArtistRef>): String =
@@ -33,6 +34,10 @@ internal object JsonColumns {
 
     fun decodeDiscTitles(value: String): List<DiscTitle> =
         json.decodeFromString(discTitles, value).map { DiscTitle(it.disc, it.title) }
+
+    fun encodeStrings(value: List<String>): String = json.encodeToString(strings, value)
+
+    fun decodeStrings(value: String): List<String> = json.decodeFromString(strings, value)
 
     fun encodeExtensions(value: Map<String, List<Int>>): String = json.encodeToString(extensions, value)
 

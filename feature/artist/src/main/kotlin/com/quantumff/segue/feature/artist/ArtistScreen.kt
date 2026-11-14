@@ -227,7 +227,7 @@ private fun ArtistContent(
     var showAllTopSongs by rememberSaveable { mutableStateOf(false) }
     var biographyExpanded by rememberSaveable { mutableStateOf(false) }
     val collapse = rememberCollapseOnScrollState()
-    val hasAlbums = state.albums.isNotEmpty() || state.appearsOn.isNotEmpty()
+    val hasAlbums = state.hasAlbums
 
     HeroDetailLayout(
         modifier = Modifier.nestedScroll(collapse.connection),
@@ -334,7 +334,15 @@ private fun ArtistContent(
                 }
             }
         }
+        // Grouped by release type (DESIGN.md §4.4), in the order Play albums queues them.
         albumSection("albums", R.string.feature_artist_section_albums, state.albums, onAlbumClick)
+        albumSection(
+            "epsAndSingles",
+            R.string.feature_artist_section_eps_and_singles,
+            state.epsAndSingles,
+            onAlbumClick,
+        )
+        albumSection("compilations", R.string.feature_artist_section_compilations, state.compilations, onAlbumClick)
         albumSection("appearsOn", R.string.feature_artist_section_appears_on, state.appearsOn, onAlbumClick)
         if (state.similarArtists.isNotEmpty()) {
             item(key = "similar", contentType = "artistCarousel") {
