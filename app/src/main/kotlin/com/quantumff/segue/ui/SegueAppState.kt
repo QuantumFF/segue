@@ -15,6 +15,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.feature.login.navigation.LoginRoute
 import com.quantumff.segue.feature.nowplaying.NowPlayingStart
 import com.quantumff.segue.navigation.TopLevelDestination
@@ -135,6 +136,30 @@ class SegueAppState(
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    /** Switches to [tab] at its root, whatever its stack last showed: Home's "See all" on Playlists. */
+    fun navigateToTabRoot(tab: TopLevelDestination) {
+        navigateToTab(tab)
+        navController.popBackStack(tab.root, inclusive = false)
+    }
+
+    /**
+     * The Library tab Library should switch to, once: set by [openLibrary], cleared by
+     * [clearLibraryTabRequest]. Not saved; a request outlives only the switch it came with.
+     */
+    var requestedLibraryTab: LibraryTab? by mutableStateOf(null)
+        private set
+
+    /** Opens the Library at its root on [libraryTab]: Home's "See all" on Genres. */
+    fun openLibrary(libraryTab: LibraryTab) {
+        requestedLibraryTab = libraryTab
+        navigateToTabRoot(TopLevelDestination.Library)
+    }
+
+    /** Drops [requestedLibraryTab] once the Library has switched to it. */
+    fun clearLibraryTabRequest() {
+        requestedLibraryTab = null
     }
 
     /** Forward navigation inside the current tab (shared-axis transition). */
