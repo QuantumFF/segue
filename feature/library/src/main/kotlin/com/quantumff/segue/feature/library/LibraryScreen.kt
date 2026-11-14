@@ -18,9 +18,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -302,6 +301,8 @@ internal fun LibraryContent(
     }
 
     val collapse = rememberCollapseOnScrollState()
+    val scroll = rememberLibraryScrollStates()
+    PinTabsToTop(state, albums, artists, songs, scroll)
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (selection != null) {
@@ -323,31 +324,20 @@ internal fun LibraryContent(
             if (state.tab != LibraryTab.Downloads) {
                 FilterRow(state, onEvent, onPickerClick = { picker = it })
             }
-            if (state.tab == LibraryTab.Downloads && downloadsTab != null) {
-                Box(Modifier.weight(1f).fillMaxWidth()) { downloadsTab() }
-            } else if (state.tab == LibraryTab.Playlists && playlistsTab != null) {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    playlistsTab(creatingPlaylist) { creatingPlaylist = it }
-                }
-            } else {
-                PullToRefreshBox(
-                    isRefreshing = state.isRefreshing,
-                    onRefresh = { onEvent(LibraryEvent.Refresh) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .nestedScroll(collapse.connection),
-                ) {
-                    TabContent(
-                        state = state,
-                        albums = albums,
-                        artists = artists,
-                        songs = songs,
-                        onEvent = onEvent,
-                        onMenu = { menu = it },
-                    )
-                }
-            }
+            LibraryTabPage(
+                tab = state.tab,
+                state = state,
+                albums = albums,
+                artists = artists,
+                songs = songs,
+                scroll = scroll,
+                onEvent = onEvent,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                onMenu = { menu = it },
+                collapse = collapse.connection,
+                downloadsTab = downloadsTab,
+                playlistsTab = playlistsTab?.let { slot -> { slot(creatingPlaylist) { creatingPlaylist = it } } },
+            )
         }
         FloatingAlbumPlayButtons(
             visible = state.tab == LibraryTab.Albums && (state.albumCount ?: 0) > 0 && selection == null,
@@ -455,12 +445,81 @@ private fun LibraryTabRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) 
 
 private val TAB_INDICATOR_HEIGHT = 2.dp
 
+/**
+ * One Library tab's page: what [tab] shows, whichever tab is selected, so a pager can render any
+ * tab. Its place in its list or grid lives in [scroll], so it survives the page leaving and coming
+ * back. [downloadsTab] and [playlistsTab] are the app's bodies for those tabs; [collapse] hears the
+ * tab's scrolling, for the floating Play / Shuffle albums buttons.
+ */
+@Suppress("LongParameterList")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TabContent(
+internal fun LibraryTabPage(
+    tab: LibraryTab,
     state: LibraryUiState,
     albums: LazyPagingItems<Album>,
     artists: LazyPagingItems<Artist>,
     songs: LazyPagingItems<Song>,
+    scroll: LibraryScrollStates,
+    onEvent: (LibraryEvent) -> Unit,
+    modifier: Modifier = Modifier,
+    onMenu: (LibraryItem) -> Unit = {},
+    collapse: NestedScrollConnection? = null,
+    downloadsTab: (@Composable () -> Unit)? = null,
+    playlistsTab: (@Composable () -> Unit)? = null,
+) {
+    when {
+        tab == LibraryTab.Downloads && downloadsTab != null -> Box(modifier) { downloadsTab() }
+
+        tab == LibraryTab.Playlists && playlistsTab != null -> Box(modifier) { playlistsTab() }
+
+        else -> PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { onEvent(LibraryEvent.Refresh) },
+            modifier = if (collapse != null) modifier.nestedScroll(collapse) else modifier,
+        ) {
+            TabContent(tab, state, albums, artists, songs, scroll, onEvent, onMenu)
+        }
+    }
+}
+
+/** Starts each sorted tab back at the top when its sort, filter or offline state changes. */
+@Composable
+private fun PinTabsToTop(
+    state: LibraryUiState,
+    albums: LazyPagingItems<Album>,
+    artists: LazyPagingItems<Artist>,
+    songs: LazyPagingItems<Song>,
+    scroll: LibraryScrollStates,
+) {
+    PinToTopOnViewChange(
+        view = ListView(state.albumSort, state.albumFilter, state.isOffline),
+        items = albums,
+        gridState = scroll.grid(LibraryTab.Albums),
+        listState = scroll.list(LibraryTab.Albums),
+    )
+    PinToTopOnViewChange(
+        view = ListView(state.artistSort, state.artistFilter, state.isOffline),
+        items = artists,
+        gridState = scroll.grid(LibraryTab.Artists),
+        listState = scroll.list(LibraryTab.Artists),
+    )
+    PinToTopOnViewChange(
+        view = ListView(state.songSort, state.songFilter, state.isOffline),
+        items = songs,
+        listState = scroll.list(LibraryTab.Songs),
+    )
+}
+
+@Suppress("LongParameterList")
+@Composable
+private fun TabContent(
+    tab: LibraryTab,
+    state: LibraryUiState,
+    albums: LazyPagingItems<Album>,
+    artists: LazyPagingItems<Artist>,
+    songs: LazyPagingItems<Song>,
+    scroll: LibraryScrollStates,
     onEvent: (LibraryEvent) -> Unit,
     onMenu: (LibraryItem) -> Unit,
 ) {
@@ -481,33 +540,17 @@ private fun TabContent(
         bottom = bottom + FloatingAlbumPlayButtonsInset,
     )
     val albumListPadding = PaddingValues(bottom = bottom + FloatingAlbumPlayButtonsInset)
-    val albumGridState = rememberLazyGridState()
-    val albumListState = rememberLazyListState()
-    val artistGridState = rememberLazyGridState()
-    val artistListState = rememberLazyListState()
-    val songListState = rememberLazyListState()
-    val picker = Picker(selected, remember(state.tab) { DragSelectState() }, onEvent)
-    PinToTopOnViewChange(
-        view = ListView(state.albumSort, state.albumFilter, state.isOffline),
-        items = albums,
-        gridState = albumGridState,
-        listState = albumListState,
-    )
-    PinToTopOnViewChange(
-        view = ListView(state.artistSort, state.artistFilter, state.isOffline),
-        items = artists,
-        gridState = artistGridState,
-        listState = artistListState,
-    )
-    PinToTopOnViewChange(
-        view = ListView(state.songSort, state.songFilter, state.isOffline),
-        items = songs,
-        listState = songListState,
-    )
-    val isGrid = state.viewMode(state.tab) == LibraryViewMode.Grid
+    val albumGridState = scroll.grid(LibraryTab.Albums)
+    val albumListState = scroll.list(LibraryTab.Albums)
+    val artistGridState = scroll.grid(LibraryTab.Artists)
+    val artistListState = scroll.list(LibraryTab.Artists)
+    val songListState = scroll.list(LibraryTab.Songs)
+    // The page is the tab's own, so a drag-select never carries over to another tab.
+    val picker = Picker(selected, remember { DragSelectState() }, onEvent)
+    val isGrid = state.viewMode(tab) == LibraryViewMode.Grid
     val sync = { onEvent(LibraryEvent.Refresh) }
-    val screen = state.screenState(state.tab)
-    when (state.tab) {
+    val screen = state.screenState(tab)
+    when (tab) {
         LibraryTab.Albums -> when {
             screen != ScreenState.Content -> TabWithoutContent(
                 screen = screen,
@@ -664,7 +707,7 @@ private fun TabContent(
                 TabEmpty(LibraryTab.Genres, listPadding, sync)
             }
 
-            else -> GenreGrid(state.genres, gridPadding, onEvent)
+            else -> GenreGrid(state.genres, gridPadding, scroll.grid(LibraryTab.Genres), onEvent)
         }
 
         LibraryTab.Downloads -> ScrollableEmpty(listPadding) {
@@ -913,9 +956,15 @@ private fun SongList(
 }
 
 @Composable
-private fun GenreGrid(genres: ImmutableList<Genre>, gridPadding: PaddingValues, onEvent: (LibraryEvent) -> Unit) {
+private fun GenreGrid(
+    genres: ImmutableList<Genre>,
+    gridPadding: PaddingValues,
+    gridState: LazyGridState,
+    onEvent: (LibraryEvent) -> Unit,
+) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(GENRE_COLUMNS),
+        state = gridState,
         contentPadding = gridPadding,
         horizontalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
         verticalArrangement = Arrangement.spacedBy(SegueSpacing.gutter),
