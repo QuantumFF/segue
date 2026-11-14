@@ -24,4 +24,32 @@ class MediaActionsTest {
         assertThat(actions).doesNotContain(MediaAction.Download)
         assertThat(actions.last()).isEqualTo(MediaAction.RemoveDownload)
     }
+
+    @Test
+    fun `a playlist you do not own offers the queue, Add to playlist and Download, but not Rename or Delete`() {
+        assertThat(MediaActions.playlist(editable = false)).containsExactly(
+            MediaAction.Play,
+            MediaAction.Shuffle,
+            MediaAction.ShuffleAlbums,
+            MediaAction.PlayNext,
+            MediaAction.AddToQueue,
+            MediaAction.AddToPlaylist,
+            MediaAction.Download,
+        ).inOrder()
+    }
+
+    @Test
+    fun `an owned playlist adds Rename and Delete`() {
+        assertThat(MediaActions.playlist(editable = true, isDownloaded = true)).containsExactly(
+            MediaAction.Play,
+            MediaAction.Shuffle,
+            MediaAction.ShuffleAlbums,
+            MediaAction.PlayNext,
+            MediaAction.AddToQueue,
+            MediaAction.AddToPlaylist,
+            MediaAction.RemoveDownload,
+            MediaAction.Rename,
+            MediaAction.Delete,
+        ).inOrder()
+    }
 }

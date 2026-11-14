@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.component.AccountAction
 import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.ErrorState
@@ -58,10 +59,12 @@ fun PlaylistsScreen(
     onAccountClick: () -> Unit,
     onOfflineModeSettingClick: () -> Unit,
     onPlaylistClick: (String) -> Unit,
+    onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onAddToPlaylist) { MediaActionHost(onAddToPlaylist = onAddToPlaylist) }
     PlaylistsScreenContent(
         uiState = uiState,
         onAccountClick = onAccountClick,
@@ -72,7 +75,7 @@ fun PlaylistsScreen(
         onCreate = viewModel::create,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
-        onMenuAction = viewModel::onPlaylistAction,
+        onMenuAction = { playlist, action -> viewModel.onPlaylistAction(playlist, action, menuHost) },
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
     )
@@ -145,10 +148,12 @@ fun PlaylistsTab(
     onPlaylistClick: (String) -> Unit,
     creating: Boolean,
     onCreatingChange: (Boolean) -> Unit,
+    onAddToPlaylist: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onAddToPlaylist) { MediaActionHost(onAddToPlaylist = onAddToPlaylist) }
     PlaylistsBody(
         uiState = uiState,
         creating = creating,
@@ -159,7 +164,7 @@ fun PlaylistsTab(
         onCreate = viewModel::create,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
-        onMenuAction = viewModel::onPlaylistAction,
+        onMenuAction = { playlist, action -> viewModel.onPlaylistAction(playlist, action, menuHost) },
         onMessageDismiss = viewModel::onMessageDismiss,
         modifier = modifier,
     )

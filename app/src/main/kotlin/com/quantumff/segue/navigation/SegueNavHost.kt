@@ -126,6 +126,7 @@ fun SegueNavHost(
                         onPlaylistClick = onPlaylistClick,
                         creating = creating,
                         onCreatingChange = onCreatingChange,
+                        onAddToPlaylist = onAddToPlaylist,
                     )
                 },
                 requestedTab = { appState.requestedLibraryTab },
@@ -137,6 +138,7 @@ fun SegueNavHost(
                 onAccountClick = onAccountClick,
                 onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onPlaylistClick = onPlaylistClick,
+                onAddToPlaylist = onAddToPlaylist,
             )
         }
         navigation<SearchGraph>(startDestination = SearchRoute) {
