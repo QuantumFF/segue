@@ -41,6 +41,7 @@ import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsI
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
+import com.quantumff.segue.core.designsystem.component.LiftShellSnackbars
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PlayButton
@@ -183,8 +184,10 @@ fun ArtistScreen(
                 onSongSwipe = onSongSwipe,
             )
         }
-        // Above the floating Play / Shuffle albums buttons while they show.
+        // Above the floating Play / Shuffle albums buttons while they show: this page's snackbars and
+        // the app's (queue, download and playback feedback).
         val hasAlbums = (state as? ArtistUiState.Success)?.hasAlbums == true
+        LiftShellSnackbars(bottom = if (hasAlbums) FloatingAlbumPlayButtonsInset else 0.dp)
         SegueSnackbarHost(
             snackbarHostState,
             Modifier

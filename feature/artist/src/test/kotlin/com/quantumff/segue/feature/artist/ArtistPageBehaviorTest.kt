@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.artist
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,6 +16,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsInset
+import com.quantumff.segue.core.designsystem.component.LocalShellSnackbarLift
+import com.quantumff.segue.core.designsystem.component.ShellSnackbarLift
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
 import com.quantumff.segue.core.model.MediaActionFailure
 import kotlinx.collections.immutable.persistentListOf
@@ -99,6 +103,16 @@ class ArtistPageBehaviorTest {
     }
 
     @Test
+    fun `the app's snackbars rise above the floating Play and Shuffle albums buttons too`() {
+        val shellLift = ShellSnackbarLift()
+
+        show(PreviewArtistState, shellLift)
+
+        // Queue, download and playback feedback shows in the shell's host, outside the page.
+        assertThat(shellLift.bottom).isEqualTo(FloatingAlbumPlayButtonsInset)
+    }
+
+    @Test
     fun `without albums the snackbars keep their usual place`() {
         compose.mainClock.autoAdvance = false
         show(
@@ -116,23 +130,26 @@ class ArtistPageBehaviorTest {
         assertThat(root.bottom.value - snackbar.bottom.value).isLessThan(SNACKBAR_USUAL_GAP_MAX_DP)
     }
 
-    private fun show(state: ArtistUiState.Success) {
+    /** The page as the app shell shows it, which lifts its own snackbars by [shellLift]. */
+    private fun show(state: ArtistUiState.Success, shellLift: ShellSnackbarLift = ShellSnackbarLift()) {
         compose.setContent {
             SegueTheme(systemDark = true) {
-                ArtistScreen(
-                    state = state,
-                    onBackClick = {},
-                    onAlbumClick = {},
-                    onArtistClick = {},
-                    onPlay = {},
-                    onHeroPlay = {},
-                    onPlayTopSong = {},
-                    onShuffleAlbums = {},
-                    onInstantMix = {},
-                    onToggleStar = {},
-                    onRetry = {},
-                    onMessageDismiss = {},
-                )
+                CompositionLocalProvider(LocalShellSnackbarLift provides shellLift) {
+                    ArtistScreen(
+                        state = state,
+                        onBackClick = {},
+                        onAlbumClick = {},
+                        onArtistClick = {},
+                        onPlay = {},
+                        onHeroPlay = {},
+                        onPlayTopSong = {},
+                        onShuffleAlbums = {},
+                        onInstantMix = {},
+                        onToggleStar = {},
+                        onRetry = {},
+                        onMessageDismiss = {},
+                    )
+                }
             }
         }
     }
