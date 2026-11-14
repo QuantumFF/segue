@@ -272,7 +272,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Empty query: recent searches (rows with a history icon (Lucide `rotate-ccw-clock`), swipe to delete), then "Browse genres" pills.
 - Results: `search3`, debounced 300ms. While offline, search Room FTS and show an "Offline results" chip.
   - Filter chips: All · Songs · Albums · Artists · Playlists.
-  - "All" shows Artists (a row of 72 circles), Albums (a carousel of 128 cards), then Songs (up to 20 track rows, plus "See all").
+  - "All" shows Artists (a row of 72 circles), Albums (a carousel of 128 cards), Playlists (up to 5 rows, plus "See all"), then Songs (up to 20 track rows, plus "See all"). Each section shows only when it has results; "See all" switches to that section's filter.
+  - A playlist row shows its cover art (the playlist icon without one), its name and its song count, and opens the playlist page. The server's search has no playlists, so playlists are matched by name in the local library; offline, only pinned playlists match.
 
 ### 4.7 Now Playing (full screen)
 - Opens from the mini player with a `player` spring. The art morphs from the mini thumbnail to full size (shared bounds). Drag down anywhere, or tap the chevron, to collapse.

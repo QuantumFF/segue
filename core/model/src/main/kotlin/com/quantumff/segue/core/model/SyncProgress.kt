@@ -9,7 +9,8 @@ sealed interface SyncProgress {
 
     /**
      * [completed] items of [phase] out of [total], which is 0 when the size of the phase is not known
-     * yet. During [SyncPhase.Albums], [total] is the server's album count once it has listed them all.
+     * yet. During [SyncPhase.Albums] of a full sync, [total] is the server's album count once it has
+     * listed them all; an incremental sync counts its new albums with no total.
      */
     data class Running(val phase: SyncPhase, val completed: Int, val total: Int) : SyncProgress
 
