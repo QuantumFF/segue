@@ -51,6 +51,11 @@ phone. On the emulator, `dumpsys gfxinfo` over the same flings (3 down, 3 up, me
 The emulator renders through the host GPU, so most of the jank is the emulator's. Read these as
 "no regression, lower median frame time with the profile", not as a measured jank reduction.
 
+`ScrollBenchmarks.swipeLibraryTabs` measures the same metric while swiping from Albums through every
+Library tab to Downloads and back. The swipes run along the filter row, so none lands on a Songs
+row and queues a song. The tab pager composes only the page a swipe moves towards
+(`LibraryPagerTest`), so the next tab's first frame is the only extra work.
+
 ## Compose
 
 - Compiler reports (debug compilations only, opt-in):
@@ -128,7 +133,7 @@ export ANDROID_SERIAL=<serial from adb devices>
 # (writes app/src/release/generated/baselineProfiles/{baseline,startup}-prof.txt)
 ./gradlew :app:generateBaselineProfile
 
-# Run the benchmarks (startup cold/warm and album grid scroll, each without and with the profile)
+# Run the benchmarks (startup cold/warm, album grid scroll and Library tab swipes, each without and with the profile)
 ./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest
 # One class only:
 ./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest \

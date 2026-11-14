@@ -27,6 +27,12 @@ private const val UI_TIMEOUT_MS = 10_000L
 private const val PLAYBACK_TIMEOUT_MS = 20_000L
 private const val SCROLL_STEPS = 3
 
+/** UiAutomator injects one move per 5 ms: 25 steps is a brisk swipe of about 125 ms. */
+private const val TAB_SWIPE_STEPS = 25
+
+/** The Library's tabs, in order, as the tab row labels them. */
+private val LIBRARY_TABS = listOf("Albums", "Artists", "Songs", "Playlists", "Genres", "Downloads")
+
 /** Iterations per benchmark configuration. */
 const val BENCHMARK_ITERATIONS = 10
 
@@ -95,10 +101,14 @@ fun MacrobenchmarkScope.openLibraryAlbums() {
     device.waitForIdle()
 }
 
-/** The album grid: the tallest scrollable on the Library screen (the tab and chip rows scroll too). */
+/**
+ * The album grid: the tallest scrollable on the Library screen (the tab and chip rows scroll too).
+ * The tab pager, if listed, is as tall: take the innermost, which comes last in hierarchy order.
+ */
 fun MacrobenchmarkScope.albumGrid(): UiObject2 {
     val scrollables = device.wait(Until.findObjects(By.scrollable(true)), UI_TIMEOUT_MS)
-    return checkNotNull(scrollables?.maxByOrNull { it.visibleBounds.height() }) { "No album grid" }
+    val grid = scrollables?.withIndex()?.maxWithOrNull(compareBy({ it.value.visibleBounds.height() }, { it.index }))
+    return checkNotNull(grid?.value) { "No album grid" }
 }
 
 /** Flings the album grid down and back up. */
@@ -113,6 +123,27 @@ fun MacrobenchmarkScope.scrollAlbumGrid() {
     }
     repeat(SCROLL_STEPS) { fling(Direction.DOWN) }
     repeat(SCROLL_STEPS) { fling(Direction.UP) }
+}
+
+/**
+ * From Albums, swipes through the Library's tabs to Downloads and back to Albums, waiting for each
+ * tab to be selected. Swipes run along the filter row, never over the Songs list, whose rows queue
+ * a song when swiped; on Downloads, which has no filter row, the same line crosses the top of its
+ * page.
+ */
+fun MacrobenchmarkScope.swipeLibraryTabs() {
+    // The album count sits on the filter row's centre line.
+    val y = device.waitFor(By.textEndsWith(" albums")).visibleBounds.centerY()
+    // Inside the system gesture areas' margins, so no swipe reads as Back.
+    val left = (device.displayWidth * GESTURE_MARGIN_FRACTION).toInt()
+    val right = device.displayWidth - left
+    fun swipeTo(index: Int, startX: Int, endX: Int) {
+        device.swipe(startX, y, endX, y, TAB_SWIPE_STEPS)
+        device.waitFor(By.text(LIBRARY_TABS[index]).selected(true))
+        device.waitForIdle()
+    }
+    for (index in 1..LIBRARY_TABS.lastIndex) swipeTo(index, startX = right, endX = left)
+    for (index in LIBRARY_TABS.lastIndex - 1 downTo 0) swipeTo(index, startX = left, endX = right)
 }
 
 /**

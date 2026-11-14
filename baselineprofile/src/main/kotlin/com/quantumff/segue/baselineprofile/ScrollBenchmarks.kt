@@ -11,7 +11,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 
-/** Album grid fling jank (frame durations and overruns), without and with the Baseline Profile. */
+/**
+ * Library jank (frame durations and overruns), without and with the Baseline Profile: album grid
+ * flings, and swipes through the tabs and back.
+ */
 @LargeTest
 @RunWith(Parameterized::class)
 class ScrollBenchmarks(private val compilation: CompilationMode) {
@@ -35,6 +38,22 @@ class ScrollBenchmarks(private val compilation: CompilationMode) {
         },
     ) {
         scrollAlbumGrid()
+    }
+
+    @Test
+    fun swipeLibraryTabs() = rule.measureRepeated(
+        packageName = targetPackage,
+        metrics = listOf(FrameTimingMetric()),
+        compilationMode = compilation,
+        startupMode = StartupMode.COLD,
+        iterations = BENCHMARK_ITERATIONS,
+        setupBlock = {
+            pressHome()
+            startActivityAndWait()
+            openLibraryAlbums()
+        },
+    ) {
+        swipeLibraryTabs()
     }
 
     companion object {
