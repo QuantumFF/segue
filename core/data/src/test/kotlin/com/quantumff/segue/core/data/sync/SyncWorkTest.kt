@@ -32,7 +32,7 @@ class SyncWorkTest {
 
     @Test
     fun `running progress round-trips through work data`() {
-        val running = SyncProgress.Running(SyncPhase.Songs, completed = 120, total = 900)
+        val running = SyncProgress.Running(SyncPhase.Albums, completed = 120, total = 900)
 
         assertThat(info(WorkInfo.State.RUNNING, progress = running.toWorkData()).toSyncProgress()).isEqualTo(running)
     }

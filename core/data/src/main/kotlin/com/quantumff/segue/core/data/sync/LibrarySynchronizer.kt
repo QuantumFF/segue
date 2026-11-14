@@ -92,7 +92,7 @@ internal class LibrarySynchronizer @Inject constructor(
         full: Boolean,
         onProgress: SyncProgressListener,
     ): Long? {
-        onProgress(SyncProgress.Running(SyncPhase.Artists, completed = 0, total = 1))
+        onProgress(SyncProgress.Running(SyncPhase.Artists, completed = 0, total = 0))
         val known = metadata.artistsLastModified.takeUnless { full }
         val index = client.getArtists(ifModifiedSince = known)
         val artists = index.index.flatMap { it.artist }
@@ -107,14 +107,12 @@ internal class LibrarySynchronizer @Inject constructor(
                 artistDao.deleteByIds(serverId, artistDao.ids(serverId).filterNot { it in remoteIds })
             }
         }
-        onProgress(SyncProgress.Running(SyncPhase.Artists, completed = 1, total = 1))
         return if (changed) index.lastModified else metadata.artistsLastModified
     }
 
     private suspend fun syncGenres(client: SubsonicClient, serverId: String, onProgress: SyncProgressListener) {
-        onProgress(SyncProgress.Running(SyncPhase.Genres, completed = 0, total = 1))
+        onProgress(SyncProgress.Running(SyncPhase.Genres, completed = 0, total = 0))
         genreDao.replaceAll(serverId, client.getGenres().map { it.asEntity(serverId) })
-        onProgress(SyncProgress.Running(SyncPhase.Genres, completed = 1, total = 1))
     }
 
     private suspend fun fullAlbumSync(client: SubsonicClient, serverId: String, onProgress: SyncProgressListener) {
@@ -127,7 +125,6 @@ internal class LibrarySynchronizer @Inject constructor(
             page.mapTo(remoteIds) { it.id }
             offset += PAGE_SIZE
         } while (page.size == PAGE_SIZE)
-        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = remoteIds.size, total = remoteIds.size))
 
         albumDao.deleteByIds(serverId, albumDao.ids(serverId).filterNot { it in remoteIds })
         fetchAlbumDetails(client, serverId, remoteIds.toList(), onProgress)
@@ -148,18 +145,21 @@ internal class LibrarySynchronizer @Inject constructor(
             if (known.isNotEmpty() || page.size < NEWEST_PAGE_SIZE) break
             offset += NEWEST_PAGE_SIZE
         }
-        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = newIds.size, total = newIds.size))
         fetchAlbumDetails(client, serverId, newIds, onProgress)
     }
 
-    /** `getAlbum` for each ID, a few at a time, writing each batch in one transaction. */
+    /**
+     * `getAlbum` for each ID, a few at a time, writing each batch in one transaction. Progress counts
+     * albums against [albumIds]: in a full sync that is every album the server listed, the only album
+     * total Subsonic reports.
+     */
     private suspend fun fetchAlbumDetails(
         client: SubsonicClient,
         serverId: String,
         albumIds: List<String>,
         onProgress: SyncProgressListener,
     ) {
-        onProgress(SyncProgress.Running(SyncPhase.Songs, completed = 0, total = albumIds.size))
+        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = 0, total = albumIds.size))
         fetchInBatches(albumIds, fetch = { id -> notFoundAsNull { client.getAlbum(id) } }) { results, done ->
             writer.writeAlbums(
                 serverId,
@@ -167,7 +167,7 @@ internal class LibrarySynchronizer @Inject constructor(
                 // Listed, then deleted before it was fetched.
                 missing = results.filterValues { it == null }.keys,
             )
-            onProgress(SyncProgress.Running(SyncPhase.Songs, completed = done, total = albumIds.size))
+            onProgress(SyncProgress.Running(SyncPhase.Albums, completed = done, total = albumIds.size))
         }
     }
 

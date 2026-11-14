@@ -495,7 +495,7 @@ class LibraryViewModelTest {
 
     @Test
     fun songFiltersThatMatchNothingAreEmptyNotLoading() = runTest {
-        sync.progress.value = SyncProgress.Running(SyncPhase.Songs, 1, 2)
+        sync.progress.value = SyncProgress.Running(SyncPhase.Albums, 1, 2)
         viewModel.uiState.test {
             viewModel.cycleFavoritesFilter(LibraryTab.Songs)
             val state = expectMostRecentItem()

@@ -6,8 +6,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
-import com.quantumff.segue.core.model.SyncPhase
-import com.quantumff.segue.core.model.SyncProgress
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -24,16 +22,6 @@ class LoginScreenshotTest {
         Login(LoginUiState(error = LoginError.WrongCredentials), url = "demo.navidrome.org", user = "demo")
     }
 
-    @Test
-    fun firstSync() = capture("login_first_sync") {
-        Login(
-            LoginUiState(
-                step = LoginStep.Syncing,
-                syncProgress = SyncProgress.Running(SyncPhase.Albums, completed = 1240, total = 5600),
-            ),
-        )
-    }
-
     @Composable
     private fun Login(state: LoginUiState, url: String = "", user: String = "") {
         LoginScreen(
@@ -42,7 +30,6 @@ class LoginScreenshotTest {
             username = TextFieldState(user),
             password = TextFieldState("secret"),
             onConnectClick = {},
-            onContinueClick = {},
             onBackClick = {},
         )
     }
