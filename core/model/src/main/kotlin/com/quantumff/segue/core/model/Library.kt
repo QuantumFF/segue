@@ -144,6 +144,8 @@ data class SearchResult(
     val songs: ImmutableList<Song>,
     /** False while only local results are shown and the server search is still running or failed. */
     val includesServerResults: Boolean,
+    /** Playlists whose names match, from Room only: the server's `search3` has no playlists. */
+    val playlists: ImmutableList<Playlist> = persistentListOf(),
 ) {
     companion object {
         val Empty =

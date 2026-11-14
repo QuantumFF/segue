@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.quantumff.segue.core.database.FtsQuery
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumEntity
 import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
@@ -555,6 +556,17 @@ abstract class PlaylistDao {
 
     @Query("SELECT * FROM playlists WHERE serverId = :serverId")
     abstract suspend fun getAll(serverId: String): List<PlaylistEntity>
+
+    /**
+     * The playlists whose names match [query] as Search matches other names
+     * ([FtsQuery.matchesPrefixes]), in name order, at most [limit]. Playlists have no FTS table; a
+     * user has few enough of them to match in memory.
+     */
+    open suspend fun search(serverId: String, query: String, limit: Int): List<PlaylistEntity> =
+        getAllByName(serverId).filter { FtsQuery.matchesPrefixes(it.name, query) }.take(limit)
+
+    @Query("SELECT * FROM playlists WHERE serverId = :serverId ORDER BY name COLLATE NOCASE")
+    protected abstract suspend fun getAllByName(serverId: String): List<PlaylistEntity>
 
     @Upsert
     abstract suspend fun upsertAll(playlists: List<PlaylistEntity>)

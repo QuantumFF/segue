@@ -11,6 +11,11 @@
     <string name="feature_search_songs">Songs</string>
     <string name="feature_search_albums">Albums</string>
     <string name="feature_search_artists">Artists</string>
+    <string name="feature_search_playlists">Playlists</string>
+    <plurals name="feature_search_song_count">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
     <string name="feature_search_offline_results">Offline results</string>
     <string name="feature_search_no_results">No results for “%1$s”</string>
     <string name="feature_search_no_results_offline">The server could not be reached, so only the cached library was searched.</string>

@@ -19,6 +19,7 @@ import com.quantumff.segue.core.model.Genre
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.OfflineLibrary
+import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SearchResult
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -48,12 +50,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Result filter chips (DESIGN.md §4.6). Playlists are not searched by the repository. */
+/**
+ * Result filter chips (DESIGN.md §4.6). Playlists are matched by name in Room only, since the
+ * server's search has none.
+ */
 enum class SearchFilter {
     All,
     Songs,
     Albums,
     Artists,
+    Playlists,
 }
 
 /** Where the search for the current query stands. */
@@ -86,6 +92,21 @@ data class SearchUiState(
     val songs: ImmutableList<Song>
         get() = (results as? SearchResults.Ready)?.result?.songs ?: persistentListOf()
 
+    /**
+     * The sections the All filter shows, in order: Artists, Albums, Playlists, then Songs, each only
+     * when it has results. Each is named by the filter that lists it in full.
+     */
+    val allSections: ImmutableList<SearchFilter>
+        get() {
+            val result = (results as? SearchResults.Ready)?.result ?: return persistentListOf()
+            return listOfNotNull(
+                SearchFilter.Artists.takeIf { result.artists.isNotEmpty() },
+                SearchFilter.Albums.takeIf { result.albums.isNotEmpty() },
+                SearchFilter.Playlists.takeIf { result.playlists.isNotEmpty() },
+                SearchFilter.Songs.takeIf { result.songs.isNotEmpty() },
+            ).toImmutableList()
+        }
+
     /** Whether [song]'s row is marked as the current song. */
     fun isCurrent(song: Song): Boolean = currentSong?.isOf(song) == true
 }
@@ -96,7 +117,7 @@ class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val preferences: UserPreferencesRepository,
     libraryRepository: LibraryRepository,
-    offlineView: OfflineLibraryView,
+    private val offlineView: OfflineLibraryView,
     private val playIntents: PlayIntents,
     private val mediaActions: MediaActionHandler,
     player: PlayerStateSource,
@@ -235,10 +256,17 @@ class SearchViewModel @Inject constructor(
         if (!final.includesServerResults) emit(SearchResults.Ready(final, serverPending = false, offline = true))
     }
 
-    /** Offline: Room only, narrowed to [downloaded] music; the server is not asked. */
+    /**
+     * Offline: Room only, narrowed to [downloaded] music and, as on the Playlists tab, pinned
+     * playlists; the server is not asked.
+     */
     private fun searchOffline(query: String, downloaded: DownloadedLibrary): Flow<SearchResults> = flow {
         val local = searchRepository.searchLocal(query).firstOrNull() ?: SearchResult.Empty
-        emit(SearchResults.Ready(OfflineLibrary.search(local, downloaded), serverPending = false, offline = true))
+        val pinned = offlineView.pinStatuses.first()[PinKind.Playlist].keys
+        val narrowed = OfflineLibrary.search(local, downloaded).let { result ->
+            result.copy(playlists = result.playlists.filter { it.id in pinned }.toImmutableList())
+        }
+        emit(SearchResults.Ready(narrowed, serverPending = false, offline = true))
     }
 
     private fun applyOverrides(results: SearchResults, overrides: Map<String, Boolean>): SearchResults {

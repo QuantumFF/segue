@@ -80,9 +80,11 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /** Search tab (DESIGN.md §4.6). Stateful wrapper: wires the ViewModel and routes play intents. */
@@ -92,12 +94,13 @@ fun SearchScreen(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onPlaylistClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val callbacks = remember(viewModel, onAlbumClick, onArtistClick, onGenreClick, onAddToPlaylist) {
+    val callbacks = remember(viewModel, onAlbumClick, onArtistClick, onGenreClick, onAddToPlaylist, onPlaylistClick) {
         val menuHost =
             MediaActionHost(
                 onAlbumClick = onAlbumClick,
@@ -126,6 +129,10 @@ fun SearchScreen(
             onMessageDismiss = viewModel::onMessageDismiss,
             onAlbumAction = { album, action -> viewModel.onAlbumAction(album, action, menuHost) },
             onArtistAction = { artist, action -> viewModel.onArtistAction(artist, action, menuHost) },
+            onPlaylistClick = { id ->
+                viewModel.onResultOpened()
+                onPlaylistClick(id)
+            },
         )
     }
     SearchContent(
@@ -157,11 +164,13 @@ class SearchCallbacks(
     val onMessageDismiss: () -> Unit,
     val onAlbumAction: (Album, MediaAction) -> Unit,
     val onArtistAction: (Artist, MediaAction) -> Unit,
+    /** A playlist result's tap: opens its playlist page. */
+    val onPlaylistClick: (String) -> Unit,
 ) {
     companion object {
         val None =
             SearchCallbacks({
-            }, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, { _, _ -> }, { _, _ -> })
+            }, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, { _, _ -> }, { _, _ -> }, {})
     }
 }
 
@@ -203,6 +212,7 @@ fun SearchContent(
                     query = query.trim(),
                     results = results,
                     filter = uiState.filter,
+                    sections = uiState.allSections,
                     currentSong = uiState.currentSong,
                     callbacks = callbacks,
                     onMoreClick = { menu = it },
@@ -397,6 +407,7 @@ private fun ResultsContent(
     query: String,
     results: SearchResults.Ready,
     filter: SearchFilter,
+    sections: ImmutableList<SearchFilter>,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onMoreClick: (MenuTarget) -> Unit,
@@ -423,10 +434,11 @@ private fun ResultsContent(
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
             when (filter) {
-                SearchFilter.All -> allResults(result, currentSong, callbacks, onMoreClick)
+                SearchFilter.All -> allResults(sections, result, currentSong, callbacks, onMoreClick)
                 SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onMoreClick)
                 SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick, onMoreClick)
                 SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick, onMoreClick)
+                SearchFilter.Playlists -> playlistRows(result.playlists, callbacks.onPlaylistClick)
             }
         }
     }
@@ -463,13 +475,15 @@ private fun FilterRow(filter: SearchFilter, results: SearchResults.Ready, onFilt
     }
 }
 
+/** The All filter: [sections] (see [SearchUiState.allSections]) in that order. */
 private fun LazyListScope.allResults(
+    sections: List<SearchFilter>,
     result: SearchResult,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
     onMoreClick: (MenuTarget) -> Unit,
 ) {
-    if (result.artists.isNotEmpty()) {
+    if (SearchFilter.Artists in sections) {
         item(key = "artistsHeader", contentType = "header") {
             SectionHeader(title = stringResource(R.string.feature_search_artists))
         }
@@ -490,7 +504,7 @@ private fun LazyListScope.allResults(
             }
         }
     }
-    if (result.albums.isNotEmpty()) {
+    if (SearchFilter.Albums in sections) {
         item(key = "albumsHeader", contentType = "header") {
             SectionHeader(title = stringResource(R.string.feature_search_albums))
         }
@@ -511,7 +525,20 @@ private fun LazyListScope.allResults(
             }
         }
     }
-    if (result.songs.isNotEmpty()) {
+    if (SearchFilter.Playlists in sections) {
+        item(key = "playlistsHeader", contentType = "header") {
+            SectionHeader(
+                title = stringResource(R.string.feature_search_playlists),
+                onSeeAllClick = if (result.playlists.size > ALL_PLAYLIST_LIMIT) {
+                    { callbacks.onFilterChange(SearchFilter.Playlists) }
+                } else {
+                    null
+                },
+            )
+        }
+        playlistRows(result.playlists.take(ALL_PLAYLIST_LIMIT), callbacks.onPlaylistClick)
+    }
+    if (SearchFilter.Songs in sections) {
         item(key = "songsHeader", contentType = "header") {
             SectionHeader(
                 title = stringResource(R.string.feature_search_songs),
@@ -588,7 +615,23 @@ private fun LazyListScope.artistRows(
 private fun albumCount(artist: Artist): String =
     pluralStringResource(R.plurals.feature_search_album_count, artist.albumCount, artist.albumCount)
 
-private fun SearchResult.isEmpty() = artists.isEmpty() && albums.isEmpty() && songs.isEmpty()
+private fun LazyListScope.playlistRows(playlists: List<Playlist>, onPlaylistClick: (String) -> Unit) {
+    items(playlists, key = { "playlist:${it.id}" }, contentType = { "playlist" }) { playlist ->
+        MediaRow(
+            title = playlist.name,
+            subtitle = pluralStringResource(
+                R.plurals.feature_search_song_count,
+                playlist.songCount,
+                playlist.songCount,
+            ),
+            coverArtId = playlist.coverArtId,
+            onClick = { onPlaylistClick(playlist.id) },
+            placeholderIcon = SegueIcons.Playlists,
+        )
+    }
+}
+
+private fun SearchResult.isEmpty() = artists.isEmpty() && albums.isEmpty() && songs.isEmpty() && playlists.isEmpty()
 
 private val SearchFilter.label: Int
     get() = when (this) {
@@ -596,10 +639,14 @@ private val SearchFilter.label: Int
         SearchFilter.Songs -> R.string.feature_search_songs
         SearchFilter.Albums -> R.string.feature_search_albums
         SearchFilter.Artists -> R.string.feature_search_artists
+        SearchFilter.Playlists -> R.string.feature_search_playlists
     }
 
 /** "All" shows up to this many songs, then "See all" (DESIGN.md §4.6). */
 private const val ALL_SONG_LIMIT = 20
+
+/** "All" shows up to this many playlists, then "See all". */
+private const val ALL_PLAYLIST_LIMIT = 5
 private val ARTIST_CIRCLE = 72.dp
 private val ALBUM_CARD = 128.dp
 
