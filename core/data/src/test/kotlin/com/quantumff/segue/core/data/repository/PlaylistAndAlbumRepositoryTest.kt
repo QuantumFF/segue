@@ -15,6 +15,7 @@ import com.quantumff.segue.core.data.testing.networkAlbum
 import com.quantumff.segue.core.data.testing.networkSong
 import com.quantumff.segue.core.model.AlbumListType
 import com.quantumff.segue.core.model.ServerCapabilities
+import com.quantumff.segue.core.network.model.NetworkItemGenre
 import com.quantumff.segue.core.network.model.NetworkLyricLine
 import com.quantumff.segue.core.network.model.NetworkPlaylist
 import com.quantumff.segue.core.network.model.NetworkStructuredLyrics
@@ -207,6 +208,24 @@ class PlaylistAndAlbumRepositoryTest {
 
         assertThat(repository.album("gone").first()).isNull()
         assertThat(repository.albumSongs("gone").first()).isEmpty()
+    }
+
+    @Test
+    fun `an album carries every server genre in the server's order`() = runTest {
+        val album = networkAlbum("al").copy(
+            genre = "Rock",
+            genres = listOf(NetworkItemGenre("Rock"), NetworkItemGenre("Ambient"), NetworkItemGenre("Jazz")),
+        )
+        libraryWriter(db).writeAlbums(SERVER_ID, listOf(album))
+
+        assertThat(albums().album("al").first()!!.genres).containsExactly("Rock", "Ambient", "Jazz").inOrder()
+    }
+
+    @Test
+    fun `an album without stored genres falls back to its single genre`() = runTest {
+        libraryWriter(db).writeAlbumSummaries(SERVER_ID, listOf(networkAlbum("al").copy(genre = "Pop")))
+
+        assertThat(albums().album("al").first()!!.genres).containsExactly("Pop")
     }
 
     @Test
