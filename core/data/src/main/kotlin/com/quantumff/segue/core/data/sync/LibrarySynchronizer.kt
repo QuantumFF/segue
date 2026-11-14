@@ -127,7 +127,7 @@ internal class LibrarySynchronizer @Inject constructor(
         } while (page.size == PAGE_SIZE)
 
         albumDao.deleteByIds(serverId, albumDao.ids(serverId).filterNot { it in remoteIds })
-        fetchAlbumDetails(client, serverId, remoteIds.toList(), onProgress)
+        fetchAlbumDetails(client, serverId, remoteIds.toList(), isWholeLibrary = true, onProgress)
     }
 
     private suspend fun incrementalAlbumSync(
@@ -145,21 +145,24 @@ internal class LibrarySynchronizer @Inject constructor(
             if (known.isNotEmpty() || page.size < NEWEST_PAGE_SIZE) break
             offset += NEWEST_PAGE_SIZE
         }
-        fetchAlbumDetails(client, serverId, newIds, onProgress)
+        fetchAlbumDetails(client, serverId, newIds, isWholeLibrary = false, onProgress)
     }
 
     /**
      * `getAlbum` for each ID, a few at a time, writing each batch in one transaction. Progress counts
-     * albums against [albumIds]: in a full sync that is every album the server listed, the only album
-     * total Subsonic reports.
+     * albums against [albumIds] only when [isWholeLibrary]: a full sync's listing is the only album
+     * total Subsonic reports. An incremental sync's new albums are a count with no total, so a large
+     * library never reads as "0 / 2 albums".
      */
     private suspend fun fetchAlbumDetails(
         client: SubsonicClient,
         serverId: String,
         albumIds: List<String>,
+        isWholeLibrary: Boolean,
         onProgress: SyncProgressListener,
     ) {
-        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = 0, total = albumIds.size))
+        val total = if (isWholeLibrary) albumIds.size else 0
+        onProgress(SyncProgress.Running(SyncPhase.Albums, completed = 0, total = total))
         fetchInBatches(albumIds, fetch = { id -> notFoundAsNull { client.getAlbum(id) } }) { results, done ->
             writer.writeAlbums(
                 serverId,
@@ -167,7 +170,7 @@ internal class LibrarySynchronizer @Inject constructor(
                 // Listed, then deleted before it was fetched.
                 missing = results.filterValues { it == null }.keys,
             )
-            onProgress(SyncProgress.Running(SyncPhase.Albums, completed = done, total = albumIds.size))
+            onProgress(SyncProgress.Running(SyncPhase.Albums, completed = done, total = total))
         }
     }
 

@@ -264,6 +264,24 @@ class LibrarySynchronizerTest {
     }
 
     @Test
+    fun `an incremental sync counts new albums without a total`() = runTest {
+        seedLibrary()
+        val synchronizer = synchronizer()
+        synchronizer.sync(SERVER_ID)
+        server.addAlbum(networkAlbum("new2"), newest = true)
+        server.addAlbum(networkAlbum("new1"), newest = true)
+        clock.now += 60_000
+        val reported = mutableListOf<SyncProgress.Running>()
+
+        synchronizer.sync(SERVER_ID) { reported += it }
+
+        // Two new albums in a large library must not read as "0 / 2 albums".
+        val albums = reported.filter { it.phase == SyncPhase.Albums }
+        assertThat(albums.map { it.total }.distinct()).containsExactly(0)
+        assertThat(albums.last()).isEqualTo(SyncProgress.Running(SyncPhase.Albums, 2, 0))
+    }
+
+    @Test
     fun `phases that count requests rather than items report no total`() = runTest {
         seedLibrary()
         val reported = mutableListOf<SyncProgress.Running>()
