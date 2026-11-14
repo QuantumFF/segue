@@ -5,7 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToIndex
@@ -91,7 +93,7 @@ class LibraryScrollTest {
         pages.value = PagingData.from(resorted)
         compose.waitForIdle()
 
-        repeat(SWIPES) { compose.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() } }
+        repeat(SWIPES) { compose.onNode(tabList).performTouchInput { swipeUp() } }
         pages.value = PagingData.from(resorted + TestData.album(id = "new"))
         compose.waitForIdle()
 
@@ -162,7 +164,7 @@ class LibraryScrollTest {
                 )
             }
         }
-        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(SCROLLED_TO)
+        compose.onNode(tabList).performScrollToIndex(SCROLLED_TO)
     }
 
     private fun showScrolledArtists() {
@@ -177,7 +179,7 @@ class LibraryScrollTest {
                 )
             }
         }
-        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(SCROLLED_TO)
+        compose.onNode(tabList).performScrollToIndex(SCROLLED_TO)
     }
 
     private fun showScrolledAlbums() {
@@ -192,8 +194,11 @@ class LibraryScrollTest {
                 )
             }
         }
-        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(SCROLLED_TO)
+        compose.onNode(tabList).performScrollToIndex(SCROLLED_TO)
     }
+
+    /** The selected tab's list or grid, not the pager that holds the tabs. */
+    private val tabList = hasScrollToIndexAction() and hasAnyAncestor(hasTestTag(LIBRARY_PAGER_TAG))
 
     private companion object {
         const val ALBUM_COUNT = 100
