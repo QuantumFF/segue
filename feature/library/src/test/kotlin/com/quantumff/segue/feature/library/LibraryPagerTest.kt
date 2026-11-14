@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.library
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -71,6 +72,24 @@ class LibraryPagerTest {
         compose.onNodeWithText("No albums yet").assertIsDisplayed()
         compose.onNodeWithText("1 selected").assertIsDisplayed()
         assertThat(events).isEmpty()
+    }
+
+    @Test
+    fun `mid-swipe only the tab and the neighbour it moves towards are composed`() {
+        state = state.copy(tab = LibraryTab.Artists)
+        show()
+
+        compose.onNodeWithTag(LIBRARY_PAGER_TAG).performTouchInput {
+            down(center)
+            moveBy(Offset(-width * HALF_SWIPE, 0f))
+        }
+
+        compose.onNodeWithText("No artists yet").assertExists()
+        compose.onNodeWithText("No songs yet").assertExists()
+        compose.onNodeWithText("No albums yet").assertDoesNotExist()
+        compose.onNodeWithText("No genres yet").assertDoesNotExist()
+        compose.onNodeWithTag(LIBRARY_PAGER_TAG).performTouchInput { up() }
+        finishAnimations()
     }
 
     @Test
@@ -154,6 +173,7 @@ class LibraryPagerTest {
 
     private companion object {
         const val SHORT_SWIPE = 0.2f
+        const val HALF_SWIPE = 0.4f
         const val SLOW_SWIPE_MILLIS = 1_000L
         val emptyLibrary = LibraryUiState(
             albumCount = 0,
