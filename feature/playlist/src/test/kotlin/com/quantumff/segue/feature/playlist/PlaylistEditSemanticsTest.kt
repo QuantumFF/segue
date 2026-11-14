@@ -107,6 +107,7 @@ class PlaylistEditSemanticsTest {
                     onTrackClick = {},
                     onTrackAction = { _, _, _ -> },
                     onTrackSwipe = { _, _ -> },
+                    onPlaylistAction = {},
                     onEditClick = {},
                     onCancelEditClick = {},
                     onSaveClick = {},

@@ -748,4 +748,62 @@ class PlaylistViewModelTest {
         assertThat(downloads.paused).containsExactly(PinKind.Playlist to "p1")
         assertThat(downloads.resumed).containsExactly(PinKind.Playlist to "p1", PinKind.Playlist to "p1")
     }
+
+    @Test
+    fun aSharedPlaylistsMenuQueuesItAddsItToAPlaylistAndDownloadsIt() = runTest {
+        playlists.playlistsState.value = listOf(TestData.playlist("p1", songCount = 3, readonly = true))
+        val viewModel = viewModel()
+        val addedToPlaylist = mutableListOf<List<String>>()
+        val host = MediaActionHost(onAddToPlaylist = { addedToPlaylist += it })
+
+        assertThat(viewModel.uiState.value.menuActions).containsExactly(
+            MediaAction.Play,
+            MediaAction.Shuffle,
+            MediaAction.ShuffleAlbums,
+            MediaAction.PlayNext,
+            MediaAction.AddToQueue,
+            MediaAction.AddToPlaylist,
+            MediaAction.Download,
+        ).inOrder()
+
+        viewModel.onPlaylistAction(MediaAction.PlayNext, host)
+        viewModel.onPlaylistAction(MediaAction.AddToQueue, host)
+        viewModel.onPlaylistAction(MediaAction.AddToPlaylist, host)
+        viewModel.onPlaylistAction(MediaAction.Download, host)
+
+        val source = QueueSource.Playlist("p1", "Playlist p1")
+        assertThat(play.plays).containsExactly(
+            RecordingPlayIntents.Play(PlayTarget.Playlist("p1"), QueuePlacement.Next, false, source),
+            RecordingPlayIntents.Play(PlayTarget.Playlist("p1"), QueuePlacement.End, false, source),
+        ).inOrder()
+        assertThat(addedToPlaylist).containsExactly(listOf("a", "b", "c"))
+        assertThat(downloads.pins.value.keys).containsExactly(PinKind.Playlist to "p1")
+        assertThat(viewModel.uiState.value.menuActions).contains(MediaAction.RemoveDownload)
+    }
+
+    @Test
+    fun anOwnedPlaylistsMenuAddsRenameAndDeleteWhichComeBackToTheScreen() = runTest {
+        val viewModel = viewModel()
+        val screenActions = mutableListOf<MediaAction>()
+        val host = MediaActionHost(onScreenAction = { screenActions += it })
+
+        assertThat(viewModel.uiState.value.menuActions).containsExactly(
+            MediaAction.Play,
+            MediaAction.Shuffle,
+            MediaAction.ShuffleAlbums,
+            MediaAction.PlayNext,
+            MediaAction.AddToQueue,
+            MediaAction.AddToPlaylist,
+            MediaAction.Download,
+            MediaAction.Rename,
+            MediaAction.Delete,
+        ).inOrder()
+
+        viewModel.onPlaylistAction(MediaAction.Rename, host)
+        viewModel.onPlaylistAction(MediaAction.Delete, host)
+        viewModel.onPlaylistAction(MediaAction.PlayNext, host)
+
+        assertThat(screenActions).containsExactly(MediaAction.Rename, MediaAction.Delete).inOrder()
+        assertThat(play.plays.single().placement).isEqualTo(QueuePlacement.Next)
+    }
 }

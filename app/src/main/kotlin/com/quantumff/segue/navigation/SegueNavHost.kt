@@ -123,6 +123,7 @@ fun SegueNavHost(
                         onPlaylistClick = onPlaylistClick,
                         creating = creating,
                         onCreatingChange = onCreatingChange,
+                        onAddToPlaylist = onAddToPlaylist,
                     )
                 },
             )
@@ -132,6 +133,7 @@ fun SegueNavHost(
                 onAccountClick = onAccountClick,
                 onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onPlaylistClick = onPlaylistClick,
+                onAddToPlaylist = onAddToPlaylist,
             )
         }
         navigation<SearchGraph>(startDestination = SearchRoute) {

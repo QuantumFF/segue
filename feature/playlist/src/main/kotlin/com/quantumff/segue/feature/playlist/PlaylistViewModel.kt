@@ -30,6 +30,7 @@ import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadStatus
 import com.quantumff.segue.core.model.HeroPlayback
 import com.quantumff.segue.core.model.MediaAction
+import com.quantumff.segue.core.model.MediaActions
 import com.quantumff.segue.core.model.OfflineStatus
 import com.quantumff.segue.core.model.PinAction
 import com.quantumff.segue.core.model.PinKind
@@ -108,6 +109,13 @@ data class PlaylistUiState(
 ) {
     /** Only the owner's playlists can be edited, renamed or deleted. */
     val isEditable: Boolean get() = playlist != null && !playlist.readonly
+
+    /**
+     * The page's ⋮ (DESIGN.md §4.5): the same for everyone, plus Rename and Delete for the owner.
+     * Edit is not here; the owner's top-bar pencil starts it.
+     */
+    val menuActions: ImmutableList<MediaAction>
+        get() = MediaActions.playlist(editable = isEditable, isDownloaded = download != null)
 
     val songs: List<Song> get() = entries.map { it.song }
 
@@ -337,6 +345,19 @@ class PlaylistViewModel @Inject constructor(
     /** The playlist, as the queue source its plays record; unknown until it has loaded. */
     private fun queueSource(): QueueSource =
         uiState.value.playlist?.let { QueueSource.Playlist(it.id, it.name) } ?: QueueSource.Unknown
+
+    /**
+     * The page's ⋮ ([PlaylistUiState.menuActions], through [MediaActionHandler]). Rename and Delete
+     * come back to [host], whose screen opens their dialogs; Add to playlist hands it the songs.
+     */
+    fun onPlaylistAction(action: MediaAction, host: MediaActionHost) {
+        val playlist = uiState.value.playlist ?: return
+        viewModelScope.launch {
+            if (mediaActions.playlist(playlist, action, host) != null) {
+                local.update { it.copy(message = PlaylistMessage.Failed) }
+            }
+        }
+    }
 
     /** A track's ⋮ menu ([MediaActionHandler]). Remove from playlist comes back to [host]. */
     fun onSongAction(song: Song, action: MediaAction, host: MediaActionHost) {

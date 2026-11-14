@@ -46,8 +46,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.designsystem.art.rememberHeroTint
-import com.quantumff.segue.core.designsystem.component.ContextMenuItem
-import com.quantumff.segue.core.designsystem.component.ContextMenuSheet
 import com.quantumff.segue.core.designsystem.component.DetailLoadingSkeleton
 import com.quantumff.segue.core.designsystem.component.DetailStateLayout
 import com.quantumff.segue.core.designsystem.component.DownloadButton
@@ -84,7 +82,6 @@ import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
 /** Playlist detail (DESIGN.md §4.5). */
@@ -99,6 +96,7 @@ fun PlaylistScreen(
     viewModel: PlaylistViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val menuHost = remember(onAddToPlaylist) { MediaActionHost(onAddToPlaylist = onAddToPlaylist) }
     val currentOnBackClick by rememberUpdatedState(onBackClick)
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) currentOnBackClick()
@@ -116,6 +114,7 @@ fun PlaylistScreen(
             viewModel.onSongAction(song, action, host)
         },
         onTrackSwipe = viewModel::onSongSwipe,
+        onPlaylistAction = { action -> viewModel.onPlaylistAction(action, menuHost) },
         onEditClick = viewModel::startEditing,
         onCancelEditClick = viewModel::cancelEditing,
         onSaveClick = viewModel::save,
@@ -139,6 +138,9 @@ fun PlaylistScreen(
  * playing queue source) and the collapsed top bar's. While editing, Back calls [onEditBack], and
  * the discard prompt's Discard is [onCancelEditClick]. The offline chip retries through
  * [onRetryClick], or in Offline mode opens the setting through [onOfflineModeSettingClick].
+ * The ⋮ offers [PlaylistUiState.menuActions]: Rename and Delete open their dialogs, Download and
+ * Remove download do what the hero's download button does, and the rest go to [onPlaylistAction].
+ * The owner's top-bar pencil is [onEditClick].
  */
 @Suppress("LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,6 +154,7 @@ fun PlaylistScreenContent(
     onTrackClick: (index: Int) -> Unit,
     onTrackAction: (index: Int, song: Song, action: MediaAction) -> Unit,
     onTrackSwipe: (Song, QueuePlacement) -> Unit,
+    onPlaylistAction: (MediaAction) -> Unit,
     onEditClick: () -> Unit,
     onCancelEditClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -219,6 +222,7 @@ fun PlaylistScreenContent(
                 onShuffleAlbumsClick = onShuffleAlbumsClick,
                 onDownloadClick = { if (uiState.download == null) onDownloadClick() else showDownloadMenu = true },
                 onMoreClick = { showPlaylistMenu = true },
+                onEditClick = onEditClick,
                 onCancelEditClick = onCancelEditClick,
                 onSaveClick = onSaveClick,
                 onRetryClick = onRetryClick,
@@ -233,11 +237,18 @@ fun PlaylistScreenContent(
     }
 
     if (showPlaylistMenu && playlist != null) {
-        PlaylistMenu(
-            playlist = playlist,
-            onEditClick = onEditClick,
-            onRenameClick = { dialog = PlaylistDialog.Rename(playlist) },
-            onDeleteClick = { dialog = PlaylistDialog.Delete(playlist) },
+        MediaContextMenu(
+            header = playlist.toMenuHeader(),
+            actions = uiState.menuActions,
+            onAction = { action ->
+                when (action) {
+                    MediaAction.Rename -> dialog = PlaylistDialog.Rename(playlist)
+                    MediaAction.Delete -> dialog = PlaylistDialog.Delete(playlist)
+                    MediaAction.Download -> onDownloadClick()
+                    MediaAction.RemoveDownload -> showDownloadMenu = true
+                    else -> onPlaylistAction(action)
+                }
+            },
             onDismissRequest = { showPlaylistMenu = false },
         )
     }
@@ -289,6 +300,7 @@ private fun PlaylistDetail(
     onShuffleAlbumsClick: () -> Unit,
     onDownloadClick: () -> Unit,
     onMoreClick: () -> Unit,
+    onEditClick: () -> Unit,
     onCancelEditClick: () -> Unit,
     onSaveClick: () -> Unit,
     onRetryClick: () -> Unit,
@@ -319,9 +331,18 @@ private fun PlaylistDetail(
         onBackClick = onBackClick,
         onPlayClick = if (canPlayOrPause && !uiState.isEditing) onPlayClick else null,
         isPlaying = isSourcePlaying,
-        onMoreClick = if (uiState.isEditable && !uiState.isEditing) onMoreClick else null,
+        onMoreClick = if (uiState.isEditing) null else onMoreClick,
         topBarActions = {
-            if (uiState.isEditing) EditActions(uiState, onCancelEditClick, onSaveClick)
+            when {
+                uiState.isEditing -> EditActions(uiState, onCancelEditClick, onSaveClick)
+
+                // The owner's way into edit mode (DESIGN.md §4.5); the ⋮ has no Edit.
+                uiState.isEditable -> SegueIconButton(
+                    icon = SegueIcons.Edit,
+                    contentDescription = stringResource(R.string.feature_playlist_edit),
+                    onClick = onEditClick,
+                )
+            }
         },
         heroActions = {
             if (!uiState.isEditing) {
@@ -339,13 +360,11 @@ private fun PlaylistDetail(
                     enabled = uiState.canPlay,
                 )
                 DownloadButton(status = uiState.download, onClick = onDownloadClick)
-                if (uiState.isEditable) {
-                    SegueIconButton(
-                        icon = SegueIcons.MoreVertical,
-                        contentDescription = stringResource(R.string.feature_playlist_more),
-                        onClick = onMoreClick,
-                    )
-                }
+                SegueIconButton(
+                    icon = SegueIcons.MoreVertical,
+                    contentDescription = stringResource(R.string.feature_playlist_more),
+                    onClick = onMoreClick,
+                )
             }
         },
     ) {
@@ -445,40 +464,6 @@ private fun EditActions(uiState: PlaylistUiState, onCancelClick: () -> Unit, onS
             enabled = uiState.canSave,
         )
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlaylistMenu(
-    playlist: Playlist,
-    onEditClick: () -> Unit,
-    onRenameClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    onDismissRequest: () -> Unit,
-) {
-    val edit = stringResource(R.string.feature_playlist_edit)
-    val rename = stringResource(R.string.feature_playlist_rename)
-    val delete = stringResource(R.string.feature_playlist_delete)
-    val items = remember(edit, rename, delete) {
-        persistentListOf(
-            ContextMenuItem(id = MENU_EDIT, label = edit, icon = SegueIcons.DragHandle),
-            ContextMenuItem(id = MENU_RENAME, label = rename, icon = SegueIcons.Edit),
-            ContextMenuItem(id = MENU_DELETE, label = delete, icon = SegueIcons.Remove, destructive = true),
-        )
-    }
-    ContextMenuSheet(
-        header = playlist.toMenuHeader(),
-        items = items,
-        onItemClick = { item ->
-            when (item.id) {
-                MENU_EDIT -> onEditClick()
-                MENU_RENAME -> onRenameClick()
-                MENU_DELETE -> onDeleteClick()
-            }
-            onDismissRequest()
-        },
-        onDismissRequest = onDismissRequest,
-    )
 }
 
 /**
@@ -648,9 +633,6 @@ private fun RemoveBackground() {
 }
 
 private const val SKELETON_ROWS = 4
-private const val MENU_EDIT = "edit"
-private const val MENU_RENAME = "rename"
-private const val MENU_DELETE = "delete"
 
 private val PreviewPlaylist =
     Playlist("1", "Road trip", "Songs for the long drive", "demo", true, 3, 720, null, null, null, readonly = false)
@@ -673,6 +655,7 @@ private fun PreviewPlaylistScreen(uiState: PlaylistUiState) {
         onTrackClick = {},
         onTrackAction = { _, _, _ -> },
         onTrackSwipe = { _, _ -> },
+        onPlaylistAction = {},
         onEditClick = {},
         onCancelEditClick = {},
         onSaveClick = {},
