@@ -205,9 +205,18 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
     downloadsTab: (@Composable () -> Unit)? = null,
     playlistsTab: PlaylistsTabSlot? = null,
+    requestedTab: LibraryTab? = null,
+    onRequestedTabShow: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val currentOnRequestedTabShow by rememberUpdatedState(onRequestedTabShow)
+    LaunchedEffect(requestedTab) {
+        if (requestedTab != null) {
+            viewModel.selectTab(requestedTab)
+            currentOnRequestedTabShow()
+        }
+    }
     val menuHost = remember(onAlbumClick, onArtistClick, onAddToPlaylist) {
         MediaActionHost(onAlbumClick = onAlbumClick, onArtistClick = onArtistClick, onAddToPlaylist = onAddToPlaylist)
     }

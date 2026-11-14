@@ -16,6 +16,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -124,6 +125,33 @@ class SegueAppShellTest {
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
         compose.onNodeWithText("Open a sample album").assertExists()
+    }
+
+    @Test
+    fun `Home's See all on playlists opens the Playlists tab at its root`() {
+        setShell(ShellLayout.Compact)
+        tab("Playlists").performClick()
+        compose.onNodeWithText("Open a sample playlist").performClick()
+        tab("Home").performClick()
+
+        compose.onNodeWithText("See all playlists").performClick()
+
+        compose.onNodeWithText("Open a sample playlist").assertExists()
+        tab("Playlists").assertIsSelected()
+    }
+
+    @Test
+    fun `Home's See all on genres opens the Library at its root and asks for the Genres tab`() {
+        setShell(ShellLayout.Compact)
+        tab("Library").performClick()
+        compose.onNodeWithText("Open a sample artist").performClick()
+        tab("Home").performClick()
+
+        compose.onNodeWithText("See all genres").performClick()
+
+        compose.onNodeWithText("Open a sample artist").assertExists()
+        compose.onNodeWithText("Library asked to show Genres").assertExists()
+        tab("Library").assertIsSelected()
     }
 
     @Test
