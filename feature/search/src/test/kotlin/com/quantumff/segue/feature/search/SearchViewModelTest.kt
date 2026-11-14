@@ -8,11 +8,13 @@ import com.quantumff.segue.core.data.snackbar.SnackbarMessage
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.CurrentSong
+import com.quantumff.segue.core.model.DownloadOverview
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActionFailure
 import com.quantumff.segue.core.model.MediaKind
 import com.quantumff.segue.core.model.PinKind
+import com.quantumff.segue.core.model.PinnedDownload
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.PlayerUiState
 import com.quantumff.segue.core.model.QueuePlacement
@@ -176,6 +178,65 @@ class SearchViewModelTest {
         assertThat(ready.result).isEqualTo(local)
         assertThat(ready.offline).isTrue()
         assertThat(ready.serverPending).isFalse()
+    }
+
+    @Test
+    fun playlistsFilterListsThePlaylistsWhoseNamesMatch() = runTest(mainDispatcherRule.testDispatcher) {
+        val mix = TestData.playlist("p1", name = "Rainy Mix")
+        search.script["rain"] = listOf(local.copy(playlists = persistentListOf(mix)))
+        val viewModel = viewModel()
+        viewModel.onQueryChange("rain")
+        viewModel.onFilterChange(SearchFilter.Playlists)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(SearchFilter.entries).containsExactly(
+            SearchFilter.All,
+            SearchFilter.Songs,
+            SearchFilter.Albums,
+            SearchFilter.Artists,
+            SearchFilter.Playlists,
+        ).inOrder()
+        assertThat(state.filter).isEqualTo(SearchFilter.Playlists)
+        assertThat((state.results as SearchResults.Ready).result.playlists).containsExactly(mix)
+    }
+
+    @Test
+    fun allShowsPlaylistsAfterAlbumsOnlyWhenPlaylistsMatch() = runTest(mainDispatcherRule.testDispatcher) {
+        search.script["rad"] = listOf(local, server.copy(playlists = persistentListOf(TestData.playlist("p1"))))
+        val viewModel = viewModel()
+        viewModel.onQueryChange("rad")
+        runCurrent()
+
+        assertThat(viewModel.uiState.value.allSections)
+            .containsExactly(SearchFilter.Artists, SearchFilter.Songs).inOrder()
+
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.allSections).containsExactly(
+            SearchFilter.Artists,
+            SearchFilter.Albums,
+            SearchFilter.Playlists,
+            SearchFilter.Songs,
+        ).inOrder()
+    }
+
+    @Test
+    fun offlineShowsOnlyPinnedPlaylists() = runTest(mainDispatcherRule.testDispatcher) {
+        offline.isOffline.value = true
+        downloads.overview.value = DownloadOverview(
+            pins = persistentListOf(PinnedDownload(PinKind.Playlist, "p2", "p2", null, 1, 1, 0, 0, 1f, 1)),
+        )
+        search.script["mix"] = listOf(
+            SearchResult.Empty.copy(
+                playlists = persistentListOf(TestData.playlist("p1"), TestData.playlist("p2")),
+            ),
+        )
+        val viewModel = viewModel()
+        viewModel.onQueryChange("mix")
+        advanceUntilIdle()
+
+        val results = viewModel.uiState.value.results as SearchResults.Ready
+        assertThat(results.result.playlists.map { it.id }).containsExactly("p2")
     }
 
     @Test
@@ -362,6 +423,48 @@ class SearchViewModelTest {
 
         assertThat(play.plays.single().target).isEqualTo(PlayTarget.Songs(listOf(song), 0))
         assertThat(downloads.pins.value.keys).containsExactly(PinKind.Song to "s1")
+    }
+
+    @Test
+    fun anAlbumResultsMenuPlaysAndQueuesThatAlbum() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        val album = TestData.album("al1")
+
+        viewModel.onAlbumAction(album, MediaAction.Play, MediaActionHost())
+        viewModel.onAlbumAction(album, MediaAction.AddToQueue, MediaActionHost())
+        advanceUntilIdle()
+
+        assertThat(play.plays.map { it.target to it.placement }).containsExactly(
+            PlayTarget.Album("al1") to QueuePlacement.Replace,
+            PlayTarget.Album("al1") to QueuePlacement.End,
+        ).inOrder()
+    }
+
+    @Test
+    fun anArtistResultsMenuShufflesThatArtist() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+
+        viewModel.onArtistAction(TestData.artist("a1"), MediaAction.Shuffle, MediaActionHost())
+        advanceUntilIdle()
+
+        val shuffle = play.plays.single()
+        assertThat(shuffle.target).isEqualTo(PlayTarget.Artist("a1"))
+        assertThat(shuffle.shuffle).isTrue()
+    }
+
+    @Test
+    fun aFailedFavoriteFromAnAlbumOrArtistMenuShowsAMessage() = runTest(mainDispatcherRule.testDispatcher) {
+        starRating.error = RemoteException.NotSignedIn()
+        val viewModel = viewModel()
+
+        viewModel.onAlbumAction(TestData.album("al1"), MediaAction.Favorite, MediaActionHost())
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.message).isEqualTo(MediaActionFailure.FavoriteFailed)
+
+        viewModel.onMessageDismiss()
+        viewModel.onArtistAction(TestData.artist("a1"), MediaAction.Favorite, MediaActionHost())
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.message).isEqualTo(MediaActionFailure.FavoriteFailed)
     }
 
     @Test

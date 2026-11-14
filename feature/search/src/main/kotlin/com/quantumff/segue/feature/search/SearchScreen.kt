@@ -40,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,9 +80,11 @@ import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.MediaActions
+import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /** Search tab (DESIGN.md §4.6). Stateful wrapper: wires the ViewModel and routes play intents. */
@@ -91,12 +94,13 @@ fun SearchScreen(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onPlaylistClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val callbacks = remember(viewModel, onAlbumClick, onArtistClick, onGenreClick, onAddToPlaylist) {
+    val callbacks = remember(viewModel, onAlbumClick, onArtistClick, onGenreClick, onAddToPlaylist, onPlaylistClick) {
         val menuHost =
             MediaActionHost(
                 onAlbumClick = onAlbumClick,
@@ -123,6 +127,12 @@ fun SearchScreen(
             onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
             onSongSwipe = viewModel::onSongSwipe,
             onMessageDismiss = viewModel::onMessageDismiss,
+            onAlbumAction = { album, action -> viewModel.onAlbumAction(album, action, menuHost) },
+            onArtistAction = { artist, action -> viewModel.onArtistAction(artist, action, menuHost) },
+            onPlaylistClick = { id ->
+                viewModel.onResultOpened()
+                onPlaylistClick(id)
+            },
         )
     }
     SearchContent(
@@ -152,9 +162,15 @@ class SearchCallbacks(
     /** A song row's swipe: Play next or Add to queue. */
     val onSongSwipe: (Song, QueuePlacement) -> Unit,
     val onMessageDismiss: () -> Unit,
+    val onAlbumAction: (Album, MediaAction) -> Unit,
+    val onArtistAction: (Artist, MediaAction) -> Unit,
+    /** A playlist result's tap: opens its playlist page. */
+    val onPlaylistClick: (String) -> Unit,
 ) {
     companion object {
-        val None = SearchCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
+        val None =
+            SearchCallbacks({
+            }, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, { _, _ -> }, { _, _ -> }, {})
     }
 }
 
@@ -167,7 +183,7 @@ fun SearchContent(
     modifier: Modifier = Modifier,
     autoFocus: Boolean = true,
 ) {
-    var menuSong by remember { mutableStateOf<Song?>(null) }
+    var menu by remember { mutableStateOf<MenuTarget?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val message = uiState.message?.let { stringResource(it.text) }
     LaunchedEffect(message) {
@@ -196,25 +212,54 @@ fun SearchContent(
                     query = query.trim(),
                     results = results,
                     filter = uiState.filter,
+                    sections = uiState.allSections,
                     currentSong = uiState.currentSong,
                     callbacks = callbacks,
-                    onSongMoreClick = { menuSong = it },
+                    onMoreClick = { menu = it },
                 )
             }
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 
-    menuSong?.let { song ->
-        MediaContextMenu(
-            header = song.toMenuHeader(),
+    menu?.let { target -> ResultMenu(target, callbacks, onDismissRequest = { menu = null }) }
+}
+
+/** The result whose ⋮ menu is open. */
+private sealed interface MenuTarget {
+    data class OfSong(val song: Song) : MenuTarget
+
+    data class OfAlbum(val album: Album) : MenuTarget
+
+    data class OfArtist(val artist: Artist) : MenuTarget
+}
+
+@Composable
+private fun ResultMenu(target: MenuTarget, callbacks: SearchCallbacks, onDismissRequest: () -> Unit) {
+    when (target) {
+        is MenuTarget.OfSong -> MediaContextMenu(
+            header = target.song.toMenuHeader(),
             actions = MediaActions.song(
-                isStarred = song.isStarred,
-                hasAlbum = song.albumId != null,
-                hasArtist = song.artistId != null,
+                isStarred = target.song.isStarred,
+                hasAlbum = target.song.albumId != null,
+                hasArtist = target.song.artistId != null,
             ),
-            onAction = { callbacks.onSongAction(song, it) },
-            onDismissRequest = { menuSong = null },
+            onAction = { callbacks.onSongAction(target.song, it) },
+            onDismissRequest = onDismissRequest,
+        )
+
+        is MenuTarget.OfAlbum -> MediaContextMenu(
+            header = target.album.toMenuHeader(),
+            actions = MediaActions.album(isStarred = target.album.isStarred, hasArtist = target.album.artistId != null),
+            onAction = { callbacks.onAlbumAction(target.album, it) },
+            onDismissRequest = onDismissRequest,
+        )
+
+        is MenuTarget.OfArtist -> MediaContextMenu(
+            header = target.artist.toMenuHeader(),
+            actions = MediaActions.artist(isStarred = target.artist.isStarred),
+            onAction = { callbacks.onArtistAction(target.artist, it) },
+            onDismissRequest = onDismissRequest,
         )
     }
 }
@@ -362,9 +407,10 @@ private fun ResultsContent(
     query: String,
     results: SearchResults.Ready,
     filter: SearchFilter,
+    sections: ImmutableList<SearchFilter>,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
-    onSongMoreClick: (Song) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
 ) {
     val result = results.result
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
@@ -388,10 +434,11 @@ private fun ResultsContent(
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
             when (filter) {
-                SearchFilter.All -> allResults(result, currentSong, callbacks, onSongMoreClick)
-                SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onSongMoreClick)
-                SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick)
-                SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick)
+                SearchFilter.All -> allResults(sections, result, currentSong, callbacks, onMoreClick)
+                SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onMoreClick)
+                SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick, onMoreClick)
+                SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick, onMoreClick)
+                SearchFilter.Playlists -> playlistRows(result.playlists, callbacks.onPlaylistClick)
             }
         }
     }
@@ -428,13 +475,15 @@ private fun FilterRow(filter: SearchFilter, results: SearchResults.Ready, onFilt
     }
 }
 
+/** The All filter: [sections] (see [SearchUiState.allSections]) in that order. */
 private fun LazyListScope.allResults(
+    sections: List<SearchFilter>,
     result: SearchResult,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
-    onSongMoreClick: (Song) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
 ) {
-    if (result.artists.isNotEmpty()) {
+    if (SearchFilter.Artists in sections) {
         item(key = "artistsHeader", contentType = "header") {
             SectionHeader(title = stringResource(R.string.feature_search_artists))
         }
@@ -446,15 +495,16 @@ private fun LazyListScope.allResults(
                 contentType = "artistCard",
             ) { artist ->
                 ArtistCard(
-                    state = artist.toCardState(subtitle = null),
+                    state = artist.toCardState(subtitle = albumCount(artist)),
                     onClick = { callbacks.onArtistClick(artist.id) },
+                    onLongClick = { onMoreClick(MenuTarget.OfArtist(artist)) },
                     artDisplaySize = ARTIST_CIRCLE,
                     modifier = Modifier.width(ARTIST_CIRCLE),
                 )
             }
         }
     }
-    if (result.albums.isNotEmpty()) {
+    if (SearchFilter.Albums in sections) {
         item(key = "albumsHeader", contentType = "header") {
             SectionHeader(title = stringResource(R.string.feature_search_albums))
         }
@@ -468,13 +518,27 @@ private fun LazyListScope.allResults(
                 AlbumCard(
                     state = album.toCardState(),
                     onClick = { callbacks.onAlbumClick(album.id) },
+                    onLongClick = { onMoreClick(MenuTarget.OfAlbum(album)) },
                     artDisplaySize = ALBUM_CARD,
                     modifier = Modifier.width(ALBUM_CARD),
                 )
             }
         }
     }
-    if (result.songs.isNotEmpty()) {
+    if (SearchFilter.Playlists in sections) {
+        item(key = "playlistsHeader", contentType = "header") {
+            SectionHeader(
+                title = stringResource(R.string.feature_search_playlists),
+                onSeeAllClick = if (result.playlists.size > ALL_PLAYLIST_LIMIT) {
+                    { callbacks.onFilterChange(SearchFilter.Playlists) }
+                } else {
+                    null
+                },
+            )
+        }
+        playlistRows(result.playlists.take(ALL_PLAYLIST_LIMIT), callbacks.onPlaylistClick)
+    }
+    if (SearchFilter.Songs in sections) {
         item(key = "songsHeader", contentType = "header") {
             SectionHeader(
                 title = stringResource(R.string.feature_search_songs),
@@ -485,7 +549,7 @@ private fun LazyListScope.allResults(
                 },
             )
         }
-        songRows(result.songs.take(ALL_SONG_LIMIT), currentSong, callbacks, onSongMoreClick)
+        songRows(result.songs.take(ALL_SONG_LIMIT), currentSong, callbacks, onMoreClick)
     }
 }
 
@@ -493,7 +557,7 @@ private fun LazyListScope.songRows(
     songs: List<Song>,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
-    onSongMoreClick: (Song) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
 ) {
     itemsIndexed(songs, key = { _, song -> "song:${song.id}" }, contentType = { _, _ -> "song" }) { index, song ->
         TrackSwipeBox(
@@ -503,38 +567,71 @@ private fun LazyListScope.songRows(
             TrackRow(
                 state = song.toTrackRowState(current = currentSong),
                 onClick = { callbacks.onSongClick(index) },
-                onLongClick = { onSongMoreClick(song) },
-                onMoreClick = { onSongMoreClick(song) },
+                onLongClick = { onMoreClick(MenuTarget.OfSong(song)) },
+                onMoreClick = { onMoreClick(MenuTarget.OfSong(song)) },
             )
         }
     }
 }
 
-private fun LazyListScope.albumRows(albums: List<Album>, onAlbumClick: (String) -> Unit) {
+private fun LazyListScope.albumRows(
+    albums: List<Album>,
+    onAlbumClick: (String) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
+) {
     items(albums, key = { "album:${it.id}" }, contentType = { "album" }) { album ->
         MediaRow(
             title = album.name,
             subtitle = album.artist,
             coverArtId = album.coverArtId,
             onClick = { onAlbumClick(album.id) },
+            onLongClick = { onMoreClick(MenuTarget.OfAlbum(album)) },
+            onMoreClick = { onMoreClick(MenuTarget.OfAlbum(album)) },
         )
     }
 }
 
-private fun LazyListScope.artistRows(artists: List<Artist>, onArtistClick: (String) -> Unit) {
+private fun LazyListScope.artistRows(
+    artists: List<Artist>,
+    onArtistClick: (String) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
+) {
     items(artists, key = { "artist:${it.id}" }, contentType = { "artist" }) { artist ->
         MediaRow(
             title = artist.name,
-            subtitle = null,
+            subtitle = albumCount(artist),
             coverArtId = artist.coverArtId,
             onClick = { onArtistClick(artist.id) },
+            onLongClick = { onMoreClick(MenuTarget.OfArtist(artist)) },
+            onMoreClick = { onMoreClick(MenuTarget.OfArtist(artist)) },
             artShape = SegueShapes.full,
             placeholderIcon = SegueIcons.Artist,
         )
     }
 }
 
-private fun SearchResult.isEmpty() = artists.isEmpty() && albums.isEmpty() && songs.isEmpty()
+/** "N albums", which tells artists with the same name apart. */
+@Composable
+private fun albumCount(artist: Artist): String =
+    pluralStringResource(R.plurals.feature_search_album_count, artist.albumCount, artist.albumCount)
+
+private fun LazyListScope.playlistRows(playlists: List<Playlist>, onPlaylistClick: (String) -> Unit) {
+    items(playlists, key = { "playlist:${it.id}" }, contentType = { "playlist" }) { playlist ->
+        MediaRow(
+            title = playlist.name,
+            subtitle = pluralStringResource(
+                R.plurals.feature_search_song_count,
+                playlist.songCount,
+                playlist.songCount,
+            ),
+            coverArtId = playlist.coverArtId,
+            onClick = { onPlaylistClick(playlist.id) },
+            placeholderIcon = SegueIcons.Playlists,
+        )
+    }
+}
+
+private fun SearchResult.isEmpty() = artists.isEmpty() && albums.isEmpty() && songs.isEmpty() && playlists.isEmpty()
 
 private val SearchFilter.label: Int
     get() = when (this) {
@@ -542,10 +639,14 @@ private val SearchFilter.label: Int
         SearchFilter.Songs -> R.string.feature_search_songs
         SearchFilter.Albums -> R.string.feature_search_albums
         SearchFilter.Artists -> R.string.feature_search_artists
+        SearchFilter.Playlists -> R.string.feature_search_playlists
     }
 
 /** "All" shows up to this many songs, then "See all" (DESIGN.md §4.6). */
 private const val ALL_SONG_LIMIT = 20
+
+/** "All" shows up to this many playlists, then "See all". */
+private const val ALL_PLAYLIST_LIMIT = 5
 private val ARTIST_CIRCLE = 72.dp
 private val ALBUM_CARD = 128.dp
 

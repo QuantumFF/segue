@@ -3,6 +3,7 @@ package com.quantumff.segue.feature.playlist
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
+import com.quantumff.segue.core.data.play.MediaActionHost
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.data.snackbar.offline
@@ -310,5 +311,20 @@ class PlaylistsViewModelTest {
 
         viewModel.onPlaylistAction(playlist, MediaAction.RemoveDownload)
         assertThat(downloads.pins.value).isEmpty()
+    }
+
+    @Test
+    fun menuAddToPlaylistHandsThePlaylistsSongsToTheSheet() = runTest {
+        playlists.songsByPlaylist.value = mapOf("p1" to listOf(TestData.song("a"), TestData.song("b")))
+        val viewModel = viewModel()
+        val added = mutableListOf<List<String>>()
+
+        viewModel.onPlaylistAction(
+            TestData.playlist("p1"),
+            MediaAction.AddToPlaylist,
+            MediaActionHost(onAddToPlaylist = { added += it }),
+        )
+
+        assertThat(added).containsExactly(listOf("a", "b"))
     }
 }

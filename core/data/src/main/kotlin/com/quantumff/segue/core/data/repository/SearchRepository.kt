@@ -7,6 +7,7 @@ import com.quantumff.segue.core.data.session.SubsonicClientProvider
 import com.quantumff.segue.core.data.sync.LibraryWriter
 import com.quantumff.segue.core.database.FtsQuery
 import com.quantumff.segue.core.database.dao.ArtistDao
+import com.quantumff.segue.core.database.dao.PlaylistDao
 import com.quantumff.segue.core.database.dao.SearchDao
 import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.SearchResult
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.flowOn
 interface SearchRepository {
     /**
      * Emits local full-text matches at once, then the server's `search3` results merged in front
-     * (server results are also stored in Room). If the server search fails, the local results stand.
+     * (server results are also stored in Room). Playlists are matched by name in Room only. If the server search fails, the local results stand.
      * Debounce typing before calling.
      */
     fun search(query: String): Flow<SearchResult>
@@ -37,6 +38,7 @@ internal class OfflineFirstSearchRepository @Inject constructor(
     private val searchDao: SearchDao,
     private val writer: LibraryWriter,
     private val artistDao: ArtistDao,
+    private val playlistDao: PlaylistDao,
     @Dispatcher(SegueDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
 ) : SearchRepository {
     override fun search(query: String): Flow<SearchResult> = flow {
@@ -46,7 +48,7 @@ internal class OfflineFirstSearchRepository @Inject constructor(
             emit(SearchResult.Empty)
             return@flow
         }
-        val local = localSearch(serverId, match)
+        val local = localSearch(serverId, query, match)
         emit(local)
 
         val client = clients.client(serverId)
@@ -62,14 +64,15 @@ internal class OfflineFirstSearchRepository @Inject constructor(
     override fun searchLocal(query: String): Flow<SearchResult> = flow {
         val serverId = clients.activeServerId.first()
         val match = FtsQuery.prefixMatch(query)
-        emit(if (serverId == null || match == null) SearchResult.Empty else localSearch(serverId, match))
+        emit(if (serverId == null || match == null) SearchResult.Empty else localSearch(serverId, query, match))
     }.flowOn(ioDispatcher)
 
-    private suspend fun localSearch(serverId: String, match: String) = SearchResult(
+    private suspend fun localSearch(serverId: String, query: String, match: String) = SearchResult(
         artists = searchDao.artists(serverId, match, ARTIST_LIMIT).map { it.asExternalModel() }.toImmutableList(),
         albums = searchDao.albums(serverId, match, ALBUM_LIMIT).map { it.asExternalModel() }.toImmutableList(),
         songs = searchDao.songs(serverId, match, SONG_LIMIT).map { it.asExternalModel() }.toImmutableList(),
         includesServerResults = false,
+        playlists = playlistDao.search(serverId, query, PLAYLIST_LIMIT).map { it.asExternalModel() }.toImmutableList(),
     )
 
     private suspend fun store(serverId: String, remote: NetworkSearchResult3) {
@@ -87,11 +90,14 @@ internal class OfflineFirstSearchRepository @Inject constructor(
         songs = (remote.song.filterNot { it.isDir }.map { it.asEntity(serverId).asExternalModel() } + local.songs)
             .distinctBy { it.id }.toImmutableList(),
         includesServerResults = true,
+        // search3 has no playlists: they are always the local matches.
+        playlists = local.playlists,
     )
 
     private companion object {
         const val ARTIST_LIMIT = 20
         const val ALBUM_LIMIT = 20
         const val SONG_LIMIT = 50
+        const val PLAYLIST_LIMIT = 20
     }
 }

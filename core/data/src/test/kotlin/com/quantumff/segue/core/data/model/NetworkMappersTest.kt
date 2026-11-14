@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.database.model.AlbumArtistCrossRef
 import com.quantumff.segue.core.database.model.AlbumGenreCrossRef
 import com.quantumff.segue.core.database.model.ReplayGainEntity
+import com.quantumff.segue.core.database.model.asExternalModel
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.network.model.NetworkAlbum
@@ -140,6 +141,15 @@ class NetworkMappersTest {
             AlbumArtistCrossRef("srv", "al", "a", 0),
             AlbumArtistCrossRef("srv", "al", "b", 1),
         )
+    }
+
+    @Test
+    fun `album keeps its OpenSubsonic release types in order for the domain album`() {
+        val typed = NetworkAlbum(id = "al", name = "Live", releaseTypes = listOf("album", "live")).asEntity("srv")
+        val untyped = NetworkAlbum(id = "al", name = "Plain").asEntity("srv")
+
+        assertThat(typed.asExternalModel().releaseTypes).containsExactly("album", "live").inOrder()
+        assertThat(untyped.asExternalModel().releaseTypes).isEmpty()
     }
 
     @Test

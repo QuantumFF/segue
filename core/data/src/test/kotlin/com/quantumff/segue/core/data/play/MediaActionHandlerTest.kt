@@ -23,6 +23,7 @@ import com.quantumff.segue.core.testing.play.RecordingPlayIntents
 import com.quantumff.segue.core.testing.play.mediaActionHandler
 import com.quantumff.segue.core.testing.repository.FakeAlbumRepository
 import com.quantumff.segue.core.testing.repository.FakeDownloadRepository
+import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
@@ -35,8 +36,12 @@ class MediaActionHandlerTest {
     private val albums = FakeAlbumRepository().apply {
         songsByAlbum.value = mapOf("al" to listOf(TestData.song("s1"), TestData.song("s2")))
     }
+    private val playlists = FakePlaylistRepository().apply {
+        songsByPlaylist.value = mapOf("p" to listOf(TestData.song("s1")))
+    }
     private val snackbars = Snackbars()
-    private val handler = mediaActionHandler(intents, downloads, stars, albums, snackbars = snackbars)
+    private val handler =
+        mediaActionHandler(intents, downloads, stars, albums, playlists = playlists, snackbars = snackbars)
 
     /** Everything the screen was asked to do. */
     private val hostCalls = mutableListOf<Any>()

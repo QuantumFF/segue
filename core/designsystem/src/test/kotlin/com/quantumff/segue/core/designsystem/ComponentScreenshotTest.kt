@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ import com.quantumff.segue.core.designsystem.component.EmptyState
 import com.quantumff.segue.core.designsystem.component.HeroHeader
 import com.quantumff.segue.core.designsystem.component.HeroHeaderSkeleton
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
+import com.quantumff.segue.core.designsystem.component.MediaRow
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
 import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PickerSheetContent
@@ -33,6 +35,7 @@ import com.quantumff.segue.core.designsystem.component.SectionHeader
 import com.quantumff.segue.core.designsystem.component.SegueFilterChip
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
 import com.quantumff.segue.core.designsystem.component.SegueSortChip
+import com.quantumff.segue.core.designsystem.component.SheetHeader
 import com.quantumff.segue.core.designsystem.component.TopLevelTopBar
 import com.quantumff.segue.core.designsystem.component.TrackRow
 import com.quantumff.segue.core.designsystem.component.TrackRowLeading
@@ -181,6 +184,27 @@ class ComponentScreenshotTest {
                 message = "Pin albums or playlists to listen offline",
                 actionLabel = "Browse",
             )
+        }
+    }
+
+    /** The add-to-playlist sheet's header (DESIGN.md §5.7) over a playlist row disabled while saving. */
+    @Test
+    fun addToPlaylistSheetHeader() = capture("add_to_playlist_sheet_header") {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Column {
+                SheetHeader(ContextMenuHeader(title = "3 songs", subtitle = "Add to playlist", coverArtId = null))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SheetHeader(ContextMenuHeader(title = "Nude", subtitle = "Add to playlist", coverArtId = null))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                MediaRow(
+                    title = "Road trip",
+                    subtitle = "42 tracks · 2 h 32 m",
+                    coverArtId = null,
+                    onClick = {},
+                    placeholderIcon = SegueIcons.Playlists,
+                    enabled = false,
+                )
+            }
         }
     }
 

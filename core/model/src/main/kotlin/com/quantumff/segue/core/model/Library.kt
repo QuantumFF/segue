@@ -2,6 +2,7 @@ package com.quantumff.segue.core.model
 
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 // Timestamps are epoch milliseconds. IDs are server-assigned strings.
 
@@ -56,6 +57,16 @@ data class Album(
     val discTitles: ImmutableList<DiscTitle>,
     val musicBrainzId: String?,
     val explicitStatus: ExplicitStatus,
+    /**
+     * OpenSubsonic `releaseTypes` as the server sends them (Navidrome: lowercase, such as
+     * `album`, `ep`, `single`, `compilation`), primary first. Empty without the extension.
+     */
+    val releaseTypes: ImmutableList<String> = persistentListOf(),
+    /**
+     * Every genre the server lists for the album, in the server's order. Only the single-album flow fills it
+     * from the stored album–genre references; elsewhere, and when there are none, it is just [genre].
+     */
+    val genres: ImmutableList<String> = listOfNotNull(genre?.takeIf { it.isNotBlank() }).toImmutableList(),
 ) {
     val isStarred: Boolean get() = starredAt != null
 }
@@ -133,6 +144,8 @@ data class SearchResult(
     val songs: ImmutableList<Song>,
     /** False while only local results are shown and the server search is still running or failed. */
     val includesServerResults: Boolean,
+    /** Playlists whose names match, from Room only: the server's `search3` has no playlists. */
+    val playlists: ImmutableList<Playlist> = persistentListOf(),
 ) {
     companion object {
         val Empty =

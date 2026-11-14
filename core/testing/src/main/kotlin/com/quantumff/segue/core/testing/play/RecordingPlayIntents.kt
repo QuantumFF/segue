@@ -7,6 +7,7 @@ import com.quantumff.segue.core.model.InstantMixSeed
 import com.quantumff.segue.core.model.PlayTarget
 import com.quantumff.segue.core.model.QueuePlacement
 import com.quantumff.segue.core.model.QueueSource
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 
 /** Records the play intents a screen raises, in order, without playing anything. */
@@ -30,6 +31,12 @@ class RecordingPlayIntents : PlayIntents {
     val albumRequests: List<AlbumPlayRequest> get() = albumPlays.map { it.request }
     val mixes: List<InstantMixSeed> get() = intents.filterIsInstance<InstantMixSeed>()
 
+    /**
+     * Set to hold every intent in flight once recorded, as a real one resolving its songs would be,
+     * until it completes. Null resolves them at once.
+     */
+    var gate: CompletableDeferred<Unit>? = null
+
     /** Emit here to stand in for the real module's feedback. */
     override val messages = MutableSharedFlow<PlayIntentMessage>(extraBufferCapacity = 8)
 
@@ -41,13 +48,16 @@ class RecordingPlayIntents : PlayIntents {
         confirm: Boolean,
     ) {
         intents += Play(target, placement, shuffle, source, confirm)
+        gate?.await()
     }
 
     override suspend fun playAlbums(request: AlbumPlayRequest, source: QueueSource) {
         intents += AlbumPlay(request, source)
+        gate?.await()
     }
 
     override suspend fun instantMix(seed: InstantMixSeed) {
         intents += seed
+        gate?.await()
     }
 }

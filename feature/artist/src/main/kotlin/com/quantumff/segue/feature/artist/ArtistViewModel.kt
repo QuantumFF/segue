@@ -85,7 +85,7 @@ class ArtistViewModel @Inject constructor(
     private val refresh = MutableStateFlow<RemoteOutcome<Unit>?>(null)
     private val remote = MutableStateFlow(RemoteSections())
     private val message = MutableStateFlow<MediaActionFailure?>(null)
-    private val busy = MutableStateFlow(false)
+    private val busy = MutableStateFlow(PreparingPlayback.None)
 
     /** The current song, and whether this artist is the queue source and plays. */
     private val player = playerState.pagePlayback(SourcePage.Artist(artistId))
@@ -104,17 +104,19 @@ class ArtistViewModel @Inject constructor(
     ) { artist, albums, (remote, refresh), (message, busy, player), (download, availability, offlineStatus) ->
         when {
             artist != null -> {
-                val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
+                val grouped = ArtistAlbums.of(artistId, albums)
                 ArtistUiState.Success(
                     artist = artist,
-                    albums = own.toImmutableList(),
-                    appearsOn = appearsOn.toImmutableList(),
+                    albums = grouped.albums.toImmutableList(),
+                    epsAndSingles = grouped.epsAndSingles.toImmutableList(),
+                    compilations = grouped.compilations.toImmutableList(),
+                    appearsOn = grouped.appearsOn.toImmutableList(),
                     topSongs = remote.topSongs,
                     similarArtists = remote.info?.similarArtists ?: persistentListOf(),
                     biography = remote.info?.biography,
                     trackCount = albums.sumOf { it.songCount },
                     offlineStatus = offlineStatus.withServerUnreachable(refresh?.showsOfflineChip == true),
-                    isPreparingPlayback = busy,
+                    preparing = busy,
                     message = message,
                     download = download,
                     availability = availability,
@@ -157,9 +159,9 @@ class ArtistViewModel @Inject constructor(
 
     /**
      * Plays the artist ([PlayTarget.Artist]): their top songs, or their albums when the server has
-     * no top songs. [shuffle] shuffles the tracks.
+     * no top songs. [shuffle] shuffles the tracks. Ignored while another play is being prepared.
      */
-    fun play(shuffle: Boolean) = preparing {
+    fun play(shuffle: Boolean) = preparing(if (shuffle) PreparingPlayback.Shuffle else PreparingPlayback.Play) {
         playIntents.play(PlayTarget.Artist(artistId), shuffle = shuffle, source = queueSource())
     }
 
@@ -192,7 +194,7 @@ class ArtistViewModel @Inject constructor(
     }
 
     /** Plays songs similar to the artist (`getSimilarSongs2`), topped up with their top songs. */
-    fun startInstantMix() = preparing {
+    fun startInstantMix() = preparing(PreparingPlayback.InstantMix) {
         val name = artistRepository.artist(artistId).first()?.name.orEmpty()
         playIntents.instantMix(InstantMixSeed.OfArtist(artistId, name))
     }
@@ -201,10 +203,18 @@ class ArtistViewModel @Inject constructor(
     private suspend fun queueSource(): QueueSource =
         artistRepository.artist(artistId).first()?.let { QueueSource.Artist(it.id, it.name) } ?: QueueSource.Unknown
 
-    /** The artist's ⋮ menu ([MediaActionHandler]). */
+    /**
+     * The artist's ⋮ menu ([MediaActionHandler]). Its Play and Shuffle are prepared as the hero's
+     * buttons are, and are ignored while another play is being prepared.
+     */
     fun onArtistAction(action: MediaAction, host: MediaActionHost) {
         val artist = (uiState.value as? ArtistUiState.Success)?.artist ?: return
-        preparing { mediaActions.artist(artist, action, host)?.let { message.value = it } }
+        val run: suspend () -> Unit = { mediaActions.artist(artist, action, host)?.let { message.value = it } }
+        when (action) {
+            MediaAction.Play -> preparing(PreparingPlayback.Play, run)
+            MediaAction.Shuffle -> preparing(PreparingPlayback.Shuffle, run)
+            else -> viewModelScope.launch { run() }
+        }
     }
 
     /** A top song's ⋮ menu. */
@@ -248,14 +258,17 @@ class ArtistViewModel @Inject constructor(
         message.value = null
     }
 
-    /** Runs [block] with the page showing that playback is being prepared. */
-    private fun preparing(block: suspend () -> Unit) {
-        busy.value = true
+    /**
+     * Runs [block] with the page showing that [what] is being prepared, unless something already is:
+     * a second tap while the first resolves does nothing.
+     */
+    private fun preparing(what: PreparingPlayback, block: suspend () -> Unit) {
+        if (!busy.compareAndSet(PreparingPlayback.None, what)) return
         viewModelScope.launch {
             try {
                 block()
             } finally {
-                busy.value = false
+                busy.value = PreparingPlayback.None
             }
         }
     }
@@ -291,7 +304,10 @@ sealed interface ArtistUiState {
 
     data class Success(
         val artist: Artist,
-        /** Albums credited to this artist as album artist, newest first. */
+        /**
+         * Albums credited to this artist as album artist whose primary release type is album, or
+         * that have none (every one of them without the OpenSubsonic extension), newest first.
+         */
         val albums: ImmutableList<Album>,
         /** Albums by others that credit this artist (OpenSubsonic `artists`), newest first. */
         val appearsOn: ImmutableList<Album>,
@@ -304,8 +320,8 @@ sealed interface ArtistUiState {
          * songs are available; online, a refresh that could not reach the server leaves the cached artist.
          */
         val offlineStatus: OfflineStatus = OfflineStatus.Online,
-        /** Play, Shuffle or Instant mix is fetching songs. */
-        val isPreparingPlayback: Boolean = false,
+        /** Which of Play, Shuffle or Instant mix is fetching songs, if any. */
+        val preparing: PreparingPlayback = PreparingPlayback.None,
         /** A failed menu, Favorite or Download action, for the snackbar. */
         val message: MediaActionFailure? = null,
         /** The artist's pin status; null when it is not pinned for offline. */
@@ -316,10 +332,30 @@ sealed interface ArtistUiState {
         val currentSong: CurrentSong? = null,
         /** Whether this artist is the queue source and plays: the hero's Play then shows Pause. */
         val heroPlayback: HeroPlayback = HeroPlayback.NotSource,
+        /** This artist's own EPs and singles, newest first. */
+        val epsAndSingles: ImmutableList<Album> = persistentListOf(),
+        /** This artist's own compilations, newest first. */
+        val compilations: ImmutableList<Album> = persistentListOf(),
     ) : ArtistUiState {
-        val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
+        /** Play, Shuffle or Instant mix is fetching songs: they are disabled until it plays. */
+        val isPreparingPlayback: Boolean get() = preparing != PreparingPlayback.None
+
+        val albumCount: Int get() = maxOf(artist.albumCount, albums.size + epsAndSingles.size + compilations.size)
+
+        /** Whether any album section shows, so the floating Play and Shuffle albums buttons do. */
+        val hasAlbums: Boolean
+            get() = albums.isNotEmpty() || epsAndSingles.isNotEmpty() || compilations.isNotEmpty() ||
+                appearsOn.isNotEmpty()
 
         /** [song]'s top song row: its download badge, whether it is available, and whether it is playing. */
         fun trackRow(song: Song): TrackRowState = song.toTrackRowState(availability, currentSong)
     }
+}
+
+/** The artist page's button whose play intent is resolving: it shows a spinner, and the others wait. */
+enum class PreparingPlayback {
+    None,
+    Play,
+    Shuffle,
+    InstantMix,
 }

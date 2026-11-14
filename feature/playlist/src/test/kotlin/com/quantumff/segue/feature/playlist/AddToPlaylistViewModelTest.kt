@@ -6,6 +6,7 @@ import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.testing.MainDispatcherRule
 import com.quantumff.segue.core.testing.data.TestData
+import com.quantumff.segue.core.testing.repository.FakeLibraryRepository
 import com.quantumff.segue.core.testing.repository.FakePlaylistRepository
 import java.io.IOException
 import kotlinx.coroutines.flow.first
@@ -24,12 +25,15 @@ class AddToPlaylistViewModelTest {
     private val playlists = FakePlaylistRepository().apply {
         playlistsState.value = listOf(mine, TestData.playlist("shared", readonly = true))
     }
+    private val library = FakeLibraryRepository().apply {
+        songsState.value = listOf(TestData.song("s1", title = "Nude"), TestData.song("s2"))
+    }
     private val snackbars = Snackbars()
 
     private fun TestScope.removals() = PlaylistRemovals(playlists, snackbars, backgroundScope)
 
     private fun TestScope.viewModel(removals: PlaylistRemovals = removals()): AddToPlaylistViewModel {
-        val viewModel = AddToPlaylistViewModel(playlists, removals, snackbars)
+        val viewModel = AddToPlaylistViewModel(playlists, library, removals, snackbars)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
@@ -138,5 +142,36 @@ class AddToPlaylistViewModelTest {
 
         viewModel.reset()
         assertThat(viewModel.uiState.value.failed).isFalse()
+    }
+
+    @Test
+    fun showingTheSheetNamesTheSongsAndLooksUpTheFirst() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.show(listOf("s1", "s2", "s3"))
+
+        val subject = viewModel.uiState.value.subject!!
+        assertThat(subject.songCount).isEqualTo(3)
+        assertThat(subject.firstSong!!.title).isEqualTo("Nude")
+        assertThat(subject.firstSong.coverArtId).isEqualTo("al-album-1")
+    }
+
+    @Test
+    fun aFirstSongMissingFromTheLibraryStillCountsTheSongs() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.show(listOf("unknown"))
+
+        assertThat(viewModel.uiState.value.subject).isEqualTo(AddToPlaylistSubject(songCount = 1, firstSong = null))
+    }
+
+    @Test
+    fun resetForgetsTheSongs() = runTest {
+        val viewModel = viewModel()
+        viewModel.show(listOf("s1"))
+
+        viewModel.reset()
+
+        assertThat(viewModel.uiState.value.subject).isNull()
     }
 }

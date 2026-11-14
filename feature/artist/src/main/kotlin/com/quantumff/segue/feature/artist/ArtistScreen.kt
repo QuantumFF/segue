@@ -41,7 +41,7 @@ import com.quantumff.segue.core.designsystem.component.FloatingAlbumPlayButtonsI
 import com.quantumff.segue.core.designsystem.component.HeroDetailLayout
 import com.quantumff.segue.core.designsystem.component.HeroHeaderState
 import com.quantumff.segue.core.designsystem.component.HorizontalCarousel
-import com.quantumff.segue.core.designsystem.component.InlineSpinner
+import com.quantumff.segue.core.designsystem.component.LiftShellSnackbars
 import com.quantumff.segue.core.designsystem.component.MediaContextMenu
 import com.quantumff.segue.core.designsystem.component.OfflineStatusChip
 import com.quantumff.segue.core.designsystem.component.PlayButton
@@ -184,7 +184,16 @@ fun ArtistScreen(
                 onSongSwipe = onSongSwipe,
             )
         }
-        SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
+        // Above the floating Play / Shuffle albums buttons while they show: this page's snackbars and
+        // the app's (queue, download and playback feedback).
+        val hasAlbums = (state as? ArtistUiState.Success)?.hasAlbums == true
+        LiftShellSnackbars(bottom = if (hasAlbums) FloatingAlbumPlayButtonsInset else 0.dp)
+        SegueSnackbarHost(
+            snackbarHostState,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (hasAlbums) FloatingAlbumPlayButtonsInset else 0.dp),
+        )
     }
 
     val message = (state as? ArtistUiState.Success)?.message
@@ -225,9 +234,8 @@ private fun ArtistContent(
     var downloadMenuOpen by rememberSaveable { mutableStateOf(false) }
     var menuSongId by rememberSaveable { mutableStateOf<String?>(null) }
     var showAllTopSongs by rememberSaveable { mutableStateOf(false) }
-    var biographyExpanded by rememberSaveable { mutableStateOf(false) }
     val collapse = rememberCollapseOnScrollState()
-    val hasAlbums = state.albums.isNotEmpty() || state.appearsOn.isNotEmpty()
+    val hasAlbums = state.hasAlbums
 
     HeroDetailLayout(
         modifier = Modifier.nestedScroll(collapse.connection),
@@ -253,11 +261,20 @@ private fun ArtistContent(
         isPlaying = state.heroPlayback == HeroPlayback.Playing,
         onMoreClick = { artistMenuOpen = true },
         heroActions = {
-            PlayButton(onClick = onHeroPlay, isPlaying = state.heroPlayback == HeroPlayback.Playing)
+            // While a play resolves, Play, Shuffle and Instant mix wait, and the tapped one spins.
+            val idle = !state.isPreparingPlayback
+            PlayButton(
+                onClick = onHeroPlay,
+                isPlaying = state.heroPlayback == HeroPlayback.Playing,
+                enabled = idle,
+                loading = state.preparing == PreparingPlayback.Play,
+            )
             SegueIconButton(
                 icon = SegueIcons.Shuffle,
                 contentDescription = stringResource(R.string.feature_artist_shuffle),
                 onClick = { onPlay(true) },
+                enabled = idle,
+                loading = state.preparing == PreparingPlayback.Shuffle,
             )
             SegueIconButton(
                 icon = SegueIcons.ShuffleAlbums,
@@ -268,7 +285,8 @@ private fun ArtistContent(
                 icon = SegueIcons.Related,
                 contentDescription = stringResource(R.string.feature_artist_instant_mix),
                 onClick = onInstantMix,
-                enabled = !state.isPreparingPlayback,
+                enabled = idle,
+                loading = state.preparing == PreparingPlayback.InstantMix,
             )
             SegueIconButton(
                 icon = if (artist.isStarred) SegueIcons.HeartFilled else SegueIcons.Heart,
@@ -280,18 +298,14 @@ private fun ArtistContent(
             )
         },
     ) {
-        if (state.offlineStatus != OfflineStatus.Online || state.isPreparingPlayback) {
+        if (state.offlineStatus != OfflineStatus.Online) {
             item(key = "status", contentType = "status") {
                 Box(Modifier.padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.xs)) {
-                    if (state.isPreparingPlayback) {
-                        InlineSpinner()
-                    } else {
-                        OfflineStatusChip(
-                            status = state.offlineStatus,
-                            onRetry = onRetry,
-                            onOpenOfflineModeSetting = onOfflineModeSettingClick,
-                        )
-                    }
+                    OfflineStatusChip(
+                        status = state.offlineStatus,
+                        onRetry = onRetry,
+                        onOpenOfflineModeSetting = onOfflineModeSettingClick,
+                    )
                 }
             }
         }
@@ -334,7 +348,15 @@ private fun ArtistContent(
                 }
             }
         }
+        // Grouped by release type (DESIGN.md §4.4), in the order Play albums queues them.
         albumSection("albums", R.string.feature_artist_section_albums, state.albums, onAlbumClick)
+        albumSection(
+            "epsAndSingles",
+            R.string.feature_artist_section_eps_and_singles,
+            state.epsAndSingles,
+            onAlbumClick,
+        )
+        albumSection("compilations", R.string.feature_artist_section_compilations, state.compilations, onAlbumClick)
         albumSection("appearsOn", R.string.feature_artist_section_appears_on, state.appearsOn, onAlbumClick)
         if (state.similarArtists.isNotEmpty()) {
             item(key = "similar", contentType = "artistCarousel") {
@@ -342,13 +364,7 @@ private fun ArtistContent(
             }
         }
         state.biography?.let { biography ->
-            item(key = "about", contentType = "about") {
-                About(
-                    biography = biography,
-                    expanded = biographyExpanded,
-                    onToggle = { biographyExpanded = !biographyExpanded },
-                )
-            }
+            item(key = "about", contentType = "about") { About(biography) }
         }
     }
 
@@ -430,9 +446,15 @@ private fun SimilarArtists(artists: ImmutableList<Artist>, onArtistClick: (Strin
     }
 }
 
+/**
+ * The biography, [BIOGRAPHY_LINES] lines until expanded. "More" shows only when it runs longer than
+ * that, and stays as "Less" once expanded.
+ */
 @Composable
-private fun About(biography: String, expanded: Boolean, onToggle: () -> Unit) {
-    Column(Modifier.padding(top = SegueSpacing.lg, bottom = SegueSpacing.lg)) {
+internal fun About(biography: String, modifier: Modifier = Modifier) {
+    var expanded by rememberSaveable(biography) { mutableStateOf(false) }
+    var overflows by remember(biography) { mutableStateOf(false) }
+    Column(modifier.padding(top = SegueSpacing.lg, bottom = SegueSpacing.lg)) {
         SectionHeader(title = stringResource(R.string.feature_artist_section_about))
         Text(
             text = biography,
@@ -440,10 +462,14 @@ private fun About(biography: String, expanded: Boolean, onToggle: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = if (expanded) Int.MAX_VALUE else BIOGRAPHY_LINES,
             overflow = TextOverflow.Ellipsis,
+            // Measured while collapsed; expanded, the text never overflows, so keep the last answer.
+            onTextLayout = { if (!expanded) overflows = it.hasVisualOverflow },
             modifier = Modifier.padding(horizontal = SegueSpacing.lg),
         )
-        TextButton(onClick = onToggle, modifier = Modifier.padding(horizontal = SegueSpacing.sm)) {
-            Text(stringResource(if (expanded) R.string.feature_artist_less else R.string.feature_artist_more))
+        if (expanded || overflows) {
+            TextButton(onClick = { expanded = !expanded }, modifier = Modifier.padding(horizontal = SegueSpacing.sm)) {
+                Text(stringResource(if (expanded) R.string.feature_artist_less else R.string.feature_artist_more))
+            }
         }
     }
 }

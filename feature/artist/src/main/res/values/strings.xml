@@ -17,6 +17,8 @@
     <string name="feature_artist_top_songs">Top songs</string>
     <string name="feature_artist_show_less">Show less</string>
     <string name="feature_artist_section_albums">Albums</string>
+    <string name="feature_artist_section_eps_and_singles">EPs &amp; Singles</string>
+    <string name="feature_artist_section_compilations">Compilations</string>
     <string name="feature_artist_section_appears_on">Appears on</string>
     <string name="feature_artist_section_similar">Similar artists</string>
     <string name="feature_artist_section_about">About</string>

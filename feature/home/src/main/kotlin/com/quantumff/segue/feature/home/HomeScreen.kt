@@ -86,6 +86,8 @@ fun HomeScreen(
     onSeeAllClick: (AlbumListType) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
     onOfflineModeSettingClick: () -> Unit,
+    onPlaylistsSeeAllClick: () -> Unit,
+    onGenresSeeAllClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -108,6 +110,8 @@ fun HomeScreen(
         onMessageDismiss = viewModel::messageShown,
         onOfflineModeSettingClick = onOfflineModeSettingClick,
         modifier = modifier,
+        onPlaylistsSeeAllClick = onPlaylistsSeeAllClick,
+        onGenresSeeAllClick = onGenresSeeAllClick,
     )
 }
 
@@ -133,6 +137,8 @@ fun HomeScreen(
     onMessageDismiss: () -> Unit,
     onOfflineModeSettingClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onPlaylistsSeeAllClick: () -> Unit = {},
+    onGenresSeeAllClick: () -> Unit = {},
 ) {
     var menuAlbum by remember { mutableStateOf<Album?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -148,6 +154,8 @@ fun HomeScreen(
         onAlbumClick = { onAlbumClick(it.id) },
         onAlbumLongClick = { menuAlbum = it },
         onSeeAllClick = onSeeAllClick,
+        onPlaylistsSeeAllClick = onPlaylistsSeeAllClick,
+        onGenresSeeAllClick = onGenresSeeAllClick,
     )
 
     val listState = rememberLazyListState()
@@ -210,11 +218,13 @@ fun HomeScreen(
     }
 }
 
-/** Click handling shared by every album section. */
+/** Click handling shared by the sections: an album, and each section's "See all". */
 private class AlbumSectionCallbacks(
     val onAlbumClick: (Album) -> Unit,
     val onAlbumLongClick: (Album) -> Unit,
     val onSeeAllClick: (AlbumListType) -> Unit,
+    val onPlaylistsSeeAllClick: () -> Unit,
+    val onGenresSeeAllClick: () -> Unit,
 )
 
 private fun LazyListScope.homeSections(
@@ -263,12 +273,12 @@ private fun LazyListScope.homeSections(
     albumSection("favorites", R.string.feature_home_favorites, uiState.favorites, AlbumListType.Starred, callbacks)
     if (uiState.playlists.isNotEmpty()) {
         item(key = "playlists", contentType = "playlistSection") {
-            PlaylistSection(uiState.playlists, onPlaylistClick)
+            PlaylistSection(uiState.playlists, onPlaylistClick, callbacks.onPlaylistsSeeAllClick)
         }
     }
     if (uiState.genres.isNotEmpty()) {
         item(key = "genres", contentType = "genreSection") {
-            GenreSection(uiState.genres, onGenreClick)
+            GenreSection(uiState.genres, onGenreClick, callbacks.onGenresSeeAllClick)
         }
     }
     item(key = "bottomGap", contentType = "spacer") { Spacer(Modifier.height(SegueSpacing.sectionGap)) }
@@ -315,13 +325,18 @@ private fun AlbumRow(albums: ImmutableList<Album>, callbacks: AlbumSectionCallba
 }
 
 @Composable
-private fun PlaylistSection(playlists: ImmutableList<Playlist>, onPlaylistClick: (String) -> Unit) {
+private fun PlaylistSection(
+    playlists: ImmutableList<Playlist>,
+    onPlaylistClick: (String) -> Unit,
+    onSeeAllClick: () -> Unit,
+) {
     Column(Modifier.padding(top = SegueSpacing.sectionGap)) {
-        SectionHeader(title = stringResource(R.string.feature_home_playlists))
+        SectionHeader(title = stringResource(R.string.feature_home_playlists), onSeeAllClick = onSeeAllClick)
         HorizontalCarousel(
             items = playlists,
             key = { it.id },
             itemWidth = SegueSizes.albumCard,
+            onSeeAllClick = onSeeAllClick,
             contentType = "playlistCard",
         ) { playlist ->
             val subtitle =
@@ -337,9 +352,10 @@ private fun PlaylistSection(playlists: ImmutableList<Playlist>, onPlaylistClick:
 }
 
 @Composable
-private fun GenreSection(genres: ImmutableList<Genre>, onGenreClick: (String) -> Unit) {
+private fun GenreSection(genres: ImmutableList<Genre>, onGenreClick: (String) -> Unit, onSeeAllClick: () -> Unit) {
     Column(Modifier.padding(top = SegueSpacing.sectionGap)) {
-        SectionHeader(title = stringResource(R.string.feature_home_genres))
+        // Pills wrap rather than scroll, so there is no trailing tile: "See all" is in the header only.
+        SectionHeader(title = stringResource(R.string.feature_home_genres), onSeeAllClick = onSeeAllClick)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(SegueSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(SegueSpacing.sm),

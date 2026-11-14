@@ -173,10 +173,13 @@ class PlaylistsViewModel @Inject constructor(
         snackbars.post(SnackbarText.of(R.string.feature_playlist_deleted, playlist.name))
     }
 
-    /** A playlist's ⋮ menu ([MediaActionHandler]); Rename and Delete stay with the screen's dialogs. */
-    fun onPlaylistAction(playlist: Playlist, action: MediaAction) {
+    /**
+     * A playlist's ⋮ menu ([MediaActionHandler]); Rename and Delete stay with the screen's dialogs,
+     * and Add to playlist hands [host] the playlist's songs.
+     */
+    fun onPlaylistAction(playlist: Playlist, action: MediaAction, host: MediaActionHost = MediaActionHost()) {
         viewModelScope.launch {
-            if (mediaActions.playlist(playlist, action, MediaActionHost()) != null) {
+            if (mediaActions.playlist(playlist, action, host) != null) {
                 local.update { it.copy(message = PlaylistMessage.Failed) }
             }
         }

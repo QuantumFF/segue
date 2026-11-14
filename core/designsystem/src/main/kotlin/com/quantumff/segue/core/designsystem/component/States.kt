@@ -115,12 +115,12 @@ fun ErrorState(title: String, message: String?, onRetryClick: () -> Unit, modifi
     )
 }
 
-/** Inline spinner: 20, stroke 2. */
+/** Inline spinner: 20, stroke 2, muted unless given a [color]. */
 @Composable
-fun InlineSpinner(modifier: Modifier = Modifier) {
+fun InlineSpinner(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
     CircularProgressIndicator(
         strokeWidth = SegueSizes.spinnerStroke,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = color,
         modifier = modifier.size(SegueSizes.spinner),
     )
 }

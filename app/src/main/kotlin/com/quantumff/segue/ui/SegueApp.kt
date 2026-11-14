@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -54,12 +55,14 @@ import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceBar
 import com.quantumff.segue.core.designsystem.component.ContinueFromDeviceState
 import com.quantumff.segue.core.designsystem.component.LocalShellContentPadding
+import com.quantumff.segue.core.designsystem.component.LocalShellSnackbarLift
 import com.quantumff.segue.core.designsystem.component.MiniPlayer
 import com.quantumff.segue.core.designsystem.component.PlaybackErrorSnackbar
 import com.quantumff.segue.core.designsystem.component.PlayerBar
 import com.quantumff.segue.core.designsystem.component.PlayerBarActions
 import com.quantumff.segue.core.designsystem.component.PlayerBarState
 import com.quantumff.segue.core.designsystem.component.SegueSnackbarHost
+import com.quantumff.segue.core.designsystem.component.ShellSnackbarLift
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -277,12 +280,23 @@ fun SegueApp(
         onRetry = playerActions.onRetryPlayback,
     )
     val nowPlayingOpen = appState.isNowPlayingOpen
-    // Closed, the host sits in the content area, above the mini player (LocalShellContentPadding).
+    val snackbarLift = remember { ShellSnackbarLift() }
+    // Closed, the host sits in the content area, above the mini player (LocalShellContentPadding)
+    // and whatever the screen floats at its bottom (LocalShellSnackbarLift).
     val shellContent: @Composable (Modifier) -> Unit = remember(navHost, snackbarHostState, nowPlayingOpen) {
         { contentModifier ->
             Box(contentModifier) {
-                navHost(Modifier.fillMaxSize())
-                if (!nowPlayingOpen) SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
+                CompositionLocalProvider(LocalShellSnackbarLift provides snackbarLift) {
+                    navHost(Modifier.fillMaxSize())
+                }
+                if (!nowPlayingOpen) {
+                    SegueSnackbarHost(
+                        snackbarHostState,
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = snackbarLift.bottom),
+                    )
+                }
             }
         }
     }

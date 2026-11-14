@@ -6,6 +6,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import com.quantumff.segue.core.designsystem.component.ScreenBackground
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.feature.library.GenreScreen
 import com.quantumff.segue.feature.library.LibraryScreen
 import com.quantumff.segue.feature.library.PlaylistsTabSlot
@@ -21,6 +22,10 @@ data class GenreRoute(val genre: String)
 fun NavController.navigateToGenre(genre: String, navOptions: NavOptions? = null) =
     navigate(GenreRoute(genre), navOptions)
 
+/**
+ * @param requestedTab a tab to switch to once, over the last one shown (Home's "See all" on
+ * Genres); [onRequestedTabShow] runs once it has switched so the request can be dropped.
+ */
 @Suppress("LongParameterList")
 fun NavGraphBuilder.libraryScreen(
     onAccountClick: () -> Unit,
@@ -31,6 +36,8 @@ fun NavGraphBuilder.libraryScreen(
     onAddToPlaylist: (List<String>) -> Unit,
     downloadsTab: (@Composable () -> Unit)? = null,
     playlistsTab: PlaylistsTabSlot? = null,
+    requestedTab: () -> LibraryTab? = { null },
+    onRequestedTabShow: () -> Unit = {},
 ) {
     composable<LibraryRoute> {
         ScreenBackground {
@@ -43,6 +50,8 @@ fun NavGraphBuilder.libraryScreen(
                 onAddToPlaylist = onAddToPlaylist,
                 downloadsTab = downloadsTab,
                 playlistsTab = playlistsTab,
+                requestedTab = requestedTab(),
+                onRequestedTabShow = onRequestedTabShow,
             )
         }
     }

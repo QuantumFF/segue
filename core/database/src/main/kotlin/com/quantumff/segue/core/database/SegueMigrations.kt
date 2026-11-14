@@ -152,6 +152,18 @@ object SegueMigrations {
         }
     }
 
+    /**
+     * 8 → 9: albums keep their OpenSubsonic release types, which group an artist's albums. Existing
+     * albums start with none; only the server has them, so forgetting the last full sync makes the
+     * next sync refetch every album.
+     */
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE albums ADD COLUMN `releaseTypes` TEXT NOT NULL DEFAULT '[]'")
+            db.execSQL("UPDATE sync_metadata SET lastFullSyncAt = NULL")
+        }
+    }
+
     val ALL = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -160,5 +172,6 @@ object SegueMigrations {
         MIGRATION_5_6,
         MIGRATION_6_7,
         MIGRATION_7_8,
+        MIGRATION_8_9,
     )
 }

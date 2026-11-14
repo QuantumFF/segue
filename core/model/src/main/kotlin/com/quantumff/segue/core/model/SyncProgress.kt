@@ -7,7 +7,11 @@ sealed interface SyncProgress {
     /** Enqueued but waiting, for example for a network connection. */
     data object Pending : SyncProgress
 
-    /** [total] is 0 when the size of the phase is not known yet. */
+    /**
+     * [completed] items of [phase] out of [total], which is 0 when the size of the phase is not known
+     * yet. During [SyncPhase.Albums] of a full sync, [total] is the server's album count once it has
+     * listed them all; an incremental sync counts its new albums with no total.
+     */
     data class Running(val phase: SyncPhase, val completed: Int, val total: Int) : SyncProgress
 
     data object Succeeded : SyncProgress
@@ -18,7 +22,8 @@ sealed interface SyncProgress {
 enum class SyncPhase {
     Artists,
     Genres,
+
+    /** Listing albums, then fetching each one with its songs. */
     Albums,
-    Songs,
     Playlists,
 }

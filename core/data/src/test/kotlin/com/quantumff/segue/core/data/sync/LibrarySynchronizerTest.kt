@@ -246,14 +246,50 @@ class LibrarySynchronizerTest {
         synchronizer().sync(SERVER_ID) { reported += it }
 
         assertThat(reported.map { it.phase }.distinct())
-            .containsExactly(
-                SyncPhase.Artists,
-                SyncPhase.Genres,
-                SyncPhase.Albums,
-                SyncPhase.Songs,
-                SyncPhase.Playlists,
-            )
+            .containsExactly(SyncPhase.Artists, SyncPhase.Genres, SyncPhase.Albums, SyncPhase.Playlists)
             .inOrder()
-        assertThat(reported.last { it.phase == SyncPhase.Songs }).isEqualTo(SyncProgress.Running(SyncPhase.Songs, 2, 2))
+    }
+
+    @Test
+    fun `the first sync counts albums against the server's album total`() = runTest {
+        seedLibrary()
+        val reported = mutableListOf<SyncProgress.Running>()
+
+        synchronizer().sync(SERVER_ID) { reported += it }
+
+        val albums = reported.filter { it.phase == SyncPhase.Albums }
+        // Until the server has listed every album there is no total, then each album synced counts.
+        assertThat(albums.filter { it.total > 0 }.map { it.total }.distinct()).containsExactly(2)
+        assertThat(albums.last()).isEqualTo(SyncProgress.Running(SyncPhase.Albums, 2, 2))
+    }
+
+    @Test
+    fun `an incremental sync counts new albums without a total`() = runTest {
+        seedLibrary()
+        val synchronizer = synchronizer()
+        synchronizer.sync(SERVER_ID)
+        server.addAlbum(networkAlbum("new2"), newest = true)
+        server.addAlbum(networkAlbum("new1"), newest = true)
+        clock.now += 60_000
+        val reported = mutableListOf<SyncProgress.Running>()
+
+        synchronizer.sync(SERVER_ID) { reported += it }
+
+        // Two new albums in a large library must not read as "0 / 2 albums".
+        val albums = reported.filter { it.phase == SyncPhase.Albums }
+        assertThat(albums.map { it.total }.distinct()).containsExactly(0)
+        assertThat(albums.last()).isEqualTo(SyncProgress.Running(SyncPhase.Albums, 2, 0))
+    }
+
+    @Test
+    fun `phases that count requests rather than items report no total`() = runTest {
+        seedLibrary()
+        val reported = mutableListOf<SyncProgress.Running>()
+
+        synchronizer().sync(SERVER_ID) { reported += it }
+
+        // One getArtists call for two artists must not read as "1 / 1 artists".
+        val totals = reported.filter { it.phase == SyncPhase.Artists || it.phase == SyncPhase.Genres }.map { it.total }
+        assertThat(totals.distinct()).containsExactly(0)
     }
 }

@@ -252,17 +252,18 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
-- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite, so they fit a 360 phone. ⋮ sits in the top bar: Play, Shuffle, Shuffle albums, Favorite, then Download. Download pins the artist; once pinned it reads Remove download and opens the download sheet for the pin's status, as the album's Download button does (§4.3). Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
-- **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: their own albums (newest first), then "Appears on". The list adds the buttons' inset to its bottom padding.
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite, so they fit a 360 phone. ⋮ sits in the top bar: Play, Shuffle, Shuffle albums, Favorite, then Download. Download pins the artist; once pinned it reads Remove download and opens the download sheet for the pin's status, as the album's Download button does (§4.3). Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source. While Play, Shuffle or Instant mix fetches its songs, all three are disabled and the tapped one shows an inline spinner in place of its icon; a second tap does nothing.
+- **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: section by section (Albums, EPs & Singles, Compilations, then "Appears on"), each newest first. The list adds the buttons' inset to its bottom padding. Snackbars rise by the same inset, so they sit above the buttons.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
   2. Album carousels grouped by OpenSubsonic `releaseTypes`: Albums, EPs & Singles, Compilations, Appears on. Without that extension, show one "Albums" carousel sorted by year descending.
   3. Similar artists: a carousel of 96 circles.
-  4. About: biography, 3 lines with "More".
+  4. About: biography, 3 lines, with "More" only when it runs longer.
 
 ### 4.5 Playlist detail
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".
-- Actions: Play · Shuffle · Shuffle albums · Download · ⋮ (Edit, Rename, Delete). Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
+- Actions: Play · Shuffle · Shuffle albums · Download · ⋮. Owners also get a top-bar pencil (Lucide `pencil`) that starts edit mode; there is no Edit in the ⋮. Play and the collapsed top bar's play pause and resume while the playlist is the queue source, as on albums (§4.3): its Play, Shuffle, a track tap and its "Shuffle albums" all make it the queue source.
+- The ⋮ (also in the collapsed top bar) is the same for everyone, so a shared playlist you don't own can be queued, added to another playlist and downloaded too: Play · Shuffle · Shuffle albums · Play next · Add to queue · Add to playlist · Download (Remove download once pinned, which opens the download sheet). The owner also gets Rename and Delete. The Playlists tab's row ⋮ offers the same.
 - Track rows show art. In edit mode (top-bar pencil), each row gets a drag handle on the right and supports swipe-left to remove. Save and Cancel go in the top bar. Save stays disabled until the order differs from the saved one. Back with unsaved changes asks "Discard changes?" (Discard / Keep editing); without changes it just leaves edit mode.
 - A track's ⋮ "Remove from playlist" (outside edit mode) hides the row at once and shows "Removed <title>" with Undo (§5.7). The server write waits until the snackbar has gone, so Undo sends nothing; a newer removal takes down the snackbar of the one before, as in the queue (§4.8). Starting edit mode takes the Undo away too, so the removal is written before the new order. Delete asks first, then shows "Deleted <name>" once the screen has closed.
 
@@ -271,7 +272,8 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Empty query: recent searches (rows with a history icon (Lucide `rotate-ccw-clock`), swipe to delete), then "Browse genres" pills.
 - Results: `search3`, debounced 300ms. While offline, search Room FTS and show an "Offline results" chip.
   - Filter chips: All · Songs · Albums · Artists · Playlists.
-  - "All" shows Artists (a row of 72 circles), Albums (a carousel of 128 cards), then Songs (up to 20 track rows, plus "See all").
+  - "All" shows Artists (a row of 72 circles), Albums (a carousel of 128 cards), Playlists (up to 5 rows, plus "See all"), then Songs (up to 20 track rows, plus "See all"). Each section shows only when it has results; "See all" switches to that section's filter.
+  - A playlist row shows its cover art (the playlist icon without one), its name and its song count, and opens the playlist page. The server's search has no playlists, so playlists are matched by name in the local library; offline, only pinned playlists match.
 
 ### 4.7 Now Playing (full screen)
 - Opens from the mini player with a `player` spring. The art morphs from the mini thumbnail to full size (shared bounds). Drag down anywhere, or tap the chevron, to collapse.
@@ -427,7 +429,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - A collapsed "Advanced" section: plaintext legacy auth, self-signed certificate, custom headers.
   - "Connect" button: full width, 48 tall.
 - Steps: the `ping` and `getOpenSubsonicExtensions` checks run inline as the button changes to "Checking…" (with a spinner). Errors show under the relevant field ("Server not reachable", "Wrong username or password").
-- On success, go to Home immediately. The first sync shows a thin `LinearProgressIndicator` under the Home top bar with "Syncing library · 1,240 / 5,600 albums".
+- On success, go to Home immediately. The first sync shows a thin `LinearProgressIndicator` under the Home top bar with "Syncing library · 1,240 / 5,600 albums", the total being every album the server listed. Until the server has listed them all there is no total, so it shows only the count ("Syncing library · 1,500 albums").
 
 ## 5. Components
 
@@ -492,6 +494,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 ### 5.7 Context menus and sheets
 - Phone: `ModalBottomSheet`, `surfaceContainerHigh`, top radius `xl`, with a drag handle.
 - Header: 48 art + title (`titleSmall`) + subtitle (muted), then a divider.
+- **Add to playlist** uses the same header for what it adds: the first song's art, then "3 songs", or the song's title when it adds one, over a muted "Add to playlist"; a spinner sits at the end while it saves. Below come New playlist and the user's own playlists. While it saves, those rows are dimmed (38%) and ignore taps, so a second tap adds nothing. The New playlist name dialog (also Create and Rename on the Playlists tab) focuses its field on open, and the keyboard's Done creates it once the name isn't blank.
 - Rows: 48 tall, 20 icon, `bodyLarge` label.
 - Order for a song: Play next · Add to queue · Instant mix · Add to playlist · Favorite · Go to album · Go to artist · Download · Info.
 - Albums, artists and playlists add Play, Shuffle and **Shuffle albums** at the top. Destructive items use `error`.

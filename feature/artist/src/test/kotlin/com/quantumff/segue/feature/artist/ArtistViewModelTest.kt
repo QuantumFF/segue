@@ -37,6 +37,7 @@ import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -86,6 +87,47 @@ class ArtistViewModelTest {
             assertThat(state.albums.map { it.id }).containsExactly("own")
             assertThat(state.appearsOn.map { it.id }).containsExactly("guest")
             assertThat(state.trackCount).isEqualTo(22)
+        }
+    }
+
+    @Test
+    fun ownAlbumsAreGroupedByReleaseTypeBeforeAppearsOn() = runTest {
+        artists.artistsState.value = listOf(TestData.artist("artist-1", albumCount = 4))
+        artists.albumsByArtist.value = mapOf(
+            "artist-1" to listOf(
+                TestData.album("single", artistId = "artist-1", year = 2022, releaseTypes = listOf("single")),
+                TestData.album("lp", artistId = "artist-1", year = 2021, releaseTypes = listOf("album")),
+                TestData.album("guest", artistId = "someone-else", year = 2020, releaseTypes = listOf("album")),
+                TestData.album("ep", artistId = "artist-1", year = 2019, releaseTypes = listOf("ep")),
+                TestData.album("hits", artistId = "artist-1", year = 2018, releaseTypes = listOf("compilation")),
+            ),
+        )
+        viewModel().uiState.test {
+            val state = awaitItem() as ArtistUiState.Success
+            assertThat(state.albums.map { it.id }).containsExactly("lp")
+            assertThat(state.epsAndSingles.map { it.id }).containsExactly("single", "ep").inOrder()
+            assertThat(state.compilations.map { it.id }).containsExactly("hits")
+            assertThat(state.appearsOn.map { it.id }).containsExactly("guest")
+        }
+    }
+
+    @Test
+    fun withoutReleaseTypesTheOwnAlbumsAreOneAlbumsSectionNewestFirst() = runTest {
+        artists.artistsState.value = listOf(TestData.artist("artist-1", albumCount = 3))
+        artists.albumsByArtist.value = mapOf(
+            "artist-1" to listOf(
+                TestData.album("2001", artistId = "artist-1", year = 2001),
+                TestData.album("undated", artistId = "artist-1", year = null),
+                TestData.album("2015", artistId = "artist-1", year = 2015),
+                TestData.album("2008", artistId = "artist-1", year = 2008),
+            ),
+        )
+        viewModel().uiState.test {
+            val state = awaitItem() as ArtistUiState.Success
+            assertThat(state.albums.map { it.id }).containsExactly("2015", "2008", "2001", "undated").inOrder()
+            assertThat(state.epsAndSingles).isEmpty()
+            assertThat(state.compilations).isEmpty()
+            assertThat(state.appearsOn).isEmpty()
         }
     }
 
@@ -335,6 +377,84 @@ class ArtistViewModelTest {
             assertThat((awaitItem() as ArtistUiState.Success).isPreparingPlayback).isFalse()
         }
     }
+
+    @Test
+    fun playIsBusyWhileItsIntentResolvesAndIgnoresMoreTaps() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val gate = CompletableDeferred<Unit>().also { play.gate = it }
+
+        viewModel.play(shuffle = false)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Play)
+        assertThat(success(viewModel).isPreparingPlayback).isTrue()
+        viewModel.play(shuffle = true)
+        viewModel.play(shuffle = false)
+        viewModel.startInstantMix()
+        assertThat(play.intents).hasSize(1)
+
+        gate.complete(Unit)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.None)
+        assertThat(success(viewModel).isPreparingPlayback).isFalse()
+        viewModel.play(shuffle = true)
+        assertThat(play.plays.map { it.shuffle }).containsExactly(false, true).inOrder()
+    }
+
+    @Test
+    fun shuffleIsTheBusyButtonWhileItsIntentResolves() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        play.gate = CompletableDeferred()
+
+        viewModel.play(shuffle = true)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Shuffle)
+    }
+
+    @Test
+    fun heroPlayIsTheBusyPlayButton() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        play.gate = CompletableDeferred()
+
+        viewModel.onHeroPlay()
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Play)
+    }
+
+    @Test
+    fun instantMixIsBusyWhileItResolvesAndBlocksPlay() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        play.gate = CompletableDeferred()
+
+        viewModel.startInstantMix()
+        viewModel.play(shuffle = false)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.InstantMix)
+        assertThat(play.plays).isEmpty()
+    }
+
+    @Test
+    fun theMenusPlayAndShuffleBusyTheirButtons() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val gate = CompletableDeferred<Unit>().also { play.gate = it }
+
+        viewModel.onArtistAction(MediaAction.Shuffle, MediaActionHost())
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Shuffle)
+        gate.complete(Unit)
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.None)
+    }
+
+    private fun success(viewModel: ArtistViewModel) = viewModel.uiState.value as ArtistUiState.Success
 
     @Test
     fun toggleStarStarsTheArtist() = runTest {

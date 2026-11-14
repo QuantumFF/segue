@@ -1,6 +1,7 @@
 package com.quantumff.segue.core.database
 
 import com.google.common.truth.Truth.assertThat
+import com.quantumff.segue.core.database.model.PlaylistEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Test
@@ -56,4 +57,27 @@ class SearchDaoTest {
 
         assertThat(db.searchDao().songs("s1", FtsQuery.prefixMatch("new")!!, 10)).isEmpty()
     }
+
+    @Test
+    fun `playlists match name word prefixes on the server, by name, up to the limit`() = runTest {
+        db.playlistDao().upsertAll(
+            listOf(
+                playlist("1", "rainy day"),
+                playlist("2", "Chill"),
+                playlist("3", "Rainbow Mix"),
+                playlist("4", "Drain"),
+                playlist("5", "Rainy Nights", serverId = "s2"),
+                playlist("6", "After the Rain"),
+            ),
+        )
+        val dao = db.playlistDao()
+
+        assertThat(dao.search("s1", "rain", 10).map { it.id }).containsExactly("6", "3", "1").inOrder()
+        assertThat(dao.search("s1", "rain", 2).map { it.id }).containsExactly("6", "3").inOrder()
+        assertThat(dao.search("s1", "mix rainb", 10).map { it.id }).containsExactly("3")
+        assertThat(dao.search("s1", " - ", 10)).isEmpty()
+    }
+
+    private fun playlist(id: String, name: String, serverId: String = "s1") =
+        PlaylistEntity(serverId = serverId, id = id, name = name)
 }

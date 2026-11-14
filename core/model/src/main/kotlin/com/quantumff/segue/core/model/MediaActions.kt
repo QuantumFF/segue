@@ -95,6 +95,7 @@ object MediaActions {
         add(MediaAction.ShuffleAlbums)
         add(MediaAction.PlayNext)
         add(MediaAction.AddToQueue)
+        add(MediaAction.AddToPlaylist)
         add(downloadAction(isDownloaded))
         if (editable) {
             add(MediaAction.Rename)

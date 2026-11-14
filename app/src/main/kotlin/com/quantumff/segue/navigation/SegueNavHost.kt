@@ -20,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.navigation
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
+import com.quantumff.segue.core.model.LibraryTab
 import com.quantumff.segue.core.model.PinKind
 import com.quantumff.segue.feature.album.navigation.albumScreen
 import com.quantumff.segue.feature.album.navigation.navigateToAlbum
@@ -107,6 +108,8 @@ fun SegueNavHost(
                 onSeeAllClick = { type -> appState.navigate { navigateToAlbumList(type) } },
                 onAddToPlaylist = onAddToPlaylist,
                 onOfflineModeSettingClick = onOfflineModeSettingClick,
+                onPlaylistsSeeAllClick = { appState.navigateToTabRoot(TopLevelDestination.Playlists) },
+                onGenresSeeAllClick = { appState.openLibrary(LibraryTab.Genres) },
             )
         }
         navigation<LibraryGraph>(startDestination = LibraryRoute) {
@@ -123,8 +126,11 @@ fun SegueNavHost(
                         onPlaylistClick = onPlaylistClick,
                         creating = creating,
                         onCreatingChange = onCreatingChange,
+                        onAddToPlaylist = onAddToPlaylist,
                     )
                 },
+                requestedTab = { appState.requestedLibraryTab },
+                onRequestedTabShow = appState::clearLibraryTabRequest,
             )
         }
         navigation<PlaylistsGraph>(startDestination = PlaylistsRoute) {
@@ -132,6 +138,7 @@ fun SegueNavHost(
                 onAccountClick = onAccountClick,
                 onOfflineModeSettingClick = onOfflineModeSettingClick,
                 onPlaylistClick = onPlaylistClick,
+                onAddToPlaylist = onAddToPlaylist,
             )
         }
         navigation<SearchGraph>(startDestination = SearchRoute) {
@@ -140,6 +147,7 @@ fun SegueNavHost(
                 onArtistClick = onArtistClick,
                 onGenreClick = onGenreClick,
                 onAddToPlaylist = onAddToPlaylist,
+                onPlaylistClick = onPlaylistClick,
             )
         }
 

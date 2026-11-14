@@ -14,6 +14,7 @@ fun NavGraphBuilder.searchScreen(
     onArtistClick: (String) -> Unit,
     onGenreClick: (String) -> Unit,
     onAddToPlaylist: (List<String>) -> Unit,
+    onPlaylistClick: (String) -> Unit,
 ) {
     composable<SearchRoute> {
         ScreenBackground {
@@ -22,6 +23,7 @@ fun NavGraphBuilder.searchScreen(
                 onArtistClick = onArtistClick,
                 onGenreClick = onGenreClick,
                 onAddToPlaylist = onAddToPlaylist,
+                onPlaylistClick = onPlaylistClick,
             )
         }
     }

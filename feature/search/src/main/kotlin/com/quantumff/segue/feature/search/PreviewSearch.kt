@@ -4,6 +4,7 @@ import com.quantumff.segue.core.model.Album
 import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.ExplicitStatus
 import com.quantumff.segue.core.model.Genre
+import com.quantumff.segue.core.model.Playlist
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
@@ -57,6 +58,21 @@ internal object PreviewSearch {
             song(id = "s-2", title = "Reckoner", seconds = 290),
         ),
         includesServerResults = false,
+        playlists = persistentListOf(
+            Playlist(
+                id = "pl-1",
+                name = "Radio Favourites",
+                comment = null,
+                owner = "demo",
+                isPublic = false,
+                songCount = 24,
+                durationSeconds = 5_400,
+                coverArtId = null,
+                createdAt = null,
+                changedAt = null,
+                readonly = false,
+            ),
+        ),
     )
 
     private fun song(id: String, title: String, seconds: Int) = Song(

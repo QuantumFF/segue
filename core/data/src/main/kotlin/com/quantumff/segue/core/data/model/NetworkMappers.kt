@@ -10,6 +10,7 @@ import com.quantumff.segue.core.database.model.GenreEntity
 import com.quantumff.segue.core.database.model.PlaylistEntity
 import com.quantumff.segue.core.database.model.ReplayGainEntity
 import com.quantumff.segue.core.database.model.SongEntity
+import com.quantumff.segue.core.database.model.StringList
 import com.quantumff.segue.core.model.ArtistRef
 import com.quantumff.segue.core.model.DiscTitle
 import com.quantumff.segue.core.network.SubsonicDates
@@ -57,6 +58,7 @@ internal fun NetworkAlbum.asEntity(serverId: String) = AlbumEntity(
     discTitles = DiscTitleList(discTitles.map { DiscTitle(it.disc, it.title) }),
     musicBrainzId = musicBrainzId.nullIfBlank(),
     explicitStatus = explicitStatus.orEmpty(),
+    releaseTypes = StringList(releaseTypes.filter { it.isNotBlank() }),
 )
 
 /** One credit per OpenSubsonic album artist, for finding albums from an artist's page. */
