@@ -74,9 +74,12 @@ internal class LibraryPager(
     /** How many pages either side of the current one to keep composed: during a crossfade, as far as the page it leaves. */
     val beyondViewportPageCount: Int get() = crossfade?.let { abs(it.to - it.from) } ?: 0
 
+    /** Whether [page] has anything to show: all do, but during a crossfade only the two it's between. */
+    fun shows(page: Int): Boolean = crossfade.let { it == null || page == it.from || page == it.to }
+
     /**
      * Draws [page] in place during a crossfade, over the page it replaces, at its share of the
-     * crossfade; pages passed over stay hidden. Out of a crossfade, pages lie where the pager puts them.
+     * crossfade. Out of a crossfade, pages lie where the pager puts them.
      */
     fun Modifier.crossfading(page: Int): Modifier = layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
@@ -92,8 +95,7 @@ internal class LibraryPager(
                 alpha = when {
                     switch == null -> 1f
                     page == switch.from -> 1f - progress.value
-                    page == switch.to -> progress.value
-                    else -> 0f
+                    else -> progress.value
                 }
             }
         }
@@ -127,7 +129,10 @@ internal fun LibraryPages(
         beyondViewportPageCount = libraryPager.beyondViewportPageCount,
         key = { LibraryTab.entries[it].name },
     ) { index ->
-        page(LibraryTab.entries[index], with(libraryPager) { Modifier.crossfading(index) })
+        // A crossfade to a far tab keeps the tabs it passes over in the pager; they compose nothing.
+        if (libraryPager.shows(index)) {
+            page(LibraryTab.entries[index], with(libraryPager) { Modifier.crossfading(index) })
+        }
     }
 }
 

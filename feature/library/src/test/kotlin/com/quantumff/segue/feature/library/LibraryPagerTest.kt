@@ -152,6 +152,7 @@ class LibraryPagerTest {
 
         compose.onNodeWithTag(LibraryTab.Albums.name).assertLeftPositionInRootIsEqualTo(0.dp)
         compose.onNodeWithTag(LibraryTab.Downloads.name).assertLeftPositionInRootIsEqualTo(0.dp)
+        compose.onNodeWithTag(LibraryTab.Songs.name).assertDoesNotExist()
         val pixels = compose.onNodeWithTag(LIBRARY_PAGER_TAG).captureToImage().toPixelMap()
         val middle = pixels[pixels.width / 2, pixels.height / 2]
         assertThat(middle.red).isIn(Range.open(PARTLY, 1f - PARTLY))
