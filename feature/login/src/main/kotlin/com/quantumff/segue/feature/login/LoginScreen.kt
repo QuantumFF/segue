@@ -23,10 +23,8 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
@@ -54,19 +52,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantumff.segue.core.designsystem.component.SegueIconButton
-import com.quantumff.segue.core.designsystem.component.syncLabel
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
-import com.quantumff.segue.core.model.SyncPhase
-import com.quantumff.segue.core.model.SyncProgress
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.merge
 
@@ -104,13 +98,12 @@ fun LoginScreen(
         onConnectClick = {
             viewModel.connect(serverUrl.text.toString(), username.text.toString(), password.text.toString())
         },
-        onContinueClick = viewModel::continueToLibrary,
         onBackClick = onBackClick,
         modifier = modifier,
     )
 }
 
-/** One centered column, max width 400, 24 padding: the form, then the first-sync progress. */
+/** One centered column, max width 400, 24 padding. */
 @Composable
 fun LoginScreen(
     uiState: LoginUiState,
@@ -118,7 +111,6 @@ fun LoginScreen(
     username: TextFieldState,
     password: TextFieldState,
     onConnectClick: () -> Unit,
-    onContinueClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -149,20 +141,13 @@ fun LoginScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(SegueSpacing.xl))
-            when (uiState.step) {
-                LoginStep.Form, LoginStep.Checking -> LoginForm(
-                    uiState = uiState,
-                    serverUrl = serverUrl,
-                    username = username,
-                    password = password,
-                    onConnectClick = onConnectClick,
-                )
-
-                LoginStep.Syncing, LoginStep.Finished -> FirstSyncProgress(
-                    progress = uiState.syncProgress,
-                    onContinueClick = onContinueClick,
-                )
-            }
+            LoginForm(
+                uiState = uiState,
+                serverUrl = serverUrl,
+                username = username,
+                password = password,
+                onConnectClick = onConnectClick,
+            )
         }
         if (uiState.canGoBack && uiState.step == LoginStep.Form) {
             SegueIconButton(
@@ -313,56 +298,6 @@ private fun ErrorText(message: String, attempt: Int) {
 }
 
 @Composable
-private fun FirstSyncProgress(progress: SyncProgress, onContinueClick: () -> Unit) {
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(verticalArrangement = Arrangement.spacedBy(SegueSpacing.md)) {
-        Text(
-            text = stringResource(R.string.feature_login_sync_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.feature_login_sync_message),
-            style = MaterialTheme.typography.bodyMedium,
-            color = muted,
-        )
-        val running = progress as? SyncProgress.Running
-        if (running != null && running.total > 0) {
-            LinearProgressIndicator(
-                progress = { (running.completed.toFloat() / running.total).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else if (progress !is SyncProgress.Failed) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-        }
-        Text(
-            text = when (progress) {
-                is SyncProgress.Failed -> stringResource(R.string.feature_login_sync_failed)
-                SyncProgress.Pending -> stringResource(R.string.feature_login_sync_waiting)
-                else -> syncLabel(progress)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = if (progress is SyncProgress.Failed) MaterialTheme.colorScheme.error else muted,
-        )
-        Spacer(Modifier.height(SegueSpacing.sm))
-        FilledTonalButton(
-            onClick = onContinueClick,
-            shape = SegueShapes.full,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SegueSizes.touchTarget),
-        ) {
-            Text(stringResource(R.string.feature_login_sync_continue))
-        }
-        Text(
-            text = stringResource(R.string.feature_login_sync_continue_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = muted,
-        )
-    }
-}
-
-@Composable
 private fun errorMessage(error: LoginError, detail: String?): String {
     val base = stringResource(
         when (error) {
@@ -390,26 +325,6 @@ private fun LoginScreenPreview() {
             username = TextFieldState("demo"),
             password = TextFieldState("wrong"),
             onConnectClick = {},
-            onContinueClick = {},
-            onBackClick = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun LoginSyncPreview() {
-    SeguePreview {
-        LoginScreen(
-            uiState = LoginUiState(
-                step = LoginStep.Syncing,
-                syncProgress = SyncProgress.Running(SyncPhase.Albums, completed = 1240, total = 5600),
-            ),
-            serverUrl = TextFieldState(),
-            username = TextFieldState(),
-            password = TextFieldState(),
-            onConnectClick = {},
-            onContinueClick = {},
             onBackClick = {},
         )
     }

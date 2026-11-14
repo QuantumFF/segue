@@ -4,10 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.model.SyncPhase
-import com.quantumff.segue.core.model.SyncProgress
 import com.quantumff.segue.core.testing.MainDispatcherRule
-import com.quantumff.segue.core.testing.repository.FakeLibrarySyncRepository
 import com.quantumff.segue.core.testing.repository.FakeServerRepository
 import java.io.IOException
 import java.net.UnknownHostException
@@ -21,10 +18,9 @@ class LoginViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val servers = FakeServerRepository()
-    private val sync = FakeLibrarySyncRepository()
 
     private fun viewModel(canGoBack: Boolean = false) =
-        LoginViewModel(SavedStateHandle(mapOf(LoginViewModel.KEY_CAN_GO_BACK to canGoBack)), servers, sync)
+        LoginViewModel(SavedStateHandle(mapOf(LoginViewModel.KEY_CAN_GO_BACK to canGoBack)), servers)
 
     @Test
     fun blankAddressIsRejectedWithoutCallingTheServer() = runTest {
@@ -64,39 +60,18 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun successShowsFirstSyncProgressThenFinishes() = runTest {
+    fun successLeavesForHomeWithoutASyncStep() = runTest {
         val viewModel = viewModel()
         viewModel.uiState.test {
             assertThat(awaitItem().step).isEqualTo(LoginStep.Form)
             viewModel.connect("https://demo.navidrome.org", "demo", "demo")
 
-            var state = awaitItem()
-            while (state.step != LoginStep.Syncing) state = awaitItem()
-            // Before WorkManager registers the job, Idle reads as pending.
-            assertThat(state.syncProgress).isEqualTo(SyncProgress.Pending)
-
-            val running = SyncProgress.Running(SyncPhase.Albums, completed = 10, total = 100)
-            sync.progress.value = running
-            assertThat(awaitItem().syncProgress).isEqualTo(running)
-
-            sync.progress.value = SyncProgress.Succeeded
-            assertThat(awaitItem().step).isEqualTo(LoginStep.Finished)
+            val steps = mutableListOf<LoginStep>()
+            do steps += awaitItem().step while (steps.last() != LoginStep.Finished)
+            // Checking, then straight out: the first sync shows on Home instead.
+            assertThat(steps).containsExactly(LoginStep.Checking, LoginStep.Finished).inOrder()
         }
         assertThat(servers.signIns.single()).isEqualTo(Triple("https://demo.navidrome.org", "demo", "demo"))
-    }
-
-    @Test
-    fun continueLeavesWhileTheSyncRuns() = runTest {
-        val viewModel = viewModel()
-        viewModel.uiState.test {
-            skipItems(1)
-            viewModel.connect("demo.navidrome.org", "demo", "demo")
-            var state = awaitItem()
-            while (state.step != LoginStep.Syncing) state = awaitItem()
-
-            viewModel.continueToLibrary()
-            assertThat(awaitItem().step).isEqualTo(LoginStep.Finished)
-        }
     }
 
     @Test
