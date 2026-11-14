@@ -1,8 +1,11 @@
 package com.quantumff.segue.feature.library
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.scrollableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -11,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
 import com.quantumff.segue.core.designsystem.theme.LocalReduceMotion
 import com.quantumff.segue.core.designsystem.theme.SegueMotion
 import com.quantumff.segue.core.model.LibraryTab
@@ -60,6 +64,18 @@ internal fun rememberLibraryPager(tab: LibraryTab): LibraryPager {
     val reduceMotion = LocalReduceMotion.current
     return remember(pager, scope, reduceMotion) { LibraryPager(pager, scope, reduceMotion) }
 }
+
+/**
+ * Lets horizontal drags on this element that nothing inside it used move [pager] as if they were on
+ * the pager itself: they page, or snap back, by the pager's own rules.
+ */
+@Composable
+internal fun Modifier.swipesPages(pager: PagerState): Modifier = scrollableArea(
+    state = pager,
+    orientation = Orientation.Horizontal,
+    overscrollEffect = null,
+    flingBehavior = PagerDefaults.flingBehavior(pager),
+)
 
 /**
  * Keeps [libraryPager] and the selected [tab] in step both ways: a [tab] chosen elsewhere moves the

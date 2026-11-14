@@ -54,10 +54,15 @@ internal enum class LibraryPicker {
  * the count; when they all fit, nothing scrolls or fades.
  */
 @Composable
-internal fun FilterRow(state: LibraryUiState, onEvent: (LibraryEvent) -> Unit, onPickerClick: (LibraryPicker) -> Unit) {
+internal fun FilterRow(
+    state: LibraryUiState,
+    onEvent: (LibraryEvent) -> Unit,
+    onPickerClick: (LibraryPicker) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val scroll = rememberScrollState()
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(SegueSizes.touchTarget),
         verticalAlignment = Alignment.CenterVertically,

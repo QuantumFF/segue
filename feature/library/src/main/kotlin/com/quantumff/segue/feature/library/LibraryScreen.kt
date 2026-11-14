@@ -339,7 +339,13 @@ internal fun LibraryContent(
             )
             SyncStatusBar(progress = state.syncProgress, onRetryClick = { onEvent(LibraryEvent.Refresh) })
             if (state.tab != LibraryTab.Downloads) {
-                FilterRow(state, onEvent, onPickerClick = { picker = it })
+                FilterRow(
+                    state = state,
+                    onEvent = onEvent,
+                    onPickerClick = { picker = it },
+                    // Swipes on the row, and the chips' scroll past their end, go to the pager.
+                    modifier = Modifier.swipesPages(libraryPager.pager),
+                )
             }
             HorizontalPager(
                 state = libraryPager.pager,
