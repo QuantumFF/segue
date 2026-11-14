@@ -9,6 +9,7 @@ import com.quantumff.segue.core.data.testing.inMemoryDatabase
 import com.quantumff.segue.core.data.testing.libraryWriter
 import com.quantumff.segue.core.data.testing.networkAlbum
 import com.quantumff.segue.core.data.testing.networkSong
+import com.quantumff.segue.core.database.model.PlaylistEntity
 import com.quantumff.segue.core.network.SubsonicException
 import com.quantumff.segue.core.network.model.NetworkSearchResult3
 import kotlinx.coroutines.flow.first
@@ -33,6 +34,7 @@ class SearchRepositoryTest {
         searchDao = db.searchDao(),
         writer = libraryWriter(db),
         artistDao = db.artistDao(),
+        playlistDao = db.playlistDao(),
         ioDispatcher = StandardTestDispatcher(testScheduler),
     )
 
@@ -77,5 +79,25 @@ class SearchRepositoryTest {
             awaitComplete()
         }
         assertThat(server.searchQueries).isEmpty()
+    }
+
+    @Test
+    fun `playlists whose names match are found locally and kept when the server results arrive`() = runTest {
+        db.playlistDao().upsertAll(
+            listOf(
+                PlaylistEntity(SERVER_ID, "p1", "Rainy Day"),
+                PlaylistEntity(SERVER_ID, "p2", "Workout"),
+            ),
+        )
+        server.searchResult = NetworkSearchResult3()
+
+        repository().search("rain").test {
+            assertThat(awaitItem().playlists.map { it.id }).containsExactly("p1")
+            val merged = awaitItem()
+            assertThat(merged.includesServerResults).isTrue()
+            assertThat(merged.playlists.map { it.id }).containsExactly("p1")
+            awaitComplete()
+        }
+        assertThat(repository().searchLocal("work").first().playlists.map { it.id }).containsExactly("p2")
     }
 }

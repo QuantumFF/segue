@@ -140,6 +140,7 @@ fun SegueNavHost(
                 onArtistClick = onArtistClick,
                 onGenreClick = onGenreClick,
                 onAddToPlaylist = onAddToPlaylist,
+                onPlaylistClick = onPlaylistClick,
             )
         }
 

@@ -1,19 +1,24 @@
 package com.quantumff.segue.feature.search
 
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.SearchResult
+import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Rule
 import org.junit.Test
@@ -29,8 +34,12 @@ class SearchContentTest {
 
     private val removed = mutableListOf<String>()
     private var cleared = 0
+    private val openedPlaylists = mutableListOf<String>()
 
-    private fun setContent(query: String = "") {
+    private fun setContent(
+        query: String = "",
+        uiState: SearchUiState = SearchUiState(recentSearches = persistentListOf("abba", "blur")),
+    ) {
         val callbacks = SearchCallbacks(
             onQueryChange = {},
             onSubmit = {},
@@ -45,12 +54,13 @@ class SearchContentTest {
             onSongAction = { _, _ -> },
             onSongSwipe = { _, _ -> },
             onMessageDismiss = {},
+            onPlaylistClick = { openedPlaylists += it },
         )
         compose.setContent {
             SegueTheme {
                 SearchContent(
                     query = query,
-                    uiState = SearchUiState(recentSearches = persistentListOf("abba", "blur")),
+                    uiState = uiState,
                     callbacks = callbacks,
                     autoFocus = false,
                 )
@@ -97,5 +107,37 @@ class SearchContentTest {
 
         assertThat(cleared).isEqualTo(1)
         compose.onNodeWithText("Clear recent searches?").assertDoesNotExist()
+    }
+
+    @Test
+    fun allShowsMatchingPlaylistsAfterAlbumsAndATapOpensThePlaylist() {
+        val result = SearchResult.Empty.copy(
+            albums = persistentListOf(TestData.album("al1", name = "Rainbow Album")),
+            playlists = persistentListOf(TestData.playlist("p1", name = "Rainy Mix")),
+        )
+        setContent(
+            query = "rain",
+            uiState = SearchUiState(results = SearchResults.Ready(result, serverPending = false, offline = false)),
+        )
+
+        val albumsTop = compose.onNodeWithText("Rainbow Album").getUnclippedBoundsInRoot().top
+        val playlistsHeader = compose.onAllNodesWithText("Playlists")[1].getUnclippedBoundsInRoot().top
+        assertThat(playlistsHeader).isGreaterThan(albumsTop)
+
+        compose.onNodeWithText("Rainy Mix").performClick()
+
+        assertThat(openedPlaylists).containsExactly("p1")
+    }
+
+    @Test
+    fun allHasNoPlaylistsSectionWithoutMatchingPlaylists() {
+        val result = SearchResult.Empty.copy(albums = persistentListOf(TestData.album("al1")))
+        setContent(
+            query = "rain",
+            uiState = SearchUiState(results = SearchResults.Ready(result, serverPending = false, offline = false)),
+        )
+
+        // Only the filter chip says Playlists.
+        compose.onAllNodesWithText("Playlists").assertCountEquals(1)
     }
 }
