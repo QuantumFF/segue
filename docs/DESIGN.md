@@ -428,7 +428,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
   - A collapsed "Advanced" section: plaintext legacy auth, self-signed certificate, custom headers.
   - "Connect" button: full width, 48 tall.
 - Steps: the `ping` and `getOpenSubsonicExtensions` checks run inline as the button changes to "Checking…" (with a spinner). Errors show under the relevant field ("Server not reachable", "Wrong username or password").
-- On success, go to Home immediately. The first sync shows a thin `LinearProgressIndicator` under the Home top bar with "Syncing library · 1,240 / 5,600 albums".
+- On success, go to Home immediately. The first sync shows a thin `LinearProgressIndicator` under the Home top bar with "Syncing library · 1,240 / 5,600 albums", the total being every album the server listed. Until the server has listed them all there is no total, so it shows only the count ("Syncing library · 1,500 albums").
 
 ## 5. Components
 
