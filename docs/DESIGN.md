@@ -252,13 +252,13 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 
 ### 4.4 Artist detail
 - Hero: follows the "Hero style" setting like albums (Tint by default). With Blurred art, the background is the pre-blurred artist image (or the art of the artist's newest album) at 70% opacity under a gradient to `background`. On top: a 160 circular image, the overline "ARTIST", the name, and "N albums · N tracks".
-- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite, so they fit a 360 phone. ⋮ sits in the top bar: Play, Shuffle, Shuffle albums, Favorite, then Download. Download pins the artist; once pinned it reads Remove download and opens the download sheet for the pin's status, as the album's Download button does (§4.3). Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source.
-- **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: section by section (Albums, EPs & Singles, Compilations, then "Appears on"), each newest first. The list adds the buttons' inset to its bottom padding.
+- Actions: Play (56) · Shuffle · **Shuffle albums** · Instant mix (`getSimilarSongs2`) · Favorite, so they fit a 360 phone. ⋮ sits in the top bar: Play, Shuffle, Shuffle albums, Favorite, then Download. Download pins the artist; once pinned it reads Remove download and opens the download sheet for the pin's status, as the album's Download button does (§4.3). Play and the collapsed top bar's play pause and resume while the artist is the queue source, as on albums (§4.3): the artist's Play, a top song, and their "Play / Shuffle albums" all make the artist the queue source. While Play, Shuffle or Instant mix fetches its songs, all three are disabled and the tapped one shows an inline spinner in place of its icon; a second tap does nothing.
+- **Play / Shuffle albums** (§5.9) float at the bottom start whenever the artist has albums. They queue the artist's albums in the order the page lists them: section by section (Albums, EPs & Singles, Compilations, then "Appears on"), each newest first. The list adds the buttons' inset to its bottom padding. Snackbars rise by the same inset, so they sit above the buttons.
 - Sections, in this order:
   1. Top songs: 5 rows, with "See all".
   2. Album carousels grouped by OpenSubsonic `releaseTypes`: Albums, EPs & Singles, Compilations, Appears on. Without that extension, show one "Albums" carousel sorted by year descending.
   3. Similar artists: a carousel of 96 circles.
-  4. About: biography, 3 lines with "More".
+  4. About: biography, 3 lines, with "More" only when it runs longer.
 
 ### 4.5 Playlist detail
 - Same hero as the album, with the overline "PLAYLIST", title, comment (2 lines), and "owner · N tracks · 2 h 4 m · Public".

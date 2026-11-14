@@ -37,6 +37,7 @@ import com.quantumff.segue.core.testing.repository.FakeStarRatingRepository
 import com.quantumff.segue.core.testing.repository.offlineLibraryView
 import java.io.IOException
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -376,6 +377,84 @@ class ArtistViewModelTest {
             assertThat((awaitItem() as ArtistUiState.Success).isPreparingPlayback).isFalse()
         }
     }
+
+    @Test
+    fun playIsBusyWhileItsIntentResolvesAndIgnoresMoreTaps() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val gate = CompletableDeferred<Unit>().also { play.gate = it }
+
+        viewModel.play(shuffle = false)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Play)
+        assertThat(success(viewModel).isPreparingPlayback).isTrue()
+        viewModel.play(shuffle = true)
+        viewModel.play(shuffle = false)
+        viewModel.startInstantMix()
+        assertThat(play.intents).hasSize(1)
+
+        gate.complete(Unit)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.None)
+        assertThat(success(viewModel).isPreparingPlayback).isFalse()
+        viewModel.play(shuffle = true)
+        assertThat(play.plays.map { it.shuffle }).containsExactly(false, true).inOrder()
+    }
+
+    @Test
+    fun shuffleIsTheBusyButtonWhileItsIntentResolves() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        play.gate = CompletableDeferred()
+
+        viewModel.play(shuffle = true)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Shuffle)
+    }
+
+    @Test
+    fun heroPlayIsTheBusyPlayButton() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        play.gate = CompletableDeferred()
+
+        viewModel.onHeroPlay()
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Play)
+    }
+
+    @Test
+    fun instantMixIsBusyWhileItResolvesAndBlocksPlay() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        play.gate = CompletableDeferred()
+
+        viewModel.startInstantMix()
+        viewModel.play(shuffle = false)
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.InstantMix)
+        assertThat(play.plays).isEmpty()
+    }
+
+    @Test
+    fun theMenusPlayAndShuffleBusyTheirButtons() = runTest {
+        seed()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        val gate = CompletableDeferred<Unit>().also { play.gate = it }
+
+        viewModel.onArtistAction(MediaAction.Shuffle, MediaActionHost())
+
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.Shuffle)
+        gate.complete(Unit)
+        assertThat(success(viewModel).preparing).isEqualTo(PreparingPlayback.None)
+    }
+
+    private fun success(viewModel: ArtistViewModel) = viewModel.uiState.value as ArtistUiState.Success
 
     @Test
     fun toggleStarStarsTheArtist() = runTest {
