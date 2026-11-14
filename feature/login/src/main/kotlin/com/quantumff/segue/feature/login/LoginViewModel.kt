@@ -4,19 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
-import com.quantumff.segue.core.data.repository.LibrarySyncRepository
 import com.quantumff.segue.core.data.repository.ServerRepository
-import com.quantumff.segue.core.model.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -28,10 +21,7 @@ enum class LoginStep {
     /** `ping` and extension detection are running. */
     Checking,
 
-    /** Signed in; the first library sync is running. */
-    Syncing,
-
-    /** Done: leave the login flow. */
+    /** Signed in: leave the login flow. The first library sync shows its progress on Home. */
     Finished,
 }
 
@@ -59,40 +49,21 @@ data class LoginUiState(
     val error: LoginError? = null,
     /** The HTTP status for [LoginError.NotSubsonic] and [LoginError.ServerError], or the server's message. */
     val errorDetail: String? = null,
-    val syncProgress: SyncProgress = SyncProgress.Pending,
     /** Opened from Settings to add another server, so there is somewhere to go back to. */
     val canGoBack: Boolean = false,
     /** Counts failed attempts, so a failure repeating the last [error] is still a new one to show. */
     val failedAttempts: Int = 0,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val serverRepository: ServerRepository,
-    private val syncRepository: LibrarySyncRepository,
 ) : ViewModel() {
     private val canGoBack: Boolean = savedStateHandle.get<Boolean>(KEY_CAN_GO_BACK) ?: false
     private val form = MutableStateFlow(LoginUiState(canGoBack = canGoBack))
 
-    private val syncProgress = form.flatMapLatest { state ->
-        if (state.step == LoginStep.Syncing) syncRepository.progress else flowOf(SyncProgress.Pending)
-    }
-
-    val uiState: StateFlow<LoginUiState> = combine(form, syncProgress) { state, progress ->
-        when {
-            state.step != LoginStep.Syncing -> state
-
-            // A finished first sync leaves the progress screen by itself.
-            progress == SyncProgress.Succeeded -> state.copy(step = LoginStep.Finished, syncProgress = progress)
-
-            // WorkManager reports nothing until the job is registered: show it as pending.
-            progress == SyncProgress.Idle -> state.copy(syncProgress = SyncProgress.Pending)
-
-            else -> state.copy(syncProgress = progress)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), form.value)
+    val uiState: StateFlow<LoginUiState> = form.asStateFlow()
 
     fun connect(serverUrl: String, username: String, password: String) {
         if (form.value.step != LoginStep.Form) return
@@ -109,7 +80,7 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 serverRepository.signIn(serverUrl, username, password)
-                form.update { it.copy(step = LoginStep.Syncing) }
+                form.update { it.copy(step = LoginStep.Finished) }
             } catch (e: IllegalArgumentException) {
                 fail(LoginError.InvalidUrl, detail = null)
             } catch (e: RemoteException) {
@@ -123,11 +94,6 @@ class LoginViewModel @Inject constructor(
         if (form.value.error != null) form.update { it.copy(error = null, errorDetail = null) }
     }
 
-    /** Leave the sync progress screen and browse while the sync continues in the background. */
-    fun continueToLibrary() {
-        form.update { it.copy(step = LoginStep.Finished) }
-    }
-
     private fun fail(error: LoginError, detail: String?) {
         form.update {
             it.copy(step = LoginStep.Form, error = error, errorDetail = detail, failedAttempts = it.failedAttempts + 1)
@@ -137,7 +103,6 @@ class LoginViewModel @Inject constructor(
     companion object {
         /** Matches the `canGoBack` property of the login route. */
         const val KEY_CAN_GO_BACK = "canGoBack"
-        private const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 
