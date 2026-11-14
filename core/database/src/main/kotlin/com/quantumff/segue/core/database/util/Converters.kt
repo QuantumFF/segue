@@ -5,6 +5,7 @@ import com.quantumff.segue.core.database.model.ArtistRefList
 import com.quantumff.segue.core.database.model.DiscTitleList
 import com.quantumff.segue.core.database.model.ExtensionMap
 import com.quantumff.segue.core.database.model.LyricsList
+import com.quantumff.segue.core.database.model.StringList
 import com.quantumff.segue.core.model.DownloadState
 import com.quantumff.segue.core.model.PinKind
 
@@ -21,6 +22,12 @@ internal class Converters {
 
     @TypeConverter
     fun jsonToDiscTitles(value: String): DiscTitleList = DiscTitleList(JsonColumns.decodeDiscTitles(value))
+
+    @TypeConverter
+    fun stringsToJson(value: StringList): String = JsonColumns.encodeStrings(value.items)
+
+    @TypeConverter
+    fun jsonToStrings(value: String): StringList = StringList(JsonColumns.decodeStrings(value))
 
     @TypeConverter
     fun extensionsToJson(value: ExtensionMap): String = JsonColumns.encodeExtensions(value.versions)

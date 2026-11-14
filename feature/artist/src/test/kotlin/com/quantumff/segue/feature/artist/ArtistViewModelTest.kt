@@ -90,6 +90,47 @@ class ArtistViewModelTest {
     }
 
     @Test
+    fun ownAlbumsAreGroupedByReleaseTypeBeforeAppearsOn() = runTest {
+        artists.artistsState.value = listOf(TestData.artist("artist-1", albumCount = 4))
+        artists.albumsByArtist.value = mapOf(
+            "artist-1" to listOf(
+                TestData.album("single", artistId = "artist-1", year = 2022, releaseTypes = listOf("single")),
+                TestData.album("lp", artistId = "artist-1", year = 2021, releaseTypes = listOf("album")),
+                TestData.album("guest", artistId = "someone-else", year = 2020, releaseTypes = listOf("album")),
+                TestData.album("ep", artistId = "artist-1", year = 2019, releaseTypes = listOf("ep")),
+                TestData.album("hits", artistId = "artist-1", year = 2018, releaseTypes = listOf("compilation")),
+            ),
+        )
+        viewModel().uiState.test {
+            val state = awaitItem() as ArtistUiState.Success
+            assertThat(state.albums.map { it.id }).containsExactly("lp")
+            assertThat(state.epsAndSingles.map { it.id }).containsExactly("single", "ep").inOrder()
+            assertThat(state.compilations.map { it.id }).containsExactly("hits")
+            assertThat(state.appearsOn.map { it.id }).containsExactly("guest")
+        }
+    }
+
+    @Test
+    fun withoutReleaseTypesTheOwnAlbumsAreOneAlbumsSectionNewestFirst() = runTest {
+        artists.artistsState.value = listOf(TestData.artist("artist-1", albumCount = 3))
+        artists.albumsByArtist.value = mapOf(
+            "artist-1" to listOf(
+                TestData.album("2001", artistId = "artist-1", year = 2001),
+                TestData.album("undated", artistId = "artist-1", year = null),
+                TestData.album("2015", artistId = "artist-1", year = 2015),
+                TestData.album("2008", artistId = "artist-1", year = 2008),
+            ),
+        )
+        viewModel().uiState.test {
+            val state = awaitItem() as ArtistUiState.Success
+            assertThat(state.albums.map { it.id }).containsExactly("2015", "2008", "2001", "undated").inOrder()
+            assertThat(state.epsAndSingles).isEmpty()
+            assertThat(state.compilations).isEmpty()
+            assertThat(state.appearsOn).isEmpty()
+        }
+    }
+
+    @Test
     fun topSongsAndInfoFillTheirSections() = runTest {
         seed()
         artists.topSongs = listOf(TestData.song("t1"), TestData.song("t2"))

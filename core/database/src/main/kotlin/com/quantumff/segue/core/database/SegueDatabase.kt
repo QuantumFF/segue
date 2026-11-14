@@ -71,7 +71,7 @@ import com.quantumff.segue.core.database.util.Converters
         ServerCapabilitiesEntity::class,
         LyricsEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

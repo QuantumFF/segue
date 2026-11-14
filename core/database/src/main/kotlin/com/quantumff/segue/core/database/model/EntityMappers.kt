@@ -41,6 +41,7 @@ fun AlbumEntity.asExternalModel() = Album(
     discTitles = discTitles.items.toImmutableList(),
     musicBrainzId = musicBrainzId,
     explicitStatus = ExplicitStatus.fromApi(explicitStatus),
+    releaseTypes = releaseTypes.items.toImmutableList(),
 )
 
 fun SongEntity.asExternalModel() = Song(

@@ -236,6 +236,33 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun `8 to 9 keeps the albums, adds empty release types and forgets the last full sync`() {
+        helper.createDatabase(DB_NAME, 8).use { db ->
+            db.execSQL(
+                "INSERT INTO albums (serverId, id, name, sortName, artistId, artists, songCount, durationSeconds, " +
+                    "createdAt, isCompilation, discTitles, explicitStatus) " +
+                    "VALUES ('s1', 'al', 'B', 'b', 'ar', '[]', 1, 1, 5, 0, '[]', '')",
+            )
+            db.execSQL("INSERT INTO sync_metadata VALUES ('s1', 7, 100, 200)")
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 9, true, SegueMigrations.MIGRATION_8_9).use { db ->
+            db.query("SELECT name, artistId, releaseTypes FROM albums WHERE id = 'al'").use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.getString(0)).isEqualTo("B")
+                assertThat(cursor.getString(1)).isEqualTo("ar")
+                assertThat(cursor.getString(2)).isEqualTo("[]")
+            }
+            // Only the server knows the release types, so the next sync is a full one.
+            db.query("SELECT lastFullSyncAt, lastSyncAt FROM sync_metadata").use { cursor ->
+                assertThat(cursor.moveToFirst()).isTrue()
+                assertThat(cursor.isNull(0)).isTrue()
+                assertThat(cursor.getLong(1)).isEqualTo(200)
+            }
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
     }

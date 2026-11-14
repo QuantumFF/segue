@@ -10,6 +10,7 @@ import com.quantumff.segue.core.model.QueueItem
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.Song
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 /** Builders for domain models with sensible defaults, so tests only spell out what they check. */
 object TestData {
@@ -25,6 +26,7 @@ object TestData {
         year: Int? = 2007,
         genre: String? = "Rock",
         starredAt: Long? = null,
+        releaseTypes: List<String> = emptyList(),
     ) = Album(
         id = id,
         name = name,
@@ -45,6 +47,7 @@ object TestData {
         discTitles = persistentListOf(),
         musicBrainzId = null,
         explicitStatus = ExplicitStatus.None,
+        releaseTypes = releaseTypes.toImmutableList(),
     )
 
     fun song(

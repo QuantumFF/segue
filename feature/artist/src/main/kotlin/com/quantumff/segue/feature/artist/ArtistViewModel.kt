@@ -104,11 +104,13 @@ class ArtistViewModel @Inject constructor(
     ) { artist, albums, (remote, refresh), (message, busy, player), (download, availability, offlineStatus) ->
         when {
             artist != null -> {
-                val (own, appearsOn) = ArtistAlbums.of(artistId, albums)
+                val grouped = ArtistAlbums.of(artistId, albums)
                 ArtistUiState.Success(
                     artist = artist,
-                    albums = own.toImmutableList(),
-                    appearsOn = appearsOn.toImmutableList(),
+                    albums = grouped.albums.toImmutableList(),
+                    epsAndSingles = grouped.epsAndSingles.toImmutableList(),
+                    compilations = grouped.compilations.toImmutableList(),
+                    appearsOn = grouped.appearsOn.toImmutableList(),
                     topSongs = remote.topSongs,
                     similarArtists = remote.info?.similarArtists ?: persistentListOf(),
                     biography = remote.info?.biography,
@@ -291,7 +293,10 @@ sealed interface ArtistUiState {
 
     data class Success(
         val artist: Artist,
-        /** Albums credited to this artist as album artist, newest first. */
+        /**
+         * Albums credited to this artist as album artist whose primary release type is album, or
+         * that have none (every one of them without the OpenSubsonic extension), newest first.
+         */
         val albums: ImmutableList<Album>,
         /** Albums by others that credit this artist (OpenSubsonic `artists`), newest first. */
         val appearsOn: ImmutableList<Album>,
@@ -316,8 +321,17 @@ sealed interface ArtistUiState {
         val currentSong: CurrentSong? = null,
         /** Whether this artist is the queue source and plays: the hero's Play then shows Pause. */
         val heroPlayback: HeroPlayback = HeroPlayback.NotSource,
+        /** This artist's own EPs and singles, newest first. */
+        val epsAndSingles: ImmutableList<Album> = persistentListOf(),
+        /** This artist's own compilations, newest first. */
+        val compilations: ImmutableList<Album> = persistentListOf(),
     ) : ArtistUiState {
-        val albumCount: Int get() = maxOf(artist.albumCount, albums.size)
+        val albumCount: Int get() = maxOf(artist.albumCount, albums.size + epsAndSingles.size + compilations.size)
+
+        /** Whether any album section shows, so the floating Play and Shuffle albums buttons do. */
+        val hasAlbums: Boolean
+            get() = albums.isNotEmpty() || epsAndSingles.isNotEmpty() || compilations.isNotEmpty() ||
+                appearsOn.isNotEmpty()
 
         /** [song]'s top song row: its download badge, whether it is available, and whether it is playing. */
         fun trackRow(song: Song): TrackRowState = song.toTrackRowState(availability, currentSong)
