@@ -288,7 +288,7 @@ private fun AlbumContent(
         item(key = "details", contentType = "details") {
             AlbumDetailsRow(
                 rating = album.userRating ?: 0,
-                genres = album.genre?.let { persistentListOf(it) } ?: persistentListOf(),
+                genres = album.genres,
                 offlineStatus = state.offlineStatus,
                 onRatingChange = onRatingChange,
                 onGenreClick = onGenreClick,
