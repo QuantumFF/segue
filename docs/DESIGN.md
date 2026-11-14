@@ -191,7 +191,7 @@ Durations, times, track numbers and counts use `fontFeatureSettings = "tnum"`. T
 - Top bar: "Library" in `headlineSmall`, plus actions: view toggle (grid/list; Albums and Artists each keep their own across launches), settings. No sort icon: each tab that sorts has a sort chip in its filter row.
 - Tabs: `PrimaryScrollableTabRow`, text only, `labelLarge`, 2dp `primary` indicator, divider `outlineVariant`. Order: Albums · Artists · Songs · Playlists · Genres · Downloads. Remember the last tab settled on across launches, and show no tab until it is known.
 - Swipe horizontally between tabs; gestures inside a tab take priority. The tab content is a pager: a release past halfway or a fling moves to the next or previous tab, and a shorter swipe snaps back.
-  - The indicator follows the finger, and the tab row scrolls to keep the tab under it in view. A tap on a tab glides there; with reduce motion it switches at once and fades in (`medium`).
+  - The indicator follows the finger, and the tab row scrolls to keep the tab under it in view. A tap on a tab glides there; with reduce motion it switches at once, crossfading in place from the tab it leaves (`medium`).
   - The filter row, the count, the top-bar actions and Play / Shuffle albums follow the settled tab: mid-swipe they keep the previous tab's, and a swipe that snaps back changes nothing. Each tab keeps its scroll position.
   - TalkBack changes tabs with the tab row; the pager doesn't announce itself.
 - Filter row, 48 tall: a sort chip ("Recently added ▾" opens a bottom sheet), filter chips (Favorites, Downloaded; Year and Genre for Albums), and the item count on the right in `labelMedium` muted.
