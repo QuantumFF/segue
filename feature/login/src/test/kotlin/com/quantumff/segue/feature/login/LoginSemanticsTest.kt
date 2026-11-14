@@ -140,7 +140,7 @@ class LoginSemanticsTest {
                         username = TextFieldState(),
                         password = TextFieldState(),
                         onConnectClick = {},
-                                    onBackClick = {},
+                        onBackClick = {},
                     )
                 }
             }

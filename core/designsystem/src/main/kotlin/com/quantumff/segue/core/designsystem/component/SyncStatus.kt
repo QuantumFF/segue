@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.quantumff.segue.core.designsystem.R
@@ -74,30 +75,38 @@ fun SyncStatusBar(progress: SyncProgress, onRetryClick: () -> Unit, modifier: Mo
 }
 
 /**
- * "Syncing library · 1,240 / 5,600 albums", or just "Syncing library" while the size is unknown.
- * Pending means WorkManager is holding the job for its network and battery constraints.
+ * "Syncing library · 1,240 / 5,600 albums" against a known total, "Syncing library · 1,240 albums"
+ * while the total is unknown, or just "Syncing library" before anything is counted. Pending means
+ * WorkManager is holding the job for its network and battery constraints.
  */
 @Composable
 fun syncLabel(progress: SyncProgress): String {
     if (progress == SyncProgress.Pending) return stringResource(R.string.ds_sync_waiting)
     val running = progress as? SyncProgress.Running
-    if (running == null || running.total <= 0) return stringResource(R.string.ds_syncing_library)
+    if (running == null || (running.total <= 0 && running.completed <= 0)) {
+        return stringResource(R.string.ds_syncing_library)
+    }
     val format = NumberFormat.getIntegerInstance()
-    val phase = stringResource(
+    val known = running.total > 0
+    val noun = pluralStringResource(
         when (running.phase) {
-            SyncPhase.Artists -> R.string.ds_sync_phase_artists
-            SyncPhase.Genres -> R.string.ds_sync_phase_genres
-            SyncPhase.Albums -> R.string.ds_sync_phase_albums
-            SyncPhase.Songs -> R.string.ds_sync_phase_songs
-            SyncPhase.Playlists -> R.string.ds_sync_phase_playlists
+            SyncPhase.Artists -> R.plurals.ds_sync_phase_artists
+            SyncPhase.Genres -> R.plurals.ds_sync_phase_genres
+            SyncPhase.Albums -> R.plurals.ds_sync_phase_albums
+            SyncPhase.Playlists -> R.plurals.ds_sync_phase_playlists
         },
+        if (known) running.total else running.completed,
     )
-    return stringResource(
-        R.string.ds_syncing_progress,
-        format.format(running.completed),
-        format.format(running.total),
-        phase,
-    )
+    return if (known) {
+        stringResource(
+            R.string.ds_syncing_progress,
+            format.format(running.completed),
+            format.format(running.total),
+            noun,
+        )
+    } else {
+        stringResource(R.string.ds_syncing_count, format.format(running.completed), noun)
+    }
 }
 
 @PreviewSegueThemes

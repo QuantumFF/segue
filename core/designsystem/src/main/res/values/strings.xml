@@ -77,12 +77,26 @@
     <string name="ds_rating">Rating</string>
     <string name="ds_rating_stars">%1$d of 5 stars</string>
     <string name="ds_syncing_library">Syncing library</string>
+    <!-- %1$s synced so far, %2$s the total, %3$s the plural noun below. -->
     <string name="ds_syncing_progress">Syncing library · %1$s / %2$s %3$s</string>
-    <string name="ds_sync_phase_artists">artists</string>
-    <string name="ds_sync_phase_genres">genres</string>
-    <string name="ds_sync_phase_albums">albums</string>
-    <string name="ds_sync_phase_songs">songs</string>
-    <string name="ds_sync_phase_playlists">playlists</string>
+    <!-- When the total is not known: %1$s synced so far, %2$s the plural noun below. -->
+    <string name="ds_syncing_count">Syncing library · %1$s %2$s</string>
+    <plurals name="ds_sync_phase_artists">
+        <item quantity="one">artist</item>
+        <item quantity="other">artists</item>
+    </plurals>
+    <plurals name="ds_sync_phase_genres">
+        <item quantity="one">genre</item>
+        <item quantity="other">genres</item>
+    </plurals>
+    <plurals name="ds_sync_phase_albums">
+        <item quantity="one">album</item>
+        <item quantity="other">albums</item>
+    </plurals>
+    <plurals name="ds_sync_phase_playlists">
+        <item quantity="one">playlist</item>
+        <item quantity="other">playlists</item>
+    </plurals>
     <string name="ds_sync_waiting">Library sync waiting for a network connection and enough battery</string>
     <string name="ds_sync_failed">Library sync failed. Tap to retry.</string>
     <string name="ds_grid_larger">Larger cards</string>
