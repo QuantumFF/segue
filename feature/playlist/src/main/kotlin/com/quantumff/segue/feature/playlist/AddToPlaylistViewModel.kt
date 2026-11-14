@@ -4,16 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.remoteOutcome
 import com.quantumff.segue.core.data.repository.AddedSongs
+import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.PlaylistRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarAction
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
 import com.quantumff.segue.core.model.Playlist
+import com.quantumff.segue.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +28,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** What the sheet adds: how many songs, and the first one when the library knows it. */
+data class AddToPlaylistSubject(val songCount: Int, val firstSong: Song?)
+
 data class AddToPlaylistUiState(
+    /** Named in the sheet header; null until the sheet is shown. */
+    val subject: AddToPlaylistSubject? = null,
     /** Playlists the user can add to: their own, not read-only ones. */
     val playlists: ImmutableList<Playlist> = persistentListOf(),
     val isSaving: Boolean = false,
@@ -41,11 +49,13 @@ data class AddToPlaylistUiState(
 @HiltViewModel
 class AddToPlaylistViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
+    private val libraryRepository: LibraryRepository,
     private val removals: PlaylistRemovals,
     private val snackbars: Snackbars,
 ) : ViewModel() {
     private val local = MutableStateFlow(AddToPlaylistUiState())
     private val openRequests = Channel<String>(Channel.BUFFERED)
+    private var lookup: Job? = null
 
     val uiState: StateFlow<AddToPlaylistUiState> = combine(playlistRepository.playlists, local) { playlists, local ->
         local.copy(playlists = playlists.filterNot { it.readonly }.toImmutableList())
@@ -53,6 +63,17 @@ class AddToPlaylistViewModel @Inject constructor(
 
     /** IDs of playlists whose confirmation's View was tapped, for the app to open. */
     val playlistsToOpen: Flow<String> = openRequests.receiveAsFlow()
+
+    /** The sheet opens for [songIds]: its header counts them and shows the first one's art and title. */
+    fun show(songIds: List<String>) {
+        lookup?.cancel()
+        local.update { it.copy(subject = AddToPlaylistSubject(songIds.size, firstSong = null)) }
+        val first = songIds.firstOrNull() ?: return
+        lookup = viewModelScope.launch {
+            val song = libraryRepository.songsByIds(listOf(first)).firstOrNull() ?: return@launch
+            local.update { it.copy(subject = it.subject?.copy(firstSong = song)) }
+        }
+    }
 
     /**
      * Songs already in [playlist] are skipped, and the confirmation says how many. Its removals
@@ -74,7 +95,10 @@ class AddToPlaylistViewModel @Inject constructor(
      * Clears saving results when the sheet closes. The app may host the sheet outside a navigation
      * entry, so this ViewModel can outlive one showing of the sheet.
      */
-    fun reset() = local.update { AddToPlaylistUiState() }
+    fun reset() {
+        lookup?.cancel()
+        local.update { AddToPlaylistUiState() }
+    }
 
     private fun save(block: suspend () -> Unit) {
         if (local.value.isSaving) return

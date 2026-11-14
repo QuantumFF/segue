@@ -38,7 +38,7 @@ import com.quantumff.segue.core.designsystem.theme.SegueSpacing
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
-/** The item a context menu is about: 48 art, title, muted subtitle. */
+/** The item a sheet is about, shown by [SheetHeader]: 48 art, title, muted subtitle. */
 @Immutable
 data class ContextMenuHeader(
     val title: String,
@@ -46,6 +46,52 @@ data class ContextMenuHeader(
     val coverArtId: String?,
     val circularArt: Boolean = false,
 )
+
+/**
+ * The shared sheet header (DESIGN.md §5.7): [header]'s 48 art, its title as the sheet's heading and
+ * its muted subtitle, then [trailing] (such as a spinner). The divider below is the caller's.
+ */
+@Composable
+fun SheetHeader(header: ContextMenuHeader, modifier: Modifier = Modifier, trailing: (@Composable () -> Unit)? = null) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CoverArt(
+            coverArtId = header.coverArtId,
+            displaySize = SegueSizes.sheetHeaderArt,
+            shape = if (header.circularArt) SegueShapes.full else SegueShapes.sm,
+            placeholderIcon = if (header.circularArt) SegueIcons.Artist else SegueIcons.Disc3,
+            modifier = Modifier.size(SegueSizes.sheetHeaderArt),
+        )
+        Spacer(Modifier.width(SegueSpacing.md))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = header.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.semantics { heading() },
+            )
+            header.subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(SegueSpacing.sm))
+            trailing()
+        }
+    }
+}
 
 /** One menu row. [id] identifies the action for the caller; [destructive] items use `error`. */
 @Immutable
@@ -94,40 +140,7 @@ fun ContextMenuContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = SegueSpacing.lg, vertical = SegueSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CoverArt(
-                coverArtId = header.coverArtId,
-                displaySize = SegueSizes.sheetHeaderArt,
-                shape = if (header.circularArt) SegueShapes.full else SegueShapes.sm,
-                placeholderIcon = if (header.circularArt) SegueIcons.Artist else SegueIcons.Disc3,
-                modifier = Modifier.size(SegueSizes.sheetHeaderArt),
-            )
-            Spacer(Modifier.width(SegueSpacing.md))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = header.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.semantics { heading() },
-                )
-                header.subtitle?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
+        SheetHeader(header)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         // Only the rows scroll, so the header stays put when the sheet is taller than the window.
         Column(

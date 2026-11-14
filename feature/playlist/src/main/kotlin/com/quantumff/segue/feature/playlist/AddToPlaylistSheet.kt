@@ -31,17 +31,20 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantumff.segue.core.designsystem.component.ContextMenuHeader
 import com.quantumff.segue.core.designsystem.component.InlineSpinner
 import com.quantumff.segue.core.designsystem.component.MediaRow
+import com.quantumff.segue.core.designsystem.component.SheetHeader
 import com.quantumff.segue.core.designsystem.icon.SegueIcons
 import com.quantumff.segue.core.designsystem.preview.PreviewSegueThemes
 import com.quantumff.segue.core.designsystem.preview.SeguePreview
+import com.quantumff.segue.core.designsystem.theme.SegueAlpha
 import com.quantumff.segue.core.designsystem.theme.SegueShapes
 import com.quantumff.segue.core.designsystem.theme.SegueSizes
 import com.quantumff.segue.core.designsystem.theme.SegueSpacing
@@ -67,6 +70,7 @@ fun AddToPlaylistSheet(
     LaunchedEffect(uiState.isDone) {
         if (uiState.isDone) currentOnDismissRequest()
     }
+    LaunchedEffect(viewModel, songIds) { viewModel.show(songIds) }
     DisposableEffect(viewModel) { onDispose(viewModel::reset) }
     var creating by remember { mutableStateOf(false) }
 
@@ -99,7 +103,10 @@ fun AddToPlaylistSheet(
     }
 }
 
-/** The sheet body: header, "New playlist", then the playlists. Rows are disabled while saving. */
+/**
+ * The sheet body: the shared sheet header naming what is added, "New playlist", then the
+ * playlists. Rows are disabled while saving, so a second tap adds nothing.
+ */
 @Composable
 fun AddToPlaylistSheetContent(
     uiState: AddToPlaylistUiState,
@@ -109,23 +116,14 @@ fun AddToPlaylistSheetContent(
 ) {
     val enabled = !uiState.isSaving
     Column(modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(SegueSizes.sheetRow)
-                .padding(horizontal = SegueSpacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.feature_playlist_add_to_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { heading() },
-            )
-            if (uiState.isSaving) InlineSpinner()
-        }
+        SheetHeader(
+            header = sheetHeader(uiState.subject),
+            trailing = if (uiState.isSaving) {
+                { InlineSpinner() }
+            } else {
+                null
+            },
+        )
         if (uiState.failed) {
             Text(
                 text = stringResource(R.string.feature_playlist_error_generic),
@@ -144,8 +142,9 @@ fun AddToPlaylistSheetContent(
                     title = playlist.name,
                     subtitle = playlistSummary(playlist.songCount, playlist.durationSeconds),
                     coverArtId = playlist.coverArtId,
-                    onClick = { if (enabled) onPlaylistClick(playlist) },
+                    onClick = { onPlaylistClick(playlist) },
                     placeholderIcon = SegueIcons.Playlists,
+                    enabled = enabled,
                 )
             }
         }
@@ -153,10 +152,30 @@ fun AddToPlaylistSheetContent(
     }
 }
 
+/**
+ * "3 songs", or the title of a single song, under the first song's art. A song the library doesn't
+ * know is only counted.
+ */
+@Composable
+private fun sheetHeader(subject: AddToPlaylistSubject?): ContextMenuHeader {
+    val count = subject?.songCount ?: 0
+    val song = subject?.firstSong
+    return ContextMenuHeader(
+        title = if (count == 1 && song != null) {
+            song.title
+        } else {
+            pluralStringResource(R.plurals.feature_playlist_song_count, count, count)
+        },
+        subtitle = stringResource(R.string.feature_playlist_add_to_title),
+        coverArtId = song?.coverArtId,
+    )
+}
+
 @Composable
 private fun NewPlaylistRow(enabled: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
+            .alpha(if (enabled) 1f else SegueAlpha.DISABLED)
             .fillMaxWidth()
             .height(SegueSizes.mediaRow)
             .clickable(enabled = enabled, onClick = onClick)
@@ -194,6 +213,7 @@ private fun AddToPlaylistSheetContentPreview() {
                         "1", "Road trip", null, "demo", true, 42, 9_120, null, null, null, readonly = false,
                     ),
                 ),
+                subject = AddToPlaylistSubject(songCount = 3, firstSong = null),
                 failed = true,
             ),
             onPlaylistClick = {},

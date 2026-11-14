@@ -1,6 +1,7 @@
 package com.quantumff.segue.feature.playlist
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -8,11 +9,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -51,7 +56,10 @@ internal fun playlistMetadata(playlist: Playlist, songCount: Int, durationSecond
     return listOfNotNull(playlist.owner, playlistSummary(songCount, durationSeconds), visibility).joinToString(" · ")
 }
 
-/** Name prompt for creating or renaming a playlist. Confirm stays disabled while the name is blank. */
+/**
+ * Name prompt for creating or renaming a playlist. The field is focused on open and the keyboard's
+ * Done confirms; neither confirms while the name is blank.
+ */
 @Composable
 internal fun PlaylistNameDialog(
     title: String,
@@ -62,6 +70,9 @@ internal fun PlaylistNameDialog(
     modifier: Modifier = Modifier,
 ) {
     var name by rememberSaveable { mutableStateOf(initialName) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(focusRequester) { focusRequester.requestFocus() }
+    val confirm = { if (name.isNotBlank()) onConfirm(name.trim()) }
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(title, style = MaterialTheme.typography.titleMedium) },
@@ -76,11 +87,14 @@ internal fun PlaylistNameDialog(
                     capitalization = KeyboardCapitalization.Sentences,
                     imeAction = ImeAction.Done,
                 ),
-                modifier = Modifier.fillMaxWidth(),
+                keyboardActions = KeyboardActions(onDone = { confirm() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank()) { Text(confirmLabel) }
+            TextButton(onClick = confirm, enabled = name.isNotBlank()) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.feature_playlist_cancel)) }
