@@ -99,13 +99,6 @@ class LoginSemanticsTest {
         }
     }
 
-    @Test
-    fun continueButtonGrowsAtLargeFont() {
-        setLogin(mutableStateOf(LoginUiState(step = LoginStep.Syncing)), fontScale = 2f)
-
-        assertWithMessage("Continue").that(clipped("Continue")).isFalse()
-    }
-
     /** Whether [text] is cut off: taller than its space, or ellipsized. */
     private fun clipped(text: String): Boolean {
         val results = mutableListOf<TextLayoutResult>()
@@ -147,7 +140,6 @@ class LoginSemanticsTest {
                         username = TextFieldState(),
                         password = TextFieldState(),
                         onConnectClick = {},
-                        onContinueClick = {},
                         onBackClick = {},
                     )
                 }

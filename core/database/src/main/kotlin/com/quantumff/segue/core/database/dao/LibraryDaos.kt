@@ -286,6 +286,10 @@ abstract class AlbumDao {
     @Query("SELECT * FROM albums WHERE serverId = :serverId AND id = :id")
     abstract fun observe(serverId: String, id: String): Flow<AlbumEntity?>
 
+    /** The album's genres from `album_genres`, in the order they were written (the server's order). */
+    @Query("SELECT genre FROM album_genres WHERE serverId = :serverId AND albumId = :albumId ORDER BY rowid")
+    abstract fun observeGenres(serverId: String, albumId: String): Flow<List<String>>
+
     /** Albums by the artist, including albums that only credit them in OpenSubsonic `artists`. */
     @Query(
         """

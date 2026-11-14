@@ -22,8 +22,10 @@ import com.quantumff.segue.core.model.AlbumSortOrder
 import com.quantumff.segue.core.model.Song
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -130,8 +132,12 @@ internal class OfflineFirstAlbumRepository @Inject constructor(
     override val albumYears: Flow<ImmutableList<Int>> =
         clients.listForActiveServer(albumDao::observeYears) { it }
 
-    override fun album(id: String): Flow<Album?> =
-        clients.forActiveServer(null) { serverId -> albumDao.observe(serverId, id).map { it?.asExternalModel() } }
+    override fun album(id: String): Flow<Album?> = clients.forActiveServer(null) { serverId ->
+        combine(albumDao.observe(serverId, id), albumDao.observeGenres(serverId, id)) { entity, genres ->
+            val album = entity?.asExternalModel()
+            if (album == null || genres.isEmpty()) album else album.copy(genres = genres.toImmutableList())
+        }
+    }
 
     override fun albumSongs(id: String): Flow<ImmutableList<Song>> =
         clients.listForActiveServer({ serverId -> songDao.observeByAlbum(serverId, id) }, SongEntity::asExternalModel)

@@ -2,6 +2,7 @@ package com.quantumff.segue.core.model
 
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 // Timestamps are epoch milliseconds. IDs are server-assigned strings.
 
@@ -61,6 +62,11 @@ data class Album(
      * `album`, `ep`, `single`, `compilation`), primary first. Empty without the extension.
      */
     val releaseTypes: ImmutableList<String> = persistentListOf(),
+    /**
+     * Every genre the server lists for the album, in the server's order. Only the single-album flow fills it
+     * from the stored album–genre references; elsewhere, and when there are none, it is just [genre].
+     */
+    val genres: ImmutableList<String> = listOfNotNull(genre?.takeIf { it.isNotBlank() }).toImmutableList(),
 ) {
     val isStarred: Boolean get() = starredAt != null
 }

@@ -11,6 +11,8 @@ import com.quantumff.segue.core.data.play.PlayerStateSource
 import com.quantumff.segue.core.data.repository.LibraryRepository
 import com.quantumff.segue.core.data.repository.SearchRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
+import com.quantumff.segue.core.model.Album
+import com.quantumff.segue.core.model.Artist
 import com.quantumff.segue.core.model.CurrentSong
 import com.quantumff.segue.core.model.DownloadedLibrary
 import com.quantumff.segue.core.model.Genre
@@ -209,6 +211,16 @@ class SearchViewModel @Inject constructor(
             if (failure == MediaActionFailure.FavoriteFailed) starOverrides.update { it + (song.id to song.isStarred) }
             message.value = failure
         }
+    }
+
+    /** An album result's ⋮ menu ([MediaActionHandler]). */
+    fun onAlbumAction(album: Album, action: MediaAction, host: MediaActionHost) {
+        viewModelScope.launch { mediaActions.album(album, action, host)?.let { message.value = it } }
+    }
+
+    /** An artist result's ⋮ menu ([MediaActionHandler]). */
+    fun onArtistAction(artist: Artist, action: MediaAction, host: MediaActionHost) {
+        viewModelScope.launch { mediaActions.artist(artist, action, host)?.let { message.value = it } }
     }
 
     /** A track row's swipe: Play next or Add to queue ([placement]), confirming nothing (DESIGN.md §5.2). */

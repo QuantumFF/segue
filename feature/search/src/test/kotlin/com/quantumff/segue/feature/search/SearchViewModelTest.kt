@@ -426,6 +426,48 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun anAlbumResultsMenuPlaysAndQueuesThatAlbum() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+        val album = TestData.album("al1")
+
+        viewModel.onAlbumAction(album, MediaAction.Play, MediaActionHost())
+        viewModel.onAlbumAction(album, MediaAction.AddToQueue, MediaActionHost())
+        advanceUntilIdle()
+
+        assertThat(play.plays.map { it.target to it.placement }).containsExactly(
+            PlayTarget.Album("al1") to QueuePlacement.Replace,
+            PlayTarget.Album("al1") to QueuePlacement.End,
+        ).inOrder()
+    }
+
+    @Test
+    fun anArtistResultsMenuShufflesThatArtist() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = viewModel()
+
+        viewModel.onArtistAction(TestData.artist("a1"), MediaAction.Shuffle, MediaActionHost())
+        advanceUntilIdle()
+
+        val shuffle = play.plays.single()
+        assertThat(shuffle.target).isEqualTo(PlayTarget.Artist("a1"))
+        assertThat(shuffle.shuffle).isTrue()
+    }
+
+    @Test
+    fun aFailedFavoriteFromAnAlbumOrArtistMenuShowsAMessage() = runTest(mainDispatcherRule.testDispatcher) {
+        starRating.error = RemoteException.NotSignedIn()
+        val viewModel = viewModel()
+
+        viewModel.onAlbumAction(TestData.album("al1"), MediaAction.Favorite, MediaActionHost())
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.message).isEqualTo(MediaActionFailure.FavoriteFailed)
+
+        viewModel.onMessageDismiss()
+        viewModel.onArtistAction(TestData.artist("a1"), MediaAction.Favorite, MediaActionHost())
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.message).isEqualTo(MediaActionFailure.FavoriteFailed)
+    }
+
+    @Test
     fun thePlayingSongIsMarkedAndFollowsThePlayer() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = viewModel()
         advanceUntilIdle()

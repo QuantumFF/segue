@@ -127,6 +127,8 @@ fun SearchScreen(
             onSongAction = { song, action -> viewModel.onSongAction(song, action, menuHost) },
             onSongSwipe = viewModel::onSongSwipe,
             onMessageDismiss = viewModel::onMessageDismiss,
+            onAlbumAction = { album, action -> viewModel.onAlbumAction(album, action, menuHost) },
+            onArtistAction = { artist, action -> viewModel.onArtistAction(artist, action, menuHost) },
             onPlaylistClick = { id ->
                 viewModel.onResultOpened()
                 onPlaylistClick(id)
@@ -160,11 +162,15 @@ class SearchCallbacks(
     /** A song row's swipe: Play next or Add to queue. */
     val onSongSwipe: (Song, QueuePlacement) -> Unit,
     val onMessageDismiss: () -> Unit,
+    val onAlbumAction: (Album, MediaAction) -> Unit,
+    val onArtistAction: (Artist, MediaAction) -> Unit,
     /** A playlist result's tap: opens its playlist page. */
     val onPlaylistClick: (String) -> Unit,
 ) {
     companion object {
-        val None = SearchCallbacks({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, {})
+        val None =
+            SearchCallbacks({
+            }, {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, { _, _ -> }, { _, _ -> }, {})
     }
 }
 
@@ -177,7 +183,7 @@ fun SearchContent(
     modifier: Modifier = Modifier,
     autoFocus: Boolean = true,
 ) {
-    var menuSong by remember { mutableStateOf<Song?>(null) }
+    var menu by remember { mutableStateOf<MenuTarget?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val message = uiState.message?.let { stringResource(it.text) }
     LaunchedEffect(message) {
@@ -209,23 +215,51 @@ fun SearchContent(
                     sections = uiState.allSections,
                     currentSong = uiState.currentSong,
                     callbacks = callbacks,
-                    onSongMoreClick = { menuSong = it },
+                    onMoreClick = { menu = it },
                 )
             }
         }
         SegueSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 
-    menuSong?.let { song ->
-        MediaContextMenu(
-            header = song.toMenuHeader(),
+    menu?.let { target -> ResultMenu(target, callbacks, onDismissRequest = { menu = null }) }
+}
+
+/** The result whose ⋮ menu is open. */
+private sealed interface MenuTarget {
+    data class OfSong(val song: Song) : MenuTarget
+
+    data class OfAlbum(val album: Album) : MenuTarget
+
+    data class OfArtist(val artist: Artist) : MenuTarget
+}
+
+@Composable
+private fun ResultMenu(target: MenuTarget, callbacks: SearchCallbacks, onDismissRequest: () -> Unit) {
+    when (target) {
+        is MenuTarget.OfSong -> MediaContextMenu(
+            header = target.song.toMenuHeader(),
             actions = MediaActions.song(
-                isStarred = song.isStarred,
-                hasAlbum = song.albumId != null,
-                hasArtist = song.artistId != null,
+                isStarred = target.song.isStarred,
+                hasAlbum = target.song.albumId != null,
+                hasArtist = target.song.artistId != null,
             ),
-            onAction = { callbacks.onSongAction(song, it) },
-            onDismissRequest = { menuSong = null },
+            onAction = { callbacks.onSongAction(target.song, it) },
+            onDismissRequest = onDismissRequest,
+        )
+
+        is MenuTarget.OfAlbum -> MediaContextMenu(
+            header = target.album.toMenuHeader(),
+            actions = MediaActions.album(isStarred = target.album.isStarred, hasArtist = target.album.artistId != null),
+            onAction = { callbacks.onAlbumAction(target.album, it) },
+            onDismissRequest = onDismissRequest,
+        )
+
+        is MenuTarget.OfArtist -> MediaContextMenu(
+            header = target.artist.toMenuHeader(),
+            actions = MediaActions.artist(isStarred = target.artist.isStarred),
+            onAction = { callbacks.onArtistAction(target.artist, it) },
+            onDismissRequest = onDismissRequest,
         )
     }
 }
@@ -376,7 +410,7 @@ private fun ResultsContent(
     sections: ImmutableList<SearchFilter>,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
-    onSongMoreClick: (Song) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
 ) {
     val result = results.result
     val bottom = LocalShellContentPadding.current.calculateBottomPadding()
@@ -400,10 +434,10 @@ private fun ResultsContent(
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
             when (filter) {
-                SearchFilter.All -> allResults(sections, result, currentSong, callbacks, onSongMoreClick)
-                SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onSongMoreClick)
-                SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick)
-                SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick)
+                SearchFilter.All -> allResults(sections, result, currentSong, callbacks, onMoreClick)
+                SearchFilter.Songs -> songRows(result.songs, currentSong, callbacks, onMoreClick)
+                SearchFilter.Albums -> albumRows(result.albums, callbacks.onAlbumClick, onMoreClick)
+                SearchFilter.Artists -> artistRows(result.artists, callbacks.onArtistClick, onMoreClick)
                 SearchFilter.Playlists -> playlistRows(result.playlists, callbacks.onPlaylistClick)
             }
         }
@@ -447,7 +481,7 @@ private fun LazyListScope.allResults(
     result: SearchResult,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
-    onSongMoreClick: (Song) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
 ) {
     if (SearchFilter.Artists in sections) {
         item(key = "artistsHeader", contentType = "header") {
@@ -461,8 +495,9 @@ private fun LazyListScope.allResults(
                 contentType = "artistCard",
             ) { artist ->
                 ArtistCard(
-                    state = artist.toCardState(subtitle = null),
+                    state = artist.toCardState(subtitle = albumCount(artist)),
                     onClick = { callbacks.onArtistClick(artist.id) },
+                    onLongClick = { onMoreClick(MenuTarget.OfArtist(artist)) },
                     artDisplaySize = ARTIST_CIRCLE,
                     modifier = Modifier.width(ARTIST_CIRCLE),
                 )
@@ -483,6 +518,7 @@ private fun LazyListScope.allResults(
                 AlbumCard(
                     state = album.toCardState(),
                     onClick = { callbacks.onAlbumClick(album.id) },
+                    onLongClick = { onMoreClick(MenuTarget.OfAlbum(album)) },
                     artDisplaySize = ALBUM_CARD,
                     modifier = Modifier.width(ALBUM_CARD),
                 )
@@ -513,7 +549,7 @@ private fun LazyListScope.allResults(
                 },
             )
         }
-        songRows(result.songs.take(ALL_SONG_LIMIT), currentSong, callbacks, onSongMoreClick)
+        songRows(result.songs.take(ALL_SONG_LIMIT), currentSong, callbacks, onMoreClick)
     }
 }
 
@@ -521,7 +557,7 @@ private fun LazyListScope.songRows(
     songs: List<Song>,
     currentSong: CurrentSong?,
     callbacks: SearchCallbacks,
-    onSongMoreClick: (Song) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
 ) {
     itemsIndexed(songs, key = { _, song -> "song:${song.id}" }, contentType = { _, _ -> "song" }) { index, song ->
         TrackSwipeBox(
@@ -531,36 +567,53 @@ private fun LazyListScope.songRows(
             TrackRow(
                 state = song.toTrackRowState(current = currentSong),
                 onClick = { callbacks.onSongClick(index) },
-                onLongClick = { onSongMoreClick(song) },
-                onMoreClick = { onSongMoreClick(song) },
+                onLongClick = { onMoreClick(MenuTarget.OfSong(song)) },
+                onMoreClick = { onMoreClick(MenuTarget.OfSong(song)) },
             )
         }
     }
 }
 
-private fun LazyListScope.albumRows(albums: List<Album>, onAlbumClick: (String) -> Unit) {
+private fun LazyListScope.albumRows(
+    albums: List<Album>,
+    onAlbumClick: (String) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
+) {
     items(albums, key = { "album:${it.id}" }, contentType = { "album" }) { album ->
         MediaRow(
             title = album.name,
             subtitle = album.artist,
             coverArtId = album.coverArtId,
             onClick = { onAlbumClick(album.id) },
+            onLongClick = { onMoreClick(MenuTarget.OfAlbum(album)) },
+            onMoreClick = { onMoreClick(MenuTarget.OfAlbum(album)) },
         )
     }
 }
 
-private fun LazyListScope.artistRows(artists: List<Artist>, onArtistClick: (String) -> Unit) {
+private fun LazyListScope.artistRows(
+    artists: List<Artist>,
+    onArtistClick: (String) -> Unit,
+    onMoreClick: (MenuTarget) -> Unit,
+) {
     items(artists, key = { "artist:${it.id}" }, contentType = { "artist" }) { artist ->
         MediaRow(
             title = artist.name,
-            subtitle = null,
+            subtitle = albumCount(artist),
             coverArtId = artist.coverArtId,
             onClick = { onArtistClick(artist.id) },
+            onLongClick = { onMoreClick(MenuTarget.OfArtist(artist)) },
+            onMoreClick = { onMoreClick(MenuTarget.OfArtist(artist)) },
             artShape = SegueShapes.full,
             placeholderIcon = SegueIcons.Artist,
         )
     }
 }
+
+/** "N albums", which tells artists with the same name apart. */
+@Composable
+private fun albumCount(artist: Artist): String =
+    pluralStringResource(R.plurals.feature_search_album_count, artist.albumCount, artist.albumCount)
 
 private fun LazyListScope.playlistRows(playlists: List<Playlist>, onPlaylistClick: (String) -> Unit) {
     items(playlists, key = { "playlist:${it.id}" }, contentType = { "playlist" }) { playlist ->

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.google.common.truth.Truth.assertThat
 import com.quantumff.segue.core.designsystem.theme.SegueTheme
+import com.quantumff.segue.core.model.MediaAction
 import com.quantumff.segue.core.model.SearchResult
 import com.quantumff.segue.core.testing.data.TestData
 import kotlinx.collections.immutable.persistentListOf
@@ -35,6 +37,8 @@ class SearchContentTest {
     private val removed = mutableListOf<String>()
     private var cleared = 0
     private val openedPlaylists = mutableListOf<String>()
+    private val albumActions = mutableListOf<Pair<String, MediaAction>>()
+    private val artistActions = mutableListOf<Pair<String, MediaAction>>()
 
     private fun setContent(
         query: String = "",
@@ -55,6 +59,8 @@ class SearchContentTest {
             onSongSwipe = { _, _ -> },
             onMessageDismiss = {},
             onPlaylistClick = { openedPlaylists += it },
+            onAlbumAction = { album, action -> albumActions += album.id to action },
+            onArtistAction = { artist, action -> artistActions += artist.id to action },
         )
         compose.setContent {
             SegueTheme {
@@ -139,5 +145,53 @@ class SearchContentTest {
 
         // Only the filter chip says Playlists.
         compose.onAllNodesWithText("Playlists").assertCountEquals(1)
+    }
+
+    private fun setResults(filter: SearchFilter) = setContent(
+        query = "rad",
+        uiState = SearchUiState(
+            filter = filter,
+            results = SearchResults.Ready(
+                SearchResult(
+                    artists = persistentListOf(
+                        TestData.artist("a1", name = "Radiohead", albumCount = 9),
+                        TestData.artist("a2", name = "Radio Dept", albumCount = 1),
+                    ),
+                    albums = persistentListOf(TestData.album("al1", name = "Kid A")),
+                    songs = persistentListOf(),
+                    includesServerResults = true,
+                ),
+                serverPending = false,
+                offline = false,
+            ),
+        ),
+    )
+
+    @Test
+    fun artistRowsShowTheirAlbumCount() {
+        setResults(SearchFilter.Artists)
+
+        compose.onNodeWithText("9 albums").assertExists()
+        compose.onNodeWithText("1 album").assertExists()
+    }
+
+    @Test
+    fun anAlbumRowsMoreOptionsOpensTheAlbumMenu() {
+        setResults(SearchFilter.Albums)
+
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Play next").performClick()
+
+        assertThat(albumActions).containsExactly("al1" to MediaAction.PlayNext)
+    }
+
+    @Test
+    fun anArtistRowsMoreOptionsOpensTheArtistMenu() {
+        setResults(SearchFilter.Artists)
+
+        compose.onAllNodesWithContentDescription("More options")[0].performClick()
+        compose.onNodeWithText("Shuffle").performClick()
+
+        assertThat(artistActions).containsExactly("a1" to MediaAction.Shuffle)
     }
 }
