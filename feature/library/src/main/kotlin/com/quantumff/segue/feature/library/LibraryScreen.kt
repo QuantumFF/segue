@@ -19,12 +19,15 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabPosition
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -40,13 +43,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.ItemSnapshotList
@@ -106,6 +118,9 @@ import com.quantumff.segue.core.model.Song
 import com.quantumff.segue.core.model.SongDownload
 import com.quantumff.segue.core.model.SongSortOrder
 import java.text.NumberFormat
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sign
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
@@ -303,6 +318,8 @@ internal fun LibraryContent(
     val collapse = rememberCollapseOnScrollState()
     val scroll = rememberLibraryScrollStates()
     PinTabsToTop(state, albums, artists, songs, scroll)
+    val libraryPager = rememberLibraryPager(state.tab)
+    SyncLibraryPager(libraryPager, state.tab, onSettle = { onEvent(LibraryEvent.SelectTab(it)) })
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (selection != null) {
@@ -314,7 +331,7 @@ internal fun LibraryContent(
                     onCreatePlaylistClick = playlistsTab?.let { { creatingPlaylist = true } },
                 )
             }
-            LibraryTabRow(selected = state.tab, onSelect = { onEvent(LibraryEvent.SelectTab(it)) })
+            LibraryTabRow(libraryPager.pager, onSelect = libraryPager::show)
             // Says why the lists are shorter offline (DESIGN.md §5.8).
             OfflineStatusChip(
                 status = state.offlineStatus,
@@ -324,20 +341,32 @@ internal fun LibraryContent(
             if (state.tab != LibraryTab.Downloads) {
                 FilterRow(state, onEvent, onPickerClick = { picker = it })
             }
-            LibraryTabPage(
-                tab = state.tab,
-                state = state,
-                albums = albums,
-                artists = artists,
-                songs = songs,
-                scroll = scroll,
-                onEvent = onEvent,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                onMenu = { menu = it },
-                collapse = collapse.connection,
-                downloadsTab = downloadsTab,
-                playlistsTab = playlistsTab?.let { slot -> { slot(creatingPlaylist) { creatingPlaylist = it } } },
-            )
+            HorizontalPager(
+                state = libraryPager.pager,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag(LIBRARY_PAGER_TAG)
+                    // The tab row is how TalkBack changes tabs; the pager isn't a control of its own.
+                    .semantics { hideFromAccessibility() }
+                    .graphicsLayer { alpha = libraryPager.pageAlpha },
+                key = { LibraryTab.entries[it].name },
+            ) { page ->
+                LibraryTabPage(
+                    tab = LibraryTab.entries[page],
+                    state = state,
+                    albums = albums,
+                    artists = artists,
+                    songs = songs,
+                    scroll = scroll,
+                    onEvent = onEvent,
+                    modifier = Modifier.fillMaxSize(),
+                    onMenu = { menu = it },
+                    collapse = collapse.connection,
+                    downloadsTab = downloadsTab,
+                    playlistsTab = playlistsTab?.let { slot -> { slot(creatingPlaylist) { creatingPlaylist = it } } },
+                )
+            }
         }
         FloatingAlbumPlayButtons(
             visible = state.tab == LibraryTab.Albums && (state.albumCount ?: 0) > 0 && selection == null,
@@ -414,16 +443,23 @@ private fun LibraryTopBar(
     }
 }
 
+/**
+ * The Library's tabs, driven by [pager]: the indicator follows the finger, and the row scrolls to
+ * keep the tab under it in view. A tap goes to [onSelect], which moves the pager.
+ */
 @Composable
-private fun LibraryTabRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) {
+private fun LibraryTabRow(pager: PagerState, onSelect: (LibraryTab) -> Unit) {
+    val current = pager.currentPage
     PrimaryScrollableTabRow(
-        selectedTabIndex = selected.ordinal,
+        selectedTabIndex = current,
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onSurface,
         edgePadding = SegueSpacing.sm,
         indicator = {
             TabRowDefaults.PrimaryIndicator(
-                modifier = Modifier.tabIndicatorOffset(selected.ordinal, matchContentSize = true),
+                modifier = Modifier.tabIndicatorLayout { measurable, constraints, positions ->
+                    followPager(measurable, constraints, positions, pager, selected = current)
+                },
                 width = Dp.Unspecified,
                 height = TAB_INDICATOR_HEIGHT,
                 color = MaterialTheme.colorScheme.primary,
@@ -433,13 +469,40 @@ private fun LibraryTabRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) 
     ) {
         LibraryTab.entries.forEach { tab ->
             Tab(
-                selected = tab == selected,
+                selected = tab.ordinal == current,
                 onClick = { onSelect(tab) },
                 selectedContentColor = MaterialTheme.colorScheme.onSurface,
                 unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 text = { Text(stringResource(tab.label), style = MaterialTheme.typography.labelLarge) },
             )
         }
+    }
+}
+
+/**
+ * Lays the tab indicator out under the text of the tab the finger is on, eased toward the neighbour
+ * it's moving to. The row places the indicator from its own origin plus half the [selected] tab's
+ * width, so the indicator measures as zero wide and draws itself from there.
+ */
+private fun MeasureScope.followPager(
+    measurable: Measurable,
+    constraints: Constraints,
+    positions: List<TabPosition>,
+    pager: PagerState,
+    selected: Int,
+): MeasureResult {
+    if (positions.isEmpty()) return layout(0, 0) {}
+    val page = pager.currentPage.coerceIn(positions.indices)
+    val fraction = pager.currentPageOffsetFraction
+    val next = (page + sign(fraction).toInt()).coerceIn(positions.indices)
+    val progress = abs(fraction)
+    fun centre(index: Int) = (positions[index].left + positions[index].width / 2).toPx()
+    val width = lerp(positions[page].contentWidth.toPx(), positions[next].contentWidth.toPx(), progress).roundToInt()
+    val centre = lerp(centre(page), centre(next), progress)
+    val origin = positions[selected.coerceIn(positions.indices)].width.toPx() / 2
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    return layout(0, placeable.height) {
+        placeable.placeRelative((centre - origin - width / 2f).roundToInt(), 0)
     }
 }
 
