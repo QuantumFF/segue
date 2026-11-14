@@ -1,5 +1,6 @@
 package com.quantumff.segue.feature.settings
 
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantumff.segue.core.data.RemoteException
@@ -9,6 +10,7 @@ import com.quantumff.segue.core.data.repository.ServerRepository
 import com.quantumff.segue.core.data.repository.UserPreferencesRepository
 import com.quantumff.segue.core.data.snackbar.SnackbarText
 import com.quantumff.segue.core.data.snackbar.Snackbars
+import com.quantumff.segue.core.model.AccentSource
 import com.quantumff.segue.core.model.DownloadPreferences
 import com.quantumff.segue.core.model.Server
 import com.quantumff.segue.core.model.StorageLimit
@@ -18,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +38,8 @@ data class SettingsUiState(
     val preferences: UserPreferences = UserPreferences(),
     val downloads: DownloadPreferences = DownloadPreferences(),
     val updateCheck: UpdateCheck = UpdateCheck.Idle,
+    /** The accent sources the picker offers on this device. */
+    val accentSources: ImmutableList<AccentSource> = AccentSource.entries.toImmutableList(),
 ) {
     /** What removing [server] does to the active server: the first one left takes over, as in the accounts. */
     fun removalOf(server: Server): ServerRemoval {
@@ -96,9 +101,14 @@ class SettingsViewModel @Inject constructor(
         SettingsUiState(
             servers = servers,
             activeServerId = active?.id,
-            preferences = preferences,
+            preferences = if (preferences.accentSource in ACCENT_SOURCES) {
+                preferences
+            } else {
+                preferences.copy(accentSource = AccentSource.Fixed)
+            },
             downloads = downloads,
             updateCheck = updateCheck,
+            accentSources = ACCENT_SOURCES,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SettingsUiState())
 
@@ -154,6 +164,17 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /**
+         * Material You needs Android 12 (API 31). Below that it is left out, and a stored Material You
+         * is shown as Fixed, which is what the theme falls back to there.
+         */
+        private val ACCENT_SOURCES: ImmutableList<AccentSource> =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                AccentSource.entries.toImmutableList()
+            } else {
+                (AccentSource.entries - AccentSource.MaterialYou).toImmutableList()
+            }
 
         /** Streaming quality choices: the original file, or a transcode Navidrome can produce. */
         val STREAMING_QUALITIES: ImmutableList<StreamingQuality> = persistentListOf(

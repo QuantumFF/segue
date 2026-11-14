@@ -76,6 +76,7 @@ import com.quantumff.segue.core.model.StorageLimit
 import com.quantumff.segue.core.model.StreamingQuality
 import com.quantumff.segue.core.model.ThemeMode
 import com.quantumff.segue.core.model.UserPreferences
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -550,6 +551,7 @@ fun SettingsContent(
         picker = picker,
         prefs = prefs,
         downloads = uiState.downloads,
+        accentSources = uiState.accentSources,
         actions = actions,
         onDismissRequest = { picker = null },
     )
@@ -598,6 +600,7 @@ private fun SettingsPickerSheet(
     picker: SettingsPicker?,
     prefs: UserPreferences,
     downloads: DownloadPreferences,
+    accentSources: ImmutableList<AccentSource>,
     actions: SettingsActions,
     onDismissRequest: () -> Unit,
 ) {
@@ -615,7 +618,7 @@ private fun SettingsPickerSheet(
 
         SettingsPicker.AccentSource -> PickerSheet(
             title = stringResource(R.string.feature_settings_accent_source),
-            options = AccentSource.entries.toImmutableList(),
+            options = accentSources,
             selected = prefs.accentSource,
             label = { accentSourceLabel(it) },
             onSelect = actions.onAccentSource,
